@@ -1,0 +1,18 @@
+[package]
+name = "zeceipt-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Zeceipt receipt envelope v0: format, canonical signing bytes, URL form"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+hex.workspace = true
+ed25519-dalek.workspace = true
+thiserror.workspace = true
+rand_core.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

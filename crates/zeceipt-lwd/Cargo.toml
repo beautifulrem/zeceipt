@@ -1,0 +1,15 @@
+[package]
+name = "zeceipt-lwd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Zeceipt lightwalletd/Zaino gRPC client (GetTransaction, GetLatestBlock, GetBlockRange)"
+
+[dependencies]
+zcash_client_backend = { workspace = true, features = ["lightwalletd-tonic-tls-webpki-roots", "lightwalletd-tonic-transport", "transparent-inputs", "orchard"] }
+zcash_protocol.workspace = true
+tonic = { workspace = true, features = ["transport", "tls-ring", "tls-webpki-roots"] }
+tokio.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
