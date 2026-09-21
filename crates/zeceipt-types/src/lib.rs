@@ -56,6 +56,18 @@ pub enum Pool {
 }
 
 impl Pool {
+    /// Every pool variant. Iterate this (never a hand-written list) wherever
+    /// coverage of all pools is required; `_exhaustive` forces an update here
+    /// when a variant is added.
+    pub const ALL: [Pool; 3] = [Pool::Ironwood, Pool::Orchard, Pool::Sapling];
+
+    #[allow(dead_code)]
+    fn _exhaustive(self) {
+        match self {
+            Pool::Ironwood | Pool::Orchard | Pool::Sapling => (),
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Pool::Ironwood => "ironwood",
@@ -73,6 +85,26 @@ pub enum Network {
     Test,
     /// Local regtest chains (development only).
     Regtest,
+}
+
+impl Network {
+    /// Every network variant; see [`Pool::ALL`] for the rationale.
+    pub const ALL: [Network; 3] = [Network::Main, Network::Test, Network::Regtest];
+
+    #[allow(dead_code)]
+    fn _exhaustive(self) {
+        match self {
+            Network::Main | Network::Test | Network::Regtest => (),
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Network::Main => "main",
+            Network::Test => "test",
+            Network::Regtest => "regtest",
+        }
+    }
 }
 
 /// The receipt envelope. Field names are part of the wire format.
@@ -475,6 +507,27 @@ mod tests {
         assert!(r.canonical_bytes().is_err());
         let j = r.to_json().unwrap();
         assert!(Receipt::from_json(&j).is_err());
+    }
+
+    #[test]
+    fn all_lists_are_complete_and_distinct() {
+        // Serialised names must be unique and match `as_str`.
+        let n: Vec<String> = Network::ALL
+            .iter()
+            .map(|x| serde_json::to_string(x).unwrap())
+            .collect();
+        let p: Vec<String> = Pool::ALL
+            .iter()
+            .map(|x| serde_json::to_string(x).unwrap())
+            .collect();
+        assert_eq!(n.len(), 3);
+        assert_eq!(p.len(), 3);
+        for (x, s) in Network::ALL.iter().zip(&n) {
+            assert_eq!(format!("\"{}\"", x.as_str()), *s);
+        }
+        for (x, s) in Pool::ALL.iter().zip(&p) {
+            assert_eq!(format!("\"{}\"", x.as_str()), *s);
+        }
     }
 
     #[test]

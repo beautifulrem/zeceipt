@@ -91,6 +91,8 @@ fn main() {
             "format": "zeceipt-v0",
             "note": "Deterministic vectors. signing_key_hex is a throwaway ed25519 secret used only for these vectors.",
             "signing_key_hex": hex::encode(key.to_bytes()),
+            "networks": Network::ALL.iter().map(|n| n.as_str()).collect::<Vec<_>>(),
+            "pools": Pool::ALL.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
             "canonical_bytes": "b\"zeceipt-v0\" || network(1) || pool(1) || txid(32) || output_index u32 LE || ock(32) || len(label) u32 LE || label || len(challenge) u32 LE || challenge || len(issuer_key_id) u32 LE || issuer_key_id",
             "vectors": vectors,
         }))
