@@ -15,7 +15,7 @@ JSON object. Unknown fields must be ignored by verifiers.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `version` | string | yes | Must be `"zeceipt-v0"`. |
-| `network` | `"main"` \| `"test"` | yes | Network the transaction was mined on. Signed. |
+| `network` | `"main"` \| `"test"` \| `"regtest"` | yes | Network the transaction was mined on. Signed. (`regtest` is for local development chains.) |
 | `pool` | `"ironwood"` \| `"orchard"` \| `"sapling"` | yes | Pool of the disclosed output. Signed. |
 | `txid` | hex string (64 chars) | yes | Transaction id in display (explorer) byte order. |
 | `output_index` | integer ≥ 0 | yes | Index of the action/output inside that pool's bundle. |
@@ -63,7 +63,7 @@ For **unsigned** receipts every field, including `network`, is caller-controlled
 ## 5. Canonical signing bytes
 
 ```
-"zeceipt-v0" || network (1 byte: 0x00 main, 0x01 test) || pool (1 byte: 0x00 ironwood, 0x01 orchard, 0x02 sapling)
+"zeceipt-v0" || network (1 byte: 0x00 main, 0x01 test, 0x02 regtest) || pool (1 byte: 0x00 ironwood, 0x01 orchard, 0x02 sapling)
             || txid (32 bytes, display order) || output_index (u32 LE) || ock (32 bytes)
             || len(label) (u32 LE) || label (UTF-8) || len(challenge) (u32 LE) || challenge
             || len(issuer_key_id) (u32 LE) || issuer_key_id (UTF-8, empty if absent)

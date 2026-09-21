@@ -71,6 +71,8 @@ impl Pool {
 pub enum Network {
     Main,
     Test,
+    /// Local regtest chains (development only).
+    Regtest,
 }
 
 /// The receipt envelope. Field names are part of the wire format.
@@ -169,7 +171,7 @@ impl Receipt {
     /// `b"zeceipt-v0" || network(1) || pool(1) || txid(32) || output_index u32 LE || ock(32) ||
     ///  len(label) u32 LE || label || len(challenge) u32 LE || challenge ||
     ///  len(issuer_key_id) u32 LE || issuer_key_id`.
-    /// `network`: 0x00 main, 0x01 test. `pool`: 0x00 ironwood, 0x01 orchard, 0x02 sapling.
+    /// `network`: 0x00 main, 0x01 test, 0x02 regtest. `pool`: 0x00 ironwood, 0x01 orchard, 0x02 sapling.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, TypesError> {
         if self.version != VERSION {
             return Err(TypesError::UnsupportedVersion(self.version.clone()));
@@ -179,6 +181,7 @@ impl Receipt {
         out.push(match self.network {
             Network::Main => 0x00,
             Network::Test => 0x01,
+            Network::Regtest => 0x02,
         });
         out.push(match self.pool {
             Pool::Ironwood => 0x00,

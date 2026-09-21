@@ -149,6 +149,258 @@
       "verifies": true
     },
     {
+      "canonical_bytes_hex": "7a6563656970742d763000000101010101010101010101010101010101010101010101010101010101010101000000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-main-ironwood",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "main",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 0,
+        "pool": "ironwood",
+        "txid": "0101010101010101010101010101010101010101010101010101010101010101",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "5fc4205b5936101964a0c2f7d6a03a90e6781d1db349e0be5d0aa3886bbd334dd3d74f50ed1987448b0a910c9e26104ab18f72ffd06722e072dae36483db170b",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "main",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 0,
+        "pool": "ironwood",
+        "signature": "5fc4205b5936101964a0c2f7d6a03a90e6781d1db349e0be5d0aa3886bbd334dd3d74f50ed1987448b0a910c9e26104ab18f72ffd06722e072dae36483db170b",
+        "txid": "0101010101010101010101010101010101010101010101010101010101010101",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763000010101010101010101010101010101010101010101010101010101010101010101010000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-main-orchard",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "main",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 1,
+        "pool": "orchard",
+        "txid": "0101010101010101010101010101010101010101010101010101010101010101",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "2f1859f973ed4d745001e1dd139830a6ada843151d692a359bff82fe55a3e524826726a265843852f1d620f7e623d7b6d7574a0230effdd76c8872a6993c1e05",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "main",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 1,
+        "pool": "orchard",
+        "signature": "2f1859f973ed4d745001e1dd139830a6ada843151d692a359bff82fe55a3e524826726a265843852f1d620f7e623d7b6d7574a0230effdd76c8872a6993c1e05",
+        "txid": "0101010101010101010101010101010101010101010101010101010101010101",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763000020101010101010101010101010101010101010101010101010101010101010101020000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-main-sapling",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "main",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 2,
+        "pool": "sapling",
+        "txid": "0101010101010101010101010101010101010101010101010101010101010101",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "75314b5420f69418a69deaba22527aedb06954f64e6a5734f6ceb8f32580f05341751bcb2076e35495cef9e50bc66832e1fbd81e9b8359ce98d302aaa795110e",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "main",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 2,
+        "pool": "sapling",
+        "signature": "75314b5420f69418a69deaba22527aedb06954f64e6a5734f6ceb8f32580f05341751bcb2076e35495cef9e50bc66832e1fbd81e9b8359ce98d302aaa795110e",
+        "txid": "0101010101010101010101010101010101010101010101010101010101010101",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763001000202020202020202020202020202020202020202020202020202020202020202000000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-test-ironwood",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "test",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 0,
+        "pool": "ironwood",
+        "txid": "0202020202020202020202020202020202020202020202020202020202020202",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "3fba91523d5e6015aa2e0811aba553c98fb080f2987eb36557c3b94cc223c63c9652de2bc55756849e75f5d68371b1593620dec72a431603adfb98a7c2ef0b09",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "test",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 0,
+        "pool": "ironwood",
+        "signature": "3fba91523d5e6015aa2e0811aba553c98fb080f2987eb36557c3b94cc223c63c9652de2bc55756849e75f5d68371b1593620dec72a431603adfb98a7c2ef0b09",
+        "txid": "0202020202020202020202020202020202020202020202020202020202020202",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763001010202020202020202020202020202020202020202020202020202020202020202010000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-test-orchard",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "test",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 1,
+        "pool": "orchard",
+        "txid": "0202020202020202020202020202020202020202020202020202020202020202",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "2cecdf4158fac6d39da0f1b62f6359936bc8c939e749fc1aefd66d82dd4a47a7618ffb16b787311e153ff408c2e731beb1ae5d8d17c1f299b837afeeee625000",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "test",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 1,
+        "pool": "orchard",
+        "signature": "2cecdf4158fac6d39da0f1b62f6359936bc8c939e749fc1aefd66d82dd4a47a7618ffb16b787311e153ff408c2e731beb1ae5d8d17c1f299b837afeeee625000",
+        "txid": "0202020202020202020202020202020202020202020202020202020202020202",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763001020202020202020202020202020202020202020202020202020202020202020202020000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-test-sapling",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "test",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 2,
+        "pool": "sapling",
+        "txid": "0202020202020202020202020202020202020202020202020202020202020202",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "685c7f34371878ccc3d3e1e896bd87f78f9d82ea49a730b3eab30030628cf485643f3576e4be4ce688508901e55c939ecad9dd11cd2d8055a759b626e54dcb09",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "test",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 2,
+        "pool": "sapling",
+        "signature": "685c7f34371878ccc3d3e1e896bd87f78f9d82ea49a730b3eab30030628cf485643f3576e4be4ce688508901e55c939ecad9dd11cd2d8055a759b626e54dcb09",
+        "txid": "0202020202020202020202020202020202020202020202020202020202020202",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763002000303030303030303030303030303030303030303030303030303030303030303000000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-regtest-ironwood",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "regtest",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 0,
+        "pool": "ironwood",
+        "txid": "0303030303030303030303030303030303030303030303030303030303030303",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "66a9c0510b648e9ac6cd3baeb3f59bdb1c533739adaec41dda2cf5ae5a85b8ae3652fc702800e2f140d5c88cf11420fcb6ccd8425366a02b7b3118094125420c",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "regtest",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 0,
+        "pool": "ironwood",
+        "signature": "66a9c0510b648e9ac6cd3baeb3f59bdb1c533739adaec41dda2cf5ae5a85b8ae3652fc702800e2f140d5c88cf11420fcb6ccd8425366a02b7b3118094125420c",
+        "txid": "0303030303030303030303030303030303030303030303030303030303030303",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763002010303030303030303030303030303030303030303030303030303030303030303010000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-regtest-orchard",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "regtest",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 1,
+        "pool": "orchard",
+        "txid": "0303030303030303030303030303030303030303030303030303030303030303",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "c274d4745e395466513337d89ce4ebb0e6a50c165fc46c0ac3d28bcd47be8c9ea36147280a6395158f81f02890a5813b06b6d22e7cfd13fcaf1a1489e2ae3a0c",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "regtest",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 1,
+        "pool": "orchard",
+        "signature": "c274d4745e395466513337d89ce4ebb0e6a50c165fc46c0ac3d28bcd47be8c9ea36147280a6395158f81f02890a5813b06b6d22e7cfd13fcaf1a1489e2ae3a0c",
+        "txid": "0303030303030303030303030303030303030303030303030303030303030303",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763002020303030303030303030303030303030303030303030303030303030303030303020000005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0d000000656e756d20636f7665726167650000000000000000",
+      "name": "enum-regtest-sapling",
+      "receipt": {
+        "label": "enum coverage",
+        "network": "regtest",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 2,
+        "pool": "sapling",
+        "txid": "0303030303030303030303030303030303030303030303030303030303030303",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "b4abefbd0ba832e8c3a3e2160160da9beb6eb962dda6a71ea9db05c9247366d8bed40f7317666f78b4c943b908f2022e0d53fccaaff3fbb438efc9160d140001",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "enum coverage",
+        "network": "regtest",
+        "ock": "WlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlpaWlo",
+        "output_index": 2,
+        "pool": "sapling",
+        "signature": "b4abefbd0ba832e8c3a3e2160160da9beb6eb962dda6a71ea9db05c9247366d8bed40f7317666f78b4c943b908f2022e0d53fccaaff3fbb438efc9160d140001",
+        "txid": "0303030303030303030303030303030303030303030303030303030303030303",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
       "canonical_bytes_hex": "7a6563656970742d7630000011111111111111111111111111111111111111111111111111111111111111110200000022222222222222222222222222222222222222222222222222222222222222221a000000494e562d323032362d30313432207c203135302e3030205553440000000000000000",
       "name": "negative-network-flipped-after-signing",
       "receipt": {

@@ -35,6 +35,35 @@ fn main() {
         ),
     ];
     let mut vectors = Vec::new();
+    // One vector per (network, pool) so that adding an enum variant without
+    // regenerating vectors (and rebuilding the wasm package) fails the guard.
+    let mut cases = cases;
+    for (ni, network) in [Network::Main, Network::Test, Network::Regtest]
+        .into_iter()
+        .enumerate()
+    {
+        for (pi, pool) in [Pool::Ironwood, Pool::Orchard, Pool::Sapling]
+            .into_iter()
+            .enumerate()
+        {
+            let name: &'static str = Box::leak(
+                format!("enum-{:?}-{:?}", network, pool)
+                    .to_lowercase()
+                    .into_boxed_str(),
+            );
+            cases.push((
+                name,
+                Receipt::new(
+                    network,
+                    pool,
+                    [ni as u8 + 1; 32],
+                    pi as u32,
+                    [0x5a; 32],
+                    "enum coverage",
+                ),
+            ));
+        }
+    }
     for (name, r) in &cases {
         let signed = r.clone().sign(&key).unwrap();
         vectors.push(json!({

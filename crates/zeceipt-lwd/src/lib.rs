@@ -58,12 +58,16 @@ pub struct Client {
 impl Client {
     /// Connect to a single endpoint (`https://host:port`).
     pub async fn connect(endpoint: &str) -> Result<Self, LwdError> {
-        let ep = Endpoint::from_shared(endpoint.to_string())
-            .map_err(|e| LwdError::Endpoint(endpoint.into(), e.to_string()))?
-            .tls_config(ClientTlsConfig::new().with_webpki_roots())
+        let mut ep = Endpoint::from_shared(endpoint.to_string())
             .map_err(|e| LwdError::Endpoint(endpoint.into(), e.to_string()))?
             .connect_timeout(std::time::Duration::from_secs(15))
             .timeout(std::time::Duration::from_secs(60));
+        // Plain http:// (local lightwalletd/Zaino on regtest) must not negotiate TLS.
+        if endpoint.starts_with("https://") {
+            ep = ep
+                .tls_config(ClientTlsConfig::new().with_webpki_roots())
+                .map_err(|e| LwdError::Endpoint(endpoint.into(), e.to_string()))?;
+        }
         let channel = ep
             .connect()
             .await
@@ -96,10 +100,7 @@ impl Client {
 
     /// Fetch a transaction by its display-order hex txid.
     pub async fn get_transaction(&mut self, txid_hex: &str) -> Result<RawTx, LwdError> {
-        let mut hash = hex::decode(txid_hex).map_err(|_| LwdError::BadTxid)?;
-        if hash.len() != 32 {
-            return Err(LwdError::BadTxid);
-        }
+        let mut hash = parse_txid(txid_hex)?.to_vec();
         // lightwalletd expects the internal byte order.
         hash.reverse();
         let resp = self
@@ -207,6 +208,12 @@ fn map_get_transaction_status(endpoint: &str, txid_hex: &str, status: &tonic::St
     }
 }
 
+/// Validate a display-order txid before any network call.
+fn parse_txid(txid_hex: &str) -> Result<[u8; 32], LwdError> {
+    let v = hex::decode(txid_hex.trim()).map_err(|_| LwdError::BadTxid)?;
+    v.try_into().map_err(|_| LwdError::BadTxid)
+}
+
 /// Interpret lightwalletd's height field: mempool transactions are reported
 /// with sentinel values rather than a real height.
 fn mined_height(raw: u64) -> Option<u64> {
@@ -260,9 +267,22 @@ mod tests {
     }
 
     #[test]
-    fn bad_txid_is_rejected_before_any_network_call() {
-        let e = hex::decode("zz").is_err();
-        assert!(e);
+    fn malformed_txid_is_rejected_before_any_network_call() {
+        assert!(matches!(parse_txid("zz"), Err(LwdError::BadTxid)));
+        assert!(matches!(
+            parse_txid(&"ab".repeat(31)),
+            Err(LwdError::BadTxid)
+        ));
+        assert!(matches!(
+            parse_txid(&"ab".repeat(33)),
+            Err(LwdError::BadTxid)
+        ));
+        let ok = parse_txid(&"0e".repeat(32)).unwrap();
+        assert_eq!(ok, [0x0e; 32]);
+    }
+
+    #[test]
+    fn default_endpoints_select_by_network() {
         assert_eq!(default_endpoints(true), TESTNET_ENDPOINTS);
         assert_eq!(default_endpoints(false), MAINNET_ENDPOINTS);
     }

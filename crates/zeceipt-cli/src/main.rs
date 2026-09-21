@@ -31,6 +31,9 @@ struct NetArgs {
     /// Use the Zcash testnet.
     #[arg(long, global = true)]
     testnet: bool,
+    /// Use a local regtest chain (requires --endpoint).
+    #[arg(long, global = true, conflicts_with = "testnet")]
+    regtest: bool,
     /// lightwalletd/Zaino endpoint(s); defaults to public zec.rocks nodes.
     #[arg(long, global = true)]
     endpoint: Vec<String>,
@@ -213,11 +216,7 @@ async fn run() -> anyhow::Result<ExitCode> {
             host,
             out_dir,
         } => {
-            let network = if net.testnet {
-                Network::Test
-            } else {
-                Network::Main
-            };
+            let network = network_of(&net);
             let keys = match (ufvk, ovk) {
                 (Some(u), _) => OutgoingKeys::from_ufvk(network, u.trim())?,
                 (None, Some(o)) => {
@@ -303,7 +302,7 @@ async fn run() -> anyhow::Result<ExitCode> {
             };
             // An explicit --testnet is the operator's context; an unsigned receipt
             // cannot be trusted to name its own network, so contradictions are rejected.
-            if net.testnet && matches!(r.network, Network::Main) {
+            if (net.testnet || net.regtest) && matches!(r.network, Network::Main) {
                 println!(
                     "{}",
                     json!({"valid": false, "error": "receipt says network=main but --testnet was given", "stage": "network"})
@@ -312,6 +311,7 @@ async fn run() -> anyhow::Result<ExitCode> {
             }
             let net = NetArgs {
                 testnet: matches!(r.network, Network::Test) || net.testnet,
+                regtest: matches!(r.network, Network::Regtest) || net.regtest,
                 endpoint: net.endpoint,
             };
             let src = TxSource {
@@ -397,6 +397,7 @@ async fn run() -> anyhow::Result<ExitCode> {
             for r in &p.receipts {
                 let net = NetArgs {
                     testnet: matches!(r.network, Network::Test) || net.testnet,
+                    regtest: matches!(r.network, Network::Regtest) || net.regtest,
                     endpoint: net.endpoint.clone(),
                 };
                 let raw_tx_file = raw_tx_dir
@@ -462,7 +463,22 @@ async fn run() -> anyhow::Result<ExitCode> {
     }
 }
 
+fn network_of(net: &NetArgs) -> Network {
+    if net.regtest {
+        Network::Regtest
+    } else if net.testnet {
+        Network::Test
+    } else {
+        Network::Main
+    }
+}
+
 async fn connect(net: &NetArgs) -> anyhow::Result<Client> {
+    if net.regtest && net.endpoint.is_empty() {
+        return Err(anyhow!(
+            "--regtest requires --endpoint (e.g. http://127.0.0.1:8137)"
+        ));
+    }
     let eps: Vec<&str> = if net.endpoint.is_empty() {
         zeceipt_lwd::default_endpoints(net.testnet).to_vec()
     } else {

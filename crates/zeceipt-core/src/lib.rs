@@ -22,6 +22,7 @@ use zcash_note_encryption::{
 };
 use zcash_primitives::transaction::Transaction;
 use zcash_protocol::consensus::{BranchId, MainNetwork, NetworkType, TestNetwork};
+use zcash_protocol::local_consensus::LocalNetwork;
 use zcash_protocol::memo::{Memo, MemoBytes};
 use zeceipt_types::ed25519_dalek::SigningKey;
 use zeceipt_types::{Network, Pool, Receipt, TypesError};
@@ -134,6 +135,7 @@ impl OutgoingKeys {
         let ufvk = match network {
             Network::Main => UnifiedFullViewingKey::decode(&MainNetwork, encoded),
             Network::Test => UnifiedFullViewingKey::decode(&TestNetwork, encoded),
+            Network::Regtest => UnifiedFullViewingKey::decode(&regtest_params(), encoded),
         }
         .map_err(|e| CoreError::KeyDecode(e.to_string()))?;
         Ok(OutgoingKeys {
@@ -215,6 +217,26 @@ fn network_type(n: Network) -> NetworkType {
     match n {
         Network::Main => NetworkType::Main,
         Network::Test => NetworkType::Test,
+        Network::Regtest => NetworkType::Regtest,
+    }
+}
+
+/// Regtest consensus parameters: every upgrade active from height 1, matching
+/// Zebra's Regtest defaults. Only used for key decoding and address encoding.
+fn regtest_params() -> LocalNetwork {
+    use zcash_protocol::consensus::BlockHeight;
+    let h = Some(BlockHeight::from_u32(1));
+    LocalNetwork {
+        overwinter: h,
+        sapling: h,
+        blossom: h,
+        heartwood: h,
+        canopy: h,
+        nu5: h,
+        nu6: h,
+        nu6_1: h,
+        nu6_2: h,
+        nu6_3: h,
     }
 }
 
@@ -228,6 +250,7 @@ fn encode_sapling_address(addr: &sapling_crypto::PaymentAddress, network: Networ
     match network {
         Network::Main => zcash_keys::encoding::encode_payment_address_p(&MainNetwork, addr),
         Network::Test => zcash_keys::encoding::encode_payment_address_p(&TestNetwork, addr),
+        Network::Regtest => zcash_keys::encoding::encode_payment_address_p(&regtest_params(), addr),
     }
 }
 

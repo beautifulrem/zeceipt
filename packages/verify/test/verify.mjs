@@ -34,5 +34,20 @@ const unsignedTamper = (() => { const c = JSON.parse(receipt); delete c.signatur
 check("tampered ock (unsigned) -> recovery", unsignedTamper.stage === "recovery", JSON.stringify(unsignedTamper));
 check("wrong tx -> txid", verify_receipt(receipt, fs.readFileSync(path.join(here, "../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex"), "utf8").trim(), "auditor-nonce-7", true).stage === "txid");
 
+// Format-derived coverage: every committed vector (all Network x Pool variants) must parse
+// and its signed form must verify exactly as the vector says, so a variant added to the
+// Rust enums without regenerating vectors + rebuilding pkg/ fails here.
+const vectors = JSON.parse(fs.readFileSync(path.join(here, "../../../spec/test-vectors/receipt-v0.json"), "utf8"));
+for (const v of vectors.vectors) {
+  const signed = JSON.stringify(v.signed_receipt);
+  const parsed = verify_receipt(signed, rawTx, v.signed_receipt.challenge ? "" : "", true);
+  // Vectors do not match the fixture tx, so a structurally valid signed vector must fail
+  // at `txid` (parse + signature passed); a vector flagged verifies=false must fail at `signature`.
+  const expectedStage = v.verifies ? "txid" : "signature";
+  const okStage = parsed.stage === expectedStage || (v.verifies && v.signed_receipt.challenge && parsed.stage === "challenge");
+  check(`vector ${v.name} -> ${expectedStage}`, okStage, JSON.stringify(parsed));
+}
+check("vectors cover every network x pool", ["main","test","regtest"].every(n => ["ironwood","orchard","sapling"].every(p => vectors.vectors.some(v => v.receipt.network === n && v.receipt.pool === p))));
+
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
