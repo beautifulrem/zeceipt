@@ -700,6 +700,58 @@ mod tests {
         );
     }
 
+    /// Same construction for the (sealed) Orchard pool: V2 notes under `OrchardDomain`.
+    #[test]
+    fn orchard_round_trip_ock_derivation_and_recovery() {
+        use orchard::note_encryption::OrchardNoteEncryption;
+        let tx = fixture_tx();
+        let template = tx.ironwood_bundle().unwrap().actions().first().clone();
+        let nf_old = *template.nullifier();
+        let rk = template.rk().clone();
+        let fvk = random_fvk();
+        let recipient = fvk.address_at(0u32, Scope::External);
+        let rho = Rho::from_bytes(&nf_old.to_bytes()).unwrap();
+        let mut rseed_bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut rseed_bytes);
+        let rseed = RandomSeed::from_bytes(rseed_bytes, &rho).unwrap();
+        let note = orchard::Note::from_parts(
+            recipient,
+            NoteValue::from_raw(42),
+            rho,
+            rseed,
+            NoteVersion::V2,
+        )
+        .unwrap();
+        let cv_net = template.cv_net().clone();
+        let cmx = ExtractedNoteCommitment::from(note.commitment());
+        let mut memo = [0u8; 512];
+        memo[..6].copy_from_slice(b"orch42");
+        let encryptor = OrchardNoteEncryption::new(Some(fvk.to_ovk(Scope::External)), note, memo);
+        let enc = TransmittedNoteCiphertext {
+            epk_bytes: OrchardDomain::epk_bytes(encryptor.epk()).0,
+            enc_ciphertext: encryptor.encrypt_note_plaintext(),
+            out_ciphertext: encryptor.encrypt_outgoing_plaintext(&cv_net, &cmx, &mut OsRng),
+        };
+        let action = Action::from_parts(nf_old, rk, cmx, enc, cv_net, ()).unwrap();
+        let domain = OrchardDomain::for_action(&action);
+        let ovk = fvk.to_ovk(Scope::External);
+        let e = action.encrypted_note();
+        let ock = <OrchardDomain as Domain>::derive_ock(
+            &ovk,
+            action.cv_net(),
+            &action.cmx().to_bytes(),
+            &EphemeralKeyBytes(e.epk_bytes),
+        );
+        let (n, a, m) =
+            try_output_recovery_with_ock(&domain, &ock, &action, &e.out_ciphertext).unwrap();
+        assert_eq!(n.value().inner(), 42);
+        assert_eq!(a, recipient);
+        assert_eq!(&m[..6], b"orch42");
+        // An Ironwood-domain attempt on a V2 note must fail (lead byte mismatch).
+        let iw = IronwoodDomain::for_action(&action);
+        assert!(try_output_recovery_with_ock(&iw, &ock, &action, &e.out_ciphertext).is_none());
+    }
+
     #[test]
     fn memo_view_classifies_text_and_empty() {
         let mut m = [0u8; 512];
