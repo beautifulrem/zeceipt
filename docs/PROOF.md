@@ -52,10 +52,38 @@ $ echo "<URL>" | zeceipt verify - --raw-tx-file fixtures/synthetic-ironwood.hex 
 
 The same matrix runs in CI (`.github/workflows/ci.yml`) and as `cargo test -p zeceipt-core --features synthetic` (`tests/offline_e2e.rs`), which additionally checks that the receipt is rejected against the original, unmodified transaction (`txid` stage) and against a foreign output index (`recovery` stage).
 
+## 2b. synthetic — browser verifier (WASM) in Chrome (2026-09-22)
+
+`packages/verify/pkg` built with `wasm-pack build crates/zeceipt-wasm --target web --release` (809 KB `.wasm`; the transitive `secp256k1` C dependency is compiled with Homebrew LLVM clang for `wasm32-unknown-unknown`, see README). Served `packages/verify/` locally and drove `demo/index.html` in Chrome with the fixture receipt (`fixtures/synthetic-receipt.json`) and raw transaction:
+
+| input | result shown by the page |
+|---|---|
+| receipt + raw tx + challenge `auditor-nonce-7` + require signature | **VALID** — txid `be48df34…50dd`, ironwood / 0, recipient `u1x3yke9…`, 2.50000000 ZEC, memo `INV-2026-0142`, issuer `fa868f…` (key id 2026-09), challenge bound and matched |
+| challenge `wrong` | **INVALID** — failed at `challenge`: challenge mismatch |
+| last base64url char of `ock` changed, signed | **INVALID** — failed at `signature`: signature is invalid |
+| same tamper, signature stripped, signature not required | **INVALID** — failed at `recovery`: the ock does not open ironwood output 0 |
+
+All verification ran inside the page (`zeceipt-wasm 0.1.0 (zeceipt-v0) ready`); the page made no network requests other than loading the two local fixture files.
+
 ## 3. unit — protocol-level round trip
 
 `ironwood_round_trip_ock_derivation_and_recovery`: encrypt a V3 (Ironwood) note with a random FVK using the `orchard` crate's `IronwoodNoteEncryption`, derive the OCK with `Domain::derive_ock`, recover with `try_output_recovery_with_ock`, and check that a flipped OCK bit and another key's OCK both fail.
 
-## 4. testnet — pending (blocked on a faucet claim)
+## 4. testnet — prepared, blocked on a human faucet claim
 
-Plan: create a testnet account (Zkool GraphQL or `zcash-devtool`), obtain TAZ from `zcashfaucet.jinolabs.xyz` or `fauzec.com` (both gate claims with a browser challenge that must be completed by a human), send a two-output transaction with memos, then run `zeceipt issue --testnet --ufvk …` and `zeceipt verify --testnet …` against `https://testnet.zec.rocks:443`. Record txid, receipt URLs and outputs here.
+A testnet light wallet was created with `zcash-devtool` (built from source at `raw/tools/zcash-devtool`, wallet dir `raw/tools/testnet-wallet`, mnemonic encrypted to a local age identity; nothing from it is in this repository):
+
+- Account `c1637de7-cd41-4567-9a61-7383aea12f90`, birthday height 4375968
+- Receiving address (testnet UA): `utest1jlj43jsyqkek9nwnt80p50dl4tr4helrvlvh7fwykpalnn0y7xz2z4f9xhemvgrn5rnacu8h7r70tneqf78d20yzlm2rf7580fu6shql0s7520p99gu9sdq4y5rcqd4kf6rwjwu698pm4vq6g7k5mxyqcy8p6uq7xa8de3446al7chh5x5hpf0tare89x2898kvlzxfzef49vwyzhjt`
+- UFVK: `uviewtest1llrzcdcc6v26y5rppkmff3mcu2sd0lyfkalt82qlsr5fxwc9842t8v3lyz02lnhtkuufze5x8t33gj3e9j6dlv4xk86vjp3c4ar9dxd2mj2vp2zp0g0ua2cwhzhju8eaqxcdvh963dun3d7uujpvg97w509nhm8ywlaudyf0637arudw5625usjq4gnw9rf7a29e7624m4dldsyj2tp2zjp6fnwfz7nt03syt8ns24k57lz7qsd8slv3vd8t2dwcqnxxewyccea50zmdqkm7jjc48uf3k4szg4uftlwtgvf3zu8tfgxmpzg99akzk3mtah77775vqkhv0z8vr3axphkflex8gvrlagjllx9xayp7yyyv5ajgyt3qfvkrx8qahz3urepkd4dk6eaau5mtq75m4t445808n47fmnuwcgf4ra64j66c325ax89z366um62k7jw6wtefux084ndd64rzdgm7e3mxuhchcmurl37nrxz9e55g24wh`
+
+Remaining human step: paste the address into `https://zcashfaucet.jinolabs.xyz` (browser proof-of-work gate) or `https://fauzec.com` (Turnstile) to receive ~0.1 TAZ. Then:
+
+```bash
+D=raw/tools/zcash-devtool/target/release/zcash-devtool; W=raw/tools/testnet-wallet
+$D wallet -w $W sync
+$D wallet -w $W send --address <second utest address> --value 1000000 --memo "INV-T-001"   # 0.01 TAZ
+zeceipt issue --testnet --ufvk uviewtest1… --txid <txid> --label "INV-T-001" --key-file issuer.key --out-dir receipts
+zeceipt verify --testnet receipts/<file>.json --require-signature
+```
+Record txid, receipt URL and outputs here as a **testnet** entry.
