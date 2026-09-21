@@ -301,6 +301,15 @@ async fn run() -> anyhow::Result<ExitCode> {
                     return Ok(ExitCode::from(1));
                 }
             };
+            // An explicit --testnet is the operator's context; an unsigned receipt
+            // cannot be trusted to name its own network, so contradictions are rejected.
+            if net.testnet && matches!(r.network, Network::Main) {
+                println!(
+                    "{}",
+                    json!({"valid": false, "error": "receipt says network=main but --testnet was given", "stage": "network"})
+                );
+                return Ok(ExitCode::from(1));
+            }
             let net = NetArgs {
                 testnet: matches!(r.network, Network::Test) || net.testnet,
                 endpoint: net.endpoint,

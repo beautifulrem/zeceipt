@@ -22,6 +22,11 @@ jobs:
           mkdir -p /tmp/raw && cp fixtures/synthetic-ironwood.hex /tmp/raw/$(python3 -c "import json,glob;print(json.load(open(glob.glob('/tmp/r/*.json')[0]))['txid'])").hex
           ./target/debug/zeceipt verify-pack /tmp/pack.json --raw-tx-dir /tmp/raw --require-signature
           if ./target/debug/zeceipt verify; then exit 1; else test $? -eq 3; fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: committed WASM package still agrees with the fixtures (staleness guard)
+        run: node packages/verify/test/verify.mjs
   wasm:
     runs-on: ubuntu-latest
     steps:

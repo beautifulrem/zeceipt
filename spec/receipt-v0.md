@@ -50,6 +50,8 @@ Given a receipt, the raw transaction bytes, and the expected challenge (empty if
 
 There is no partial success. Any failure is "invalid"; a transaction that cannot be found is "pending", never "invalid".
 
+For **unsigned** receipts every field, including `network`, is caller-controlled and therefore advisory; a verifier that knows which network it is operating on must reject a receipt whose `network` contradicts it (the CLI does this when `--testnet` is given explicitly).
+
 ### What verification proves
 - The named transaction contains an output that pays `value` to `recipient` with `memo`, and whoever produced the receipt knew that output's OCK (which requires the sender's OVK).
 
@@ -66,7 +68,7 @@ There is no partial success. Any failure is "invalid"; a transaction that cannot
             || len(label) (u32 LE) || label (UTF-8) || len(challenge) (u32 LE) || challenge
             || len(issuer_key_id) (u32 LE) || issuer_key_id (UTF-8, empty if absent)
 ```
-Every field that influences what a verifier displays is covered; only `issuer_pubkey`, `signature` and `zip311_profile` are outside the signed string. Deterministic vectors: `spec/test-vectors/receipt-v0.json`.
+An absent `issuer_key_id` is encoded identically to an empty one (length 0). Every field that influences what a verifier displays is covered; only `issuer_pubkey`, `signature` and `zip311_profile` are outside the signed string. Deterministic vectors: `spec/test-vectors/receipt-v0.json`.
 Signature: ed25519 (RFC 8032) over these bytes. The signature attests that the holder of `issuer_pubkey` produced this envelope; binding that key to an organisation is §7.
 
 ## 6. Challenges (directed receipts)

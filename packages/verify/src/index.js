@@ -5,7 +5,7 @@ import init, { parse_receipt, verify_receipt, version } from "../pkg/zeceipt_was
 
 let ready;
 export async function initVerifier(wasmUrl) {
-  if (!ready) ready = init(wasmUrl);
+  if (!ready) ready = init(wasmUrl ? { module_or_path: wasmUrl } : undefined);
   await ready;
   return version();
 }

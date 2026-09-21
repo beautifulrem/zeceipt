@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "description": "Verify Zeceipt receipts (per-output disclosures of shielded Zcash payments) locally in the browser or Node",
   "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/zeceipt/zeceipt" },
+  "homepage": "https://zeceipt.xyz",
   "type": "module",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
-  "files": ["src", "pkg"],
+  "files": ["src", "pkg", "LICENSE"],
   "scripts": {
     "build:wasm": "wasm-pack build ../../crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg && rm -f pkg/.gitignore",
-    "demo": "python3 -m http.server 8787 --directory ."
+    "demo": "python3 -m http.server 8787 --directory .",
+    "test": "node test/verify.mjs"
   },
   "keywords": ["zcash", "receipt", "zip311", "ironwood", "privacy", "proof-of-payment"]
 }

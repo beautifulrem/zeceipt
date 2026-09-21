@@ -128,20 +128,11 @@ impl Client {
                     height,
                 })
             }
-            Err(status) if status.code() == tonic::Code::NotFound => {
-                Err(LwdError::NotFound(txid_hex.into()))
-            }
-            Err(status) => {
-                let msg = status.message().to_ascii_lowercase();
-                if msg.contains("not found") || msg.contains("no such") {
-                    return Err(LwdError::NotFound(txid_hex.into()));
-                }
-                Err(LwdError::Rpc {
-                    endpoint: self.endpoint.clone(),
-                    rpc: "GetTransaction",
-                    status: status.to_string(),
-                })
-            }
+            Err(status) => Err(map_get_transaction_status(
+                &self.endpoint,
+                txid_hex,
+                &status,
+            )),
         }
     }
 
@@ -206,11 +197,80 @@ impl Client {
     }
 }
 
+/// Map a `GetTransaction` gRPC status to a typed error. Different indexers signal
+/// "unknown txid" differently (NotFound code, or a message), so both are handled.
+fn map_get_transaction_status(endpoint: &str, txid_hex: &str, status: &tonic::Status) -> LwdError {
+    let msg = status.message().to_ascii_lowercase();
+    if status.code() == tonic::Code::NotFound
+        || msg.contains("not found")
+        || msg.contains("no such")
+    {
+        return LwdError::NotFound(txid_hex.into());
+    }
+    LwdError::Rpc {
+        endpoint: endpoint.to_string(),
+        rpc: "GetTransaction",
+        status: status.to_string(),
+    }
+}
+
+/// Interpret lightwalletd's height field: mempool transactions are reported
+/// with sentinel values rather than a real height.
+fn mined_height(raw: u64) -> Option<u64> {
+    if raw == 0 || raw == u64::MAX || raw == (-1i64) as u64 {
+        None
+    } else {
+        Some(raw)
+    }
+}
+
 /// Endpoint list for a network.
 pub fn default_endpoints(testnet: bool) -> &'static [&'static str] {
     if testnet {
         TESTNET_ENDPOINTS
     } else {
         MAINNET_ENDPOINTS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn not_found_is_mapped_from_code_and_message() {
+        let by_code = tonic::Status::not_found("x");
+        assert!(matches!(
+            map_get_transaction_status("ep", "ab", &by_code),
+            LwdError::NotFound(_)
+        ));
+        let by_msg = tonic::Status::unknown("Transaction not found in the main chain");
+        assert!(matches!(
+            map_get_transaction_status("ep", "ab", &by_msg),
+            LwdError::NotFound(_)
+        ));
+        let other = tonic::Status::unavailable("backend down");
+        assert!(matches!(
+            map_get_transaction_status("ep", "ab", &other),
+            LwdError::Rpc {
+                rpc: "GetTransaction",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn mempool_sentinels_mean_unmined() {
+        assert_eq!(mined_height(0), None);
+        assert_eq!(mined_height(u64::MAX), None);
+        assert_eq!(mined_height(3_491_284), Some(3_491_284));
+    }
+
+    #[test]
+    fn bad_txid_is_rejected_before_any_network_call() {
+        let e = hex::decode("zz").is_err();
+        assert!(e);
+        assert_eq!(default_endpoints(true), TESTNET_ENDPOINTS);
+        assert_eq!(default_endpoints(false), MAINNET_ENDPOINTS);
     }
 }
