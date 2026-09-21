@@ -116,16 +116,9 @@ impl Client {
                 if r.data.is_empty() {
                     return Err(LwdError::NotFound(txid_hex.into()));
                 }
-                // lightwalletd encodes "mempool" as u64::MAX / -1 sentinels.
-                let height = if r.height == 0 || r.height == u64::MAX || r.height == (-1i64) as u64
-                {
-                    None
-                } else {
-                    Some(r.height)
-                };
                 Ok(RawTx {
                     bytes: r.data,
-                    height,
+                    height: mined_height(r.height),
                 })
             }
             Err(status) => Err(map_get_transaction_status(
