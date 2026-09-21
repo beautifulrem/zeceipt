@@ -46,7 +46,7 @@ for (const v of vectors.vectors) {
   check(`vector ${v.name} parses in committed pkg`, parsed.stage !== "parse", JSON.stringify(parsed));
 }
 // The grid comes from the vector file (emitted from Network::ALL / Pool::ALL in Rust), not from a literal here.
-check("vector file declares networks and pools", Array.isArray(vectors.networks) && Array.isArray(vectors.pools) && vectors.networks.length >= 3 && vectors.pools.length >= 3);
+check("vector file declares networks and pools", Array.isArray(vectors.networks) && Array.isArray(vectors.pools) && vectors.networks.length > 0 && vectors.pools.length > 0 && new Set(vectors.networks).size === vectors.networks.length && new Set(vectors.pools).size === vectors.pools.length);
 check("vectors cover every declared network x pool", vectors.networks.every(n => vectors.pools.every(p => vectors.vectors.some(v => v.receipt.network === n && v.receipt.pool === p))));
 
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);

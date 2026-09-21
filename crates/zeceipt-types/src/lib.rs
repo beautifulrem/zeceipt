@@ -520,8 +520,11 @@ mod tests {
             .iter()
             .map(|x| serde_json::to_string(x).unwrap())
             .collect();
-        assert_eq!(n.len(), 3);
-        assert_eq!(p.len(), 3);
+        assert_eq!(n.len(), Network::ALL.len());
+        assert_eq!(p.len(), Pool::ALL.len());
+        let distinct = |v: &[String]| v.iter().collect::<std::collections::HashSet<_>>().len();
+        assert_eq!(distinct(&n), n.len(), "network names must be distinct");
+        assert_eq!(distinct(&p), p.len(), "pool names must be distinct");
         for (x, s) in Network::ALL.iter().zip(&n) {
             assert_eq!(format!("\"{}\"", x.as_str()), *s);
         }
