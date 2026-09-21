@@ -8,7 +8,7 @@
   "types": "./src/index.d.ts",
   "files": ["src", "pkg"],
   "scripts": {
-    "build:wasm": "wasm-pack build ../../crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg",
+    "build:wasm": "wasm-pack build ../../crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg && rm -f pkg/.gitignore",
     "demo": "python3 -m http.server 8787 --directory ."
   },
   "keywords": ["zcash", "receipt", "zip311", "ironwood", "privacy", "proof-of-payment"]
