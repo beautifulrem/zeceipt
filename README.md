@@ -60,4 +60,16 @@ Does not prove: who is presenting it (use a challenge for interactive proofs), a
 
 ## Status
 
-Working: envelope, Ironwood/Orchard/Sapling recovery, CLI, gRPC client, offline end-to-end with tamper tests, CI. In progress: WASM package build, payout console, Solana attestation program, testnet proof with real funds. See `docs/PROOF.md` §4.
+Working and tested: envelope v0 with committed test vectors (`spec/test-vectors/receipt-v0.json`); Ironwood, Orchard and Sapling recovery (official Orchard note-encryption vectors from `zcash-test-vectors`, Ironwood/Orchard/Sapling round trips, tamper cases); CLI with exit codes 0/1/2/3; lightwalletd gRPC client verified live against `zec.rocks`; offline issue → verify → tamper matrix reproduced by CLI and in Chrome with the committed WASM package (`packages/verify/pkg`). CI workflow is committed but this repository has not been pushed to a remote yet, so it has not run on GitHub.
+
+In progress: payout console, Solana attestation program, testnet proof with real funds (blocked on a human faucet claim, `docs/PROOF.md` §4). Spend-authority proof (full ZIP 311) is out of scope for v0.
+
+## Building the WASM package
+
+`packages/verify/pkg` is committed so a clone works without a toolchain. To rebuild: the transitive `secp256k1` C library needs a wasm-capable clang, e.g. on macOS with Homebrew LLVM:
+
+```bash
+export CC_wasm32_unknown_unknown=/opt/homebrew/opt/llvm/bin/clang AR_wasm32_unknown_unknown=/opt/homebrew/opt/llvm/bin/llvm-ar \
+       CFLAGS_wasm32_unknown_unknown="--target=wasm32-unknown-unknown -O2 -nostdlib -fno-exceptions -D__wasm32__"
+wasm-pack build crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg
+```

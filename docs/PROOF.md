@@ -20,50 +20,111 @@ $ zeceipt find-ironwood --blocks 3
 ```
 `GetBlockRange` streaming, filtering `CompactTx.ironwoodActions`.
 
-## 2. synthetic — issue → verify → tamper (2026-09-22)
+## 2. synthetic — issue → verify → tamper (2026-09-22, verbatim transcript)
 
-Fixture: `fixtures/synthetic-ironwood.hex` (txid `be48df3476530cd1b6a9fa07f14140792f3b82ef0f335e58e18f5188e46e50dd`), produced by `cargo run -p zeceipt-core --features synthetic --example make_synthetic`, which replaces Ironwood action 0 of the mainnet transaction above with an output of 2.5 ZEC and memo `INV-2026-0142` encrypted to a fresh key. The issuer OVK is `fixtures/synthetic-ovk.hex`.
+Fixture: `fixtures/synthetic-ironwood.hex`, produced by `cargo run -p zeceipt-core --features synthetic --example make_synthetic`, which replaces Ironwood action 0 of the mainnet transaction above with an output of 2.5 ZEC and memo `INV-2026-0142` encrypted to a fresh key (so the txid below differs from the template's). The issuer OVK is `fixtures/synthetic-ovk.hex`; the resulting signed, challenge-bound receipt is committed as `fixtures/synthetic-receipt.json`. Everything below is unedited stdout/stderr of `target/debug/zeceipt` (the `receipts/` and `issuer.key` paths were `/tmp/...` when captured).
 
 ```
 $ zeceipt keygen --out issuer.key
-{"issuer_pubkey":"fa868fab8444a5d724bceb0ce2e4a7657fb7edc70d073e7368d2250cbe0cfd02", …}
+{"issuer_pubkey":"605d49591b716d9a9122fb99a827536c774a1f7d1aa3dd6d560416bd4f75b517","key_file":"/tmp/issuer.key"}
 
-$ zeceipt issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk $(cat fixtures/synthetic-ovk.hex) \
-    --label "INV-2026-0142 | 3,797.00 USD @ 1518.81 | 2026-09-22" --challenge auditor-nonce-7 \
-    --key-file issuer.key --key-id 2026-09 --out-dir receipts
-→ 1 receipt: pool ironwood, index 0, recovered 2.50000000 ZEC to u1x3yke9a9el80um4t8ddchnyg0gtks73p3w9xhzhhy8t5gahv6yfc3r9u5y008nr9gy7kvwu4s9whzv3w5xsjel9lgst4u0kldycgwd3q, memo "INV-2026-0142"
-   URL: https://zeceipt.xyz/r/eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIs…
+$ zeceipt issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk $(cat fixtures/synthetic-ovk.hex) --label "INV-2026-0142 | 3,797.00 USD @ 1518.81 | 2026-09-22" --challenge auditor-nonce-7 --key-file issuer.key --key-id 2026-09 --out-dir receipts
+{
+  "height": null,
+  "receipts": [
+    {
+      "receipt": {
+        "challenge": "YXVkaXRvci1ub25jZS03",
+        "issuer_key_id": "2026-09",
+        "issuer_pubkey": "605d49591b716d9a9122fb99a827536c774a1f7d1aa3dd6d560416bd4f75b517",
+        "label": "INV-2026-0142 | 3,797.00 USD @ 1518.81 | 2026-09-22",
+        "network": "main",
+        "ock": "5no0Myq8ZSeC3kCG897G4Hys8ArmczAFID7sX3-n3QU",
+        "output_index": 0,
+        "pool": "ironwood",
+        "signature": "1ba8c66b1598a28595b92862783f24452d6cbfcc27145de7603bd2a750393cc2afef73c0ee30aca9dd183bbb01255144b56e4aabe6988897ee5468b98ed66e0a",
+        "txid": "4f3cc1aea0e589bd77865d33a2476963ff94909a3f1bdc8cb9bb380360e91b7f",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "recovered": {
+        "index": 0,
+        "memo": {
+          "kind": "text",
+          "text": "INV-2026-0142"
+        },
+        "pool": "ironwood",
+        "recipient": "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel",
+        "value_zat": 250000000,
+        "value_zec": "2.50000000"
+      },
+      "url": "https://zeceipt.xyz/r/eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJtYWluIiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6IjRmM2NjMWFlYTBlNTg5YmQ3Nzg2NWQzM2EyNDc2OTYzZmY5NDkwOWEzZjFiZGM4Y2I5YmIzODAzNjBlOTFiN2YiLCJvdXRwdXRfaW5kZXgiOjAsIm9jayI6IjVubzBNeXE4WlNlQzNrQ0c4OTdHNEh5czhBcm1jekFGSUQ3c1gzLW4zUVUiLCJsYWJlbCI6IklOVi0yMDI2LTAxNDIgfCAzLDc5Ny4wMCBVU0QgQCAxNTE4LjgxIHwgMjAyNi0wOS0yMiIsImNoYWxsZW5nZSI6IllYVmthWFJ2Y2kxdWIyNWpaUzAzIiwiaXNzdWVyX2tleV9pZCI6IjIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiNjA1ZDQ5NTkxYjcxNmQ5YTkxMjJmYjk5YTgyNzUzNmM3NzRhMWY3ZDFhYTNkZDZkNTYwNDE2YmQ0Zjc1YjUxNyIsInNpZ25hdHVyZSI6IjFiYThjNjZiMTU5OGEyODU5NWI5Mjg2Mjc4M2YyNDQ1MmQ2Y2JmY2MyNzE0NWRlNzYwM2JkMmE3NTAzOTNjYzJhZmVmNzNjMGVlMzBhY2E5ZGQxODNiYmIwMTI1NTE0NGI1NmU0YWFiZTY5ODg4OTdlZTU0NjhiOThlZDY2ZTBhIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ"
+    }
+  ]
+}
 
-$ zeceipt verify receipts/be48df3476530cd1-ironwood-0.json --raw-tx-file fixtures/synthetic-ironwood.hex --challenge auditor-nonce-7 --require-signature
-{"valid": true, "recipient": "u1x3yke9…", "value_zec": "2.50000000", "memo": {"kind":"text","text":"INV-2026-0142"}, "issuer_pubkey": "fa868f…", "challenge_checked": true, …}   exit 0
+$ zeceipt verify receipts/4f3cc1aea0e589bd-ironwood-0.json --raw-tx-file fixtures/synthetic-ironwood.hex --challenge auditor-nonce-7 --require-signature
+{
+  "challenge_checked": true,
+  "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+  "height": null,
+  "issuer_pubkey": "605d49591b716d9a9122fb99a827536c774a1f7d1aa3dd6d560416bd4f75b517",
+  "label": "INV-2026-0142 | 3,797.00 USD @ 1518.81 | 2026-09-22",
+  "memo": {
+    "kind": "text",
+    "text": "INV-2026-0142"
+  },
+  "output_index": 0,
+  "pool": "ironwood",
+  "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
+  "recipient": "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel",
+  "txid": "4f3cc1aea0e589bd77865d33a2476963ff94909a3f1bdc8cb9bb380360e91b7f",
+  "valid": true,
+  "value_zat": 250000000,
+  "value_zec": "2.50000000"
+}
+exit=0
 
-$ zeceipt verify … --challenge nope --require-signature
-{"valid":false,"stage":"challenge","error":"challenge mismatch"}                       exit 1
+$ zeceipt verify ... --challenge nope --require-signature
+{"error":"challenge mismatch","stage":"challenge","valid":false}
+exit=1
 
-$ (flip one bit of ock) zeceipt verify tampered.json … --require-signature
-{"valid":false,"stage":"signature","error":"signature is invalid"}                     exit 1
+$ zeceipt verify tampered.json (one bit of ock flipped) ... --require-signature
+{"error":"signature is invalid","stage":"signature","valid":false}
+exit=1
 
-$ (same tamper, signature stripped) zeceipt verify tampered-unsigned.json …
-{"valid":false,"stage":"recovery","error":"recovery failed: the ock does not open ironwood output 0"}   exit 1
+$ zeceipt verify tampered-unsigned.json (same, signature stripped) ...
+{"error":"recovery failed: the ock does not open ironwood output 0","stage":"recovery","valid":false}
+exit=1
 
-$ echo "<URL>" | zeceipt verify - --raw-tx-file fixtures/synthetic-ironwood.hex --challenge auditor-nonce-7
-{"valid": true, …}                                                                     exit 0
+$ zeceipt verify network-flipped.json (network changed to test after signing) ... --require-signature
+{"error":"signature is invalid","stage":"signature","valid":false}
+exit=1
+
+$ zeceipt verify   (usage error)
+error: the following required arguments were not provided:
+  <RECEIPT>
+
+Usage: zeceipt verify <RECEIPT>
+
+For more information, try '--help'.
+exit=3
 ```
 
-The same matrix runs in CI (`.github/workflows/ci.yml`) and as `cargo test -p zeceipt-core --features synthetic` (`tests/offline_e2e.rs`), which additionally checks that the receipt is rejected against the original, unmodified transaction (`txid` stage) and against a foreign output index (`recovery` stage).
+The same matrix runs in CI (`.github/workflows/ci.yml`, including `pack` → `verify-pack --raw-tx-dir` and the usage-error exit code) and as `cargo test -p zeceipt-core --features synthetic` (`tests/offline_e2e.rs`), which additionally checks that the receipt is rejected against the original, unmodified transaction (`txid` stage), against a foreign output index (`recovery` stage), and that an audit pack recomputes the 2.5 ZEC total.
 
-## 2b. synthetic — browser verifier (WASM) in Chrome (2026-09-22)
+## 2b. synthetic + mainnet-read — browser verifier (WASM) in Chrome (2026-09-22)
 
-`packages/verify/pkg` built with `wasm-pack build crates/zeceipt-wasm --target web --release` (809 KB `.wasm`; the transitive `secp256k1` C dependency is compiled with Homebrew LLVM clang for `wasm32-unknown-unknown`, see README). Served `packages/verify/` locally and drove `demo/index.html` in Chrome with the fixture receipt (`fixtures/synthetic-receipt.json`) and raw transaction:
+`packages/verify/pkg` (committed) built with `wasm-pack build crates/zeceipt-wasm --target web --release` (809 KB `.wasm`; see README for the wasm32 clang note). Served `packages/verify/` locally and drove `demo/index.html` in Chrome:
 
 | input | result shown by the page |
 |---|---|
-| receipt + raw tx + challenge `auditor-nonce-7` + require signature | **VALID** — txid `be48df34…50dd`, ironwood / 0, recipient `u1x3yke9…`, 2.50000000 ZEC, memo `INV-2026-0142`, issuer `fa868f…` (key id 2026-09), challenge bound and matched |
-| challenge `wrong` | **INVALID** — failed at `challenge`: challenge mismatch |
-| last base64url char of `ock` changed, signed | **INVALID** — failed at `signature`: signature is invalid |
-| same tamper, signature stripped, signature not required | **INVALID** — failed at `recovery`: the ock does not open ironwood output 0 |
+| `fixtures/synthetic-receipt.json` + `fixtures/synthetic-ironwood.hex` + challenge `auditor-nonce-7` + require signature | **VALID** — txid `4f3cc1ae…1b7f`, ironwood / 0, recipient `u1792v3n…`, 2.50000000 ZEC, memo `INV-2026-0142`, issuer `605d4959…` (key id 2026-09), challenge bound and matched |
+| same receipt with `network` changed to `test` after signing | **INVALID** — failed at `signature`: signature is invalid (network is inside the signed bytes) |
+| unsigned copy with label `x <b>bold</b> y` | VALID (unsigned accepted when not required); the label renders as literal text — no element is injected (escaping check) |
+| "Fetch raw tx from public gRPC-web node" with a probe receipt for mainnet txid `0e85513c…da69` | status: `fetched from https://zjs.zec.rocks/mainnet (mined at height 3491284)`; 18,332 hex chars, prefix `06000080` (v6); verification then fails at `recovery` as expected for a random ock |
 
-All verification ran inside the page (`zeceipt-wasm 0.1.0 (zeceipt-v0) ready`); the page made no network requests other than loading the two local fixture files.
+All verification ran inside the page (`zeceipt-wasm 0.1.0 (zeceipt-v0) ready`). The gRPC-web call is a hand-encoded `GetTransaction` (`packages/verify/src/index.js`, `fetchRawTx`), no proxy.
 
 ## 3. unit — protocol-level round trip
 

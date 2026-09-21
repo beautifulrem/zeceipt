@@ -34,3 +34,4 @@ export function initVerifier(wasmUrl?: string | URL): Promise<string>;
 export function parseReceipt(input: string): Receipt;
 export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean }): VerifyResult;
 export const GRPC_WEB_ENDPOINTS: { main: string[]; test: string[] };
+export function fetchRawTx(txidDisplayHex: string, network?: "main" | "test", endpoints?: string[]): Promise<{ hex: string; height: number | null; endpoint: string }>;

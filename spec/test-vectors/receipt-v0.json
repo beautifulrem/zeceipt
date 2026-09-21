@@ -1,0 +1,180 @@
+{
+  "canonical_bytes": "b\"zeceipt-v0\" || network(1) || pool(1) || txid(32) || output_index u32 LE || ock(32) || len(label) u32 LE || label || len(challenge) u32 LE || challenge || len(issuer_key_id) u32 LE || issuer_key_id",
+  "format": "zeceipt-v0",
+  "note": "Deterministic vectors. signing_key_hex is a throwaway ed25519 secret used only for these vectors.",
+  "signing_key_hex": "0707070707070707070707070707070707070707070707070707070707070707",
+  "vectors": [
+    {
+      "canonical_bytes_hex": "7a6563656970742d7630000011111111111111111111111111111111111111111111111111111111111111110200000022222222222222222222222222222222222222222222222222222222222222221a000000494e562d323032362d30313432207c203135302e3030205553440000000000000000",
+      "name": "main-ironwood-plain",
+      "receipt": {
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "147f517fa016193e2e2976f12f30e7f1933390321616be134ac58c3e9359e4fa448acb14dabb35d1aab5375978062aadda4793a185b5a7f7421e691116947d02",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "signature": "147f517fa016193e2e2976f12f30e7f1933390321616be134ac58c3e9359e4fa448acb14dabb35d1aab5375978062aadda4793a185b5a7f7421e691116947d02",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d7630000011111111111111111111111111111111111111111111111111111111111111110200000022222222222222222222222222222222222222222222222222222222222222221a000000494e562d323032362d30313432207c203135302e303020555344080000006e6f6e63652d343200000000",
+      "name": "with-challenge",
+      "receipt": {
+        "challenge": "bm9uY2UtNDI",
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "8f24bb316986c0b52855a55d0b3b13af5a0306285f5ecb9b816fb8574aacab12bec69237d758953829b972e9cff2cc9516d337695ee827a9933eecaabe3c0e00",
+      "signed_receipt": {
+        "challenge": "bm9uY2UtNDI",
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "signature": "8f24bb316986c0b52855a55d0b3b13af5a0306285f5ecb9b816fb8574aacab12bec69237d758953829b972e9cff2cc9516d337695ee827a9933eecaabe3c0e00",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d7630000011111111111111111111111111111111111111111111111111111111111111110200000022222222222222222222222222222222222222222222222222222222222222221a000000494e562d323032362d30313432207c203135302e3030205553440000000007000000323032362d3039",
+      "name": "with-key-id",
+      "receipt": {
+        "issuer_key_id": "2026-09",
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "a3d51d1a9f595624a2136f8077c7f4ef59bb4d8f48109ddef2c951e514d49025b820b9312211abafbd35692cea89d44eaaa287866b55c4c86c5e1e1b88e96209",
+      "signed_receipt": {
+        "issuer_key_id": "2026-09",
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "signature": "a3d51d1a9f595624a2136f8077c7f4ef59bb4d8f48109ddef2c951e514d49025b820b9312211abafbd35692cea89d44eaaa287866b55c4c86c5e1e1b88e96209",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d76300102abababababababababababababababababababababababababababababababab00000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd000000000000000000000000",
+      "name": "testnet-sapling-empty-label",
+      "receipt": {
+        "label": "",
+        "network": "test",
+        "ock": "zc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc0",
+        "output_index": 0,
+        "pool": "sapling",
+        "txid": "abababababababababababababababababababababababababababababababab",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "32cf776bb7a264279ec665f5b8512f757838fd10b6ffb70fcabdf7b2d01b51a95e6545105a24ec85385e52383824803af243e0296b00b809586f96ebb3b67c0b",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "",
+        "network": "test",
+        "ock": "zc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc0",
+        "output_index": 0,
+        "pool": "sapling",
+        "signature": "32cf776bb7a264279ec665f5b8512f757838fd10b6ffb70fcabdf7b2d01b51a95e6545105a24ec85385e52383824803af243e0296b00b809586f96ebb3b67c0b",
+        "txid": "abababababababababababababababababababababababababababababababab",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d763000010000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01000000780000000000000000",
+      "name": "orchard-max-index",
+      "receipt": {
+        "label": "x",
+        "network": "main",
+        "ock": "__________________________________________8",
+        "output_index": 4294967295,
+        "pool": "orchard",
+        "txid": "0000000000000000000000000000000000000000000000000000000000000000",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "8d62e37c9cbfcc7c030a4992b229bd030a338a0db95e84491b7ccb145f3412ae38b8958d0c65fc151b3a0740dc23430d8e511ddf428865baa017cb790efff40a",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "x",
+        "network": "main",
+        "ock": "__________________________________________8",
+        "output_index": 4294967295,
+        "pool": "orchard",
+        "signature": "8d62e37c9cbfcc7c030a4992b229bd030a338a0db95e84491b7ccb145f3412ae38b8958d0c65fc151b3a0740dc23430d8e511ddf428865baa017cb790efff40a",
+        "txid": "0000000000000000000000000000000000000000000000000000000000000000",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": true
+    },
+    {
+      "canonical_bytes_hex": "7a6563656970742d7630000011111111111111111111111111111111111111111111111111111111111111110200000022222222222222222222222222222222222222222222222222222222222222221a000000494e562d323032362d30313432207c203135302e3030205553440000000000000000",
+      "name": "negative-network-flipped-after-signing",
+      "receipt": {
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "main",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "signature_hex": "147f517fa016193e2e2976f12f30e7f1933390321616be134ac58c3e9359e4fa448acb14dabb35d1aab5375978062aadda4793a185b5a7f7421e691116947d02",
+      "signed_receipt": {
+        "issuer_pubkey": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+        "label": "INV-2026-0142 | 150.00 USD",
+        "network": "test",
+        "ock": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+        "output_index": 2,
+        "pool": "ironwood",
+        "signature": "147f517fa016193e2e2976f12f30e7f1933390321616be134ac58c3e9359e4fa448acb14dabb35d1aab5375978062aadda4793a185b5a7f7421e691116947d02",
+        "txid": "1111111111111111111111111111111111111111111111111111111111111111",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "verifies": false
+    }
+  ]
+}

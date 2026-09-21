@@ -164,7 +164,14 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> anyhow::Result<ExitCode> {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(c) => c,
+        Err(e) => {
+            // clap exits 2 by default; keep 2 reserved for "pending" (PRD R7).
+            let _ = e.print();
+            return Ok(ExitCode::from(if e.use_stderr() { 3 } else { 0 }));
+        }
+    };
     match cli.cmd {
         Cmd::Keygen { out } => {
             let key = SigningKey::generate(&mut OsRng);

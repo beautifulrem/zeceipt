@@ -2922,7 +2922,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "ed25519-dalek",
  "hex",
  "rand",
  "serde_json",
@@ -2931,13 +2930,13 @@ dependencies = [
  "tracing-subscriber",
  "zeceipt-core",
  "zeceipt-lwd",
- "zeceipt-types",
 ]
 
 [[package]]
 name = "zeceipt-core"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "ed25519-dalek",
  "hex",
  "orchard",
@@ -2945,7 +2944,6 @@ dependencies = [
  "sapling-crypto",
  "serde_json",
  "thiserror 2.0.20",
- "tracing",
  "zcash_address",
  "zcash_keys",
  "zcash_note_encryption",

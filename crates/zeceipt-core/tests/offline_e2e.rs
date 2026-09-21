@@ -82,6 +82,22 @@ fn issue_then_verify_then_tamper() {
         verify(&w, &tx, b"auditor-nonce-7", false),
         Err(CoreError::RecoveryFailed { .. })
     ));
+    // Audit pack: lower-bound total from verified receipts.
+    let pack =
+        zeceipt_core::zeceipt_types::AuditPack::new("demo", vec![parsed.clone()], 250_000_000);
+    let back = zeceipt_core::zeceipt_types::AuditPack::from_json(&pack.to_json().unwrap()).unwrap();
+    let total: u64 = back
+        .receipts
+        .iter()
+        .map(|r| {
+            verify(r, &tx, b"auditor-nonce-7", true)
+                .unwrap()
+                .recovered
+                .value_zat
+        })
+        .sum();
+    assert_eq!(total, 250_000_000);
+
     // The original template transaction must reject the receipt (txid differs).
     let orig = parse_transaction(&template).unwrap();
     assert!(matches!(
@@ -91,23 +107,6 @@ fn issue_then_verify_then_tamper() {
 }
 
 fn base64url(b: &[u8]) -> String {
-    use std::fmt::Write;
-    // minimal base64url without padding, to avoid a dev-dependency
-    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    let mut s = String::new();
-    for chunk in b.chunks(3) {
-        let n = chunk.len();
-        let v = (chunk[0] as u32) << 16
-            | (*chunk.get(1).unwrap_or(&0) as u32) << 8
-            | *chunk.get(2).unwrap_or(&0) as u32;
-        s.write_char(T[(v >> 18) as usize & 63] as char).unwrap();
-        s.write_char(T[(v >> 12) as usize & 63] as char).unwrap();
-        if n > 1 {
-            s.write_char(T[(v >> 6) as usize & 63] as char).unwrap();
-        }
-        if n > 2 {
-            s.write_char(T[v as usize & 63] as char).unwrap();
-        }
-    }
-    s
+    use base64::Engine;
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }

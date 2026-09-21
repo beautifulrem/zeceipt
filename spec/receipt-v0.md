@@ -15,14 +15,14 @@ JSON object. Unknown fields must be ignored by verifiers.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `version` | string | yes | Must be `"zeceipt-v0"`. |
-| `network` | `"main"` \| `"test"` | yes | Network the transaction was mined on. |
-| `pool` | `"ironwood"` \| `"orchard"` \| `"sapling"` | yes | Pool of the disclosed output. |
+| `network` | `"main"` \| `"test"` | yes | Network the transaction was mined on. Signed. |
+| `pool` | `"ironwood"` \| `"orchard"` \| `"sapling"` | yes | Pool of the disclosed output. Signed. |
 | `txid` | hex string (64 chars) | yes | Transaction id in display (explorer) byte order. |
 | `output_index` | integer ≥ 0 | yes | Index of the action/output inside that pool's bundle. |
 | `ock` | base64url (no padding), 32 bytes | yes | The output's Outgoing Cipher Key. |
 | `label` | string | no (default `""`) | Issuer-chosen text: invoice id, USD amount, rate, date. Signed. |
 | `challenge` | base64url | no | Verifier-supplied challenge (ZIP 311 `msg`). Signed. See §6. |
-| `issuer_key_id` | string | no | Key identifier from the issuer's well-known file (§7). |
+| `issuer_key_id` | string | no | Key identifier from the issuer's well-known file (§7). Signed. |
 | `issuer_pubkey` | hex (64 chars) | no | ed25519 public key of the issuer. |
 | `signature` | hex (128 chars) | no | ed25519 signature over the canonical bytes (§5). |
 | `zip311_profile` | string | no | Informational; `"outputs-only"` in v0. |
@@ -61,9 +61,12 @@ There is no partial success. Any failure is "invalid"; a transaction that cannot
 ## 5. Canonical signing bytes
 
 ```
-"zeceipt-v0" || txid (32 bytes, display order) || output_index (u32 LE) || ock (32 bytes)
+"zeceipt-v0" || network (1 byte: 0x00 main, 0x01 test) || pool (1 byte: 0x00 ironwood, 0x01 orchard, 0x02 sapling)
+            || txid (32 bytes, display order) || output_index (u32 LE) || ock (32 bytes)
             || len(label) (u32 LE) || label (UTF-8) || len(challenge) (u32 LE) || challenge
+            || len(issuer_key_id) (u32 LE) || issuer_key_id (UTF-8, empty if absent)
 ```
+Every field that influences what a verifier displays is covered; only `issuer_pubkey`, `signature` and `zip311_profile` are outside the signed string. Deterministic vectors: `spec/test-vectors/receipt-v0.json`.
 Signature: ed25519 (RFC 8032) over these bytes. The signature attests that the holder of `issuer_pubkey` produced this envelope; binding that key to an organisation is §7.
 
 ## 6. Challenges (directed receipts)
@@ -90,4 +93,4 @@ An organisation may publish `https://<org-domain>/.well-known/zeceipt.json` (sig
 |---|---|---|---|
 | ironwood | v6 (NU6.3+) | 0x03 | `IronwoodDomain` |
 | orchard | v5/v6 | 0x02 | `OrchardDomain` (pool sealed 2026-07-28; historical receipts only) |
-| sapling | v4+ | 0x01/0x02 | `SaplingDomain` |
+| sapling | v4+ | 0x01/0x02 | `SaplingDomain` with `Zip212Enforcement::GracePeriod` (both lead bytes accepted; the note commitment binds the plaintext) |

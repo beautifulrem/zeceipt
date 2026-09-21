@@ -11,13 +11,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --features zeceipt-core/synthetic -- -D warnings
       - run: cargo test --workspace --features zeceipt-core/synthetic
       - run: cargo run -q -p zeceipt-core --features synthetic --example make_synthetic
       - run: |
           ./target/debug/zeceipt keygen --out /tmp/k.key >/dev/null
           ./target/debug/zeceipt issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label ci --key-file /tmp/k.key --out-dir /tmp/r >/dev/null
           ./target/debug/zeceipt verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
+          ./target/debug/zeceipt pack --title ci /tmp/r/*.json > /tmp/pack.json
+          mkdir -p /tmp/raw && cp fixtures/synthetic-ironwood.hex /tmp/raw/$(python3 -c "import json,glob;print(json.load(open(glob.glob('/tmp/r/*.json')[0]))['txid'])").hex
+          ./target/debug/zeceipt verify-pack /tmp/pack.json --raw-tx-dir /tmp/raw --require-signature
+          if ./target/debug/zeceipt verify; then exit 1; else test $? -eq 3; fi
   wasm:
     runs-on: ubuntu-latest
     steps:

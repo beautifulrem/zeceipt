@@ -9,14 +9,16 @@
 #![forbid(unsafe_code)]
 
 use orchard::keys::{OutgoingViewingKey as OrchardOvk, Scope};
-use orchard::note_encryption::{IronwoodDomain, OrchardDomain};
+use orchard::note_encryption::{
+    DomainVersion, IronwoodVersion, NoteEncryptionDomain, OrchardVersion,
+};
 use sapling_crypto::keys::OutgoingViewingKey as SaplingOvk;
 use sapling_crypto::note_encryption::{SaplingDomain, Zip212Enforcement};
 use zcash_address::unified::{self, Encoding, Receiver};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_note_encryption::{
     try_output_recovery_with_ock, try_output_recovery_with_ovk, Domain, EphemeralKeyBytes,
-    OutgoingCipherKey,
+    OutgoingCipherKey, ShieldedOutput, ENC_CIPHERTEXT_SIZE,
 };
 use zcash_primitives::transaction::Transaction;
 use zcash_protocol::consensus::{BranchId, MainNetwork, NetworkType, TestNetwork};
@@ -229,20 +231,323 @@ fn encode_sapling_address(addr: &sapling_crypto::PaymentAddress, network: Networ
     }
 }
 
-macro_rules! orchard_like {
-    ($bundle:expr, $domain:ty, $pool:expr, $index:expr) => {{
-        let bundle = $bundle.ok_or(CoreError::NoBundle($pool.as_str()))?;
-        let actions = bundle.actions();
-        let action = actions
-            .get($index as usize)
-            .ok_or(CoreError::OutputIndexOutOfRange {
-                pool: $pool.as_str(),
-                index: $index,
-                len: actions.len(),
+/// The Orchard-family action type carried by an authorized bundle.
+type AuthAction = orchard::Action<
+    orchard::primitives::redpallas::Signature<orchard::primitives::redpallas::SpendAuth>,
+>;
+
+/// Everything a pool needs to expose for per-output disclosure: locate an output,
+/// derive its OCK from an OVK, and recover it from an OCK. Ironwood and Orchard
+/// share one generic implementation over the note-encryption domain version;
+/// Sapling has its own. New pools implement this, callers never branch on pool.
+trait PoolOps {
+    const POOL: Pool;
+    type Ovk;
+    fn ovk(keys: &OutgoingKeys, internal: bool) -> Option<&Self::Ovk>;
+    fn recover_with_ovk(
+        tx: &Transaction,
+        index: u32,
+        ovk: &Self::Ovk,
+        network: Network,
+    ) -> Result<Option<([u8; 32], Recovered)>, CoreError>;
+    fn recover_with_ock(
+        tx: &Transaction,
+        index: u32,
+        ock: &OutgoingCipherKey,
+        network: Network,
+    ) -> Result<Recovered, CoreError>;
+}
+
+fn ock_bytes(ock: OutgoingCipherKey) -> [u8; 32] {
+    let mut b = [0u8; 32];
+    b.copy_from_slice(ock.as_ref());
+    b
+}
+
+/// Generic Orchard-family implementation parameterised by the domain version
+/// (`IronwoodVersion` or `OrchardVersion`).
+struct OrchardFamily<V>(core::marker::PhantomData<V>);
+
+trait OrchardFamilyPool {
+    const POOL: Pool;
+    fn bundle(
+        tx: &Transaction,
+    ) -> Option<&orchard::Bundle<orchard::bundle::Authorized, zcash_protocol::value::ZatBalance>>;
+}
+
+struct IronwoodPool;
+struct OrchardPool;
+
+impl OrchardFamilyPool for IronwoodPool {
+    const POOL: Pool = Pool::Ironwood;
+    fn bundle(
+        tx: &Transaction,
+    ) -> Option<&orchard::Bundle<orchard::bundle::Authorized, zcash_protocol::value::ZatBalance>>
+    {
+        tx.ironwood_bundle()
+    }
+}
+
+impl OrchardFamilyPool for OrchardPool {
+    const POOL: Pool = Pool::Orchard;
+    fn bundle(
+        tx: &Transaction,
+    ) -> Option<&orchard::Bundle<orchard::bundle::Authorized, zcash_protocol::value::ZatBalance>>
+    {
+        tx.orchard_bundle()
+    }
+}
+
+fn family_action<P: OrchardFamilyPool>(
+    tx: &Transaction,
+    index: u32,
+) -> Result<&AuthAction, CoreError> {
+    let bundle = P::bundle(tx).ok_or(CoreError::NoBundle(P::POOL.as_str()))?;
+    let actions = bundle.actions();
+    actions
+        .get(index as usize)
+        .ok_or(CoreError::OutputIndexOutOfRange {
+            pool: P::POOL.as_str(),
+            index,
+            len: actions.len(),
+        })
+}
+
+/// Derive the OCK of an Orchard-family action and recover it with the sender's OVK.
+fn family_recover_with_ovk<V>(
+    domain: &NoteEncryptionDomain<V>,
+    action: &AuthAction,
+    ovk: &OrchardOvk,
+) -> Option<(
+    OutgoingCipherKey,
+    orchard::Note,
+    orchard::Address,
+    [u8; 512],
+)>
+where
+    V: DomainVersion,
+    NoteEncryptionDomain<V>: Domain<
+        OutgoingViewingKey = OrchardOvk,
+        ValueCommitment = orchard::value::ValueCommitment,
+        ExtractedCommitmentBytes = [u8; 32],
+        Note = orchard::Note,
+        Recipient = orchard::Address,
+        Memo = [u8; 512],
+    >,
+    AuthAction: ShieldedOutput<NoteEncryptionDomain<V>, ENC_CIPHERTEXT_SIZE>,
+{
+    let enc = action.encrypted_note();
+    let (note, addr, memo) =
+        try_output_recovery_with_ovk(domain, ovk, action, action.cv_net(), &enc.out_ciphertext)?;
+    let ock = <NoteEncryptionDomain<V> as Domain>::derive_ock(
+        ovk,
+        action.cv_net(),
+        &action.cmx().to_bytes(),
+        &EphemeralKeyBytes(enc.epk_bytes),
+    );
+    Some((ock, note, addr, memo))
+}
+
+/// Recover an Orchard-family action with a disclosed OCK.
+fn family_recover_with_ock<V>(
+    domain: &NoteEncryptionDomain<V>,
+    action: &AuthAction,
+    ock: &OutgoingCipherKey,
+) -> Option<(orchard::Note, orchard::Address, [u8; 512])>
+where
+    V: DomainVersion,
+    NoteEncryptionDomain<V>:
+        Domain<Note = orchard::Note, Recipient = orchard::Address, Memo = [u8; 512]>,
+    AuthAction: ShieldedOutput<NoteEncryptionDomain<V>, ENC_CIPHERTEXT_SIZE>,
+{
+    try_output_recovery_with_ock(domain, ock, action, &action.encrypted_note().out_ciphertext)
+}
+
+macro_rules! impl_orchard_family {
+    ($pool:ty, $version:ty) => {
+        impl PoolOps for OrchardFamily<$version> {
+            const POOL: Pool = <$pool as OrchardFamilyPool>::POOL;
+            type Ovk = OrchardOvk;
+            fn ovk(keys: &OutgoingKeys, internal: bool) -> Option<&OrchardOvk> {
+                keys.orchard(internal)
+            }
+            fn recover_with_ovk(
+                tx: &Transaction,
+                index: u32,
+                ovk: &OrchardOvk,
+                network: Network,
+            ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
+                let action = family_action::<$pool>(tx, index)?;
+                let domain = NoteEncryptionDomain::<$version>::for_action(action);
+                match family_recover_with_ovk(&domain, action, ovk) {
+                    None => Ok(None),
+                    Some((ock, note, addr, memo)) => Ok(Some((
+                        ock_bytes(ock),
+                        Recovered {
+                            pool: Self::POOL,
+                            index,
+                            recipient: encode_orchard_address(&addr, network)?,
+                            value_zat: note.value().inner(),
+                            memo: MemoView::from_raw(&memo),
+                        },
+                    ))),
+                }
+            }
+            fn recover_with_ock(
+                tx: &Transaction,
+                index: u32,
+                ock: &OutgoingCipherKey,
+                network: Network,
+            ) -> Result<Recovered, CoreError> {
+                let action = family_action::<$pool>(tx, index)?;
+                let domain = NoteEncryptionDomain::<$version>::for_action(action);
+                let (note, addr, memo) = family_recover_with_ock(&domain, action, ock).ok_or(
+                    CoreError::RecoveryFailed {
+                        pool: Self::POOL.as_str(),
+                        index,
+                    },
+                )?;
+                Ok(Recovered {
+                    pool: Self::POOL,
+                    index,
+                    recipient: encode_orchard_address(&addr, network)?,
+                    value_zat: note.value().inner(),
+                    memo: MemoView::from_raw(&memo),
+                })
+            }
+        }
+    };
+}
+
+impl_orchard_family!(IronwoodPool, IronwoodVersion);
+impl_orchard_family!(OrchardPool, OrchardVersion);
+
+/// Sapling pool. `Zip212Enforcement::GracePeriod` accepts both pre-Canopy (0x01)
+/// and post-Canopy (0x02) note plaintexts; the note commitment check still binds
+/// the recovered plaintext to the on-chain output.
+struct SaplingPool;
+
+fn sapling_domain() -> SaplingDomain {
+    SaplingDomain::new(Zip212Enforcement::GracePeriod)
+}
+
+fn sapling_output(
+    tx: &Transaction,
+    index: u32,
+) -> Result<
+    &sapling_crypto::bundle::OutputDescription<sapling_crypto::bundle::GrothProofBytes>,
+    CoreError,
+> {
+    let bundle = tx.sapling_bundle().ok_or(CoreError::NoBundle("sapling"))?;
+    let outputs = bundle.shielded_outputs();
+    outputs
+        .get(index as usize)
+        .ok_or(CoreError::OutputIndexOutOfRange {
+            pool: "sapling",
+            index,
+            len: outputs.len(),
+        })
+}
+
+/// Derive the OCK of a Sapling output and recover it with the sender's OVK.
+fn sapling_recover_with_ovk<A>(
+    od: &sapling_crypto::bundle::OutputDescription<A>,
+    ovk: &SaplingOvk,
+) -> Option<(
+    OutgoingCipherKey,
+    sapling_crypto::Note,
+    sapling_crypto::PaymentAddress,
+    [u8; 512],
+)> {
+    let domain = sapling_domain();
+    let (note, addr, memo) =
+        try_output_recovery_with_ovk(&domain, ovk, od, od.cv(), od.out_ciphertext())?;
+    let ock = <SaplingDomain as Domain>::derive_ock(
+        ovk,
+        od.cv(),
+        &od.cmu().to_bytes(),
+        od.ephemeral_key(),
+    );
+    Some((ock, note, addr, memo))
+}
+
+/// Recover a Sapling output with a disclosed OCK.
+fn sapling_recover_with_ock<A>(
+    od: &sapling_crypto::bundle::OutputDescription<A>,
+    ock: &OutgoingCipherKey,
+) -> Option<(
+    sapling_crypto::Note,
+    sapling_crypto::PaymentAddress,
+    [u8; 512],
+)> {
+    try_output_recovery_with_ock(&sapling_domain(), ock, od, od.out_ciphertext())
+}
+
+impl PoolOps for SaplingPool {
+    const POOL: Pool = Pool::Sapling;
+    type Ovk = SaplingOvk;
+    fn ovk(keys: &OutgoingKeys, internal: bool) -> Option<&SaplingOvk> {
+        keys.sapling(internal)
+    }
+    fn recover_with_ovk(
+        tx: &Transaction,
+        index: u32,
+        ovk: &SaplingOvk,
+        network: Network,
+    ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
+        let od = sapling_output(tx, index)?;
+        Ok(
+            sapling_recover_with_ovk(od, ovk).map(|(ock, note, addr, memo)| {
+                (
+                    ock_bytes(ock),
+                    Recovered {
+                        pool: Pool::Sapling,
+                        index,
+                        recipient: encode_sapling_address(&addr, network),
+                        value_zat: note.value().inner(),
+                        memo: MemoView::from_raw(&memo),
+                    },
+                )
+            }),
+        )
+    }
+    fn recover_with_ock(
+        tx: &Transaction,
+        index: u32,
+        ock: &OutgoingCipherKey,
+        network: Network,
+    ) -> Result<Recovered, CoreError> {
+        let od = sapling_output(tx, index)?;
+        let (note, addr, memo) =
+            sapling_recover_with_ock(od, ock).ok_or(CoreError::RecoveryFailed {
+                pool: "sapling",
+                index,
             })?;
-        let domain = <$domain>::for_action(action);
-        (action, domain)
-    }};
+        Ok(Recovered {
+            pool: Pool::Sapling,
+            index,
+            recipient: encode_sapling_address(&addr, network),
+            value_zat: note.value().inner(),
+            memo: MemoView::from_raw(&memo),
+        })
+    }
+}
+
+fn derive_with<P: PoolOps>(
+    tx: &Transaction,
+    index: u32,
+    keys: &OutgoingKeys,
+    scopes: &[bool],
+) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
+    // Validate the output reference once, even if no key is held.
+    for &internal in scopes {
+        if let Some(ovk) = P::ovk(keys, internal) {
+            if let Some(found) = P::recover_with_ovk(tx, index, ovk, keys.network)? {
+                return Ok(Some(found));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Derive the per-output OCK for an output we sent (requires the sender's OVK).
@@ -261,133 +566,13 @@ pub fn derive_ock(
         &[false]
     };
     match output.pool {
-        Pool::Ironwood | Pool::Orchard => {
-            let (action, ock_for_key, recovered) = if output.pool == Pool::Ironwood {
-                let (action, domain) = orchard_like!(
-                    tx.ironwood_bundle(),
-                    IronwoodDomain,
-                    Pool::Ironwood,
-                    output.index
-                );
-                let mut found = None;
-                for &internal in scopes {
-                    if let Some(ovk) = keys.orchard(internal) {
-                        let enc = action.encrypted_note();
-                        if let Some((note, addr, memo)) = try_output_recovery_with_ovk(
-                            &domain,
-                            ovk,
-                            action,
-                            action.cv_net(),
-                            &enc.out_ciphertext,
-                        ) {
-                            let ock = <IronwoodDomain as Domain>::derive_ock(
-                                ovk,
-                                action.cv_net(),
-                                &action.cmx().to_bytes(),
-                                &EphemeralKeyBytes(enc.epk_bytes),
-                            );
-                            found = Some((ock, note, addr, memo));
-                            break;
-                        }
-                    }
-                }
-                match found {
-                    None => return Ok(None),
-                    Some((ock, note, addr, memo)) => {
-                        (action, ock, (note.value().inner(), addr, memo))
-                    }
-                }
-            } else {
-                let (action, domain) = orchard_like!(
-                    tx.orchard_bundle(),
-                    OrchardDomain,
-                    Pool::Orchard,
-                    output.index
-                );
-                let mut found = None;
-                for &internal in scopes {
-                    if let Some(ovk) = keys.orchard(internal) {
-                        let enc = action.encrypted_note();
-                        if let Some((note, addr, memo)) = try_output_recovery_with_ovk(
-                            &domain,
-                            ovk,
-                            action,
-                            action.cv_net(),
-                            &enc.out_ciphertext,
-                        ) {
-                            let ock = <OrchardDomain as Domain>::derive_ock(
-                                ovk,
-                                action.cv_net(),
-                                &action.cmx().to_bytes(),
-                                &EphemeralKeyBytes(enc.epk_bytes),
-                            );
-                            found = Some((ock, note, addr, memo));
-                            break;
-                        }
-                    }
-                }
-                match found {
-                    None => return Ok(None),
-                    Some((ock, note, addr, memo)) => {
-                        (action, ock, (note.value().inner(), addr, memo))
-                    }
-                }
-            };
-            let _ = action;
-            let (value, addr, memo) = recovered;
-            let mut ock_bytes = [0u8; 32];
-            ock_bytes.copy_from_slice(ock_for_key.as_ref());
-            Ok(Some((
-                ock_bytes,
-                Recovered {
-                    pool: output.pool,
-                    index: output.index,
-                    recipient: encode_orchard_address(&addr, keys.network)?,
-                    value_zat: value,
-                    memo: MemoView::from_raw(&memo),
-                },
-            )))
+        Pool::Ironwood => {
+            derive_with::<OrchardFamily<IronwoodVersion>>(tx, output.index, keys, scopes)
         }
-        Pool::Sapling => {
-            let bundle = tx.sapling_bundle().ok_or(CoreError::NoBundle("sapling"))?;
-            let outputs = bundle.shielded_outputs();
-            let od =
-                outputs
-                    .get(output.index as usize)
-                    .ok_or(CoreError::OutputIndexOutOfRange {
-                        pool: "sapling",
-                        index: output.index,
-                        len: outputs.len(),
-                    })?;
-            let domain = SaplingDomain::new(Zip212Enforcement::On);
-            for &internal in scopes {
-                if let Some(ovk) = keys.sapling(internal) {
-                    if let Some((note, addr, memo)) =
-                        try_output_recovery_with_ovk(&domain, ovk, od, od.cv(), od.out_ciphertext())
-                    {
-                        let ock = <SaplingDomain as Domain>::derive_ock(
-                            ovk,
-                            od.cv(),
-                            &od.cmu().to_bytes(),
-                            od.ephemeral_key(),
-                        );
-                        let mut ock_bytes = [0u8; 32];
-                        ock_bytes.copy_from_slice(ock.as_ref());
-                        return Ok(Some((
-                            ock_bytes,
-                            Recovered {
-                                pool: Pool::Sapling,
-                                index: output.index,
-                                recipient: encode_sapling_address(&addr, keys.network),
-                                value_zat: note.value().inner(),
-                                memo: MemoView::from_raw(&memo),
-                            },
-                        )));
-                    }
-                }
-            }
-            Ok(None)
+        Pool::Orchard => {
+            derive_with::<OrchardFamily<OrchardVersion>>(tx, output.index, keys, scopes)
         }
+        Pool::Sapling => derive_with::<SaplingPool>(tx, output.index, keys, scopes),
     }
 }
 
@@ -401,82 +586,12 @@ pub fn recover(
     let ock = OutgoingCipherKey(*ock);
     match output.pool {
         Pool::Ironwood => {
-            let (action, domain) = orchard_like!(
-                tx.ironwood_bundle(),
-                IronwoodDomain,
-                Pool::Ironwood,
-                output.index
-            );
-            let (note, addr, memo) = try_output_recovery_with_ock(
-                &domain,
-                &ock,
-                action,
-                &action.encrypted_note().out_ciphertext,
-            )
-            .ok_or(CoreError::RecoveryFailed {
-                pool: "ironwood",
-                index: output.index,
-            })?;
-            Ok(Recovered {
-                pool: Pool::Ironwood,
-                index: output.index,
-                recipient: encode_orchard_address(&addr, network)?,
-                value_zat: note.value().inner(),
-                memo: MemoView::from_raw(&memo),
-            })
+            OrchardFamily::<IronwoodVersion>::recover_with_ock(tx, output.index, &ock, network)
         }
         Pool::Orchard => {
-            let (action, domain) = orchard_like!(
-                tx.orchard_bundle(),
-                OrchardDomain,
-                Pool::Orchard,
-                output.index
-            );
-            let (note, addr, memo) = try_output_recovery_with_ock(
-                &domain,
-                &ock,
-                action,
-                &action.encrypted_note().out_ciphertext,
-            )
-            .ok_or(CoreError::RecoveryFailed {
-                pool: "orchard",
-                index: output.index,
-            })?;
-            Ok(Recovered {
-                pool: Pool::Orchard,
-                index: output.index,
-                recipient: encode_orchard_address(&addr, network)?,
-                value_zat: note.value().inner(),
-                memo: MemoView::from_raw(&memo),
-            })
+            OrchardFamily::<OrchardVersion>::recover_with_ock(tx, output.index, &ock, network)
         }
-        Pool::Sapling => {
-            let bundle = tx.sapling_bundle().ok_or(CoreError::NoBundle("sapling"))?;
-            let outputs = bundle.shielded_outputs();
-            let od =
-                outputs
-                    .get(output.index as usize)
-                    .ok_or(CoreError::OutputIndexOutOfRange {
-                        pool: "sapling",
-                        index: output.index,
-                        len: outputs.len(),
-                    })?;
-            let domain = SaplingDomain::new(Zip212Enforcement::On);
-            let (note, addr, memo) =
-                try_output_recovery_with_ock(&domain, &ock, od, od.out_ciphertext()).ok_or(
-                    CoreError::RecoveryFailed {
-                        pool: "sapling",
-                        index: output.index,
-                    },
-                )?;
-            Ok(Recovered {
-                pool: Pool::Sapling,
-                index: output.index,
-                recipient: encode_sapling_address(&addr, network),
-                value_zat: note.value().inner(),
-                memo: MemoView::from_raw(&memo),
-            })
-        }
+        Pool::Sapling => SaplingPool::recover_with_ock(tx, output.index, &ock, network),
     }
 }
 
@@ -575,6 +690,7 @@ mod tests {
         ExtractedNoteCommitment, NoteVersion, RandomSeed, Rho, TransmittedNoteCiphertext,
     };
     use orchard::note_encryption::IronwoodNoteEncryption;
+    use orchard::note_encryption::{IronwoodDomain, OrchardDomain};
     use orchard::value::NoteValue;
     use orchard::Action;
     use rand::rngs::OsRng;
@@ -795,5 +911,143 @@ mod tests {
             verify(&r, &tx, b"", true),
             Err(CoreError::Types(TypesError::Unsigned))
         ));
+    }
+
+    /// Official Orchard note-encryption test vectors from zcash/zcash-test-vectors:
+    /// derive_ock must reproduce `ock`, and recovery with that ock must reproduce
+    /// the note, recipient and memo. Exercised through the same generic helpers
+    /// the verifier uses.
+    #[test]
+    fn official_orchard_test_vectors_ock_and_recovery() {
+        let raw = include_str!("../../../spec/test-vectors/orchard_note_encryption.json");
+        let json: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let rows = json.as_array().unwrap();
+        // Row 0 is a provenance comment, row 1 is one comma-separated header string,
+        // remaining rows hold hex strings (and integers for `v`) in header order.
+        let names: Vec<String> = rows[1][0]
+            .as_str()
+            .unwrap()
+            .split(", ")
+            .map(str::to_string)
+            .collect();
+        let idx = |n: &str| names.iter().position(|x| x == n).unwrap();
+        let bytes = |row: &serde_json::Value, n: &str| -> Vec<u8> {
+            hex::decode(row[idx(n)].as_str().unwrap()).unwrap()
+        };
+        let template = fixture_tx()
+            .ironwood_bundle()
+            .unwrap()
+            .actions()
+            .first()
+            .clone();
+        let rk = template.rk().clone();
+        let mut checked = 0;
+        for row in &rows[2..] {
+            let ovk = OrchardOvk::from(<[u8; 32]>::try_from(bytes(row, "ovk")).unwrap());
+            let cv_net = orchard::value::ValueCommitment::from_bytes(
+                &<[u8; 32]>::try_from(bytes(row, "cv_net")).unwrap(),
+            )
+            .unwrap();
+            let nf = orchard::note::Nullifier::from_bytes(
+                &<[u8; 32]>::try_from(bytes(row, "rho")).unwrap(),
+            )
+            .unwrap();
+            let cmx = ExtractedNoteCommitment::from_bytes(
+                &<[u8; 32]>::try_from(bytes(row, "cmx")).unwrap(),
+            )
+            .unwrap();
+            let enc = TransmittedNoteCiphertext {
+                epk_bytes: <[u8; 32]>::try_from(bytes(row, "ephemeral_key")).unwrap(),
+                enc_ciphertext: <[u8; 580]>::try_from(bytes(row, "c_enc")).unwrap(),
+                out_ciphertext: <[u8; 80]>::try_from(bytes(row, "c_out")).unwrap(),
+            };
+            let action = Action::from_parts(nf, rk.clone(), cmx, enc, cv_net, ()).unwrap();
+            let domain = OrchardDomain::for_action(&action);
+            let e = action.encrypted_note();
+            let ock = <OrchardDomain as Domain>::derive_ock(
+                &ovk,
+                action.cv_net(),
+                &action.cmx().to_bytes(),
+                &EphemeralKeyBytes(e.epk_bytes),
+            );
+            assert_eq!(
+                ock.as_ref(),
+                bytes(row, "ock").as_slice(),
+                "ock derivation matches vector"
+            );
+            let (note, addr, memo) =
+                try_output_recovery_with_ock(&domain, &ock, &action, &e.out_ciphertext)
+                    .expect("vector recovers");
+            assert_eq!(note.value().inner(), row[idx("v")].as_u64().unwrap());
+            assert_eq!(memo.to_vec(), bytes(row, "memo"));
+            let mut expected_addr = bytes(row, "default_d");
+            expected_addr.extend(bytes(row, "default_pk_d"));
+            assert_eq!(
+                addr.to_raw_address_bytes().to_vec(),
+                expected_addr,
+                "recipient matches vector"
+            );
+            // The same vector must not open under the Ironwood domain (V2 lead byte).
+            let iw = IronwoodDomain::for_action(&action);
+            assert!(try_output_recovery_with_ock(&iw, &ock, &action, &e.out_ciphertext).is_none());
+            checked += 1;
+        }
+        assert!(checked >= 10, "expected the full vector set, got {checked}");
+    }
+
+    /// Sapling round trip through the Sapling helpers used by derive/recover.
+    #[test]
+    fn sapling_round_trip_ock_derivation_and_recovery() {
+        use sapling_crypto::bundle::OutputDescription;
+        use sapling_crypto::note_encryption::sapling_note_encryption;
+        use sapling_crypto::value::{
+            NoteValue as SNoteValue, ValueCommitTrapdoor, ValueCommitment,
+        };
+        use sapling_crypto::zip32::ExtendedSpendingKey;
+        use sapling_crypto::{Note as SNote, Rseed};
+
+        let mut seed = [0u8; 32];
+        OsRng.fill_bytes(&mut seed);
+        let dfvk = ExtendedSpendingKey::master(&seed).to_diversifiable_full_viewing_key();
+        let (_, recipient) = dfvk.default_address();
+        let ovk = dfvk.to_ovk(Scope::External);
+        let mut rseed = [0u8; 32];
+        OsRng.fill_bytes(&mut rseed);
+        let note = SNote::from_parts(
+            recipient,
+            SNoteValue::from_raw(77_000),
+            Rseed::AfterZip212(rseed),
+        );
+        let cmu = note.cmu();
+        let cv = ValueCommitment::derive(
+            SNoteValue::from_raw(77_000),
+            ValueCommitTrapdoor::random(&mut OsRng),
+        );
+        let mut memo = [0u8; 512];
+        memo[..7].copy_from_slice(b"sapling");
+        let encryptor = sapling_note_encryption(Some(ovk), note, memo, &mut OsRng);
+        let epk = SaplingDomain::epk_bytes(encryptor.epk());
+        let od: OutputDescription<[u8; 192]> = OutputDescription::from_parts(
+            cv.clone(),
+            cmu,
+            epk,
+            encryptor.encrypt_note_plaintext(),
+            encryptor.encrypt_outgoing_plaintext(&cv, &cmu, &mut OsRng),
+            [0u8; 192],
+        );
+        let (ock, n, a, m) = sapling_recover_with_ovk(&od, &ovk).expect("sender OVK recovers");
+        assert_eq!(n.value().inner(), 77_000);
+        assert_eq!(a, recipient);
+        assert_eq!(&m[..7], b"sapling");
+        let (n2, a2, _) = sapling_recover_with_ock(&od, &ock).expect("disclosed ock recovers");
+        assert_eq!(n2.value().inner(), 77_000);
+        assert_eq!(a2, recipient);
+        let mut bad = ock_bytes(ock);
+        bad[9] ^= 1;
+        assert!(sapling_recover_with_ock(&od, &OutgoingCipherKey(bad)).is_none());
+        let other = ExtendedSpendingKey::master(&[9u8; 32])
+            .to_diversifiable_full_viewing_key()
+            .to_ovk(Scope::External);
+        assert!(sapling_recover_with_ovk(&od, &other).is_none());
     }
 }

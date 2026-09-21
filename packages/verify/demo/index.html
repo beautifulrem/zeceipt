@@ -21,7 +21,8 @@
 <p class="muted">Private outside, provable per payment. Verification runs entirely in this page (WebAssembly). The raw transaction is fetched from the source you choose; the receipt's outgoing cipher key never leaves your browser.</p>
 
 <div class="row"><label>Receipt (JSON, URL, or base64url payload)<textarea id="receipt"></textarea></label></div>
-<div class="row"><label>Raw transaction hex (paste, or load a file below; a fetch helper is provided for public gRPC-web nodes)<textarea id="rawtx"></textarea></label></div>
+<div class="row"><label>Raw transaction hex (paste, load a file, or fetch from a public node)<textarea id="rawtx"></textarea></label></div>
+<div class="row"><button id="fetch">Fetch raw tx from public gRPC-web node</button> <span class="muted">Uses the txid inside the receipt. The node learns which txid you asked for.</span></div>
 <div class="row"><input type="file" id="rawfile"> <span class="muted">Load a <code>.hex</code> raw transaction file (offline mode).</span></div>
 <div class="row"><label>Challenge (only if the receipt was issued to you with one)<input id="challenge"></label></div>
 <div class="row"><label><input type="checkbox" id="reqsig"> Require issuer signature</label></div>
@@ -41,7 +42,8 @@
 </ul>
 
 <script type="module">
-import { initVerifier, verifyReceipt } from "../src/index.js";
+import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/index.js";
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = (id) => document.getElementById(id);
 const status = $("status"), out = $("out");
 status.textContent = "loading verifier…";
@@ -52,26 +54,36 @@ $("rawfile").addEventListener("change", async (ev) => {
   $("rawtx").value = (await f.text()).trim();
 });
 
+$("fetch").addEventListener("click", async () => {
+  try {
+    const r = parseReceipt($("receipt").value);
+    status.textContent = "fetching " + r.txid.slice(0, 16) + "… from a public node";
+    const got = await fetchRawTx(r.txid, r.network);
+    $("rawtx").value = got.hex;
+    status.textContent = `fetched from ${got.endpoint}` + (got.height ? ` (mined at height ${got.height})` : " (unconfirmed)");
+  } catch (e) { status.textContent = "fetch failed: " + e; }
+});
+
 $("verify").addEventListener("click", () => {
   out.innerHTML = "";
   let r;
   try {
     r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
-  } catch (e) { out.innerHTML = `<div class="bad"><b>Verifier error</b><br>${String(e)}</div>`; return; }
+  } catch (e) { out.innerHTML = `<div class="bad"><b>Verifier error</b><br>${esc(e)}</div>`; return; }
   if (!r.valid) {
-    out.innerHTML = `<div class="bad"><b>INVALID</b> — failed at <code>${r.stage}</code><br>${r.error}</div>`;
+    out.innerHTML = `<div class="bad"><b>INVALID</b> — failed at <code>${esc(r.stage)}</code><br>${esc(r.error)}</div>`;
     return;
   }
   const memo = r.memo.kind === "text" ? r.memo.text : r.memo.kind === "empty" ? "(empty)" : "bytes " + r.memo.hex;
   out.innerHTML = `<div class="ok"><b>VALID</b> — cryptographic recovery succeeded
     <table>
-      <tr><td>txid</td><td><code>${r.txid}</code></td></tr>
-      <tr><td>pool / index</td><td>${r.pool} / ${r.output_index}</td></tr>
-      <tr><td>recipient</td><td><code>${r.recipient}</code></td></tr>
-      <tr><td>value</td><td>${r.value_zec} ZEC (${r.value_zat} zat)</td></tr>
-      <tr><td>memo</td><td>${memo}</td></tr>
-      <tr><td>label</td><td>${r.label ?? ""}</td></tr>
-      <tr><td>issuer</td><td>${r.issuer_pubkey ? `<code>${r.issuer_pubkey}</code> (key id ${r.issuer_key_id ?? "-"}) — binding to an organisation: unknown unless checked against the issuer's well-known file` : "unsigned"}</td></tr>
+      <tr><td>txid</td><td><code>${esc(r.txid)}</code></td></tr>
+      <tr><td>pool / index</td><td>${esc(r.pool)} / ${esc(r.output_index)}</td></tr>
+      <tr><td>recipient</td><td><code>${esc(r.recipient)}</code></td></tr>
+      <tr><td>value</td><td>${esc(r.value_zec)} ZEC (${esc(r.value_zat)} zat)</td></tr>
+      <tr><td>memo</td><td>${esc(memo)}</td></tr>
+      <tr><td>label</td><td>${esc(r.label)}</td></tr>
+      <tr><td>issuer</td><td>${r.issuer_pubkey ? `<code>${esc(r.issuer_pubkey)}</code> (key id ${esc(r.issuer_key_id ?? "-")}) — binding to an organisation: unknown unless checked against the issuer's well-known file` : "unsigned"}</td></tr>
       <tr><td>challenge</td><td>${r.challenge_checked ? "bound and matched" : "none"}</td></tr>
     </table>
     <p class="muted">Chain inclusion: this page verifies against the transaction bytes you supplied; confirm the txid on an explorer or your own node for confirmation depth.</p>

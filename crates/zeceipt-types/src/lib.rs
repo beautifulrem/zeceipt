@@ -166,14 +166,25 @@ impl Receipt {
     }
 
     /// Canonical byte string that the issuer signs:
-    /// `b"zeceipt-v0" || txid(32) || output_index u32 LE || ock(32) ||
-    ///  len(label) u32 LE || label || len(challenge) u32 LE || challenge`.
+    /// `b"zeceipt-v0" || network(1) || pool(1) || txid(32) || output_index u32 LE || ock(32) ||
+    ///  len(label) u32 LE || label || len(challenge) u32 LE || challenge ||
+    ///  len(issuer_key_id) u32 LE || issuer_key_id`.
+    /// `network`: 0x00 main, 0x01 test. `pool`: 0x00 ironwood, 0x01 orchard, 0x02 sapling.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, TypesError> {
         if self.version != VERSION {
             return Err(TypesError::UnsupportedVersion(self.version.clone()));
         }
-        let mut out = Vec::with_capacity(128 + self.label.len());
+        let mut out = Vec::with_capacity(160 + self.label.len());
         out.extend_from_slice(VERSION.as_bytes());
+        out.push(match self.network {
+            Network::Main => 0x00,
+            Network::Test => 0x01,
+        });
+        out.push(match self.pool {
+            Pool::Ironwood => 0x00,
+            Pool::Orchard => 0x01,
+            Pool::Sapling => 0x02,
+        });
         out.extend_from_slice(&self.txid_bytes()?);
         out.extend_from_slice(&self.output_index.to_le_bytes());
         out.extend_from_slice(&self.ock_bytes()?);
@@ -183,6 +194,9 @@ impl Receipt {
         let challenge = self.challenge_bytes()?;
         out.extend_from_slice(&(challenge.len() as u32).to_le_bytes());
         out.extend_from_slice(&challenge);
+        let key_id = self.issuer_key_id.as_deref().unwrap_or("").as_bytes();
+        out.extend_from_slice(&(key_id.len() as u32).to_le_bytes());
+        out.extend_from_slice(key_id);
         Ok(out)
     }
 
@@ -396,6 +410,51 @@ mod tests {
         let mut t = good.clone();
         t.signature = Some(hex::encode([0u8; 64]));
         assert!(t.verify_signature().is_err(), "signature");
+
+        let mut t = good.clone();
+        t.network = Network::Test;
+        assert!(t.verify_signature().is_err(), "network");
+
+        let mut t = good.clone();
+        t.pool = Pool::Orchard;
+        assert!(t.verify_signature().is_err(), "pool");
+
+        let mut t = good.clone();
+        t.issuer_key_id = Some("other".into());
+        assert!(t.verify_signature().is_err(), "issuer_key_id");
+    }
+
+    /// Committed test vectors (`spec/test-vectors/receipt-v0.json`) pin the
+    /// canonical byte encoding and signature for third-party implementations.
+    #[test]
+    fn committed_test_vectors_match() {
+        let raw = include_str!("../../../spec/test-vectors/receipt-v0.json");
+        let vectors: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        assert_eq!(
+            vectors["signing_key_hex"].as_str().unwrap(),
+            hex::encode(key.to_bytes())
+        );
+        for v in vectors["vectors"].as_array().unwrap() {
+            let r = Receipt::from_json(&v["receipt"].to_string()).unwrap();
+            assert_eq!(
+                hex::encode(r.canonical_bytes().unwrap()),
+                v["canonical_bytes_hex"].as_str().unwrap(),
+                "{}",
+                v["name"]
+            );
+            let signed = r.clone().sign(&key).unwrap();
+            assert_eq!(
+                signed.signature.as_deref().unwrap(),
+                v["signature_hex"].as_str().unwrap(),
+                "{}",
+                v["name"]
+            );
+            assert!(signed.verify_signature().is_ok());
+            let expect_ok = v["verifies"].as_bool().unwrap();
+            let given: Receipt = serde_json::from_str(&v["signed_receipt"].to_string()).unwrap();
+            assert_eq!(given.verify_signature().is_ok(), expect_ok, "{}", v["name"]);
+        }
     }
 
     #[test]
