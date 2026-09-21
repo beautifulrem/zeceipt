@@ -60,7 +60,7 @@ Does not prove: who is presenting it (use a challenge for interactive proofs), a
 
 ## Status
 
-Working and tested: envelope v0 with committed test vectors (`spec/test-vectors/receipt-v0.json`); Ironwood, Orchard and Sapling recovery (official Orchard note-encryption vectors from `zcash-test-vectors`, Ironwood/Orchard/Sapling round trips, tamper cases); CLI with exit codes 0/1/2/3; lightwalletd gRPC client verified live against `zec.rocks`; offline issue → verify → tamper matrix reproduced by CLI and in Chrome with the committed WASM package (`packages/verify/pkg`). CI workflow is committed but this repository has not been pushed to a remote yet, so it has not run on GitHub.
+Working and tested: envelope v0 with committed test vectors (`spec/test-vectors/receipt-v0.json`); Ironwood, Orchard and Sapling recovery (official Orchard note-encryption vectors from `zcash-test-vectors`, Ironwood/Orchard/Sapling round trips, tamper cases); CLI with exit codes 0/1/2/3; lightwalletd gRPC client verified live against `zec.rocks`; offline issue → verify → tamper matrix reproduced by CLI and in Chrome with the committed WASM package (`packages/verify/pkg`). A **consensus-valid regtest Ironwood transaction** (Zebra + Zaino + zcash-devtool, all from source) is issued from the sender's UFVK and verified over gRPC and offline (`docs/PROOF.md` §5; fixture and CLI test committed). CI workflow is committed but this repository has not been pushed to a remote yet, so it has not run on GitHub.
 
 In progress: payout console, Solana attestation program, testnet proof with real funds (blocked on a human faucet claim, `docs/PROOF.md` §4). Spend-authority proof (full ZIP 311) is out of scope for v0.
 

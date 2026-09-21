@@ -183,14 +183,34 @@ pub fn check_signature(receipt: &str) -> JsValue {
         error: Option<String>,
     }
     let out = match Receipt::parse(receipt) {
-        Err(e) => Out { signed: false, valid: false, issuer_pubkey: None, error: Some(e.to_string()) },
+        Err(e) => Out {
+            signed: false,
+            valid: false,
+            issuer_pubkey: None,
+            error: Some(e.to_string()),
+        },
         Ok(r) => {
             if r.signature.is_none() {
-                Out { signed: false, valid: false, issuer_pubkey: None, error: None }
+                Out {
+                    signed: false,
+                    valid: false,
+                    issuer_pubkey: None,
+                    error: None,
+                }
             } else {
                 match r.verify_signature() {
-                    Ok(pk) => Out { signed: true, valid: true, issuer_pubkey: Some(hex::encode(pk.to_bytes())), error: None },
-                    Err(e) => Out { signed: true, valid: false, issuer_pubkey: None, error: Some(e.to_string()) },
+                    Ok(pk) => Out {
+                        signed: true,
+                        valid: true,
+                        issuer_pubkey: Some(hex::encode(pk.to_bytes())),
+                        error: None,
+                    },
+                    Err(e) => Out {
+                        signed: true,
+                        valid: false,
+                        issuer_pubkey: None,
+                        error: Some(e.to_string()),
+                    },
                 }
             }
         }

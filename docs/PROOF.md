@@ -4,7 +4,8 @@ Every claim in the README is backed by an entry here. Entries are labelled by ev
 
 - **mainnet-read**: real mainnet data fetched and parsed; no keys involved.
 - **synthetic**: a real mainnet v6 transaction with one Ironwood action re-encrypted to a key we control. Cryptographically complete for the receipt (the note, memo and OCK are genuine), but the transaction is **not consensus-valid** and is not on chain. Used for issue → verify → tamper end-to-end without funds.
-- **testnet** / **mainnet-write**: a transaction we sent. Not yet recorded — blocked on a faucet claim (see §4).
+- **regtest**: a consensus-valid transaction built by a real wallet and mined by a real Zebra node on a private regtest chain, indexed by Zaino, issued through the UFVK path and read back over gRPC (§5). Everything a public-chain proof shows except "exists on a public chain".
+- **testnet** / **mainnet-write**: a transaction we sent on a public chain. Not yet recorded — blocked on a faucet claim (see §4, §6).
 
 ## 1. mainnet-read — v6 parsing and Ironwood enumeration (2026-09-22)
 
@@ -148,3 +149,116 @@ zeceipt issue --testnet --ufvk uviewtest1… --txid <txid> --label "INV-T-001" -
 zeceipt verify --testnet receipts/<file>.json --require-signature
 ```
 Record txid, receipt URL and outputs here as a **testnet** entry.
+
+## 5. regtest — consensus-valid Ironwood transaction, UFVK issuance, gRPC verification (2026-09-22, verbatim)
+
+Setup (all built from source under `raw/tools/`, outside this repo): `zebrad` v6.3.0 with `--features internal-miner`, Regtest with every upgrade including NU6.3 (Ironwood) at height 1; `zainod` (Zaino) indexing it with the fetch backend on `http://127.0.0.1:8137`; `zcash-devtool` built with `regtest_support`, wallet restored from a throwaway mnemonic. Coinbase was mined to the wallet's transparent address, matured, shielded into the Ironwood pool (`shield` txid `e97e6c39…088d`), and 2.5 REG was sent from account 0 to account 1 with a memo (`send` txid `48be62e2…a92d`, mined at height 324; account 1's balance showed `Ironwood Spendable: 2.50000000 REG` after sync). The raw transaction (`getrawtransaction` from zebrad) is committed as `fixtures/regtest-48be62e2…a92d.hex` and the receipt as `fixtures/regtest-receipt.json`; `crates/zeceipt-cli/tests/cli.rs::regtest_receipt_verifies_offline_and_tamper_fails` replays the offline part.
+
+Observation: `--include-change` did not add the change output (index 0), i.e. the internal-scope OVK derived from the UFVK did not open it. The payment output (index 1) is opened by the external OVK as expected. Whether zcash-devtool encrypts change to a different key on Ironwood is an open question, recorded in `.trellis` and the runbook; it does not affect recipient receipts.
+
+```
+# regtest chain: zebrad v6.3.0 (Regtest, all upgrades incl. NU6.3 at height 1, internal miner) + zainod (fetch backend) at http://127.0.0.1:8137; wallet: zcash-devtool (regtest_support)
+$ zeceipt inspect --regtest --endpoint http://127.0.0.1:8137 --txid 48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d
+{
+  "height": 324,
+  "outputs": [
+    {
+      "index": 0,
+      "pool": "ironwood"
+    },
+    {
+      "index": 1,
+      "pool": "ironwood"
+    }
+  ],
+  "txid": "48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d",
+  "version": "V6"
+}
+exit=0
+
+$ zeceipt keygen --out issuer.key
+{"issuer_pubkey":"8073aabe5d4b37c86bd16b1951f5a55710a5480e4e469459d9745a1937d3d348","key_file":"/tmp/rt/issuer.key"}
+
+$ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat issuer-ufvk.txt) --txid 48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d --label "INV-R-001 | 3,797.00 USD @ 1518.81 | 2026-09-22" --challenge auditor-nonce-9 --key-file issuer.key --key-id 2026-09 --out-dir receipts
+{
+  "height": 324,
+  "receipts": [
+    {
+      "receipt": {
+        "challenge": "YXVkaXRvci1ub25jZS05",
+        "issuer_key_id": "2026-09",
+        "issuer_pubkey": "8073aabe5d4b37c86bd16b1951f5a55710a5480e4e469459d9745a1937d3d348",
+        "label": "INV-R-001 | 3,797.00 USD @ 1518.81 | 2026-09-22",
+        "network": "regtest",
+        "ock": "0zI9X1AzSQQo_3lXSFaPs-iRcQRxOKwl8yoptwyqisQ",
+        "output_index": 1,
+        "pool": "ironwood",
+        "signature": "9c6249aa9f1c9e86bf983975bcb9473ee490c1068f05771cb000c70d1f541d574a13b1b110252e7c3907fd6d74f25ca5f29e5b9c820e20f00e30ad427c78ed0a",
+        "txid": "48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d",
+        "version": "zeceipt-v0",
+        "zip311_profile": "outputs-only"
+      },
+      "recovered": {
+        "index": 1,
+        "memo": {
+          "kind": "text",
+          "text": "INV-R-001 | 3,797.00 USD @ 1518.81"
+        },
+        "pool": "ironwood",
+        "recipient": "uregtest13p4s2q35trtan2kkgul8yz8v2n575vjdny83g77fxa6da66v95p4c8jenww5te3a8cxssrlpn02p7rgxx3m8537t4a0ufcnl058fjv5t",
+        "value_zat": 250000000,
+        "value_zec": "2.50000000"
+      },
+      "url": "https://zeceipt.xyz/r/eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJyZWd0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6IjQ4YmU2MmUyMWJkYzk4MDgwZGE5YWEzOTY4NDRjOGJkN2Y4NjQ5NmNhMGNiMTc1OWVhOTFkMWExOWUwZmE5MmQiLCJvdXRwdXRfaW5kZXgiOjEsIm9jayI6IjB6STlYMUF6U1FRb18zbFhTRmFQcy1pUmNRUnhPS3dsOHlvcHR3eXFpc1EiLCJsYWJlbCI6IklOVi1SLTAwMSB8IDMsNzk3LjAwIFVTRCBAIDE1MTguODEgfCAyMDI2LTA5LTIyIiwiY2hhbGxlbmdlIjoiWVhWa2FYUnZjaTF1YjI1alpTMDUiLCJpc3N1ZXJfa2V5X2lkIjoiMjAyNi0wOSIsImlzc3Vlcl9wdWJrZXkiOiI4MDczYWFiZTVkNGIzN2M4NmJkMTZiMTk1MWY1YTU1NzEwYTU0ODBlNGU0Njk0NTlkOTc0NWExOTM3ZDNkMzQ4Iiwic2lnbmF0dXJlIjoiOWM2MjQ5YWE5ZjFjOWU4NmJmOTgzOTc1YmNiOTQ3M2VlNDkwYzEwNjhmMDU3NzFjYjAwMGM3MGQxZjU0MWQ1NzRhMTNiMWIxMTAyNTJlN2MzOTA3ZmQ2ZDc0ZjI1Y2E1ZjI5ZTViOWM4MjBlMjBmMDBlMzBhZDQyN2M3OGVkMGEiLCJ6aXAzMTFfcHJvZmlsZSI6Im91dHB1dHMtb25seSJ9"
+    }
+  ]
+}
+exit=0
+
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 receipts/48be62e21bdc9808-ironwood-1.json --challenge auditor-nonce-9 --require-signature
+{
+  "challenge_checked": true,
+  "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+  "height": 324,
+  "issuer_pubkey": "8073aabe5d4b37c86bd16b1951f5a55710a5480e4e469459d9745a1937d3d348",
+  "label": "INV-R-001 | 3,797.00 USD @ 1518.81 | 2026-09-22",
+  "memo": {
+    "kind": "text",
+    "text": "INV-R-001 | 3,797.00 USD @ 1518.81"
+  },
+  "output_index": 1,
+  "pool": "ironwood",
+  "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
+  "recipient": "uregtest13p4s2q35trtan2kkgul8yz8v2n575vjdny83g77fxa6da66v95p4c8jenww5te3a8cxssrlpn02p7rgxx3m8537t4a0ufcnl058fjv5t",
+  "txid": "48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d",
+  "valid": true,
+  "value_zat": 250000000,
+  "value_zec": "2.50000000"
+}
+exit=0
+
+$ curl zebrad getrawtransaction > regtest-tx.hex && zeceipt verify receipts/48be62e21bdc9808-ironwood-1.json --raw-tx-file regtest-tx.hex --challenge auditor-nonce-9 --require-signature   (offline, node RPC as data source)
+    "kind": "text",
+    "text": "INV-R-001 | 3,797.00 USD @ 1518.81"
+  "recipient": "uregtest13p4s2q35trtan2kkgul8yz8v2n575vjdny83g77fxa6da66v95p4c8jenww5te3a8cxssrlpn02p7rgxx3m8537t4a0ufcnl058fjv5t",
+  "txid": "48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d",
+  "valid": true,
+  "value_zec": "2.50000000"
+exit=0
+
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 tampered.json (one ock bit flipped) --challenge auditor-nonce-9 --require-signature
+{"error":"signature is invalid","stage":"signature","valid":false}
+exit=1
+
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 tampered-unsigned.json (same, signature stripped) --challenge auditor-nonce-9
+{"error":"recovery failed: the ock does not open ironwood output 1","stage":"recovery","valid":false}
+exit=1
+
+$ zeceipt issue --regtest ... --include-change   (the change output is ours too; excluded unless requested)
+[{"index": 1, "value_zec": "2.50000000", "memo": {"kind": "text", "text": "INV-R-001 | 3,797.00 USD @ 1518.81"}}]
+exit=0
+```
+
+## 6. testnet — placeholder
+
+To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.

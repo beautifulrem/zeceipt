@@ -236,3 +236,48 @@ fn inspect_issue_pack_and_verify_pack_offline() {
     assert_eq!(v["all_valid"], true);
     assert_eq!(v["verified_total_zat"], 250_000_000);
 }
+
+/// A consensus-valid regtest transaction (mined by Zebra) with a receipt issued
+/// from the sender's UFVK: the strongest offline evidence in the repository.
+#[test]
+fn regtest_receipt_verifies_offline_and_tamper_fails() {
+    let raw =
+        fixture("regtest-48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d.hex");
+    let (c, o, err) = run(&[
+        "verify",
+        &fixture("regtest-receipt.json"),
+        "--raw-tx-file",
+        &raw,
+        "--challenge",
+        "auditor-nonce-9",
+        "--require-signature",
+    ]);
+    assert_eq!(c, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    assert_eq!(v["valid"], true);
+    assert_eq!(v["pool"], "ironwood");
+    assert_eq!(v["output_index"], 1);
+    assert_eq!(v["value_zat"], 250_000_000);
+    assert!(v["recipient"].as_str().unwrap().starts_with("uregtest1"));
+    assert_eq!(v["memo"]["text"], "INV-R-001 | 3,797.00 USD @ 1518.81");
+    // Wrong challenge and a mainnet-context contradiction both fail closed.
+    let (c, o, _) = run(&[
+        "verify",
+        &fixture("regtest-receipt.json"),
+        "--raw-tx-file",
+        &raw,
+        "--challenge",
+        "x",
+        "--require-signature",
+    ]);
+    assert_eq!((c, stage(&o)), (1, "challenge".into()));
+    let (c, o, _) = run(&[
+        "verify",
+        &fixture("regtest-receipt.json"),
+        "--raw-tx-file",
+        &fixture("synthetic-ironwood.hex"),
+        "--challenge",
+        "auditor-nonce-9",
+    ]);
+    assert_eq!((c, stage(&o)), (1, "txid".into()));
+}
