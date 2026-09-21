@@ -117,12 +117,16 @@ impl Client {
                     return Err(LwdError::NotFound(txid_hex.into()));
                 }
                 // lightwalletd encodes "mempool" as u64::MAX / -1 sentinels.
-                let height = if r.height == 0 || r.height == u64::MAX || r.height == (-1i64) as u64 {
+                let height = if r.height == 0 || r.height == u64::MAX || r.height == (-1i64) as u64
+                {
                     None
                 } else {
                     Some(r.height)
                 };
-                Ok(RawTx { bytes: r.data, height })
+                Ok(RawTx {
+                    bytes: r.data,
+                    height,
+                })
             }
             Err(status) if status.code() == tonic::Code::NotFound => {
                 Err(LwdError::NotFound(txid_hex.into()))
@@ -158,10 +162,20 @@ impl Client {
     /// Scan `[start, end]` and return (height, txid hex) of every transaction
     /// that has at least one Ironwood action. Useful to pick fixtures and for
     /// verifiers that prefer not to query a specific txid.
-    pub async fn find_ironwood_txs(&mut self, start: u64, end: u64) -> Result<Vec<(u64, String)>, LwdError> {
+    pub async fn find_ironwood_txs(
+        &mut self,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<(u64, String)>, LwdError> {
         let range = BlockRange {
-            start: Some(BlockId { height: start, hash: vec![] }),
-            end: Some(BlockId { height: end, hash: vec![] }),
+            start: Some(BlockId {
+                height: start,
+                hash: vec![],
+            }),
+            end: Some(BlockId {
+                height: end,
+                hash: vec![],
+            }),
             pool_types: vec![],
         };
         let mut stream = self

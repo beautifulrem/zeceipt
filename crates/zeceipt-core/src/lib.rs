@@ -26,6 +26,9 @@ use zeceipt_types::{Network, Pool, Receipt, TypesError};
 
 pub use zeceipt_types;
 
+#[cfg(feature = "synthetic")]
+pub mod synthetic;
+
 /// Errors from parsing, derivation and verification.
 #[derive(Debug, thiserror::Error)]
 pub enum CoreError {
@@ -38,7 +41,11 @@ pub enum CoreError {
     #[error("transaction has no {0} bundle")]
     NoBundle(&'static str),
     #[error("output index {index} out of range for {pool} bundle with {len} outputs")]
-    OutputIndexOutOfRange { pool: &'static str, index: u32, len: usize },
+    OutputIndexOutOfRange {
+        pool: &'static str,
+        index: u32,
+        len: usize,
+    },
     #[error("recovery failed: the ock does not open {pool} output {index}")]
     RecoveryFailed { pool: &'static str, index: u32 },
     #[error("viewing key has no {0} component")]
@@ -81,7 +88,10 @@ pub enum MemoView {
 
 impl MemoView {
     fn from_raw(raw: &[u8; 512]) -> Self {
-        match MemoBytes::from_bytes(raw).ok().and_then(|m| Memo::try_from(m).ok()) {
+        match MemoBytes::from_bytes(raw)
+            .ok()
+            .and_then(|m| Memo::try_from(m).ok())
+        {
             Some(Memo::Empty) => MemoView::Empty,
             Some(Memo::Text(t)) => MemoView::Text(String::from(t)),
             Some(Memo::Future(b)) => MemoView::Bytes(hex::encode(b.as_slice())),
@@ -179,15 +189,22 @@ pub fn txid_hex(tx: &Transaction) -> String {
 pub fn enumerate_outputs(tx: &Transaction) -> Vec<OutputRef> {
     let mut out = Vec::new();
     if let Some(b) = tx.ironwood_bundle() {
-        out.extend((0..b.actions().len()).map(|i| OutputRef { pool: Pool::Ironwood, index: i as u32 }));
+        out.extend((0..b.actions().len()).map(|i| OutputRef {
+            pool: Pool::Ironwood,
+            index: i as u32,
+        }));
     }
     if let Some(b) = tx.orchard_bundle() {
-        out.extend((0..b.actions().len()).map(|i| OutputRef { pool: Pool::Orchard, index: i as u32 }));
+        out.extend((0..b.actions().len()).map(|i| OutputRef {
+            pool: Pool::Orchard,
+            index: i as u32,
+        }));
     }
     if let Some(b) = tx.sapling_bundle() {
-        out.extend(
-            (0..b.shielded_outputs().len()).map(|i| OutputRef { pool: Pool::Sapling, index: i as u32 }),
-        );
+        out.extend((0..b.shielded_outputs().len()).map(|i| OutputRef {
+            pool: Pool::Sapling,
+            index: i as u32,
+        }));
     }
     out
 }
@@ -238,18 +255,31 @@ pub fn derive_ock(
     keys: &OutgoingKeys,
     include_change: bool,
 ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
-    let scopes: &[bool] = if include_change { &[false, true] } else { &[false] };
+    let scopes: &[bool] = if include_change {
+        &[false, true]
+    } else {
+        &[false]
+    };
     match output.pool {
         Pool::Ironwood | Pool::Orchard => {
             let (action, ock_for_key, recovered) = if output.pool == Pool::Ironwood {
-                let (action, domain) = orchard_like!(tx.ironwood_bundle(), IronwoodDomain, Pool::Ironwood, output.index);
+                let (action, domain) = orchard_like!(
+                    tx.ironwood_bundle(),
+                    IronwoodDomain,
+                    Pool::Ironwood,
+                    output.index
+                );
                 let mut found = None;
                 for &internal in scopes {
                     if let Some(ovk) = keys.orchard(internal) {
                         let enc = action.encrypted_note();
-                        if let Some((note, addr, memo)) =
-                            try_output_recovery_with_ovk(&domain, ovk, action, action.cv_net(), &enc.out_ciphertext)
-                        {
+                        if let Some((note, addr, memo)) = try_output_recovery_with_ovk(
+                            &domain,
+                            ovk,
+                            action,
+                            action.cv_net(),
+                            &enc.out_ciphertext,
+                        ) {
                             let ock = <IronwoodDomain as Domain>::derive_ock(
                                 ovk,
                                 action.cv_net(),
@@ -263,17 +293,28 @@ pub fn derive_ock(
                 }
                 match found {
                     None => return Ok(None),
-                    Some((ock, note, addr, memo)) => (action, ock, (note.value().inner(), addr, memo)),
+                    Some((ock, note, addr, memo)) => {
+                        (action, ock, (note.value().inner(), addr, memo))
+                    }
                 }
             } else {
-                let (action, domain) = orchard_like!(tx.orchard_bundle(), OrchardDomain, Pool::Orchard, output.index);
+                let (action, domain) = orchard_like!(
+                    tx.orchard_bundle(),
+                    OrchardDomain,
+                    Pool::Orchard,
+                    output.index
+                );
                 let mut found = None;
                 for &internal in scopes {
                     if let Some(ovk) = keys.orchard(internal) {
                         let enc = action.encrypted_note();
-                        if let Some((note, addr, memo)) =
-                            try_output_recovery_with_ovk(&domain, ovk, action, action.cv_net(), &enc.out_ciphertext)
-                        {
+                        if let Some((note, addr, memo)) = try_output_recovery_with_ovk(
+                            &domain,
+                            ovk,
+                            action,
+                            action.cv_net(),
+                            &enc.out_ciphertext,
+                        ) {
                             let ock = <OrchardDomain as Domain>::derive_ock(
                                 ovk,
                                 action.cv_net(),
@@ -287,7 +328,9 @@ pub fn derive_ock(
                 }
                 match found {
                     None => return Ok(None),
-                    Some((ock, note, addr, memo)) => (action, ock, (note.value().inner(), addr, memo)),
+                    Some((ock, note, addr, memo)) => {
+                        (action, ock, (note.value().inner(), addr, memo))
+                    }
                 }
             };
             let _ = action;
@@ -308,11 +351,14 @@ pub fn derive_ock(
         Pool::Sapling => {
             let bundle = tx.sapling_bundle().ok_or(CoreError::NoBundle("sapling"))?;
             let outputs = bundle.shielded_outputs();
-            let od = outputs.get(output.index as usize).ok_or(CoreError::OutputIndexOutOfRange {
-                pool: "sapling",
-                index: output.index,
-                len: outputs.len(),
-            })?;
+            let od =
+                outputs
+                    .get(output.index as usize)
+                    .ok_or(CoreError::OutputIndexOutOfRange {
+                        pool: "sapling",
+                        index: output.index,
+                        len: outputs.len(),
+                    })?;
             let domain = SaplingDomain::new(Zip212Enforcement::On);
             for &internal in scopes {
                 if let Some(ovk) = keys.sapling(internal) {
@@ -323,7 +369,7 @@ pub fn derive_ock(
                             ovk,
                             od.cv(),
                             &od.cmu().to_bytes(),
-                            &od.ephemeral_key(),
+                            od.ephemeral_key(),
                         );
                         let mut ock_bytes = [0u8; 32];
                         ock_bytes.copy_from_slice(ock.as_ref());
@@ -346,14 +392,31 @@ pub fn derive_ock(
 }
 
 /// Recover one output with a disclosed OCK. This is what a verifier runs.
-pub fn recover(tx: &Transaction, output: OutputRef, ock: &[u8; 32], network: Network) -> Result<Recovered, CoreError> {
+pub fn recover(
+    tx: &Transaction,
+    output: OutputRef,
+    ock: &[u8; 32],
+    network: Network,
+) -> Result<Recovered, CoreError> {
     let ock = OutgoingCipherKey(*ock);
     match output.pool {
         Pool::Ironwood => {
-            let (action, domain) = orchard_like!(tx.ironwood_bundle(), IronwoodDomain, Pool::Ironwood, output.index);
-            let (note, addr, memo) =
-                try_output_recovery_with_ock(&domain, &ock, action, &action.encrypted_note().out_ciphertext)
-                    .ok_or(CoreError::RecoveryFailed { pool: "ironwood", index: output.index })?;
+            let (action, domain) = orchard_like!(
+                tx.ironwood_bundle(),
+                IronwoodDomain,
+                Pool::Ironwood,
+                output.index
+            );
+            let (note, addr, memo) = try_output_recovery_with_ock(
+                &domain,
+                &ock,
+                action,
+                &action.encrypted_note().out_ciphertext,
+            )
+            .ok_or(CoreError::RecoveryFailed {
+                pool: "ironwood",
+                index: output.index,
+            })?;
             Ok(Recovered {
                 pool: Pool::Ironwood,
                 index: output.index,
@@ -363,10 +426,22 @@ pub fn recover(tx: &Transaction, output: OutputRef, ock: &[u8; 32], network: Net
             })
         }
         Pool::Orchard => {
-            let (action, domain) = orchard_like!(tx.orchard_bundle(), OrchardDomain, Pool::Orchard, output.index);
-            let (note, addr, memo) =
-                try_output_recovery_with_ock(&domain, &ock, action, &action.encrypted_note().out_ciphertext)
-                    .ok_or(CoreError::RecoveryFailed { pool: "orchard", index: output.index })?;
+            let (action, domain) = orchard_like!(
+                tx.orchard_bundle(),
+                OrchardDomain,
+                Pool::Orchard,
+                output.index
+            );
+            let (note, addr, memo) = try_output_recovery_with_ock(
+                &domain,
+                &ock,
+                action,
+                &action.encrypted_note().out_ciphertext,
+            )
+            .ok_or(CoreError::RecoveryFailed {
+                pool: "orchard",
+                index: output.index,
+            })?;
             Ok(Recovered {
                 pool: Pool::Orchard,
                 index: output.index,
@@ -378,14 +453,22 @@ pub fn recover(tx: &Transaction, output: OutputRef, ock: &[u8; 32], network: Net
         Pool::Sapling => {
             let bundle = tx.sapling_bundle().ok_or(CoreError::NoBundle("sapling"))?;
             let outputs = bundle.shielded_outputs();
-            let od = outputs.get(output.index as usize).ok_or(CoreError::OutputIndexOutOfRange {
-                pool: "sapling",
-                index: output.index,
-                len: outputs.len(),
-            })?;
+            let od =
+                outputs
+                    .get(output.index as usize)
+                    .ok_or(CoreError::OutputIndexOutOfRange {
+                        pool: "sapling",
+                        index: output.index,
+                        len: outputs.len(),
+                    })?;
             let domain = SaplingDomain::new(Zip212Enforcement::On);
-            let (note, addr, memo) = try_output_recovery_with_ock(&domain, &ock, od, od.out_ciphertext())
-                .ok_or(CoreError::RecoveryFailed { pool: "sapling", index: output.index })?;
+            let (note, addr, memo) =
+                try_output_recovery_with_ock(&domain, &ock, od, od.out_ciphertext()).ok_or(
+                    CoreError::RecoveryFailed {
+                        pool: "sapling",
+                        index: output.index,
+                    },
+                )?;
             Ok(Recovered {
                 pool: Pool::Sapling,
                 index: output.index,
@@ -407,14 +490,26 @@ pub struct IssueOptions<'a> {
 }
 
 /// Issue one receipt per output that the issuer's keys can open.
-pub fn issue(tx: &Transaction, keys: &OutgoingKeys, opts: &IssueOptions<'_>) -> Result<Vec<(Receipt, Recovered)>, CoreError> {
+pub fn issue(
+    tx: &Transaction,
+    keys: &OutgoingKeys,
+    opts: &IssueOptions<'_>,
+) -> Result<Vec<(Receipt, Recovered)>, CoreError> {
     let txid = txid_hex(tx);
     let mut txid_bytes = [0u8; 32];
-    txid_bytes.copy_from_slice(&hex::decode(&txid).map_err(|_| CoreError::Malformed("txid".into()))?);
+    txid_bytes
+        .copy_from_slice(&hex::decode(&txid).map_err(|_| CoreError::Malformed("txid".into()))?);
     let mut out = Vec::new();
     for o in enumerate_outputs(tx) {
         if let Some((ock, recovered)) = derive_ock(tx, o, keys, opts.include_change)? {
-            let mut r = Receipt::new(keys.network, o.pool, txid_bytes, o.index, ock, opts.label.clone());
+            let mut r = Receipt::new(
+                keys.network,
+                o.pool,
+                txid_bytes,
+                o.index,
+                ock,
+                opts.label.clone(),
+            );
             if let Some(c) = opts.challenge {
                 r = r.with_challenge(c);
             }
@@ -443,7 +538,10 @@ pub fn verify(
 ) -> Result<Verified, CoreError> {
     let actual = txid_hex(tx);
     if receipt.txid.to_lowercase() != actual {
-        return Err(CoreError::TxidMismatch { expected: receipt.txid.clone(), actual });
+        return Err(CoreError::TxidMismatch {
+            expected: receipt.txid.clone(),
+            actual,
+        });
     }
     receipt.check_challenge(expected_challenge)?;
     let issuer_pubkey = match (receipt.signature.is_some(), require_signature) {
@@ -452,7 +550,15 @@ pub fn verify(
         (false, false) => None,
     };
     let ock = receipt.ock_bytes()?;
-    let recovered = recover(tx, OutputRef { pool: receipt.pool, index: receipt.output_index }, &ock, receipt.network)?;
+    let recovered = recover(
+        tx,
+        OutputRef {
+            pool: receipt.pool,
+            index: receipt.output_index,
+        },
+        &ock,
+        receipt.network,
+    )?;
     Ok(Verified {
         recovered,
         txid: actual,
@@ -465,14 +571,18 @@ pub fn verify(
 mod tests {
     use super::*;
     use orchard::keys::{FullViewingKey, SpendingKey};
-    use orchard::note::{ExtractedNoteCommitment, NoteVersion, RandomSeed, Rho, TransmittedNoteCiphertext};
+    use orchard::note::{
+        ExtractedNoteCommitment, NoteVersion, RandomSeed, Rho, TransmittedNoteCiphertext,
+    };
     use orchard::note_encryption::IronwoodNoteEncryption;
     use orchard::value::NoteValue;
     use orchard::Action;
     use rand::rngs::OsRng;
     use rand::RngCore;
 
-    const FIXTURE: &str = include_str!("../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex");
+    const FIXTURE: &str = include_str!(
+        "../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex"
+    );
 
     fn random_fvk() -> FullViewingKey {
         loop {
@@ -493,14 +603,23 @@ mod tests {
     #[test]
     fn parses_mainnet_v6_fixture_and_enumerates_ironwood_actions() {
         let tx = fixture_tx();
-        assert_eq!(txid_hex(&tx), "0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69");
+        assert_eq!(
+            txid_hex(&tx),
+            "0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69"
+        );
         let outs = enumerate_outputs(&tx);
-        assert!(outs.iter().any(|o| o.pool == Pool::Ironwood), "fixture must contain Ironwood actions: {outs:?}");
+        assert!(
+            outs.iter().any(|o| o.pool == Pool::Ironwood),
+            "fixture must contain Ironwood actions: {outs:?}"
+        );
     }
 
     /// Build a synthetic Ironwood action encrypted to a fresh key, reusing the
     /// fixture's nullifier and rk so the action is structurally valid.
-    fn synthetic_ironwood_action(memo: [u8; 512], value: u64) -> (Action<()>, FullViewingKey, orchard::Address) {
+    fn synthetic_ironwood_action(
+        memo: [u8; 512],
+        value: u64,
+    ) -> (Action<()>, FullViewingKey, orchard::Address) {
         let tx = fixture_tx();
         let template = tx.ironwood_bundle().unwrap().actions().first().clone();
         let nf_old = *template.nullifier();
@@ -513,7 +632,14 @@ mod tests {
         let mut rseed_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut rseed_bytes);
         let rseed = RandomSeed::from_bytes(rseed_bytes, &rho).unwrap();
-        let note = orchard::Note::from_parts(recipient, NoteValue::from_raw(value), rho, rseed, NoteVersion::V3).unwrap();
+        let note = orchard::Note::from_parts(
+            recipient,
+            NoteValue::from_raw(value),
+            rho,
+            rseed,
+            NoteVersion::V3,
+        )
+        .unwrap();
         // Any well-formed value commitment works for note encryption; reuse the template's.
         let cv_net = template.cv_net().clone();
         let cmx = ExtractedNoteCommitment::from(note.commitment());
@@ -535,8 +661,15 @@ mod tests {
         let domain = IronwoodDomain::for_action(&action);
         let ovk = fvk.to_ovk(Scope::External);
         let enc = action.encrypted_note();
-        let ock = <IronwoodDomain as Domain>::derive_ock(&ovk, action.cv_net(), &action.cmx().to_bytes(), &EphemeralKeyBytes(enc.epk_bytes));
-        let (note, addr, got_memo) = try_output_recovery_with_ock(&domain, &ock, &action, &enc.out_ciphertext).expect("ock opens the output");
+        let ock = <IronwoodDomain as Domain>::derive_ock(
+            &ovk,
+            action.cv_net(),
+            &action.cmx().to_bytes(),
+            &EphemeralKeyBytes(enc.epk_bytes),
+        );
+        let (note, addr, got_memo) =
+            try_output_recovery_with_ock(&domain, &ock, &action, &enc.out_ciphertext)
+                .expect("ock opens the output");
         assert_eq!(note.value().inner(), 123_456);
         assert_eq!(addr, recipient);
         assert_eq!(got_memo, memo);
@@ -545,12 +678,26 @@ mod tests {
         let mut bad = [0u8; 32];
         bad.copy_from_slice(ock.as_ref());
         bad[3] ^= 0x01;
-        assert!(try_output_recovery_with_ock(&domain, &OutgoingCipherKey(bad), &action, &enc.out_ciphertext).is_none());
+        assert!(try_output_recovery_with_ock(
+            &domain,
+            &OutgoingCipherKey(bad),
+            &action,
+            &enc.out_ciphertext
+        )
+        .is_none());
 
         // A different key's ock must fail closed.
         let other = random_fvk().to_ovk(Scope::External);
-        let other_ock = <IronwoodDomain as Domain>::derive_ock(&other, action.cv_net(), &action.cmx().to_bytes(), &EphemeralKeyBytes(enc.epk_bytes));
-        assert!(try_output_recovery_with_ock(&domain, &other_ock, &action, &enc.out_ciphertext).is_none());
+        let other_ock = <IronwoodDomain as Domain>::derive_ock(
+            &other,
+            action.cv_net(),
+            &action.cmx().to_bytes(),
+            &EphemeralKeyBytes(enc.epk_bytes),
+        );
+        assert!(
+            try_output_recovery_with_ock(&domain, &other_ock, &action, &enc.out_ciphertext)
+                .is_none()
+        );
     }
 
     #[test]
@@ -567,19 +714,34 @@ mod tests {
     fn verify_rejects_txid_mismatch_and_wrong_index() {
         let tx = fixture_tx();
         let mut r = Receipt::new(Network::Main, Pool::Ironwood, [0u8; 32], 0, [7u8; 32], "x");
-        assert!(matches!(verify(&r, &tx, b"", false), Err(CoreError::TxidMismatch { .. })));
+        assert!(matches!(
+            verify(&r, &tx, b"", false),
+            Err(CoreError::TxidMismatch { .. })
+        ));
         let mut txid = [0u8; 32];
         txid.copy_from_slice(&hex::decode(txid_hex(&tx)).unwrap());
         r.txid = hex::encode(txid);
         r.output_index = 9_999;
-        assert!(matches!(verify(&r, &tx, b"", false), Err(CoreError::OutputIndexOutOfRange { .. })));
+        assert!(matches!(
+            verify(&r, &tx, b"", false),
+            Err(CoreError::OutputIndexOutOfRange { .. })
+        ));
         r.output_index = 0;
         // Random ock cannot open a real mainnet output.
-        assert!(matches!(verify(&r, &tx, b"", false), Err(CoreError::RecoveryFailed { .. })));
+        assert!(matches!(
+            verify(&r, &tx, b"", false),
+            Err(CoreError::RecoveryFailed { .. })
+        ));
         // Challenge mismatch is checked before recovery.
         let r2 = r.clone().with_challenge(b"abc");
-        assert!(matches!(verify(&r2, &tx, b"zzz", false), Err(CoreError::Types(TypesError::ChallengeMismatch))));
+        assert!(matches!(
+            verify(&r2, &tx, b"zzz", false),
+            Err(CoreError::Types(TypesError::ChallengeMismatch))
+        ));
         // Unsigned receipt rejected when signature required.
-        assert!(matches!(verify(&r, &tx, b"", true), Err(CoreError::Types(TypesError::Unsigned))));
+        assert!(matches!(
+            verify(&r, &tx, b"", true),
+            Err(CoreError::Types(TypesError::Unsigned))
+        ));
     }
 }

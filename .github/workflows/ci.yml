@@ -1,0 +1,30 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --features zeceipt-core/synthetic
+      - run: cargo run -q -p zeceipt-core --features synthetic --example make_synthetic
+      - run: |
+          ./target/debug/zeceipt keygen --out /tmp/k.key >/dev/null
+          ./target/debug/zeceipt issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label ci --key-file /tmp/k.key --out-dir /tmp/r >/dev/null
+          ./target/debug/zeceipt verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install wasm-pack --locked
+      - run: wasm-pack build crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg

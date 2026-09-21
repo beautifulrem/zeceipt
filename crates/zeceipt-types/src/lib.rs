@@ -321,7 +321,14 @@ mod tests {
     use rand::rngs::OsRng;
 
     fn sample() -> Receipt {
-        Receipt::new(Network::Main, Pool::Ironwood, [0x11; 32], 2, [0x22; 32], "INV-2026-0142")
+        Receipt::new(
+            Network::Main,
+            Pool::Ironwood,
+            [0x11; 32],
+            2,
+            [0x22; 32],
+            "INV-2026-0142",
+        )
     }
 
     #[test]

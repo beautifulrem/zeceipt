@@ -5,6 +5,7 @@ members = [
     "crates/zeceipt-core",
     "crates/zeceipt-lwd",
     "crates/zeceipt-cli",
+    "crates/zeceipt-wasm",
 ]
 
 [workspace.package]

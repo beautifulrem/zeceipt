@@ -1,0 +1,19 @@
+# Threat model
+
+Assets: the organisation's spending keys (never in scope of this software), its outgoing viewing keys (OVK), each disclosed per-output key (OCK), recipients' addresses and memos, and the verifier's privacy.
+
+| Threat | Impact | Mitigation in Zeceipt |
+|---|---|---|
+| Forged receipt claims a payment that never happened | Verifier misled | Recovery uses the real `out_ciphertext` from the chain; a wrong OCK cannot decrypt. Verifier must obtain the transaction from a source it trusts (own node, lightwalletd, or explorer) and compare the txid. |
+| Receipt forwarded by a third party ("I paid you" shown by someone else) | Misattribution | Receipts are bearer documents unless a **challenge** is bound (ZIP 311 `msg`). For interactive proofs the verifier issues a nonce; mismatch is rejected. UI states "does not prove who is presenting". |
+| Tampered receipt (ock, index, txid, label, challenge) | Wrong payment shown | Fails closed at signature (if signed) and at recovery; index out of range and txid mismatch are explicit errors. Tested in `tests/offline_e2e.rs`. |
+| Issuer impersonation (someone signs receipts claiming to be org X) | Misattribution | Signature only proves "holder of key K". Org binding is an optional, upgrade-only lookup of `/.well-known/zeceipt.json` (key ids, validity intervals). Missing/lapsed binding renders "issuer binding unknown", never "invalid". |
+| Address linkability across receipts | Recipient privacy | Disclosing an OCK reveals the diversified address of that output. Issuers should pay each recipient at a fresh diversified address; documented in the spec. |
+| Over-disclosure | Sender privacy | Only per-output OCKs are ever shared; UFVK/OVK are never placed in receipts. Change outputs are excluded by default (`--include-change` opt-in). |
+| OVK compromise (issuer host) | All outgoing payments of that account become readable (funds are safe) | Keep OVK on the issuing host only; local issuance mode (CLI on the treasurer's machine) needs no hosted key. Logging never prints OVK/OCK/memos above `trace`. |
+| Verifier privacy (which txid is being checked) | Observer at the data source learns interest | CLI supports `find-ironwood`/block-range scanning and custom endpoints; the browser demo states that a public node sees the txid; Tor/self-hosted lightwalletd is supported via endpoint override. Not promised: invisibility of verification. |
+| Audit pack omission | Auditor overestimates completeness | Pack totals are labelled a **lower bound**; completeness requires a viewing key or other evidence. |
+| Malformed on-chain data / malicious raw tx input | Crash | Parsing is bounded; errors are typed; `#![forbid(unsafe_code)]`; no panics outside tests and CLI argument handling. |
+| Dependency drift (Ironwood/NU7 format changes) | Verifier breaks | Pinned crate set; v6 parsing tested against a committed mainnet fixture; NU7 re-test scheduled for the testnet activation on 2026-10-06. |
+
+Out of scope: spend-authority proof (full ZIP 311), consensus validation of the transaction (verifiers rely on their data source for inclusion), and key management for the issuer's signing key beyond file permissions.

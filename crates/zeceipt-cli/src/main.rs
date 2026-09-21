@@ -16,7 +16,11 @@ use zeceipt_core::{CoreError, IssueOptions, OutgoingKeys};
 use zeceipt_lwd::{Client, LwdError};
 
 #[derive(Parser)]
-#[command(name = "zeceipt", version, about = "Verifiable receipts for shielded Zcash payments (ZIP 311 outputs subset, Ironwood-native)")]
+#[command(
+    name = "zeceipt",
+    version,
+    about = "Verifiable receipts for shielded Zcash payments (ZIP 311 outputs subset, Ironwood-native)"
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -124,6 +128,12 @@ enum Cmd {
         pack: PathBuf,
         #[arg(long)]
         require_signature: bool,
+        /// Directory containing `<txid>.hex` raw transactions (offline mode).
+        #[arg(long)]
+        raw_tx_dir: Option<PathBuf>,
+        /// Expected challenge bound into the receipts (UTF-8), if any.
+        #[arg(long)]
+        challenge: Option<String>,
     },
     /// Find recent transactions with Ironwood actions (for fixtures and demos).
     FindIronwood {
@@ -138,7 +148,10 @@ enum Cmd {
 #[tokio::main]
 async fn main() -> ExitCode {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse().expect("static")))
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("info".parse().expect("static")),
+        )
         .with_writer(std::io::stderr)
         .init();
     match run().await {
@@ -156,7 +169,10 @@ async fn run() -> anyhow::Result<ExitCode> {
         Cmd::Keygen { out } => {
             let key = SigningKey::generate(&mut OsRng);
             write_secret(&out, &hex::encode(key.to_bytes()))?;
-            println!("{}", json!({"issuer_pubkey": hex::encode(key.verifying_key().to_bytes()), "key_file": out}));
+            println!(
+                "{}",
+                json!({"issuer_pubkey": hex::encode(key.verifying_key().to_bytes()), "key_file": out})
+            );
             Ok(ExitCode::SUCCESS)
         }
         Cmd::Inspect { net, tx } => {
@@ -166,21 +182,41 @@ async fn run() -> anyhow::Result<ExitCode> {
                 .into_iter()
                 .map(|o| json!({"pool": o.pool.as_str(), "index": o.index}))
                 .collect::<Vec<_>>();
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "txid": zeceipt_core::txid_hex(&parsed),
-                "version": format!("{:?}", parsed.version()),
-                "height": height,
-                "outputs": outputs,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "txid": zeceipt_core::txid_hex(&parsed),
+                    "version": format!("{:?}", parsed.version()),
+                    "height": height,
+                    "outputs": outputs,
+                }))?
+            );
             Ok(ExitCode::SUCCESS)
         }
-        Cmd::Issue { net, tx, ufvk, ovk, label, challenge, key_file, key_id, include_change, host, out_dir } => {
-            let network = if net.testnet { Network::Test } else { Network::Main };
+        Cmd::Issue {
+            net,
+            tx,
+            ufvk,
+            ovk,
+            label,
+            challenge,
+            key_file,
+            key_id,
+            include_change,
+            host,
+            out_dir,
+        } => {
+            let network = if net.testnet {
+                Network::Test
+            } else {
+                Network::Main
+            };
             let keys = match (ufvk, ovk) {
                 (Some(u), _) => OutgoingKeys::from_ufvk(network, u.trim())?,
                 (None, Some(o)) => {
                     let b = hex::decode(o.trim()).context("ovk must be hex")?;
-                    let arr: [u8; 32] = b.try_into().map_err(|_| anyhow!("ovk must be 32 bytes"))?;
+                    let arr: [u8; 32] =
+                        b.try_into().map_err(|_| anyhow!("ovk must be 32 bytes"))?;
                     OutgoingKeys::from_orchard_ovk(network, arr)
                 }
                 (None, None) => return Err(anyhow!("one of --ufvk or --ovk is required")),
@@ -200,7 +236,10 @@ async fn run() -> anyhow::Result<ExitCode> {
             };
             let receipts = zeceipt_core::issue(&parsed, &keys, &opts)?;
             if receipts.is_empty() {
-                eprintln!("no outputs of {} are opened by the given viewing key", zeceipt_core::txid_hex(&parsed));
+                eprintln!(
+                    "no outputs of {} are opened by the given viewing key",
+                    zeceipt_core::txid_hex(&parsed)
+                );
                 return Ok(ExitCode::from(1));
             }
             if let Some(dir) = &out_dir {
@@ -209,7 +248,12 @@ async fn run() -> anyhow::Result<ExitCode> {
             let mut items = Vec::new();
             for (r, rec) in receipts {
                 if let Some(dir) = &out_dir {
-                    let path = dir.join(format!("{}-{}-{}.json", &r.txid[..16], r.pool.as_str(), r.output_index));
+                    let path = dir.join(format!(
+                        "{}-{}-{}.json",
+                        &r.txid[..16],
+                        r.pool.as_str(),
+                        r.output_index
+                    ));
                     std::fs::write(&path, r.to_json()?)?;
                 }
                 items.push(json!({
@@ -218,10 +262,19 @@ async fn run() -> anyhow::Result<ExitCode> {
                     "recovered": recovered_json(&rec),
                 }));
             }
-            println!("{}", serde_json::to_string_pretty(&json!({"height": height, "receipts": items}))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({"height": height, "receipts": items}))?
+            );
             Ok(ExitCode::SUCCESS)
         }
-        Cmd::Verify { net, receipt, challenge, raw_tx_file, require_signature } => {
+        Cmd::Verify {
+            net,
+            receipt,
+            challenge,
+            raw_tx_file,
+            require_signature,
+        } => {
             let input = if receipt == "-" {
                 let mut s = String::new();
                 std::io::Read::read_to_string(&mut std::io::stdin(), &mut s)?;
@@ -234,17 +287,29 @@ async fn run() -> anyhow::Result<ExitCode> {
             let r = match Receipt::parse(&input) {
                 Ok(r) => r,
                 Err(e) => {
-                    println!("{}", json!({"valid": false, "error": e.to_string(), "stage": "parse"}));
+                    println!(
+                        "{}",
+                        json!({"valid": false, "error": e.to_string(), "stage": "parse"})
+                    );
                     return Ok(ExitCode::from(1));
                 }
             };
-            let net = NetArgs { testnet: matches!(r.network, Network::Test) || net.testnet, endpoint: net.endpoint };
-            let src = TxSource { txid: Some(r.txid.clone()), raw_tx_file };
+            let net = NetArgs {
+                testnet: matches!(r.network, Network::Test) || net.testnet,
+                endpoint: net.endpoint,
+            };
+            let src = TxSource {
+                txid: Some(r.txid.clone()),
+                raw_tx_file,
+            };
             let (bytes, height) = match load_tx(&net, &src).await {
                 Ok(v) => v,
                 Err(e) => {
                     if is_pending(&e) {
-                        println!("{}", json!({"valid": null, "status": "pending", "error": e.to_string()}));
+                        println!(
+                            "{}",
+                            json!({"valid": null, "status": "pending", "error": e.to_string()})
+                        );
                         return Ok(ExitCode::from(2));
                     }
                     return Err(e);
@@ -254,49 +319,81 @@ async fn run() -> anyhow::Result<ExitCode> {
             let expected = challenge.as_deref().unwrap_or("").as_bytes();
             match zeceipt_core::verify(&r, &parsed, expected, require_signature) {
                 Ok(v) => {
-                    println!("{}", serde_json::to_string_pretty(&json!({
-                        "valid": true,
-                        "txid": v.txid,
-                        "height": height,
-                        "pool": v.recovered.pool.as_str(),
-                        "output_index": v.recovered.index,
-                        "recipient": v.recovered.recipient,
-                        "value_zat": v.recovered.value_zat,
-                        "value_zec": format_zec(v.recovered.value_zat),
-                        "memo": memo_json(&v.recovered.memo),
-                        "label": r.label,
-                        "issuer_pubkey": v.issuer_pubkey,
-                        "challenge_checked": v.challenge_checked,
-                        "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
-                        "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
-                    }))?);
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "valid": true,
+                            "txid": v.txid,
+                            "height": height,
+                            "pool": v.recovered.pool.as_str(),
+                            "output_index": v.recovered.index,
+                            "recipient": v.recovered.recipient,
+                            "value_zat": v.recovered.value_zat,
+                            "value_zec": format_zec(v.recovered.value_zat),
+                            "memo": memo_json(&v.recovered.memo),
+                            "label": r.label,
+                            "issuer_pubkey": v.issuer_pubkey,
+                            "challenge_checked": v.challenge_checked,
+                            "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
+                            "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+                        }))?
+                    );
                     Ok(ExitCode::SUCCESS)
                 }
                 Err(e) => {
-                    println!("{}", json!({"valid": false, "error": e.to_string(), "stage": stage(&e)}));
+                    println!(
+                        "{}",
+                        json!({"valid": false, "error": e.to_string(), "stage": stage(&e)})
+                    );
                     Ok(ExitCode::from(1))
                 }
             }
         }
-        Cmd::Pack { title, declared_total_zat, files } => {
+        Cmd::Pack {
+            title,
+            declared_total_zat,
+            files,
+        } => {
             let mut receipts = Vec::new();
             for f in files {
-                let s = std::fs::read_to_string(&f).with_context(|| format!("read {}", f.display()))?;
+                let s =
+                    std::fs::read_to_string(&f).with_context(|| format!("read {}", f.display()))?;
                 receipts.push(Receipt::parse(&s)?);
             }
-            println!("{}", AuditPack::new(title, receipts, declared_total_zat).to_json()?);
+            println!(
+                "{}",
+                AuditPack::new(title, receipts, declared_total_zat).to_json()?
+            );
             Ok(ExitCode::SUCCESS)
         }
-        Cmd::VerifyPack { net, pack, require_signature } => {
+        Cmd::VerifyPack {
+            net,
+            pack,
+            require_signature,
+            raw_tx_dir,
+            challenge,
+        } => {
+            let expected = challenge.unwrap_or_default();
             let p = AuditPack::from_json(&std::fs::read_to_string(&pack)?)?;
             let mut total = 0u64;
             let mut rows = Vec::new();
             let mut all_ok = true;
             for r in &p.receipts {
-                let net = NetArgs { testnet: matches!(r.network, Network::Test) || net.testnet, endpoint: net.endpoint.clone() };
-                let src = TxSource { txid: Some(r.txid.clone()), raw_tx_file: None };
+                let net = NetArgs {
+                    testnet: matches!(r.network, Network::Test) || net.testnet,
+                    endpoint: net.endpoint.clone(),
+                };
+                let raw_tx_file = raw_tx_dir
+                    .as_ref()
+                    .map(|d| d.join(format!("{}.hex", r.txid)));
+                let src = TxSource {
+                    txid: Some(r.txid.clone()),
+                    raw_tx_file,
+                };
                 let outcome = match load_tx(&net, &src).await {
-                    Ok((bytes, _)) => match zeceipt_core::parse_transaction(&bytes).and_then(|tx| zeceipt_core::verify(r, &tx, b"", require_signature)) {
+                    Ok((bytes, _)) => match zeceipt_core::parse_transaction(&bytes).and_then(|tx| {
+                        zeceipt_core::verify(r, &tx, expected.as_bytes(), require_signature)
+                    }) {
                         Ok(v) => {
                             total += v.recovered.value_zat;
                             json!({"txid": r.txid, "index": r.output_index, "valid": true, "recipient": v.recovered.recipient, "value_zat": v.recovered.value_zat, "label": r.label})
@@ -313,27 +410,37 @@ async fn run() -> anyhow::Result<ExitCode> {
                 };
                 rows.push(outcome);
             }
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "title": p.title,
-                "all_valid": all_ok,
-                "declared_total_zat": p.declared_total_zat,
-                "verified_total_zat": total,
-                "note": "verified total is a lower bound: receipts prove these payments exist, not that no others do",
-                "receipts": rows,
-            }))?);
-            Ok(if all_ok { ExitCode::SUCCESS } else { ExitCode::from(1) })
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "title": p.title,
+                    "all_valid": all_ok,
+                    "declared_total_zat": p.declared_total_zat,
+                    "verified_total_zat": total,
+                    "note": "verified total is a lower bound: receipts prove these payments exist, not that no others do",
+                    "receipts": rows,
+                }))?
+            );
+            Ok(if all_ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            })
         }
         Cmd::FindIronwood { net, blocks } => {
             let mut client = connect(&net).await?;
             let tip = client.latest_height().await?;
             let start = tip.saturating_sub(blocks);
             let found = client.find_ironwood_txs(start, tip).await?;
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "endpoint": client.endpoint(),
-                "tip": tip,
-                "scanned": [start, tip],
-                "transactions": found.iter().map(|(h, t)| json!({"height": h, "txid": t})).collect::<Vec<_>>(),
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "endpoint": client.endpoint(),
+                    "tip": tip,
+                    "scanned": [start, tip],
+                    "transactions": found.iter().map(|(h, t)| json!({"height": h, "txid": t})).collect::<Vec<_>>(),
+                }))?
+            );
             Ok(ExitCode::SUCCESS)
         }
     }
@@ -352,9 +459,15 @@ async fn connect(net: &NetArgs) -> anyhow::Result<Client> {
 async fn load_tx(net: &NetArgs, src: &TxSource) -> anyhow::Result<(Vec<u8>, Option<u64>)> {
     if let Some(p) = &src.raw_tx_file {
         let s = std::fs::read_to_string(p).with_context(|| format!("read {}", p.display()))?;
-        return Ok((hex::decode(s.trim()).context("raw tx file must be hex")?, None));
+        return Ok((
+            hex::decode(s.trim()).context("raw tx file must be hex")?,
+            None,
+        ));
     }
-    let txid = src.txid.as_ref().ok_or_else(|| anyhow!("--txid or --raw-tx-file is required"))?;
+    let txid = src
+        .txid
+        .as_ref()
+        .ok_or_else(|| anyhow!("--txid or --raw-tx-file is required"))?;
     let mut client = connect(net).await?;
     let raw = client.get_transaction(txid.trim()).await?;
     Ok((raw.bytes, raw.height))
@@ -367,7 +480,9 @@ fn is_pending(e: &anyhow::Error) -> bool {
 fn stage(e: &CoreError) -> &'static str {
     match e {
         CoreError::TxidMismatch { .. } => "txid",
-        CoreError::Types(TypesError::SignatureInvalid) | CoreError::Types(TypesError::Unsigned) => "signature",
+        CoreError::Types(TypesError::SignatureInvalid) | CoreError::Types(TypesError::Unsigned) => {
+            "signature"
+        }
         CoreError::Types(TypesError::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",
         CoreError::RecoveryFailed { .. } => "recovery",
@@ -407,7 +522,9 @@ fn write_secret(path: &PathBuf, hex_key: &str) -> anyhow::Result<()> {
         use std::os::unix::fs::OpenOptionsExt;
         opts.mode(0o600);
     }
-    let mut f = opts.open(path).with_context(|| format!("create {}", path.display()))?;
+    let mut f = opts
+        .open(path)
+        .with_context(|| format!("create {}", path.display()))?;
     writeln!(f, "{hex_key}")?;
     Ok(())
 }
@@ -415,6 +532,8 @@ fn write_secret(path: &PathBuf, hex_key: &str) -> anyhow::Result<()> {
 fn read_secret(path: &PathBuf) -> anyhow::Result<SigningKey> {
     let s = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let b = hex::decode(s.trim()).context("key file must be hex")?;
-    let arr: [u8; 32] = b.try_into().map_err(|_| anyhow!("key file must contain 32 bytes"))?;
+    let arr: [u8; 32] = b
+        .try_into()
+        .map_err(|_| anyhow!("key file must contain 32 bytes"))?;
     Ok(SigningKey::from_bytes(&arr))
 }

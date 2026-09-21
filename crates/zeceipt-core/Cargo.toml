@@ -17,7 +17,14 @@ zcash_keys = { workspace = true, features = ["orchard", "sapling"] }
 hex.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+rand = { workspace = true, optional = true }
+
+[features]
+default = []
+## Offline test support: splice a fresh Ironwood output into a real v6 transaction.
+synthetic = ["dep:rand"]
 
 [dev-dependencies]
 rand.workspace = true
 ed25519-dalek.workspace = true
+serde_json.workspace = true

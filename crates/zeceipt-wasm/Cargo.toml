@@ -1,0 +1,19 @@
+[package]
+name = "zeceipt-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Browser verifier for Zeceipt receipts (wasm-bindgen)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+zeceipt-types = { path = "../zeceipt-types" }
+zeceipt-core = { path = "../zeceipt-core" }
+wasm-bindgen = "0.2"
+serde = { workspace = true }
+serde_json.workspace = true
+serde-wasm-bindgen = "0.6"
+hex.workspace = true
+getrandom = { version = "0.2", features = ["js"] }
