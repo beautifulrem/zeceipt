@@ -169,6 +169,35 @@ fn verify_inner(
     }
 }
 
+/// Check only the envelope's issuer signature (no transaction needed).
+/// Returns `{ signed: bool, valid: bool, issuer_pubkey?: string, error?: string }`.
+#[wasm_bindgen]
+pub fn check_signature(receipt: &str) -> JsValue {
+    #[derive(Serialize)]
+    struct Out {
+        signed: bool,
+        valid: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        issuer_pubkey: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    }
+    let out = match Receipt::parse(receipt) {
+        Err(e) => Out { signed: false, valid: false, issuer_pubkey: None, error: Some(e.to_string()) },
+        Ok(r) => {
+            if r.signature.is_none() {
+                Out { signed: false, valid: false, issuer_pubkey: None, error: None }
+            } else {
+                match r.verify_signature() {
+                    Ok(pk) => Out { signed: true, valid: true, issuer_pubkey: Some(hex::encode(pk.to_bytes())), error: None },
+                    Err(e) => Out { signed: true, valid: false, issuer_pubkey: None, error: Some(e.to_string()) },
+                }
+            }
+        }
+    };
+    serde_wasm_bindgen::to_value(&out).unwrap_or(JsValue::NULL)
+}
+
 /// Library version string.
 #[wasm_bindgen]
 pub fn version() -> String {

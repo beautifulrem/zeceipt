@@ -1,13 +1,18 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // Fetching the raw transaction is the caller's job (gRPC-web, proxy, or file),
 // so this package never talks to the network by itself.
-import init, { parse_receipt, verify_receipt, version } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, version } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasmUrl) {
   if (!ready) ready = init(wasmUrl ? { module_or_path: wasmUrl } : undefined);
   await ready;
   return version();
+}
+
+/** Check only the issuer signature of a receipt (no transaction needed). */
+export function checkSignature(receipt) {
+  return check_signature(receipt);
 }
 
 export function parseReceipt(input) {

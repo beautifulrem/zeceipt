@@ -1,6 +1,19 @@
 /* @ts-self-types="./zeceipt_wasm.d.ts" */
 
 /**
+ * Check only the envelope's issuer signature (no transaction needed).
+ * Returns `{ signed: bool, valid: bool, issuer_pubkey?: string, error?: string }`.
+ * @param {string} receipt
+ * @returns {any}
+ */
+export function check_signature(receipt) {
+    const ptr0 = passStringToWasm0(receipt, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.check_signature(ptr0, len0);
+    return ret;
+}
+
+/**
  * Parse a receipt (JSON, URL, or base64url payload) and return it as a JS object.
  * @param {string} input
  * @returns {any}

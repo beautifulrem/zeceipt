@@ -2,6 +2,12 @@
 /* eslint-disable */
 
 /**
+ * Check only the envelope's issuer signature (no transaction needed).
+ * Returns `{ signed: bool, valid: bool, issuer_pubkey?: string, error?: string }`.
+ */
+export function check_signature(receipt: string): any;
+
+/**
  * Parse a receipt (JSON, URL, or base64url payload) and return it as a JS object.
  */
 export function parse_receipt(input: string): any;
@@ -21,6 +27,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly check_signature: (a: number, b: number) => any;
     readonly parse_receipt: (a: number, b: number) => [number, number, number];
     readonly verify_receipt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => any;
     readonly version: () => [number, number];

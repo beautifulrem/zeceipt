@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import init, { verify_receipt, version } from "../pkg/zeceipt_wasm.js";
+import init, { verify_receipt, check_signature, version } from "../pkg/zeceipt_wasm.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const wasm = fs.readFileSync(path.join(here, "../pkg/zeceipt_wasm_bg.wasm"));
@@ -39,13 +39,11 @@ check("wrong tx -> txid", verify_receipt(receipt, fs.readFileSync(path.join(here
 // Rust enums without regenerating vectors + rebuilding pkg/ fails here.
 const vectors = JSON.parse(fs.readFileSync(path.join(here, "../../../spec/test-vectors/receipt-v0.json"), "utf8"));
 for (const v of vectors.vectors) {
-  const signed = JSON.stringify(v.signed_receipt);
-  const parsed = verify_receipt(signed, rawTx, v.signed_receipt.challenge ? "" : "", true);
-  // Vectors do not match the fixture tx, so a structurally valid signed vector must fail
-  // at `txid` (parse + signature passed); a vector flagged verifies=false must fail at `signature`.
-  const expectedStage = v.verifies ? "txid" : "signature";
-  const okStage = parsed.stage === expectedStage || (v.verifies && v.signed_receipt.challenge && parsed.stage === "challenge");
-  check(`vector ${v.name} -> ${expectedStage}`, okStage, JSON.stringify(parsed));
+  const sig = check_signature(JSON.stringify(v.signed_receipt));
+  check(`vector ${v.name} signature ${v.verifies ? "valid" : "invalid"}`, sig.signed === true && sig.valid === v.verifies, JSON.stringify(sig));
+  // Every vector must at least parse in the committed build (enum coverage).
+  const parsed = verify_receipt(JSON.stringify(v.receipt), rawTx, "", false);
+  check(`vector ${v.name} parses in committed pkg`, parsed.stage !== "parse", JSON.stringify(parsed));
 }
 check("vectors cover every network x pool", ["main","test","regtest"].every(n => ["ironwood","orchard","sapling"].every(p => vectors.vectors.some(v => v.receipt.network === n && v.receipt.pool === p))));
 
