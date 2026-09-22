@@ -7,6 +7,8 @@
 //
 // Nothing boots lazily inside a request: before boot, `serverContext()` throws (fail closed).
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { ConfigError, keyringFromConfig, loadConfig, scrubSecretEnv, type ConsoleConfig } from "../config/env.ts";
 import type { Keyring } from "../crypto/seal.ts";
 import { ExecutionError } from "../execution/types.ts";
@@ -38,6 +40,7 @@ export class ContextNotReadyError extends ExecutionError {
  * Boot the context once per process: load and validate the configuration, build the keyring, open and
  * migrate the database, remove the wrap keys from `env`, then publish. Idempotent: a second call returns
  * the published context untouched (Next.js may call `register()` again after a dev reload).
+ * The migrations journal must exist before the database is opened (a clear error names the path).
  * On any failure nothing is published, the database handle (if opened) is closed, and the error is
  * rethrown; the caller exits the process (design 3.3.1.1.6.2).
  */
@@ -47,6 +50,12 @@ export function bootServerContext(env: Record<string, string | undefined>, opts:
   if (existing) return existing;
 
   const config = loadConfig(env);
+  // Checked before anything is opened, so a wrong working directory is named instead of surfacing as
+  // Drizzle's bare "Can't find meta/_journal.json file" (review C2 round 1).
+  const journal = join(opts.migrationsFolder, "meta", "_journal.json");
+  if (!existsSync(journal)) {
+    throw new Error(`migrations journal not found at ${journal}; start the console from apps/console (the folder is <cwd>/db/migrations)`);
+  }
   const keyring = keyringFromConfig(config);
   const db = openDb({ path: config.dbPath });
   try {

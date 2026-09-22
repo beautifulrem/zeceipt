@@ -2,7 +2,7 @@
 """Consistency checks for docs/product/.
 
 - every [Rn] cited anywhere resolves to a row in 10_research_log.md, and every row is cited
-- every requirement id (REQ-*/NFR-*) is unique and appears in the §8 traceability matrix
+- every requirement id (REQ-*/NFR-*) is unique and appears in the §8 traceability matrix, with the same status glyph as its definition row
 - §8 leaf numbers exist in 00_wbs.md; ⬜ rows never cite PROOF as evidence
 - every test name cited in 01_requirements.md / 00_wbs.md exists under crates/
 - every level-4 WBS leaf carries a status glyph; every task heading has leaves
@@ -50,6 +50,17 @@ for i in ids:
 for i in matrix_ids:
     if i not in id_set:
         errors.append(f"01_requirements.md: matrix row {i} has no definition")
+# the status glyph of each definition row (its first cell that starts with a glyph) equals the matrix row's
+_req_glyphs = ("✅", "🟡", "⬜", "👤", "❌")
+_matrix_status = {r[0]: r[1] for r in matrix_rows}
+for line in req_defs.splitlines():
+    m = re.match(r"^\| ((?:REQ|NFR)-[A-Z0-9-]+) \|", line)
+    if not m or m.group(1) not in _matrix_status:
+        continue
+    cell = next((c.strip() for c in line.split("|")[2:] if c.strip().startswith(_req_glyphs)), "")
+    glyph = next((g for g in _req_glyphs if cell.startswith(g)), None)
+    if glyph != _matrix_status[m.group(1)]:
+        errors.append(f"01_requirements.md: {m.group(1)} status {glyph} in its definition row but {_matrix_status[m.group(1)]} in the traceability matrix")
 
 # WBS leaves
 wbs = files.get("00_wbs.md", "")

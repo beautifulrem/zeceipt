@@ -4,7 +4,7 @@
 
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -90,9 +90,22 @@ test("fail closed: no context before boot, nothing published after a failed boot
   assert.throws(() => bootServerContext(env("nodir", { ZECEIPT_DB_PATH: join(dir, "missing", "x.db") }), opts), /directory does not exist/);
   assert.equal(slot[SERVER_CONTEXT_KEY], undefined);
 
-  assert.throws(() => bootServerContext(env("nomig"), { migrationsFolder: join(dir, "no-migrations") }));
+  const missing = join(dir, "no-migrations");
+  assert.throws(
+    () => bootServerContext(env("nomig"), { migrationsFolder: missing }),
+    (e: unknown) => e instanceof Error && e.message.includes(join(missing, "meta", "_journal.json")) && e.message.includes("start the console from apps/console"),
+  );
   assert.equal(slot[SERVER_CONTEXT_KEY], undefined);
-  const reopened = openDb({ path: join(dir, "nomig.db") }); // the file stays usable after the failed migration
+  assert.equal(existsSync(join(dir, "nomig.db")), false, "the journal is checked before the database file is created");
+
+  // A migration that fails after the database was opened: the handle is closed and nothing is published.
+  const broken = join(dir, "broken-migrations");
+  mkdirSync(join(broken, "meta"), { recursive: true });
+  writeFileSync(join(broken, "meta", "_journal.json"), JSON.stringify({ version: "7", dialect: "sqlite", entries: [{ idx: 0, version: "6", when: 1, tag: "0000_bad", breakpoints: true }] }));
+  writeFileSync(join(broken, "0000_bad.sql"), "THIS IS NOT SQL;");
+  assert.throws(() => bootServerContext(env("badmig"), { migrationsFolder: broken }));
+  assert.equal(slot[SERVER_CONTEXT_KEY], undefined);
+  const reopened = openDb({ path: join(dir, "badmig.db") }); // the file stays usable after the failed migration
   migrateDb(reopened, opts.migrationsFolder);
   reopened.$client.close();
 });

@@ -157,7 +157,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-14 | ⬜ | 3.3.6.3 | `05` §3 export columns `[R5]` `[R32]` |
 | REQ-CON-15 | ⬜ | 3.3.6.4 | cut order item 2 (`11_plan.md` §2) |
 | REQ-CON-16 | ⬜ | 3.3.6.4 | cut order item 2 |
-| REQ-CON-17 | 🟡 | 3.3.1.1 | `docs/THREAT_MODEL.md` custody modes; `04` SCR-5 notice; config validation |
+| REQ-CON-17 | ✅ | 3.3.1.1 | `docs/THREAT_MODEL.md` custody modes; `04` SCR-5 notice; config validation (`apps/console/test/config.test.ts`); startup refusal through `next start` (`apps/console/test/app.e2e.test.ts`) |
 | REQ-CON-18 | ⬜ | — | no leaf; post-hackathon roadmap (Won't for v0) |
 | REQ-CON-19 | ⬜ | 3.3.5.7 | `[R10]` Konclave CSV, `[R12]` zecpay columns |
 | REQ-CON-20 | ⬜ | 3.3.5.8 | `05` §1 `batches` `rate_sources_json`; cut item 4 |
