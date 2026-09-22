@@ -1,6 +1,8 @@
 // Minimal typed client for the Zkool GraphQL server (hhanh00/zkool2, `zkool_graphql`).
-// Two failure classes matter to idempotency and are kept distinct:
-//   ZkoolGraphqlError   — the server answered with `errors`: it definitely processed and refused the call.
+// Two failure classes are kept distinct:
+//   ZkoolGraphqlError   — the server answered with `errors`. For `pay` this does NOT prove nothing was
+//                         sent: Zkool also reports a failed gRPC send (after the node may have the tx) this
+//                         way. `ZkoolBackend` treats only known pre-build refusals as "nothing sent".
 //   ZkoolTransportError — no usable answer (network error, timeout, non-2xx, redirect): outcome unknown.
 
 import { zatToDecimal } from "./money.ts";

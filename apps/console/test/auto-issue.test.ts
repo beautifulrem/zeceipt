@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { autoIssue, IssuanceMismatchError, type Batch, type IssuedReceipt, type TxStatus } from "../lib/index.ts";
@@ -72,9 +72,12 @@ test("a batch naming only some recipients gets receipts for those only (allow-li
   }
 });
 
-test("fails closed on value or memo mismatch and returns nothing", async () => {
+test("fails closed on value or memo mismatch: returns nothing and writes no file", async () => {
   const wrongValue: Batch = { ...batch, items: batch.items.map((i, k) => (k === 0 ? { ...i, zat: i.zat + 1n } : i)) };
-  await assert.rejects(autoIssue({ batch: wrongValue, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), (e: unknown) => e instanceof IssuanceMismatchError && /value 1\.01000000/.test((e as Error).message));
+  const outDir = join(dir, "must-stay-empty");
+  await mkdir(outDir);
+  await assert.rejects(autoIssue({ batch: wrongValue, txid: TXID, status: mined(1), requiredConfirmations: 1, cli, outDir }), (e: unknown) => e instanceof IssuanceMismatchError && /value 1\.01000000/.test((e as Error).message));
+  assert.deepEqual(await readdir(outDir), []);
   const wrongMemo: Batch = { ...batch, items: batch.items.map((i, k) => (k === 2 ? { ...i, memo: "INV-R-999" } : i)) };
   await assert.rejects(autoIssue({ batch: wrongMemo, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), IssuanceMismatchError);
 });
@@ -82,4 +85,20 @@ test("fails closed on value or memo mismatch and returns nothing", async () => {
 test("an address that is not a payee of the transaction yields a mismatch, not a receipt", async () => {
   const foreign: Batch = { ...batch, items: [{ ...batch.items[0], address: "uregtest1rqwdd05yxqf4807jcddv556x6pq2xqnqtyt6hsv3gzg6wnayrqthv7fw0fuvplrzxsjq2fzpnzmltndrpzulpvs7k25wyn5cfvsu294d" }] };
   await assert.rejects(autoIssue({ batch: foreign, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), IssuanceMismatchError);
+});
+
+test("each receipt must pay its own item's address: swapped payees are a mismatch", async () => {
+  const [a, b2, c] = batch.items;
+  const swapped: Batch = { ...batch, items: [{ ...a, address: b2.address }, { ...b2, address: a.address }, c] };
+  await assert.rejects(
+    autoIssue({ batch: swapped, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }),
+    (e: unknown) => e instanceof IssuanceMismatchError && /payable p-2: output ironwood:\d+ pays .* not this payable's address/.test((e as Error).message),
+  );
+});
+
+test("a batch that could claim one output twice is refused before anything runs", async () => {
+  const twice: Batch = { ...batch, items: [batch.items[1], { ...batch.items[1], payableId: "p-3-dup" }] };
+  await assert.rejects(autoIssue({ batch: twice, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), (e: unknown) => e instanceof IssuanceMismatchError && /appears twice/.test((e as Error).message));
+  const noMemo: Batch = { ...batch, items: [{ ...batch.items[0], memo: "" }] };
+  await assert.rejects(autoIssue({ batch: noMemo, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), /empty memo/);
 });

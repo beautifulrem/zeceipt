@@ -64,12 +64,13 @@ test("preflight reports every problem at once and never pays", async () => {
       { payableId: "x", address: R[0].replace("uregtest1", "utest1"), zat: 0n, memo: "m".repeat(513) },
       { payableId: "x", address: R[1].slice(0, -2) + "qq", zat: 20_000_000_000n, memo: "dup" },
       { payableId: "y", address: R[2], zat: 1n, memo: "dup" },
+      { payableId: "z", address: R[2], zat: 1n, memo: "" },
     ],
   };
   const pre = await b.preflight(bad);
   assert.equal(pre.ok, false);
   const codes = pre.problems.map((p) => p.code).sort();
-  assert.deepEqual(codes, ["address_checksum", "address_hrp", "amount_nonpositive", "duplicate_payable", "insufficient_funds", "memo_duplicate", "memo_too_long"]);
+  assert.deepEqual(codes, ["address_checksum", "address_hrp", "amount_nonpositive", "duplicate_payable", "insufficient_funds", "memo_duplicate", "memo_empty", "memo_too_long"]);
   assert.equal(fake.payCalls, calls);
   assert.equal((await b.preflight(batch())).ok, true);
   assert.deepEqual((await b.preflight({ id: "e", network: "regtest", items: [] })).problems.map((p) => p.code), ["empty_batch"]);
@@ -121,11 +122,11 @@ test("file store: exclusive intent across two store instances in one process, an
   assert.equal(fake.payCalls, calls + 1);
 });
 
-test("GraphQL refusal → failed_retryable; retry with the same nonce pays once", async () => {
+test("pre-build refusal (known Zkool message) → failed_retryable; retry with the same nonce pays once", async () => {
   const store = new MemoryIdempotencyStore();
   const b = backend({ store });
   const calls = fake.payCalls;
-  fake.nextPay = "graphql-error";
+  fake.nextPay = "refused";
   await assert.rejects(b.submit(batch("rej"), "nonce-rej"), PaymentRejectedError);
   assert.equal((await store.get("nonce-rej"))?.state, "failed_retryable");
   const ok = await b.submit(batch("rej"), "nonce-rej");
@@ -163,6 +164,58 @@ test("transport failure after broadcast → unknown_outcome; never re-pays; reco
   assert.equal((await store.get("nonce-lost"))?.state, "broadcast");
 });
 
+test("GraphQL error after the tx reached the node → unknown_outcome, never re-paid, reconciled once mined", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  const calls = fake.payCalls;
+  fake.nextPay = "grpc-error-sent";
+  await assert.rejects(b.submit(batch("gsent"), "nonce-gsent"), UnknownOutcomeError);
+  const rec = await store.get("nonce-gsent");
+  assert.equal(rec?.state, "unknown_outcome");
+  assert.equal(rec?.expiresBy, fake.height + 40);
+  await assert.rejects(b.submit(batch("gsent"), "nonce-gsent"), /cannot be mined after height/);
+  assert.equal(fake.payCalls, calls + 1);
+  fake.mine();
+  const got = await b.submit(batch("gsent"), "nonce-gsent");
+  assert.deepEqual([got.via, got.txid, fake.payCalls], ["reconciled", fake.mined.at(-1)!.txid, calls + 1]);
+});
+
+for (const mode of ["grpc-error-unsent", "node-rejected"] as const) {
+  test(`${mode}: uncertain until the attempt's expiry bound passes, then the same nonce pays exactly once more`, async () => {
+    const store = new MemoryIdempotencyStore();
+    const b = backend({ store });
+    const calls = fake.payCalls;
+    fake.nextPay = mode;
+    await assert.rejects(b.submit(batch(mode), `nonce-${mode}`), UnknownOutcomeError);
+    const bound = (await store.get(`nonce-${mode}`))!.expiresBy!;
+    assert.equal(bound, fake.height + 40);
+    fake.advance(40); // tip == bound: a tx built by the attempt could still be mined in this block
+    await assert.rejects(b.submit(batch(mode), `nonce-${mode}`), UnknownOutcomeError);
+    assert.equal(fake.payCalls, calls + 1);
+    fake.advance(1); // tip > bound and nothing matching was mined: the attempt can never be mined
+    const got = await b.submit(batch(mode), `nonce-${mode}`);
+    assert.deepEqual([got.via, got.replayed, fake.payCalls], ["fresh", false, calls + 2]);
+    assert.equal((await store.get(`nonce-${mode}`))?.attempts, 2);
+    assert.deepEqual(await b.submit(batch(mode), `nonce-${mode}`), { txid: got.txid, replayed: true, via: "record" });
+    assert.equal(fake.payCalls, calls + 2);
+    fake.mine();
+  });
+}
+
+test("reconciliation requires the batch's addresses, not just its memos and values", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  fake.nextPay = "drop-after-broadcast";
+  await assert.rejects(b.submit(batch("addr"), "nonce-addr"), UnknownOutcomeError);
+  // The broadcast is lost; another issuer tx pays the same memos and values to other addresses.
+  fake.drop();
+  const other = batch("addr").items.map((it) => ({ address: R[(R.indexOf(it.address) + 1) % 3], amount: `${it.zat / 100_000_000n}.${(it.zat % 100_000_000n).toString().padStart(8, "0")}`, memo: it.memo }));
+  fake.height += 1;
+  fake.mined.push({ txid: "cd".repeat(32), height: fake.height, expiry: fake.height + 40, recipients: other });
+  await assert.rejects(b.submit(batch("addr"), "nonce-addr"), /no mined transaction of the issuer pays this batch/);
+  assert.equal((await store.get("nonce-addr"))?.state, "unknown_outcome");
+});
+
 test("pay timeout → unknown_outcome (the backend may still broadcast)", async () => {
   const store = new MemoryIdempotencyStore();
   const b = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, payTimeoutMs: 300 }), account: 9, store });
@@ -198,6 +251,17 @@ test("status: pending → mined with confirmations; unknown after timeout or for
   const late = await b.status(t2);
   assert.equal(late.state, "unknown");
   fake.mine();
+});
+
+test("status: a broadcast that was never mined is reported expired once the tip passes its bound", async () => {
+  const b = backend();
+  const { txid } = await b.submit(batch("exp"), "nonce-exp");
+  assert.equal((await b.status(txid)).state, "pending");
+  fake.drop();
+  fake.advance(41);
+  const st = await b.status(txid);
+  assert.equal(st.state, "unknown");
+  if (st.state === "unknown") assert.match(st.reason, /expired: not mined by height/);
 });
 
 test("file store: two OS processes racing on one nonce → exactly one payment", async () => {

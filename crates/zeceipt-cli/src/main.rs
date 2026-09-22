@@ -229,14 +229,16 @@ async fn run() -> anyhow::Result<ExitCode> {
             out_dir,
         } => {
             let network = network_of(&net);
-            let mut allowed = Vec::new();
+            // Each allow-list entry keeps its own receivers so every receipt can report which
+            // entries it pays (`matched_only_to`); callers match receipts to payees with it.
+            let mut allowed: Vec<(&str, Vec<zeceipt_core::ShieldedReceiver>)> = Vec::new();
             for a in &only_to {
                 let rs = zeceipt_core::shielded_receivers(a.trim(), network)
                     .map_err(|e| anyhow!("--only-to {a}: {e}"))?;
                 if rs.is_empty() {
                     return Err(anyhow!("--only-to {a}: address has no shielded receiver"));
                 }
-                allowed.extend(rs);
+                allowed.push((a.as_str(), rs));
             }
             let ufvk = match (ufvk, ufvk_file) {
                 (Some(u), _) => Some(u),
@@ -276,12 +278,21 @@ async fn run() -> anyhow::Result<ExitCode> {
             }
             let mut receipts = zeceipt_core::issue(&parsed, &keys, &opts)?;
             let mut skipped = 0usize;
+            let mut matched: Vec<Vec<&str>> = vec![Vec::new(); receipts.len()];
             if !only_to.is_empty() {
                 let before = receipts.len();
                 let mut kept = Vec::with_capacity(before);
+                matched.clear();
                 for (r, rec) in receipts {
-                    if zeceipt_core::pays_any(&rec, &allowed, network)? {
+                    let mut hits = Vec::new();
+                    for (a, rs) in &allowed {
+                        if zeceipt_core::pays_any(&rec, rs, network)? && !hits.contains(a) {
+                            hits.push(*a);
+                        }
+                    }
+                    if !hits.is_empty() {
                         kept.push((r, rec));
+                        matched.push(hits);
                     }
                 }
                 skipped = before - kept.len();
@@ -298,7 +309,7 @@ async fn run() -> anyhow::Result<ExitCode> {
                 std::fs::create_dir_all(dir)?;
             }
             let mut items = Vec::new();
-            for (r, rec) in receipts {
+            for ((r, rec), hits) in receipts.into_iter().zip(matched) {
                 if let Some(dir) = &out_dir {
                     let path = dir.join(format!(
                         "{}-{}-{}.json",
@@ -312,6 +323,7 @@ async fn run() -> anyhow::Result<ExitCode> {
                     "receipt": r,
                     "url": r.to_url(&host)?,
                     "recovered": recovered_json(&rec, keys.can_detect_change()),
+                    "matched_only_to": hits,
                 }));
             }
             println!(

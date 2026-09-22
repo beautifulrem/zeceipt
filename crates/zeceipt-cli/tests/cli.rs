@@ -379,6 +379,38 @@ fn only_to_allow_list_and_ufvk_file() {
     assert_eq!(receipts.len(), 1);
     assert_eq!(receipts[0]["recovered"]["memo"]["text"], "INV-R-003");
     assert_eq!(v["skipped_not_in_allow_list"], 3);
+    assert_eq!(receipts[0]["matched_only_to"], serde_json::json!([r3]));
+
+    // Two allow-list entries: each receipt names only the entry it actually pays.
+    let r2 = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    let (code, out, err) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &tx,
+        "--ufvk-file",
+        &ufvk_file,
+        "--only-to",
+        r2,
+        "--only-to",
+        r3,
+    ]);
+    assert_eq!(code, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let by_memo: std::collections::BTreeMap<String, serde_json::Value> = v["receipts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["recovered"]["memo"]["text"].as_str().unwrap().to_string(),
+                r["matched_only_to"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(by_memo.len(), 2);
+    assert_eq!(by_memo["INV-R-002"], serde_json::json!([r2]));
+    assert_eq!(by_memo["INV-R-003"], serde_json::json!([r3]));
 
     let (code, _, err) = run(&[
         "issue",

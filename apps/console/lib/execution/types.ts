@@ -26,6 +26,7 @@ export type PreflightProblemCode =
   | "address_hrp"
   | "address_checksum"
   | "amount_nonpositive"
+  | "memo_empty"
   | "memo_too_long"
   | "memo_duplicate"
   | "duplicate_payable"
@@ -99,7 +100,11 @@ export class SubmissionInFlightError extends ExecutionError {
   }
 }
 
-/** We cannot tell whether the payment was broadcast; a human must reconcile. Never auto-retried. */
+/**
+ * We cannot tell yet whether the payment was broadcast. Never re-paid blindly: a later `submit` with the
+ * same nonce reconciles against mined transactions, and pays again only once the earlier attempt's
+ * transaction can no longer be mined (chain tip past its expiry bound, `SubmissionRecord.expiresBy`).
+ */
 export class UnknownOutcomeError extends ExecutionError {
   constructor(nonce: string, detail: string) {
     super("unknown_outcome", `outcome of nonce ${nonce} is unknown: ${detail}`);
@@ -115,7 +120,10 @@ export class PreflightFailedError extends ExecutionError {
   }
 }
 
-/** The backend answered and refused the payment; safe to retry with the same nonce. */
+/**
+ * The backend refused the payment before building a transaction (a known pre-build refusal such as
+ * insufficient funds, see `isPreBuildRefusal`); nothing was sent, so retrying with the same nonce is safe.
+ */
 export class PaymentRejectedError extends ExecutionError {
   constructor(detail: string) {
     super("payment_rejected", `backend rejected the payment: ${detail}`);

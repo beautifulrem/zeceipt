@@ -11,7 +11,12 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |
 | `lib/issuance/auto-issue.ts` | `autoIssue`: confirmation gate, `zeceipt issue --only-to …`, per-item cross-check, verification |
 
-Submission states: `submitting` → `broadcast` (txid recorded) · `failed_retryable` (the backend refused; nothing sent; the next submit with the same nonce claims a new attempt exclusively) · `unknown_outcome` (the answer was lost; never re-paid automatically; resolved by reconciliation against the issuer's mined transactions by memo + value, or by a human).
+Submission states:
+- `submitting` → `broadcast` (txid recorded).
+- `failed_retryable`: preflight failed or Zkool refused before building (`isPreBuildRefusal`), so nothing was sent. The next submit with the same nonce claims a new attempt exclusively.
+- `unknown_outcome`: the answer was lost, or `pay` failed in a way that may follow a send. Zkool reports a failed gRPC send as a GraphQL error, so only known pre-build refusals count as "nothing sent". Such a nonce is never re-paid blindly. The next submit reconciles against the issuer's mined transactions by address + memo + value. If none matches and the tip has passed the attempt's expiry bound (`expiresBy` = tip after the attempt + 40; Zkool builds with expiry = tip + 40), that attempt can never be mined and the same nonce pays once more.
+
+`autoIssue` matches every receipt to its own batch item (memo, value, payee address via the CLI's `matched_only_to`, not change, no output claimed twice). It verifies each receipt and only then writes the files; on any mismatch it throws and writes nothing.
 
 Run (Node ≥ 24; TypeScript runs natively, `tsc` only type-checks):
 

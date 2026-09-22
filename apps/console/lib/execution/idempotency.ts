@@ -5,7 +5,7 @@
 // before the payment call. A record that exists therefore means "a payment may have been sent".
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { zatToDecimal } from "./money.ts";
 import type { Batch } from "./types.ts";
@@ -20,6 +20,12 @@ export interface SubmissionRecord {
   txid?: string;
   /** Chain tip when the intent was created; lower bound for reconciliation. */
   intentHeight?: number;
+  /**
+   * Upper bound on the expiry height of any transaction the latest attempt may have broadcast: a chain
+   * tip observed after that attempt + the backend's expiry delta. Once the tip is above it and no
+   * matching transaction was mined, that attempt can never be mined.
+   */
+  expiresBy?: number;
   createdAt: string;
   broadcastAt?: string;
   error?: string;
@@ -80,7 +86,8 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
 
 /**
  * One JSON file per nonce under `dir`. `createIntent` uses O_EXCL (`wx`), so two processes racing on
- * the same nonce cannot both proceed. Updates are write-temp-then-rename (atomic on POSIX). A small
+ * the same nonce cannot both proceed. Updates are write-temp-then-rename (atomic on POSIX); file contents
+ * and the directory entry are fsynced so a record survives a power loss once the call returns. A small
  * `txid → nonce` index file makes `findByTxid` O(1).
  */
 export class FileIdempotencyStore implements IdempotencyStore {
@@ -95,8 +102,25 @@ export class FileIdempotencyStore implements IdempotencyStore {
 
   private async writeAtomic(path: string, body: string) {
     const tmp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
-    await writeFile(tmp, body, { mode: 0o600 });
+    const fh = await open(tmp, "w", 0o600);
+    try {
+      await fh.writeFile(body);
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
     await rename(tmp, path);
+    await this.syncDir();
+  }
+
+  /** Persist directory entries (a create or rename is durable only once its directory is synced). */
+  private async syncDir() {
+    const dh = await open(this.dir, "r");
+    try {
+      await dh.sync();
+    } finally {
+      await dh.close();
+    }
   }
 
   async createIntent(rec: SubmissionRecord) {
@@ -109,6 +133,7 @@ export class FileIdempotencyStore implements IdempotencyStore {
       } finally {
         await fh.close();
       }
+      await this.syncDir();
       return { created: true as const };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
@@ -142,6 +167,7 @@ export class FileIdempotencyStore implements IdempotencyStore {
     try {
       const fh = await open(join(this.dir, `${key(nonce)}.attempt-${attempt}`), "wx", 0o600);
       await fh.close();
+      await this.syncDir();
       return true;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;

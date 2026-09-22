@@ -1,11 +1,26 @@
 // In-process fake of the Zkool GraphQL endpoints the backend uses. It models one issuing account with an
-// Ironwood balance, a mempool that `mine()` confirms, and switches to inject failures.
+// Ironwood balance, a mempool that `mine()` confirms, transaction expiry (tip at build + 40, as Zkool
+// builds them), and switches to inject failures.
 
 import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 
-export interface FakeTx { txid: string; height: number; recipients: { address: string; amount: string; memo: string }[] }
+export interface FakeTx { txid: string; height: number; expiry: number; recipients: { address: string; amount: string; memo: string }[] }
+
+/**
+ * Next pay behaviour:
+ *   ok                  — broadcast, answer the txid
+ *   refused             — Zkool pre-build refusal ("Not enough funds, …"); nothing built
+ *   grpc-error-sent     — tx reaches the mempool, then Zkool answers a GraphQL error (failed gRPC reply)
+ *   grpc-error-unsent   — GraphQL gRPC-style error, nothing reached the node
+ *   node-rejected       — the node rejects; Zkool answers the rejection text in place of a txid
+ *   drop-after-broadcast — tx reaches the mempool, the HTTP connection dies
+ *   hang                — tx reaches the mempool, no answer ever
+ */
+export type PayMode = "ok" | "refused" | "grpc-error-sent" | "grpc-error-unsent" | "node-rejected" | "drop-after-broadcast" | "hang";
+
+const GRPC_ERROR = 'status: Unavailable, message: "error trying to connect: tcp connect error", details: [], metadata: MetadataMap { headers: {} }';
 
 export class FakeZkool {
   server!: Server;
@@ -15,8 +30,7 @@ export class FakeZkool {
   payCalls = 0;
   mempool: FakeTx[] = [];
   mined: FakeTx[] = [];
-  /** Next pay: "ok" | "graphql-error" | "drop-after-broadcast" (tx is created, response never arrives) | "hang". */
-  nextPay: "ok" | "graphql-error" | "drop-after-broadcast" | "hang" = "ok";
+  nextPay: PayMode = "ok";
   payDelayMs = 0;
 
   async start(): Promise<this> {
@@ -56,10 +70,13 @@ export class FakeZkool {
             const mode = this.nextPay;
             this.nextPay = "ok";
             if (this.payDelayMs) await new Promise((r) => setTimeout(r, this.payDelayMs));
-            if (mode === "graphql-error") return reply({ data: null, errors: [{ message: "No feasible note selection found" }] });
+            if (mode === "refused") return reply({ data: null, errors: [{ message: "Not enough funds, 1.5 more ZEC required" }] });
+            if (mode === "grpc-error-unsent") return reply({ data: null, errors: [{ message: GRPC_ERROR }] });
+            if (mode === "node-rejected") return reply({ data: { pay: "transaction was rejected: bad-txns-sapling-duplicate-nullifier" } });
             const txid = createHash("sha256").update(`${this.payCalls}:${JSON.stringify(variables)}`).digest("hex");
-            const tx: FakeTx = { txid, height: 0, recipients: variables.pay.recipients };
+            const tx: FakeTx = { txid, height: 0, expiry: this.height + 40, recipients: variables.pay.recipients };
             this.mempool.push(tx);
+            if (mode === "grpc-error-sent") return reply({ data: null, errors: [{ message: GRPC_ERROR }] });
             if (mode === "drop-after-broadcast") return res.destroy();
             if (mode === "hang") return; // never answer
             return reply({ data: { pay: txid } });
@@ -75,12 +92,23 @@ export class FakeZkool {
     return this;
   }
 
-  /** Mine every mempool transaction into the next block, then add `extra` empty blocks. */
+  /** Mine every unexpired mempool transaction into the next block, then add `extra` empty blocks. */
   mine(extra = 0) {
     this.height += 1;
-    for (const t of this.mempool) this.mined.push({ ...t, height: this.height });
+    for (const t of this.mempool) if (t.expiry >= this.height) this.mined.push({ ...t, height: this.height });
     this.mempool = [];
     this.height += extra;
+  }
+
+  /** Add `n` blocks that do not include the mempool (as if the tx never propagated); expired txs drop out. */
+  advance(n: number) {
+    this.height += n;
+    this.mempool = this.mempool.filter((t) => t.expiry >= this.height);
+  }
+
+  /** Forget the mempool (the node lost the transactions). */
+  drop() {
+    this.mempool = [];
   }
 
   async stop() {

@@ -578,46 +578,64 @@ Result: 3 receipts valid online and offline with signature and challenge; a flip
 
 ## 5c. regtest — console library: idempotent submission and allow-listed auto-issuance (2026-09-23)
 
-The tracer of §5b was a script; this section exercises the console's library code (`apps/console/lib/`, Trellis task `09-23-execution-adapter`) on the same regtest chain: `ZkoolBackend` (the `PayoutBackend` contract of `docs/product/05_data_model_api.md` §2) with a file-backed nonce store, and `autoIssue`, which waits for N confirmations and runs `zeceipt issue --only-to <each batch address>` then verifies every receipt. Driver: the opt-in end-to-end test `apps/console/test/regtest.e2e.test.ts` (`ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts`, run from `apps/console`), which creates three fresh Ironwood recipient accounts in Zkool, builds a batch with memos `INV-C-<stamp>-1..3` (0.21 / 0.22 / 0.23 REG), and asserts every step. N = 2 confirmations. Transcript: `raw/tools/regtest/console-e2e-20260922190614.json` (outside the repository, like the other captures); the `log` array is quoted below verbatim, one JSON object per line.
+The tracer of §5b was a script; this section exercises the console's library code (`apps/console/lib/`, Trellis task `09-23-execution-adapter`) on the same regtest chain: `ZkoolBackend` (the `PayoutBackend` contract of `docs/product/05_data_model_api.md` §2) with a file-backed nonce store, and `autoIssue`, which waits for N confirmations, runs `zeceipt issue --only-to <each batch address>`, matches every receipt to its own batch item (memo, value, address, not change), verifies it, and only then writes the receipt files. Driver: the opt-in end-to-end test `apps/console/test/regtest.e2e.test.ts` (`ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts`, run from `apps/console`; procedure in `docs/REGTEST_RUNBOOK.md`), which creates three fresh Ironwood recipient accounts in Zkool, builds a batch with memos `INV-C-<stamp>-1..3` (0.21 / 0.22 / 0.23 REG), and asserts every step. N = 2 confirmations; `status` is polled every 5 s and every poll is logged. Transcript: `raw/tools/regtest/console-e2e-20260922192547.json` (outside the repository, like the other captures); the `log` array is quoted below verbatim, one JSON object per line. (A first run on the pre-review code, stamp `20260922190614`, tx `623bfd29…bdb1` in block 1731, showed the same behaviour; this run is on the code as reviewed.)
 
 ```
-{"step": "preflight", "at_ms": 160, "ok": true, "problems": [], "totalZat": "66000000", "feeEstimateZat": "20000", "spendableZat": "87412115000", "height": 1729}
-{"step": "submit #1", "at_ms": 4900, "txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "replayed": false, "via": "fresh"}
-{"step": "submit #2 (same nonce)", "at_ms": 4901, "txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "replayed": true, "via": "record"}
-{"step": "status", "at_ms": 4937, "state": "pending", "broadcastAt": "2026-09-22T19:06:19.189Z"}
-{"step": "status", "at_ms": 15014, "state": "mined", "height": 1731, "confirmations": 3, "tip": 1733}
-{"step": "chain check", "at_ms": 15015, "issuerTxsNew": 1, "minedHeight": 1731, "blockTx": ["dc38a6776848775ff28f723baf78bfcc03a4f074c7d5a5d2baf2922854e4ae9d", "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1"]}
-{"step": "submit #3 after mining (same nonce)", "at_ms": 15016, "txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "replayed": true, "via": "record"}
-{"step": "autoIssue", "at_ms": 15438, "receipts": [{"payableId": "p-1", "outputIndex": 3, "value_zec": "0.21000000", "memo": "INV-C-20260922190614-1", "recipient": "uregtest1vagq4azycg4wdmad8rcg74qm0q0nn4vs4f330zhnm3r266djvwspy2qf78rehry9u3fhjtsgmp4edwv8ks3v4zwzw25dd20rqq58knwd", "is_change": false, "verified": true}, {"payableId": "p-2", "outputIndex": 0, "value_zec": "0.22000000", "memo": "INV-C-20260922190614-2", "recipient": "uregtest1qmh52k9nttma0ha2uwgetw5062lak9l80z5l2uh28p4dwtyttpvpdnklz2m73fm06nazv6evf2jzyn0pp3sj5kpqnnfgjl7zuyxka6w5", "is_change": false, "verified": true}, {"payableId": "p-3", "outputIndex": 2, "value_zec": "0.23000000", "memo": "INV-C-20260922190614-3", "recipient": "uregtest1ncp5azf4l8fz0rk3dk6z2qnegfqsuzyjpvhskvvz68mampmc8wevzjuzrhnrkc6vhg0vg5zesuxe4m4dwxu0a9czru0x0yumrvw7hx0d", "is_change": false, "verified": true}], "skippedNotInAllowList": 0, "outDir": "<workspace>/raw/tools/regtest/console-receipts-20260922190614"}
-{"step": "recipient views", "at_ms": 15560, "views": [[{"txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "notes": [{"value": "0.21000000", "memo": "INV-C-20260922190614-1"}]}], [{"txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "notes": [{"value": "0.22000000", "memo": "INV-C-20260922190614-2"}]}], [{"txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "notes": [{"value": "0.23000000", "memo": "INV-C-20260922190614-3"}]}]]}
+{"step": "refusal probe", "at_ms": 109, "message": "No feasible note selection found", "isPreBuildRefusal": true}
+{"step": "preflight", "at_ms": 164, "ok": true, "problems": [], "totalZat": "66000000", "feeEstimateZat": "20000", "spendableZat": "87346095000", "height": 2072}
+{"step": "submit #1", "at_ms": 4190, "txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "replayed": false, "via": "fresh"}
+{"step": "submit #2 (same nonce)", "at_ms": 4190, "txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "replayed": true, "via": "record"}
+{"step": "status", "at_ms": 4250, "state": "pending", "broadcastAt": "2026-09-22T19:25:50.992Z"}
+{"step": "status", "at_ms": 9261, "state": "pending", "broadcastAt": "2026-09-22T19:25:50.992Z"}
+{"step": "status", "at_ms": 14267, "state": "pending", "broadcastAt": "2026-09-22T19:25:50.992Z"}
+{"step": "status", "at_ms": 19272, "state": "pending", "broadcastAt": "2026-09-22T19:25:50.992Z"}
+{"step": "status", "at_ms": 24347, "state": "mined", "height": 2074, "confirmations": 1, "tip": 2074}
+{"step": "status", "at_ms": 29399, "state": "mined", "height": 2074, "confirmations": 2, "tip": 2075}
+{"step": "chain check", "at_ms": 29401, "issuerTxsNew": 1, "minedHeight": 2074, "blockTx": ["5d8e5f9cf3f5c370a685e2741fd7f7943464591b4b3dcac9fd6b66a61db2d666", "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991"]}
+{"step": "expiry check", "at_ms": 29403, "expiryheight": 2112, "recordedExpiresBy": 2113, "intentHeight": 2072}
+{"step": "submit #3 after mining (same nonce)", "at_ms": 29403, "txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "replayed": true, "via": "record"}
+{"step": "autoIssue", "at_ms": 29834, "receipts": [{"payableId": "p-1", "outputIndex": 1, "value_zec": "0.21000000", "memo": "INV-C-20260922192547-1", "recipient": "uregtest1pzc0xygn2przjrxlgu9ksmr2x7gvum8ehj2ug7kqjech2ljnufzc9aryrl73m98egywg2xqtjxshkt8xlpxvfrtn056kjhj5fcvyz82k", "is_change": false, "verified": true}, {"payableId": "p-2", "outputIndex": 0, "value_zec": "0.22000000", "memo": "INV-C-20260922192547-2", "recipient": "uregtest1xffvlc4m383pj7fgdsevces7mw9ewx35sfdxcen99zxrghalmk6ep8f9k8rn55twehp769u84gvfahvlw6xyxwcsf3559ypk4sx2fmpe", "is_change": false, "verified": true}, {"payableId": "p-3", "outputIndex": 2, "value_zec": "0.23000000", "memo": "INV-C-20260922192547-3", "recipient": "uregtest1kuztue0n9crxprwe5cpprzfes3xha5sajsjtlepn7yaspjadwjp6aah2g8d60fuedfvxc06enl5kxz53ak3valfretr7hezg5gpnk4q7", "is_change": false, "verified": true}], "skippedNotInAllowList": 0, "outDir": "<workspace>/raw/tools/regtest/console-receipts-20260922192547"}
+{"step": "recipient views", "at_ms": 29975, "views": [[{"txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "notes": [{"value": "0.21000000", "memo": "INV-C-20260922192547-1"}]}], [{"txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "notes": [{"value": "0.22000000", "memo": "INV-C-20260922192547-2"}]}], [{"txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "notes": [{"value": "0.23000000", "memo": "INV-C-20260922192547-3"}]}]]}
 ```
 
 What the log shows:
 
-- **Idempotency.** Submit #1 paid (`via: "fresh"`); submit #2 with the same nonce 1 ms later returned the same txid without calling `pay` (`replayed: true, via: "record"`); submit #3 after mining did the same. The chain check proves it: the issuer gained exactly one transaction, and block 1731 holds exactly two transactions — the coinbase and `623bfd29…bdb1`.
-- **Status.** Immediately after broadcast `status` returned `pending`; the next poll (10 s later) returned `mined` at height 1731 with 3 confirmations (the internal miner had already built two more blocks).
-- **Auto-issuance.** Exactly three receipts, one per batch item, matched by memo and value, `is_change: false`, each verified with signature and challenge inside `autoIssue`; the change output was never issued (ownership exclusion in the CLI, and `--only-to` would have skipped it anyway). The receipt files are in `raw/tools/regtest/console-receipts-20260922190614/`.
+- **Refusal classification (live).** Before the batch, the test asks Zkool to pay 20,000,000 REG. The real answer, `No feasible note selection found`, is recognised by `isPreBuildRefusal` as a refusal raised before any transaction is built, so such a nonce may be retried at once. Any `pay` error not on that list (for example a gRPC failure while sending, which Zkool also reports as a GraphQL error) is treated as an unknown outcome instead (see "Failure paths" below).
+- **Idempotency.** Submit #1 paid (`via: "fresh"`). Submit #2 with the same nonce, in the same millisecond, returned the same txid without calling `pay` (`replayed: true, via: "record"`), and so did submit #3 after mining. The chain check proves it: the issuer gained exactly one transaction, and block 2074 holds exactly two transactions, the coinbase and `6b615fe0…4991`.
+- **Status.** Four consecutive polls (4.3 s to 19.3 s) returned `pending`; the poll at 24.3 s returned `mined` at height 2074 with 1 confirmation, and the next one 2 confirmations (tip 2075), which met N = 2.
+- **Expiry bound (live).** The transaction's consensus `expiryheight` (from `getrawtransaction`) is 2112 = intent height 2072 + 40. The nonce record's `expiresBy` is 2113 (tip after `pay` returned, 2073, + 40). The bound holds: the transaction cannot be mined above 2112 ≤ 2113. This is the property that lets an uncertain attempt be retried safely once the tip passes `expiresBy` with no match mined.
+- **Auto-issuance.** Exactly three receipts, one per batch item, each matched by memo and checked for value, recipient (the CLI reports which `--only-to` entry each output pays) and `is_change: false`, then verified with signature and challenge inside `autoIssue`. The change output was never issued: the CLI excludes it by ownership, and `--only-to` would have skipped it anyway. The three files in `raw/tools/regtest/console-receipts-20260922192547/` were written only after all of that passed.
 - **Recipients.** Each fresh account sees its own memo on the note it received.
 
-Independent re-verification of the three auto-issued receipt files over gRPC, and the fee Zkool recorded (`scripts/regtest/console-verify.sh` → `raw/tools/regtest/console-verify-20260922190614.out`, verbatim):
+Independent re-verification of the three auto-issued receipt files over gRPC, and the fee Zkool recorded (`STAMP=20260922192547 TXID=6b615fe0…4991 HEIGHT=2074 scripts/regtest/console-verify.sh` → `raw/tools/regtest/console-verify-20260922192547.out`, verbatim; the script prints each command exactly as it runs):
 
 ```
-$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 $ARTIFACT_DIR/console-receipts-20260922190614/623bfd29a3eca944-ironwood-0.json --challenge auditor-20260922190614 --require-signature
-{"valid": true, "height": 1731, "output_index": 0, "value_zec": "0.22000000", "memo": {"kind": "text", "text": "INV-C-20260922190614-2"}, "recipient": "uregtest1qmh52k9nttma0ha2uwgetw5062lak9l80z5l2uh28p4dwtyttpvpdnklz2m73fm06nazv6evf2jzyn0pp3sj5kpqnnfgjl7zuyxka6w5"}
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 $ARTIFACT_DIR/console-receipts-20260922192547/6b615fe0689b3811-ironwood-0.json --challenge auditor-20260922192547 --require-signature
+{"valid": true, "height": 2074, "output_index": 0, "value_zec": "0.22000000", "memo": {"kind": "text", "text": "INV-C-20260922192547-2"}, "recipient": "uregtest1xffvlc4m383pj7fgdsevces7mw9ewx35sfdxcen99zxrghalmk6ep8f9k8rn55twehp769u84gvfahvlw6xyxwcsf3559ypk4sx2fmpe"}
 exit=0
-$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 $ARTIFACT_DIR/console-receipts-20260922190614/623bfd29a3eca944-ironwood-2.json --challenge auditor-20260922190614 --require-signature
-{"valid": true, "height": 1731, "output_index": 2, "value_zec": "0.23000000", "memo": {"kind": "text", "text": "INV-C-20260922190614-3"}, "recipient": "uregtest1ncp5azf4l8fz0rk3dk6z2qnegfqsuzyjpvhskvvz68mampmc8wevzjuzrhnrkc6vhg0vg5zesuxe4m4dwxu0a9czru0x0yumrvw7hx0d"}
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 $ARTIFACT_DIR/console-receipts-20260922192547/6b615fe0689b3811-ironwood-1.json --challenge auditor-20260922192547 --require-signature
+{"valid": true, "height": 2074, "output_index": 1, "value_zec": "0.21000000", "memo": {"kind": "text", "text": "INV-C-20260922192547-1"}, "recipient": "uregtest1pzc0xygn2przjrxlgu9ksmr2x7gvum8ehj2ug7kqjech2ljnufzc9aryrl73m98egywg2xqtjxshkt8xlpxvfrtn056kjhj5fcvyz82k"}
 exit=0
-$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 $ARTIFACT_DIR/console-receipts-20260922190614/623bfd29a3eca944-ironwood-3.json --challenge auditor-20260922190614 --require-signature
-{"valid": true, "height": 1731, "output_index": 3, "value_zec": "0.21000000", "memo": {"kind": "text", "text": "INV-C-20260922190614-1"}, "recipient": "uregtest1vagq4azycg4wdmad8rcg74qm0q0nn4vs4f330zhnm3r266djvwspy2qf78rehry9u3fhjtsgmp4edwv8ks3v4zwzw25dd20rqq58knwd"}
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 $ARTIFACT_DIR/console-receipts-20260922192547/6b615fe0689b3811-ironwood-2.json --challenge auditor-20260922192547 --require-signature
+{"valid": true, "height": 2074, "output_index": 2, "value_zec": "0.23000000", "memo": {"kind": "text", "text": "INV-C-20260922192547-3"}, "recipient": "uregtest1kuztue0n9crxprwe5cpprzfes3xha5sajsjtlepn7yaspjadwjp6aah2g8d60fuedfvxc06enl5kxz53ak3valfretr7hezg5gpnk4q7"}
 exit=0
-$ curl --noproxy '*' -s -X POST http://127.0.0.1:9000/graphql -d '{"query":"{ transactionsByAccount(idAccount: 9, height: <mined height>) { txid height value fee } }"}'   (filtered to 623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1)
-[{"txid": "623bfd29a3eca944ffd57aa69bf9b85dd0bb87ec0220323727fb57f62964bdb1", "height": 1731, "value": "-0.66020000", "fee": "0.00020000"}]
+$ curl --noproxy '*' -s -X POST http://127.0.0.1:9000/graphql -H 'Content-Type: application/json' -d '{"query":"{ transactionsByAccount(idAccount: 9, height: 2074) { txid height value fee } }"}'   (filtered to 6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991)
+[{"txid": "6b615fe0689b3811912ee6d8a23d91716c85f5177a6fd6b7f4cf40f7755e4991", "height": 2074, "value": "-0.66020000", "fee": "0.00020000"}]
 ```
 
 The recorded fee (0.00020000 REG = 20,000 zat for 3 recipients + change) equals the ZIP 317 estimate `5000 × max(2, n + 1)` that preflight used.
 
-Failure paths that a live chain cannot produce on demand (transport loss after broadcast, GraphQL refusal, two processes racing, stale intents, pending timeout) are covered by unit tests against an in-process fake Zkool (`apps/console/test/zkool-backend.test.ts`, including a real two-OS-process race on one nonce); `autoIssue`'s fail-closed cases run against the real `zeceipt` binary on the committed Zkool fixture (`apps/console/test/auto-issue.test.ts`). Both suites run in CI.
+Failure paths that a live chain cannot produce on demand are covered by unit tests against an in-process fake Zkool that models the mempool and transaction expiry (`apps/console/test/zkool-backend.test.ts`):
+- transport loss after broadcast;
+- a GraphQL error after the tx reached the node (reconciled once mined, never paid again);
+- a GraphQL error or a node rejection with nothing sent (uncertain until the tip passes `expiresBy`, then exactly one more payment);
+- a known pre-build refusal (retried at once);
+- a look-alike transaction paying the batch's memos and values to other addresses, which is not accepted as the batch;
+- two OS processes racing on one nonce;
+- stale intents;
+- pending timeout and expiry.
+
+`autoIssue`'s fail-closed cases (value, memo or payee mismatch, a duplicate claim of one output, and no files written on failure) run against the real `zeceipt` binary on the committed Zkool fixture (`apps/console/test/auto-issue.test.ts`). Both suites run in CI.
 
 ## 6. testnet — placeholder
 

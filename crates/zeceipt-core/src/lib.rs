@@ -890,6 +890,36 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn allow_list_sapling_receivers_match_only_sapling_outputs() {
+        use zcash_protocol::consensus::NetworkConstants;
+        let (_, pa) =
+            sapling_crypto::zip32::ExtendedSpendingKey::master(&[7u8; 32]).default_address();
+        let hrp = network_type(Network::Regtest).hrp_sapling_payment_address();
+        let zs = zcash_keys::encoding::encode_payment_address(hrp, &pa);
+        let allowed = shielded_receivers(&zs, Network::Regtest).unwrap();
+        assert_eq!(allowed, vec![ShieldedReceiver::Sapling(pa.to_bytes())]);
+        let sapling_out = Recovered {
+            pool: Pool::Sapling,
+            index: 0,
+            recipient: zs.clone(),
+            value_zat: 1,
+            memo: MemoView::Empty,
+            is_change: false,
+        };
+        assert!(pays_any(&sapling_out, &allowed, Network::Regtest).unwrap());
+        // Same receiver bytes reported for an Orchard-family pool: never a match.
+        let wrong_pool = Recovered {
+            pool: Pool::Ironwood,
+            ..sapling_out.clone()
+        };
+        assert!(!pays_any(&wrong_pool, &allowed, Network::Regtest).unwrap());
+        // An Orchard-only allow-list never matches a Sapling output.
+        let r3 = "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj";
+        let orchard_only = shielded_receivers(r3, Network::Regtest).unwrap();
+        assert!(!pays_any(&sapling_out, &orchard_only, Network::Regtest).unwrap());
+    }
+
     /// A 4-action Ironwood transaction built by Zkool GraphQL on the local regtest
     /// chain (3 recipients + change). Zkool encrypts the change output with the
     /// external OVK, so change must be recognised by address ownership, not scope.

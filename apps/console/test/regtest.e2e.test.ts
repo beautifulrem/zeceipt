@@ -5,13 +5,14 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { autoIssue, FileIdempotencyStore, ZkoolBackend, ZkoolClient, type Batch, type TxStatus } from "../lib/index.ts";
+import { autoIssue, FileIdempotencyStore, isPreBuildRefusal, POOL, ZkoolBackend, ZkoolClient, ZkoolGraphqlError, type Batch, type TxStatus } from "../lib/index.ts";
 
 const ENABLED = process.env.ZECEIPT_REGTEST === "1";
 const ROOT = resolve(import.meta.dirname, "../../..");
-const ARTIFACT_DIR = process.env.ARTIFACT_DIR ?? "<workspace>/raw/tools/regtest";
+// Default: the workspace's sibling artifact directory (outside the repo; holds issuer.key).
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR ?? resolve(ROOT, "../raw/tools/regtest");
 const ZKOOL = process.env.ZKOOL_URL ?? "http://127.0.0.1:9000/graphql";
 const ZAINO = process.env.ENDPOINT ?? "http://127.0.0.1:8137";
 const ZEBRA_RPC = process.env.ZEBRA_RPC ?? "http://127.0.0.1:18232/";
@@ -36,7 +37,8 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
   const client = new ZkoolClient({ url: ZKOOL });
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const storeDir = join(ARTIFACT_DIR, "console-nonces");
-  const backend = new ZkoolBackend({ client, account: ISSUER, store: new FileIdempotencyStore(storeDir) });
+  const store = new FileIdempotencyStore(storeDir);
+  const backend = new ZkoolBackend({ client, account: ISSUER, store });
 
   // Fresh recipient accounts (Ironwood only) so each run has its own memos and addresses.
   const recipients: { id: number; ua: string }[] = [];
@@ -54,6 +56,16 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
     items: recipients.map((r, i) => ({ payableId: `p-${i + 1}`, address: r.ua, zat: BigInt(21_000_000 + i * 1_000_000), memo: `INV-C-${stamp}-${i + 1}` })),
   };
   const nonce = `batch-${batch.id}-v1`;
+
+  // The live refusal text for an unaffordable payment must be classified "nothing sent" (retryable).
+  try {
+    await client.pay(ISSUER, [{ address: recipients[0].ua, zat: 2_000_000_000_000_000n, memo: "refusal-probe" }], POOL.ironwood);
+    assert.fail("an unaffordable pay was accepted");
+  } catch (e) {
+    assert.ok(e instanceof ZkoolGraphqlError, String(e));
+    step("refusal probe", { message: e.message, isPreBuildRefusal: isPreBuildRefusal(e) });
+    assert.equal(isPreBuildRefusal(e), true);
+  }
 
   const pre = await backend.preflight(batch);
   step("preflight", { ok: pre.ok, problems: pre.problems, totalZat: pre.totalZat, feeEstimateZat: pre.feeEstimateZat, spendableZat: pre.spendableZat, height: pre.height });
@@ -77,7 +89,7 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
   while (!(st.state === "mined" && st.confirmations >= CONFIRMATIONS) && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 5_000));
     st = await backend.status(first.txid);
-    if (st.state !== seen.at(-1) || (st.state === "mined")) step("status", { ...st });
+    step("status", { ...st });
     seen.push(st.state);
   }
   assert.equal(seen[0], "pending", "first status right after broadcast must be pending");
@@ -90,6 +102,11 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
   step("chain check", { issuerTxsNew: issuerTxsAfter.length - issuerTxsBefore, minedHeight, blockTx: block.tx });
   assert.equal(issuerTxsAfter.length - issuerTxsBefore, 1);
   assert.deepEqual(block.tx.slice(1), [first.txid]);
+  // The recorded expiry bound really bounds the transaction's consensus expiry height.
+  const raw = await zebra<{ expiryheight: number }>("getrawtransaction", [first.txid, 1]);
+  const rec = await store.get(nonce);
+  step("expiry check", { expiryheight: raw.expiryheight, recordedExpiresBy: rec?.expiresBy, intentHeight: rec?.intentHeight });
+  assert.ok(rec?.expiresBy !== undefined && raw.expiryheight <= rec.expiresBy);
   const third = await backend.submit(batch, nonce);
   step("submit #3 after mining (same nonce)", { ...third });
   assert.equal(third.txid, first.txid);
@@ -119,6 +136,7 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
     outDir,
   });
   assert.equal(issued.receipts.length, 3);
+  assert.equal((await readdir(outDir)).filter((f) => f.endsWith(".json")).length, 3);
 
   // Recipients' own view: each sees its memo.
   for (const r of recipients) await client.sync(r.id);
