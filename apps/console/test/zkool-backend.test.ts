@@ -278,3 +278,74 @@ test("file store: two OS processes racing on one nonce → exactly one payment",
   assert.deepEqual(outcomes, ["in_flight", "paid"]);
   fake.mine();
 });
+
+test("a sync that did not scan (Zkool's lock held elsewhere) never licenses a second payment", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  const calls = fake.payCalls;
+  fake.nextPay = "grpc-error-sent";
+  await assert.rejects(b.submit(batch("lag"), "nonce-lag"), UnknownOutcomeError);
+  const bound = (await store.get("nonce-lag"))!.expiresBy!;
+  fake.syncBusy = true; // from here on synchronizeAccount answers the tip without scanning
+  fake.mine(); // the lost-answer tx is mined inside its expiry…
+  fake.advance(bound - fake.height + 2); // …and the node tip moves past the bound, unscanned
+  assert.ok(fake.height > bound && fake.scanned <= bound);
+  await assert.rejects(b.submit(batch("lag"), "nonce-lag"), /scanned height/);
+  assert.equal(fake.payCalls, calls + 1, "no second payment while the account is not scanned past the bound");
+  fake.syncBusy = false;
+  const got = await b.submit(batch("lag"), "nonce-lag");
+  assert.deepEqual([got.via, fake.payCalls], ["reconciled", calls + 1]);
+});
+
+test("status never calls an unscanned mined tx expired", async () => {
+  const b = backend();
+  const { txid } = await b.submit(batch("lagst"), "nonce-lagst");
+  fake.syncBusy = true;
+  fake.mine();
+  fake.advance(45);
+  const st = await b.status(txid);
+  assert.equal(st.state, "pending");
+  fake.syncBusy = false;
+  const mined = await b.status(txid);
+  assert.equal(mined.state, "mined");
+});
+
+test("resubmitExpired: only after the account is scanned past the bound with nothing mined; exactly one new payment", async () => {
+  const b = backend();
+  const calls = fake.payCalls;
+  const first = await b.submit(batch("resend"), "nonce-resend");
+  await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /can still be mined/);
+  fake.drop(); // the node lost it
+  fake.advance(41);
+  assert.match((await b.status(first.txid) as { reason: string }).reason, /expired/);
+  assert.deepEqual(await b.submit(batch("resend"), "nonce-resend"), { txid: first.txid, replayed: true, via: "record" }); // submit alone never re-pays
+  const again = await b.resubmitExpired(batch("resend"), "nonce-resend");
+  assert.notEqual(again.txid, first.txid);
+  assert.equal(fake.payCalls, calls + 2);
+  await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /can still be mined/);
+  assert.match((await b.status(first.txid) as { reason: string }).reason, /superseded/);
+  fake.mine();
+  assert.equal((await b.status(again.txid)).state, "mined");
+  await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /was mined/);
+});
+
+for (const [name, make] of [["memory", () => new MemoryIdempotencyStore()], ["file", () => new FileIdempotencyStore(join(dir, `cas-${Date.now()}`))]] as const) {
+  test(`${name} store: update is compare-and-set — a stale writer cannot overwrite a newer attempt`, async () => {
+    const store = make();
+    const base = { nonce: "n-cas", batchId: "b", batchDigest: "d", createdAt: "t", state: "unknown_outcome" as const, attempts: 1 };
+    await store.createIntent(base);
+    assert.equal(await store.update({ ...base, state: "submitting", attempts: 2 }, { attempts: 1, states: ["unknown_outcome"] }), true);
+    // A resolver that read attempt 1 tries to write it back.
+    assert.equal(await store.update({ ...base, error: "stale" }, { attempts: 1, states: ["unknown_outcome"] }), false);
+    assert.deepEqual([(await store.get("n-cas"))?.attempts, (await store.get("n-cas"))?.state], [2, "submitting"]);
+    // Concurrent writers with the same expectation: exactly one wins.
+    const wins = await Promise.all([1, 2, 3, 4].map((k) => store.update({ ...base, attempts: 2, state: "broadcast", txid: String(k).repeat(64) }, { attempts: 2, states: ["submitting"] })));
+    assert.equal(wins.filter(Boolean).length, 1);
+  });
+}
+
+test("inFlightMs must exceed the longest attempt (pay timeout + 3 request timeouts)", () => {
+  const client = new ZkoolClient({ url: fake.url, timeoutMs: 60_000, payTimeoutMs: 300_000 });
+  assert.throws(() => new ZkoolBackend({ client, account: 9, store: new MemoryIdempotencyStore(), inFlightMs: 400_000 }), RangeError);
+  assert.doesNotThrow(() => new ZkoolBackend({ client, account: 9, store: new MemoryIdempotencyStore() }));
+});

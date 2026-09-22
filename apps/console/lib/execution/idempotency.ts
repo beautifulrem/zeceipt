@@ -5,7 +5,7 @@
 // before the payment call. A record that exists therefore means "a payment may have been sent".
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, open, readFile, rename } from "node:fs/promises";
+import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { zatToDecimal } from "./money.ts";
 import type { Batch } from "./types.ts";
@@ -36,11 +36,24 @@ export interface IdempotencyStore {
   /** Create the record if absent. Returns `{created: true}` for exactly one caller per nonce. */
   createIntent(rec: SubmissionRecord): Promise<{ created: true } | { created: false; existing: SubmissionRecord }>;
   get(nonce: string): Promise<SubmissionRecord | undefined>;
-  /** Replace the record (the caller holds the intent). */
-  put(rec: SubmissionRecord): Promise<void>;
+  /**
+   * Compare-and-set: replace the record only if it is still at attempt `expect.attempts` in one of
+   * `expect.states`. Returns false (and writes nothing) otherwise, so a slow writer can never overwrite
+   * a newer attempt. libSQL: `UPDATE … WHERE nonce = ? AND attempts = ? AND state IN (…)`.
+   */
+  update(next: SubmissionRecord, expect: Expect): Promise<boolean>;
   findByTxid(txid: string): Promise<SubmissionRecord | undefined>;
   /** Exclusively claim retry attempt number `attempt` for `nonce` (true for exactly one caller). */
   claimAttempt(nonce: string, attempt: number): Promise<boolean>;
+}
+
+export interface Expect {
+  attempts: number;
+  states: SubmissionState[];
+}
+
+function matches(cur: SubmissionRecord | undefined, expect: Expect): boolean {
+  return cur !== undefined && cur.attempts === expect.attempts && expect.states.includes(cur.state);
 }
 
 /** Canonical digest of what a batch pays: network and every (payable, address, amount, memo) in order. */
@@ -68,12 +81,16 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
     const r = this.records.get(nonce);
     return r && structuredClone(r);
   }
-  async put(rec: SubmissionRecord) {
-    this.records.set(rec.nonce, structuredClone(rec));
+  private readonly byTxid = new Map<string, string>(); // like the file store's index: never forgets a txid
+  async update(next: SubmissionRecord, expect: Expect) {
+    if (!matches(this.records.get(next.nonce), expect)) return false;
+    this.records.set(next.nonce, structuredClone(next));
+    if (next.txid) this.byTxid.set(next.txid, next.nonce);
+    return true;
   }
   async findByTxid(txid: string) {
-    for (const r of this.records.values()) if (r.txid === txid) return structuredClone(r);
-    return undefined;
+    const nonce = this.byTxid.get(txid);
+    return nonce === undefined ? undefined : this.get(nonce);
   }
   private readonly attempts = new Set<string>();
   async claimAttempt(nonce: string, attempt: number) {
@@ -157,9 +174,39 @@ export class FileIdempotencyStore implements IdempotencyStore {
     }
   }
 
-  async put(rec: SubmissionRecord) {
-    await this.writeAtomic(this.path(rec.nonce), JSON.stringify(rec, null, 2));
-    if (rec.txid) await this.writeAtomic(join(this.dir, `${rec.txid}.txid`), rec.nonce);
+  async update(next: SubmissionRecord, expect: Expect) {
+    return this.withLock(next.nonce, async () => {
+      if (!matches(await this.get(next.nonce), expect)) return false;
+      // Index first: a txid that is findable but not yet in the record is harmless; the reverse would hide it.
+      if (next.txid) await this.writeAtomic(join(this.dir, `${next.txid}.txid`), next.nonce);
+      await this.writeAtomic(this.path(next.nonce), JSON.stringify(next, null, 2));
+      return true;
+    });
+  }
+
+  /**
+   * Per-nonce mutex across processes: an O_EXCL lock file. A lock older than `staleLockMs` (a writer
+   * that died mid-update; an update takes milliseconds) is broken.
+   */
+  private async withLock<T>(nonce: string, fn: () => Promise<T>, staleLockMs = 30_000): Promise<T> {
+    const lock = join(this.dir, `${key(nonce)}.lock`);
+    for (let i = 0; ; i++) {
+      try {
+        await (await open(lock, "wx", 0o600)).close();
+        break;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+        const age = await stat(lock).then((st) => Date.now() - st.mtimeMs, () => 0);
+        if (age > staleLockMs) await unlink(lock).catch(() => {});
+        else if (i > 2_000) throw new Error(`nonce lock ${lock} held for too long`);
+        else await new Promise((r) => setTimeout(r, 5));
+      }
+    }
+    try {
+      return await fn();
+    } finally {
+      await unlink(lock).catch(() => {});
+    }
   }
 
   async claimAttempt(nonce: string, attempt: number) {

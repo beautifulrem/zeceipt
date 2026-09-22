@@ -45,8 +45,8 @@ const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
 export class ZkoolClient {
   readonly url: string;
-  private readonly timeoutMs: number;
-  private readonly payTimeoutMs: number;
+  readonly timeoutMs: number;
+  readonly payTimeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: ZkoolClientOptions) {
@@ -89,6 +89,11 @@ export class ZkoolClient {
     return (await this.request<{ currentHeight: number }>("{ currentHeight }")).currentHeight;
   }
 
+  /**
+   * Ask Zkool to scan the account up to the node tip, and return the node tip. This does NOT prove the
+   * account was scanned: Zkool returns the tip without scanning when another sync holds its global lock
+   * (zkool2 `sync.rs`, `SYNCING.try_lock()`). The scanned height is `balance(account).height`.
+   */
   async sync(account: number): Promise<number> {
     return (await this.request<{ synchronizeAccount: number }>(
       "mutation($id: Int!) { synchronizeAccount(idAccount: $id, fast: false) }",

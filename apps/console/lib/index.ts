@@ -5,7 +5,7 @@ export { checkUnifiedAddress, bech32mCheck, UA_HRP } from "./execution/address.t
 export { estimateIronwoodFeeZat, MARGINAL_FEE_ZAT } from "./execution/fee.ts";
 export { ZkoolClient, ZkoolGraphqlError, ZkoolTransportError, POOL } from "./execution/zkool-client.ts";
 export { FileIdempotencyStore, MemoryIdempotencyStore, batchDigest } from "./execution/idempotency.ts";
-export type { IdempotencyStore, SubmissionRecord, SubmissionState } from "./execution/idempotency.ts";
+export type { Expect, IdempotencyStore, SubmissionRecord, SubmissionState } from "./execution/idempotency.ts";
 export { ZkoolBackend, isPreBuildRefusal } from "./execution/zkool-backend.ts";
 export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./issuance/auto-issue.ts";
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";

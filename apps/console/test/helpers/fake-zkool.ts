@@ -1,6 +1,7 @@
 // In-process fake of the Zkool GraphQL endpoints the backend uses. It models one issuing account with an
 // Ironwood balance, a mempool that `mine()` confirms, transaction expiry (tip at build + 40, as Zkool
-// builds them), and switches to inject failures.
+// builds them), the account's scanned height separately from the node tip (Zkool's `synchronizeAccount`
+// returns the tip without scanning while another sync holds its lock: `syncBusy`), and failure switches.
 
 import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
@@ -26,6 +27,9 @@ export class FakeZkool {
   server!: Server;
   url = "";
   height = 100;
+  /** Height the issuer account is scanned to; `synchronizeAccount` raises it to `height` unless `syncBusy`. */
+  scanned = 100;
+  syncBusy = false;
   ironwoodZat = 1_000_000_000n; // 10 ZEC
   payCalls = 0;
   mempool: FakeTx[] = [];
@@ -45,17 +49,20 @@ export class FakeZkool {
         };
         try {
           if (query.includes("currentHeight")) return reply({ data: { currentHeight: this.height } });
-          if (query.includes("synchronizeAccount")) return reply({ data: { synchronizeAccount: this.height } });
+          if (query.includes("synchronizeAccount")) {
+            if (!this.syncBusy) this.scanned = this.height;
+            return reply({ data: { synchronizeAccount: this.height } });
+          }
           if (query.includes("balanceByAccount")) {
             const z = this.ironwoodZat;
             const dec = `${z / 100000000n}.${(z % 100000000n).toString().padStart(8, "0")}`;
-            return reply({ data: { balanceByAccount: { height: this.height, transparent: "0", sapling: "0", orchard: "0", ironwood: dec, total: dec } } });
+            return reply({ data: { balanceByAccount: { height: this.scanned, transparent: "0", sapling: "0", orchard: "0", ironwood: dec, total: dec } } });
           }
           if (query.includes("transactionsByAccount")) {
             const since = variables.h ?? 0;
             return reply({
               data: {
-                transactionsByAccount: this.mined.filter((t) => t.height >= since).map((t) => ({
+                transactionsByAccount: this.mined.filter((t) => t.height >= since && t.height <= this.scanned).map((t) => ({
                   txid: t.txid,
                   height: t.height,
                   value: "-0",
