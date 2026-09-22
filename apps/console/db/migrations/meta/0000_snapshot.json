@@ -1,0 +1,287 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "7b7f6934-3a9d-465d-b6c8-5e6bebe418e6",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "submission_claims": {
+      "name": "submission_claims",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gen": {
+          "name": "gen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "claimed_at_ms": {
+          "name": "claimed_at_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "submission_claims_org_id_nonce_submissions_org_id_nonce_fk": {
+          "name": "submission_claims_org_id_nonce_submissions_org_id_nonce_fk",
+          "tableFrom": "submission_claims",
+          "tableTo": "submissions",
+          "columnsFrom": [
+            "org_id",
+            "nonce"
+          ],
+          "columnsTo": [
+            "org_id",
+            "nonce"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "submission_claims_org_id_nonce_attempt_gen_pk": {
+          "columns": [
+            "org_id",
+            "nonce",
+            "attempt",
+            "gen"
+          ],
+          "name": "submission_claims_org_id_nonce_attempt_gen_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "submission_claims_attempt": {
+          "name": "submission_claims_attempt",
+          "value": "\"submission_claims\".\"attempt\" >= 2 and \"submission_claims\".\"gen\" >= 0"
+        }
+      }
+    },
+    "submission_txids": {
+      "name": "submission_txids",
+      "columns": {
+        "txid": {
+          "name": "txid",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "submission_txids_org_id_nonce_submissions_org_id_nonce_fk": {
+          "name": "submission_txids_org_id_nonce_submissions_org_id_nonce_fk",
+          "tableFrom": "submission_txids",
+          "tableTo": "submissions",
+          "columnsFrom": [
+            "org_id",
+            "nonce"
+          ],
+          "columnsTo": [
+            "org_id",
+            "nonce"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "submission_txids_hex": {
+          "name": "submission_txids_hex",
+          "value": "length(\"submission_txids\".\"txid\") = 64 and \"submission_txids\".\"txid\" not glob '*[^0-9a-f]*'"
+        }
+      }
+    },
+    "submissions": {
+      "name": "submissions",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_digest": {
+          "name": "batch_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "txid": {
+          "name": "txid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "intent_height": {
+          "name": "intent_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_by": {
+          "name": "expires_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "broadcast_at": {
+          "name": "broadcast_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "submissions_org_id_nonce_pk": {
+          "columns": [
+            "org_id",
+            "nonce"
+          ],
+          "name": "submissions_org_id_nonce_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "submissions_nonce_len": {
+          "name": "submissions_nonce_len",
+          "value": "length(\"submissions\".\"nonce\") between 1 and 200"
+        },
+        "submissions_digest_hex": {
+          "name": "submissions_digest_hex",
+          "value": "length(\"submissions\".\"batch_digest\") = 64 and \"submissions\".\"batch_digest\" not glob '*[^0-9a-f]*'"
+        },
+        "submissions_state": {
+          "name": "submissions_state",
+          "value": "\"submissions\".\"state\" in ('submitting', 'broadcast', 'failed_retryable', 'unknown_outcome')"
+        },
+        "submissions_attempts": {
+          "name": "submissions_attempts",
+          "value": "\"submissions\".\"attempts\" >= 1"
+        },
+        "submissions_txid_hex": {
+          "name": "submissions_txid_hex",
+          "value": "\"submissions\".\"txid\" is null or (length(\"submissions\".\"txid\") = 64 and \"submissions\".\"txid\" not glob '*[^0-9a-f]*')"
+        },
+        "submissions_broadcast_has_txid": {
+          "name": "submissions_broadcast_has_txid",
+          "value": "\"submissions\".\"state\" <> 'broadcast' or \"submissions\".\"txid\" is not null"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

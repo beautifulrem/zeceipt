@@ -1,12 +1,14 @@
 # @zeceipt/console — execution and issuance library
 
-The payout console's server-side core, written so the Next.js app (next task) calls it directly. No UI and no database yet: the idempotency store is a file store behind an interface the libSQL `batches` table will implement.
+The payout console's server-side core, written so the Next.js app (next task) calls it directly. No UI yet. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store; batches, items and receipts follow.
 
 | Module | What it does |
 |---|---|
 | `lib/execution/types.ts` | `Batch`, `Preflight`, `Submitted`, `TxStatus`, the `PayoutBackend` contract (`docs/product/05_data_model_api.md` §2) and typed errors |
 | `lib/execution/zkool-backend.ts` | `ZkoolBackend`: `preflight` (all problems at once), `submit` (idempotent per nonce), `status` (`pending` / `mined` / `unknown`), `reconcile`, `resubmitExpired` |
-| `lib/execution/idempotency.ts` | `FileIdempotencyStore` (O_EXCL intent per nonce, atomic updates, txid index), `MemoryIdempotencyStore`, `batchDigest` |
+| `lib/execution/idempotency.ts` | `IdempotencyStore` interface, `FileIdempotencyStore` (O_EXCL intent per nonce, fenced lock lease, txid index), `MemoryIdempotencyStore`, `batchDigest` |
+| `lib/execution/sqlite-store.ts` | `SqliteIdempotencyStore`: the console's nonce store; every write is one synchronous `BEGIN IMMEDIATE` transaction; compare-and-set via conditional `UPDATE`; scoped by `orgId` |
+| `db/schema.ts`, `db/client.ts`, `db/migrations/` | Drizzle schema (`submissions`, `submission_claims`, `submission_txids`), `openDb` (better-sqlite3; WAL, FULL sync, foreign keys, busy timeout), `migrateDb` |
 | `lib/execution/zkool-client.ts` | GraphQL client; loopback-only by default; distinguishes a server refusal from a lost answer |
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |
 | `lib/issuance/auto-issue.ts` | `autoIssue`: confirmation gate, `zeceipt issue --only-to …`, per-item cross-check, verification |

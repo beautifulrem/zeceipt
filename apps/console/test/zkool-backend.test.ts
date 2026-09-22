@@ -1,12 +1,14 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   FileIdempotencyStore,
+  migrateDb,
+  openDb,
   MemoryIdempotencyStore,
   NonceConflictError,
   PaymentRejectedError,
@@ -265,20 +267,33 @@ test("status: a broadcast that was never mined is reported expired once the tip 
   if (st.state === "unknown") assert.match(st.reason, /expired: not mined by height/);
 });
 
-test("file store: two OS processes racing on one nonce → exactly one payment", async () => {
-  const d = join(dir, "two-procs");
-  const calls = fake.payCalls;
-  fake.payDelayMs = 400;
-  const b = JSON.stringify(batch("procs"), (_, v) => (typeof v === "bigint" ? v.toString() : v));
-  const child = join(import.meta.dirname, "helpers/submit-child.ts");
-  const runChild = () => promisify(execFile)(process.execPath, [child, fake.url, d, "nonce-procs", b]).then((r) => JSON.parse(r.stdout));
-  const [x, y] = await Promise.all([runChild(), runChild()]);
-  fake.payDelayMs = 0;
-  assert.equal(fake.payCalls, calls + 1, "only one process may call pay");
-  const outcomes = [x, y].map((o) => (o.ok ? "paid" : o.code)).sort();
-  assert.deepEqual(outcomes, ["in_flight", "paid"]);
-  fake.mine();
-});
+for (const kind of ["file", "sqlite"] as const) {
+  test(`${kind} store: two OS processes racing on one nonce → exactly one payment`, async () => {
+    const d = join(dir, `two-procs-${kind}`);
+    let spec = `file:${d}`;
+    if (kind === "sqlite") {
+      await mkdir(d, { recursive: true });
+      const db = openDb({ path: join(d, "console.db") });
+      migrateDb(db); // migrate once before serving, as in production
+      db.$client.close();
+      spec = `sqlite:${join(d, "console.db")}`;
+    }
+    const calls = fake.payCalls;
+    fake.payDelayMs = 400;
+    const b = JSON.stringify(batch(`procs-${kind}`), (_, v) => (typeof v === "bigint" ? v.toString() : v));
+    const child = join(import.meta.dirname, "helpers/submit-child.ts");
+    const runChild = () => promisify(execFile)(process.execPath, [child, fake.url, spec, `nonce-procs-${kind}`, b]).then((r) => JSON.parse(r.stdout));
+    const [x, y] = await Promise.all([runChild(), runChild()]);
+    fake.payDelayMs = 0;
+    assert.equal(fake.payCalls, calls + 1, "only one process may call pay");
+    const outcomes = [x, y].map((o) => (o.ok ? "paid" : o.code)).sort();
+    assert.deepEqual(outcomes, ["in_flight", "paid"]);
+    // A third process replays the recorded txid.
+    const z = await runChild();
+    assert.deepEqual([z.ok, z.replayed, z.via, fake.payCalls], [true, true, "record", calls + 1]);
+    fake.mine();
+  });
+}
 
 test("a sync that did not scan (Zkool's lock held elsewhere) never licenses a second payment", async () => {
   const store = new MemoryIdempotencyStore();
@@ -330,21 +345,6 @@ test("resubmitExpired: only after the account is scanned past the bound with not
   await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /was mined/);
 });
 
-for (const [name, make] of [["memory", () => new MemoryIdempotencyStore()], ["file", () => new FileIdempotencyStore(join(dir, `cas-${Date.now()}`))]] as const) {
-  test(`${name} store: update is compare-and-set — a stale writer cannot overwrite a newer attempt`, async () => {
-    const store = make();
-    const base = { nonce: "n-cas", batchId: "b", batchDigest: "d", createdAt: "t", state: "unknown_outcome" as const, attempts: 1 };
-    await store.createIntent(base);
-    assert.equal(await store.update({ ...base, state: "submitting", attempts: 2 }, { attempts: 1, states: ["unknown_outcome"] }), true);
-    // A resolver that read attempt 1 tries to write it back.
-    assert.equal(await store.update({ ...base, error: "stale" }, { attempts: 1, states: ["unknown_outcome"] }), false);
-    assert.deepEqual([(await store.get("n-cas"))?.attempts, (await store.get("n-cas"))?.state], [2, "submitting"]);
-    // Concurrent writers with the same expectation: exactly one wins.
-    const wins = await Promise.all([1, 2, 3, 4].map((k) => store.update({ ...base, attempts: 2, state: "broadcast", txid: String(k).repeat(64) }, { attempts: 2, states: ["submitting"] })));
-    assert.equal(wins.filter(Boolean).length, 1);
-  });
-}
-
 test("inFlightMs must exceed the longest attempt (pay timeout + 3 request timeouts)", () => {
   const client = new ZkoolClient({ url: fake.url, timeoutMs: 60_000, payTimeoutMs: 300_000 });
   assert.throws(() => new ZkoolBackend({ client, account: 9, store: new MemoryIdempotencyStore(), inFlightMs: 400_000 }), RangeError);
@@ -373,16 +373,6 @@ test("a dead retry claimer cannot wedge a nonce: its stale claim and stale lock 
   assert.equal(await store.claimAttempt("nonce-wedge", 3, 10_000), true);
   assert.equal(await store.claimAttempt("nonce-wedge", 3, 10_000), false);
   fake.mine();
-});
-
-test("memory store: a claim is re-takeable only after reclaimAfterMs, one taker per generation", async () => {
-  let t = 0;
-  const store = new MemoryIdempotencyStore({ clock: () => t });
-  assert.equal(await store.claimAttempt("n", 2, 1_000), true);
-  assert.equal(await store.claimAttempt("n", 2, 1_000), false);
-  t = 2_000;
-  const takers = await Promise.all([1, 2, 3].map(() => store.claimAttempt("n", 2, 1_000)));
-  assert.equal(takers.filter(Boolean).length, 1);
 });
 
 test("file store: a lock renewed by a live writer ends in StoreBusyError; a stale lock broken by many waiters admits one CAS winner", async () => {

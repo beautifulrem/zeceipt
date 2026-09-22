@@ -1,5 +1,6 @@
-// Per-nonce submission records. The console's `batches.nonce` column (libSQL) will implement the same
-// interface; the file store is what the library ships with and what the tests and the regtest proof use.
+// Per-nonce submission records. Implementations: `SqliteIdempotencyStore` (the console's database,
+// `sqlite-store.ts`), `FileIdempotencyStore` (the regtest proof and tools), `MemoryIdempotencyStore`
+// (tests). All three pass one contract suite (`test/helpers/store-contract.ts`).
 //
 // Invariant: an intent record is created *exclusively* (exactly one creator wins, across processes)
 // before the payment call. A record that exists therefore means "a payment may have been sent".
@@ -39,7 +40,7 @@ export interface IdempotencyStore {
   /**
    * Compare-and-set: replace the record only if it is still at attempt `expect.attempts` in one of
    * `expect.states`. Returns false (and writes nothing) otherwise, so a slow writer can never overwrite
-   * a newer attempt. libSQL: `UPDATE … WHERE nonce = ? AND attempts = ? AND state IN (…)`.
+   * a newer attempt. SQLite: `UPDATE … WHERE org_id = ? AND nonce = ? AND attempts = ? AND state IN (…)`.
    */
   update(next: SubmissionRecord, expect: Expect): Promise<boolean>;
   /** The nonce record a txid was recorded under, and the attempt that recorded it (index entries are never removed). */

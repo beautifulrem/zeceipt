@@ -4,14 +4,29 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Zeceipt payout console — execution and issuance library (Next.js app to follow)",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node --test test/*.test.ts",
     "test:regtest": "ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts",
     "typecheck": "tsc --noEmit -p ."
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.0.0",
+    "drizzle-kit": "^0.31.11",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "drizzle-orm": "^0.45.3"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "fsevents": false
   }
 }

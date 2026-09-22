@@ -10,7 +10,14 @@
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": false,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["lib/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "lib/**/*.ts",
+    "db/**/*.ts",
+    "test/**/*.ts",
+    "drizzle.config.ts"
+  ]
 }
