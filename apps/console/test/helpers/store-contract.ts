@@ -77,6 +77,17 @@ export function storeContract(name: string, make: () => Promise<StoreFixture>) {
     for (let i = 0; i < 8; i++) if (i !== winner) assert.equal(await store.findByTxid(HEX(String(i))), undefined);
   });
 
+  withStore("update can additionally require expiresBy to be unset (null) or equal a value", async ({ store }) => {
+    const rec = base("n-exp", { state: "broadcast", txid: HEX("9") });
+    await store.createIntent(base("n-exp"));
+    assert.equal(await store.update(rec, { attempts: 1, states: ["submitting"] }), true);
+    assert.equal(await store.update({ ...rec, expiresBy: 150 }, { attempts: 1, states: ["broadcast"], expiresBy: null }), true);
+    assert.equal(await store.update({ ...rec, expiresBy: 999 }, { attempts: 1, states: ["broadcast"], expiresBy: null }), false, "a bound exists now");
+    assert.equal(await store.update({ ...rec, expiresBy: 151 }, { attempts: 1, states: ["broadcast"], expiresBy: 149 }), false);
+    assert.equal(await store.update({ ...rec, expiresBy: 151 }, { attempts: 1, states: ["broadcast"], expiresBy: 150 }), true);
+    assert.equal((await store.get("n-exp"))?.expiresBy, 151);
+  });
+
   withStore("findByTxid: returns the recording attempt; a superseded txid still resolves; junk → undefined", async ({ store }) => {
     const rec = base("n-idx");
     await store.createIntent(rec);

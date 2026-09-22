@@ -79,10 +79,13 @@ export class StoreBusyError extends ExecutionError {
 export interface Expect {
   attempts: number;
   states: SubmissionState[];
+  /** Optional: also require the record's `expiresBy` to equal this (`null` = no bound recorded yet). */
+  expiresBy?: number | null;
 }
 
 function matches(cur: SubmissionRecord | undefined, expect: Expect): boolean {
-  return cur !== undefined && cur.attempts === expect.attempts && expect.states.includes(cur.state);
+  if (cur === undefined || cur.attempts !== expect.attempts || !expect.states.includes(cur.state)) return false;
+  return expect.expiresBy === undefined || (cur.expiresBy ?? null) === expect.expiresBy;
 }
 
 /** Canonical digest of what a batch pays: network and every (payable, address, amount, memo) in order. */

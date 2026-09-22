@@ -5,8 +5,8 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | Module | What it does |
 |---|---|
 | `lib/execution/types.ts` | `Batch`, `Preflight`, `Submitted`, `TxStatus`, the `PayoutBackend` contract (`docs/product/05_data_model_api.md` §2) and typed errors |
-| `lib/execution/zkool-backend.ts` | `ZkoolBackend`: `preflight` (all problems at once), `submit` (idempotent per nonce), `status` (`pending` / `mined` / `unknown`), `reconcile`, `resubmitExpired` |
-| `lib/execution/idempotency.ts` | `IdempotencyStore` interface, `FileIdempotencyStore` (O_EXCL intent per nonce, fenced lock lease, txid index), `MemoryIdempotencyStore`, `batchDigest` |
+| `lib/execution/zkool-backend.ts` | `ZkoolBackend`: `preflight` (all problems at once), `submit` (idempotent per nonce), `status` (`pending` / `mined` / `unknown` with a `cause`), `reconcile`, `resubmitExpired`, `ensureExpiryBound` (records a missing expiry bound); `store` and `inFlightMs` are public read-only so status readers use the backend's own |
+| `lib/execution/idempotency.ts` | `IdempotencyStore` interface (compare-and-set `update` on attempt + state, optionally `expiresBy`), `FileIdempotencyStore` (O_EXCL intent per nonce, fenced lock lease, txid index), `MemoryIdempotencyStore`, `batchDigest` |
 | `lib/execution/sqlite-store.ts` | `SqliteIdempotencyStore`: the console's nonce store; every write is one synchronous `BEGIN IMMEDIATE` transaction; compare-and-set via conditional `UPDATE`; scoped by `orgId` |
 | `db/schema.ts`, `db/client.ts`, `db/errors.ts`, `db/migrations/` | Drizzle schema (`submissions`, `submission_claims`, `submission_txids`, `batches`, `batch_items`) plus the freeze triggers (custom migration `0002`), `openDb` (better-sqlite3; WAL, FULL sync, foreign keys, busy timeout), `migrateDb`, busy → `StoreBusyError` |
 | `lib/execution/validate.ts` | `batchProblems`: the one static rule set shared by preflight and the batch repository |

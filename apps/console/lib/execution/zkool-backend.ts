@@ -105,8 +105,8 @@ export class ZkoolBackend implements PayoutBackend {
   }
 
   /** Compare-and-set on the record; a lost race means another caller moved this nonce on. */
-  private async save(next: SubmissionRecord, from: SubmissionRecord, states: SubmissionState[]): Promise<boolean> {
-    const expect: Expect = { attempts: from.attempts, states };
+  private async save(next: SubmissionRecord, from: SubmissionRecord, states: SubmissionState[], extra: Pick<Expect, "expiresBy"> = {}): Promise<boolean> {
+    const expect: Expect = { attempts: from.attempts, states, ...extra };
     return this.store.update(next, expect);
   }
 
@@ -173,15 +173,11 @@ export class ZkoolBackend implements PayoutBackend {
   }
 
   /**
-   * Pay a broadcast batch again under the same nonce because its transaction expired unmined — the
-   * console's explicit "re-send" action (a human decision; `submit` itself keeps replaying the recorded
-   * txid). Refused unless the account is scanned past the recorded expiry bound and no transaction
-   * paying the batch was mined.
-   */
-  /**
    * Record the expiry bound of a broadcast whose post-pay bound request failed (node tip now + delta +
    * margin; the tip now is ≥ the tip when Zkool built). Without a bound, `status` can never report the
-   * transaction as expired. Idempotent: returns the recorded bound, writing only when none exists.
+   * transaction as expired. Idempotent: an existing bound is returned unchanged. If two callers race, the write is
+   * conditioned on no bound being recorded yet, so the first writer wins and both return the stored value
+   * (either bound is valid: each reads a tip after the build).
    */
   async ensureExpiryBound(nonce: string): Promise<number> {
     const rec = await this.store.get(nonce);
@@ -189,14 +185,19 @@ export class ZkoolBackend implements PayoutBackend {
     if (rec.state !== "broadcast") throw new ExecutionError("not_broadcast", `nonce ${nonce} is ${rec.state}`);
     if (rec.expiresBy !== undefined) return rec.expiresBy;
     const expiresBy = (await this.client.currentHeight()) + this.txExpiryDelta + this.expiryMarginBlocks;
-    if (!(await this.save({ ...rec, expiresBy }, rec, ["broadcast"]))) {
-      const now = await this.store.get(nonce);
-      if (now?.expiresBy !== undefined) return now.expiresBy;
-      throw new SubmissionInFlightError(nonce, 0);
-    }
-    return expiresBy;
+    // Write only while no bound is recorded (compare-and-set on expiresBy too): the first writer wins.
+    await this.save({ ...rec, expiresBy }, rec, ["broadcast"], { expiresBy: null });
+    const stored = (await this.store.get(nonce))?.expiresBy;
+    if (stored === undefined) throw new SubmissionInFlightError(nonce, 0); // the record moved on (another attempt)
+    return stored;
   }
 
+  /**
+   * Pay a broadcast batch again under the same nonce because its transaction expired unmined — the
+   * console's explicit "re-send" action (a human decision; `submit` itself keeps replaying the recorded
+   * txid). Refused unless the account is scanned past the recorded expiry bound and no transaction
+   * paying the batch was mined.
+   */
   async resubmitExpired(batch: Batch, nonce: string): Promise<Submitted> {
     const rec = await this.store.get(nonce);
     if (!rec) throw new ExecutionError("unknown_nonce", `nonce ${nonce} was never submitted`);

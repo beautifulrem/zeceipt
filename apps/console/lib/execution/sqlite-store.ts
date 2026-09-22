@@ -3,7 +3,7 @@
 // index are atomic and cross-process safe without any lease (unlike the file store, RSK-21 clause c).
 // Being synchronous, a write cannot interleave with another write in the same process.
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { submissionClaims, submissions, submissionTxids } from "../../db/schema.ts";
 import { runSync as sync } from "../../db/errors.ts";
@@ -88,7 +88,14 @@ export class SqliteIdempotencyStore implements IdempotencyStore {
           const r = tx
             .update(submissions)
             .set({ ...toColumns(next), updatedAt: this.nowIso() })
-            .where(and(this.key(next.nonce), eq(submissions.attempts, expect.attempts), inArray(submissions.state, expect.states)))
+            .where(
+              and(
+                this.key(next.nonce),
+                eq(submissions.attempts, expect.attempts),
+                inArray(submissions.state, expect.states),
+                expect.expiresBy === undefined ? sql`1` : expect.expiresBy === null ? isNull(submissions.expiresBy) : eq(submissions.expiresBy, expect.expiresBy),
+              ),
+            )
             .run();
           if (r.changes !== 1) return false;
           if (next.txid) {

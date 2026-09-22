@@ -241,3 +241,38 @@ test("the reader never combines a submission snapshot with the chain status of a
   assert.deepEqual([s?.state, s?.next], ["submitting", "wait"], "the newer record wins; the stale 'expired' answer is discarded");
   assert.equal(calls, 1);
 });
+
+test("ensureExpiryBound under a race: the first writer wins and both callers return the stored bound", async () => {
+  const fake = await new FakeZkool().start();
+  try {
+    const org = "org-b3-race";
+    const rec = await createBatch(db, { orgId: org, network: "regtest", title: "race", items: PAYEES.map((p) => ({ ...p, memo: `${p.memo}-r` })) });
+    let hold: (() => void) | undefined;
+    let first = true;
+    class SlowStore extends SqliteIdempotencyStore {
+      override async update(next: SubmissionRecord, expect: Parameters<SqliteIdempotencyStore["update"]>[1]) {
+        if (first && next.expiresBy !== undefined && expect.expiresBy === null) {
+          first = false;
+          await new Promise<void>((r) => (hold = r)); // caller A's write waits here
+        }
+        return super.update(next, expect);
+      }
+    }
+    const store = new SlowStore(db, { orgId: org });
+    const backend = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
+    fake.failCurrentHeight = true;
+    await backend.submit(toExecutionBatch(rec), batchNonce(rec));
+    fake.failCurrentHeight = false;
+    const a = backend.ensureExpiryBound(batchNonce(rec)); // reads tip T, then waits before writing
+    while (!hold) await new Promise((r) => setTimeout(r, 5));
+    fake.advance(5);
+    const b = await backend.ensureExpiryBound(batchNonce(rec)); // reads T+5, writes first
+    hold!();
+    const aValue = await a;
+    const stored = (await store.get(batchNonce(rec)))?.expiresBy;
+    assert.equal(b, stored);
+    assert.equal(aValue, stored, "the slower caller returns the stored bound, not its own");
+  } finally {
+    await fake.stop();
+  }
+});
