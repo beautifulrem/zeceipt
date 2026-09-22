@@ -125,3 +125,38 @@ export const batchItems = sqliteTable(
     check("batch_items_memo_bytes", sql`length(cast(${t.memo} as blob)) between 1 and 512`),
   ],
 );
+
+/**
+ * An issued receipt for one batch item. The receipt envelope (which contains the output's OCK) and its URL
+ * are sealed together (`lib/crypto/seal.ts`, AAD = this row's identity); the other columns are plaintext
+ * projections the org already holds. Immutable except for re-wrapping (`sealed`, `sealed_kid`), by trigger.
+ */
+export const receipts = sqliteTable(
+  "receipts",
+  {
+    orgId: text("org_id").notNull(),
+    txid: text("txid").notNull(),
+    pool: text("pool", { enum: ["sapling", "orchard", "ironwood"] }).notNull(),
+    outputIndex: integer("output_index").notNull(),
+    batchId: text("batch_id").notNull(),
+    idx: integer("idx").notNull(),
+    valueZat: integer("value_zat").notNull(),
+    recipient: text("recipient").notNull(),
+    memoText: text("memo_text").notNull(),
+    issuedAt: text("issued_at").notNull(),
+    verifiedAt: text("verified_at").notNull(),
+    sealed: text("sealed").notNull(),
+    sealedKid: text("sealed_kid").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.txid, t.pool, t.outputIndex] }),
+    unique("receipts_item_unique").on(t.orgId, t.batchId, t.idx),
+    foreignKey({ columns: [t.orgId, t.batchId, t.idx], foreignColumns: [batchItems.orgId, batchItems.batchId, batchItems.idx] }),
+    check("receipts_txid_hex", sql`length(${t.txid}) = 64 and ${t.txid} not glob '*[^0-9a-f]*'`),
+    check("receipts_pool", sql`${t.pool} in ('sapling', 'orchard', 'ironwood')`),
+    check("receipts_output_index", sql`typeof(${t.outputIndex}) = 'integer' and ${t.outputIndex} >= 0`),
+    check("receipts_value", sql`typeof(${t.valueZat}) = 'integer' and ${t.valueZat} between 1 and 2100000000000000`),
+    check("receipts_recipient", sql`length(${t.recipient}) between 1 and 1000`),
+    check("receipts_sealed", sql`length(${t.sealed}) > 0 and length(${t.sealedKid}) between 1 and 64`),
+  ],
+);

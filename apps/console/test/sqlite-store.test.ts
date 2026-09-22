@@ -48,7 +48,7 @@ test("migrations apply once (one journal row per committed migration); a second 
   assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, journal.entries.length);
   const names = (type: string) =>
     (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);
-  assert.deepEqual(names("table"), ["batch_items", "batches", "submission_claims", "submission_txids", "submissions"]);
+  assert.deepEqual(names("table"), ["batch_items", "batches", "receipts", "submission_claims", "submission_txids", "submissions"]);
   assert.deepEqual(names("trigger"), [
     "batch_items_frozen_delete",
     "batch_items_frozen_insert",
@@ -56,6 +56,9 @@ test("migrations apply once (one journal row per committed migration); a second 
     "batches_frozen_delete",
     "batches_frozen_insert",
     "batches_frozen_update",
+    "receipts_fixed",
+    "receipts_keep",
+    "receipts_no_delete",
     "submission_txids_fixed",
     "submission_txids_keep",
     "submission_txids_no_delete",

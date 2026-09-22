@@ -10,6 +10,8 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | `lib/execution/sqlite-store.ts` | `SqliteIdempotencyStore`: the console's nonce store; every write is one synchronous `BEGIN IMMEDIATE` transaction; compare-and-set via conditional `UPDATE`; scoped by `orgId` |
 | `db/schema.ts`, `db/client.ts`, `db/errors.ts`, `db/migrations/` | Drizzle schema (`submissions`, `submission_claims`, `submission_txids`, `batches`, `batch_items`) plus the freeze triggers (custom migration `0002`), `openDb` (better-sqlite3; WAL, FULL sync, foreign keys, busy timeout), `migrateDb`, busy → `StoreBusyError` |
 | `lib/execution/validate.ts` | `batchProblems`: the one static rule set shared by preflight and the batch repository |
+| `lib/crypto/seal.ts` | Sealing at rest: `Keyring` (wrap keys by id, per-org HKDF-SHA256), `seal`/`open` (AES-256-GCM, 96-bit random IV, the row identity as AAD), typed `SealError` |
+| `lib/data/receipts.ts` | `recordReceipts` (the batch's own broadcast only, matched to items, idempotent, atomic), `listReceipts` (decrypted), `rewrapReceipts` (key rotation) |
 | `lib/data/batches.ts` | Batch repository: `createBatch` (validated, atomic), `getBatch`, `listBatches` (exact totals), `toExecutionBatch`, `batchNonce` (`batch/<id>`), `newBatchId` (UUIDv7) |
 | `lib/execution/zkool-client.ts` | GraphQL client; loopback-only by default; distinguishes a server refusal from a lost answer |
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |

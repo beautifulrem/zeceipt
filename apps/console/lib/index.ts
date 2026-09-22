@@ -14,3 +14,7 @@ export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./is
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";
 export { BatchInvalidError, batchNonce, createBatch, getBatch, listBatches, newBatchId, toExecutionBatch } from "./data/batches.ts";
 export type { BatchItemInput, BatchProblem, BatchProblemCode, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";
+export { Keyring, open as openSealed, seal, SealError, sealedKid } from "./crypto/seal.ts";
+export type { WrapKey } from "./crypto/seal.ts";
+export { listReceipts, recordReceipts, ReceiptRecordError, rewrapReceipts } from "./data/receipts.ts";
+export type { RecordResult, StoredReceipt } from "./data/receipts.ts";
