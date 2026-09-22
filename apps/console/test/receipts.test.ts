@@ -189,6 +189,11 @@ test("the schema refuses impossible receipts; receipts cannot be deleted or chan
   // The re-wrap columns may change, but only to a well-formed envelope whose own kid matches sealed_kid.
   assert.throws(() => db.$client.prepare("UPDATE receipts SET sealed_kid = 'k2' WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key), /not a valid envelope/, "drifted kid");
   assert.throws(() => db.$client.prepare("UPDATE receipts SET sealed = 'garbage' WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key), /not a valid envelope/, "garbage payload");
+  // A duplicated key would make SQLite (first occurrence) and JSON.parse (last) read different kids.
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = '{"kid":"kX",' || substr(sealed, 2), sealed_kid = 'kX' WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "duplicate kid key");
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_set(sealed, '$.v', json('true')) WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "v = true");
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_set(sealed, '$.extra', 1) WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "extra field");
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_set(sealed, '$.kid', 1), sealed_kid = '1' WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "numeric kid");
   const raw = new Database(dbPath); // recursive triggers OFF
   try {
     const r = raw.prepare("INSERT OR REPLACE INTO receipts (org_id, txid, pool, output_index, batch_id, idx, value_zat, recipient, memo_text, issued_at, verified_at, sealed, sealed_kid) SELECT org_id, txid, pool, output_index, batch_id, idx, 1, 'evil', 'evil', 't', 't', sealed, sealed_kid FROM receipts WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key);

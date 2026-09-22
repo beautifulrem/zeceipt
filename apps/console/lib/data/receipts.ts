@@ -211,8 +211,11 @@ export function rewrapReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, o
 }
 
 /**
- * Key ids still named by any sealed receipt envelope (all orgs). A wrap key may be retired from the keyring
- * only when it is absent from this list; otherwise the rows sealed under it would no longer open.
+ * Key ids still named by any sealed receipt envelope (all orgs). Scope: the `receipts` table only — when
+ * UFVKs or issuer secrets are sealed too, this must cover those tables as well. A wrap key may be retired
+ * only when it is absent from this list. Procedure: (1) give every process the new keyring (new key last),
+ * (2) run `rewrapReceipts` until it returns 0, (3) check this list, (4) remove the old key. A process still
+ * on the old keyring after step (1) could seal under the old key again, so step (1) comes first.
  */
 export function sealedKidsInUse(db: ConsoleDb): Promise<string[]> {
   return runSync(() =>
