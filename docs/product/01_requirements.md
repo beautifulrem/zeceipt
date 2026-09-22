@@ -7,6 +7,8 @@ Priority: M = Must (hackathon MVP), S = Should, C = Could, W = Won't (v0). Statu
 In scope for v0: per-output disclosure receipts on Ironwood (plus Orchard/Sapling), CLI, browser verifier/SDK, payout console that issues receipts, Solana attestation of verified receipts, exports for accounting and public ledgers.
 Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in the app, FROST signing, mobile apps, fiat on/off-ramps, EOR/employment services, ZSA/stablecoin issuance, non-Zcash payouts.
 
+Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3 (reduced to manual entry), REQ-CON-4 (reduced to a single rate source), REQ-CON-6, REQ-CON-7, REQ-CON-10, REQ-CON-11, REQ-CON-12 and REQ-CON-17; every other requirement is dropped for the hackathon and the console/Solana tables below carry a "Solo" column saying so. The checker verifies that column against the solo kept/dropped lists.
+
 ## 1. Receipt core (`zeceipt-core`, `zeceipt-types`)
 
 | ID | Pri | Requirement | Acceptance criterion | Status / evidence |
@@ -50,44 +52,44 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 
 ## 4. Payout console (`apps/console`)
 
-| ID | Pri | Requirement | Acceptance criterion | Status / evidence |
-|---|---|---|---|---|
-| REQ-CON-1 | M | Organisations, members, roles (Admin, Approver, Operator, Viewer); email login (SIWZ optional). | Role matrix enforced in route handlers; tests per role. | ⬜ |
-| REQ-CON-2 | M | Recipients: display name, unified address (validated per network), KYC flag, tax flag (US-1099 / non-US), preferred settlement (ZEC / USDC-Solana). | Invalid UA rejected; duplicate addresses flagged. | ⬜ |
-| REQ-CON-3 | M | Payables: type (milestone/invoice/bounty/salary), USD cents, reference, link to grant/project; CSV import compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ |
-| REQ-CON-4 | M | Batches: group payables; lock ZEC/USD rate from two sources (Kraken, CoinGecko) recording both and the timestamp. | Rate, sources and timestamp persisted; deviation > 3% blocks until re-quote. | ⬜ |
-| REQ-CON-5 | M | Two-person approval bound by HMAC over (batch id, recipients, amounts, rate); any edit invalidates approvals. | Editing an approved batch resets approvals; test. | ⬜ |
-| REQ-CON-6 | M | Fresh diversified address per recipient per batch when the recipient supplied a UFVK-derived address set; otherwise warn about linkability. | UI warning shown; documented in spec §9. | ⬜ |
-| REQ-CON-7 | M | Execution backend A: Zkool GraphQL `pay` with per-recipient memo (`INV-…`); idempotent re-submission guarded by a batch nonce. | Regtest batch of 3 recipients lands in one transaction. | ⬜ |
-| REQ-CON-8 | S | Execution backend B: Zallet `z_sendmany` with duplicate-address splitting and unknown-outcome handling after opid loss. | Regtest run. | ⬜ |
-| REQ-CON-9 | M | Execution backend C: per-recipient ZIP-321 URIs/QR for non-custodial mode (one recipient per URI; multi-recipient URIs are not used because Zodl rejects them). | URIs scan in YWallet/Zodl. | ⬜ |
-| REQ-CON-10 | M | Batch state machine: draft → approved → submitted → broadcast → confirmed(n) → receipts issued; failures stay retryable; no silent duplicates. | State transitions tested; confirmations configurable. | ⬜ |
-| REQ-CON-11 | M | Auto-issue one receipt per payment output after N confirmations; store receipt JSON, URL and recovered values. | Receipts appear with verify links; issuance is idempotent per (txid, index). | ⬜ |
-| REQ-CON-12 | M | Public receipt page (no login) using the browser verifier; optional challenge input. | Page verifies without server involvement. | ⬜ |
-| REQ-CON-13 | M | Audit pack page and JSON export; lower-bound wording. | Pack verifies in CLI and page. | ⬜ |
-| REQ-CON-14 | M | Exports: OpenZcash-compatible CSV (+ `receipt_url`), QuickBooks 3-column, Xero single-amount, per-recipient annual USD totals for 1099-NEC. | Sample files validate against the column specs in `05_data_model_api.md` §3. | ⬜ |
-| REQ-CON-15 | S | Notifications (Discord webhook / email) for pending approvals and confirmations. | Webhook fires on state changes. | ⬜ |
-| REQ-CON-16 | S | UFVK-based reconciliation view (upper bound of outgoing payments). | Reconciles regtest batch against payables. | ⬜ |
-| REQ-CON-17 | M | Custody modes documented and enforced: hot (seed only in Zkool; app holds UFVK) or external signer (app holds UFVK only). | Config test: `CUSTODY_MODE=external` with a Zkool endpoint set fails startup; `hot` without a Zkool endpoint fails startup; README states the demo mode. | ⬜ |
+| ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
+|---|---|---|---|---|---|
+| REQ-CON-1 | M | Organisations, members, roles (Admin, Approver, Operator, Viewer); email login (SIWZ optional). | Role matrix enforced in route handlers; tests per role. | ⬜ | dropped |
+| REQ-CON-2 | M | Recipients: display name, unified address (validated per network), KYC flag, tax flag (US-1099 / non-US), preferred settlement (ZEC / USDC-Solana). | Invalid UA rejected; duplicate addresses flagged. | ⬜ | kept |
+| REQ-CON-3 | M | Payables: type (milestone/invoice/bounty/salary), USD cents, reference, link to grant/project; CSV import compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ | reduced (manual entry, no CSV import) |
+| REQ-CON-4 | M | Batches: group payables; lock ZEC/USD rate from two sources (Kraken, CoinGecko) recording both and the timestamp. | Rate, sources and timestamp persisted; deviation > 3% blocks until re-quote. | ⬜ | reduced (single rate source) |
+| REQ-CON-5 | M | Two-person approval bound by HMAC over (batch id, recipients, amounts, rate); any edit invalidates approvals. | Editing an approved batch resets approvals; test. | ⬜ | dropped |
+| REQ-CON-6 | M | Fresh diversified address per recipient per batch when the recipient supplied a UFVK-derived address set; otherwise warn about linkability. | UI warning shown; documented in spec §9. | ⬜ | kept (warning copy only) |
+| REQ-CON-7 | M | Execution backend A: Zkool GraphQL `pay` with per-recipient memo (`INV-…`); idempotent re-submission guarded by a batch nonce. | Regtest batch of 3 recipients lands in one transaction. | ⬜ | kept |
+| REQ-CON-8 | S | Execution backend B: Zallet `z_sendmany` with duplicate-address splitting and unknown-outcome handling after opid loss. | Regtest run. | ⬜ | dropped |
+| REQ-CON-9 | M | Execution backend C: per-recipient ZIP-321 URIs/QR for non-custodial mode (one recipient per URI; multi-recipient URIs are not used because Zodl rejects them). | URIs scan in YWallet/Zodl. | ⬜ | dropped |
+| REQ-CON-10 | M | Batch state machine: draft → approved → submitted → broadcast → confirmed(n) → receipts issued; failures stay retryable; no silent duplicates. | State transitions tested; confirmations configurable. | ⬜ | kept |
+| REQ-CON-11 | M | Auto-issue one receipt per payment output after N confirmations; store receipt JSON, URL and recovered values. | Receipts appear with verify links; issuance is idempotent per (txid, index). | ⬜ | kept |
+| REQ-CON-12 | M | Public receipt page (no login) using the browser verifier; optional challenge input. | Page verifies without server involvement. | ⬜ | kept |
+| REQ-CON-13 | M | Audit pack page and JSON export; lower-bound wording. | Pack verifies in CLI and page. | ⬜ | dropped |
+| REQ-CON-14 | M | Exports: OpenZcash-compatible CSV (+ `receipt_url`), QuickBooks 3-column, Xero single-amount, per-recipient annual USD totals for 1099-NEC. | Sample files validate against the column specs in `05_data_model_api.md` §3. | ⬜ | dropped |
+| REQ-CON-15 | S | Notifications (Discord webhook / email) for pending approvals and confirmations. | Webhook fires on state changes. | ⬜ | dropped |
+| REQ-CON-16 | S | UFVK-based reconciliation view (upper bound of outgoing payments). | Reconciles regtest batch against payables. | ⬜ | dropped |
+| REQ-CON-17 | M | Custody modes documented and enforced: hot (seed only in Zkool; app holds UFVK) or external signer (app holds UFVK only). | Config test: `CUSTODY_MODE=external` with a Zkool endpoint set fails startup; `hot` without a Zkool endpoint fails startup; README states the demo mode. | ⬜ | kept |
 
 ## 5. Solana attestation
 
-| ID | Pri | Requirement | Acceptance criterion | Status / evidence |
-|---|---|---|---|---|
-| REQ-SOL-1 | M | Anchor program with one instruction: verify an ed25519 signature via the native precompile over a canonical "verified row" (zcash txid, output index, recovered-values hash, USD cents, date, issuer key id) and store it in a PDA. | Program test passes on localnet. | ⬜ |
-| REQ-SOL-2 | M | Rows are keyed by (txid, index); duplicates rejected. | Second submission fails with a typed error. | ⬜ |
-| REQ-SOL-3 | M | TypeScript client verifies the receipt with `@zeceipt/verify` before submitting. | Invalid receipt never reaches the chain. | ⬜ |
-| REQ-SOL-4 | M | Devnet deployment recorded in PROOF with program id and a transaction signature. | PROOF §7 entry. | ⬜ |
-| REQ-SOL-5 | C | Backup Solana hook: NEAR Intents 1Click ZEC→USDC leg measured (min amount, time). | Quote and settlement recorded. | ⬜ |
+| ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
+|---|---|---|---|---|---|
+| REQ-SOL-1 | M | Anchor program with one instruction: verify an ed25519 signature via the native precompile over a canonical "verified row" (zcash txid, output index, recovered-values hash, USD cents, date, issuer key id) and store it in a PDA. | Program test passes on localnet. | ⬜ | dropped |
+| REQ-SOL-2 | M | Rows are keyed by (txid, index); duplicates rejected. | Second submission fails with a typed error. | ⬜ | dropped |
+| REQ-SOL-3 | M | TypeScript client verifies the receipt with `@zeceipt/verify` before submitting. | Invalid receipt never reaches the chain. | ⬜ | dropped |
+| REQ-SOL-4 | M | Devnet deployment recorded in PROOF with program id and a transaction signature. | PROOF §7 entry. | ⬜ | dropped |
+| REQ-SOL-5 | C | Backup Solana hook: NEAR Intents 1Click ZEC→USDC leg measured (min amount, time). | Quote and settlement recorded. | ⬜ | dropped |
 
 ## 6. Integrations
 
-| ID | Pri | Requirement | Acceptance criterion | Status / evidence |
-|---|---|---|---|---|
-| REQ-INT-1 | S | Konclave adapter: from its CSV/ledger rows and a txid, issue receipts and write back a `receipt_url` column. | Sample Konclave CSV processed on regtest. | ⬜ |
-| REQ-INT-2 | S | OpenZcash column-compatible export plus `receipt_url`; demo branch showing a "verified" badge. | Columns match `[R5]` list. | ⬜ |
-| REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `keys publish` writes the file; verify shows "binding confirmed". | ⬜ |
-| REQ-INT-4 | S | Format feedback posted to zips #387 and the forum with a link to vectors. | Post URL recorded. | ⬜ |
+| ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
+|---|---|---|---|---|---|
+| REQ-INT-1 | S | Konclave adapter: from its CSV/ledger rows and a txid, issue receipts and write back a `receipt_url` column. | Sample Konclave CSV processed on regtest. | ⬜ | dropped |
+| REQ-INT-2 | S | OpenZcash column-compatible export plus `receipt_url`; demo branch showing a "verified" badge. | Columns match `[R5]` list. | ⬜ | dropped |
+| REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `keys publish` writes the file; verify shows "binding confirmed". | ⬜ | dropped |
+| REQ-INT-4 | S | Format feedback posted to zips #387 and the forum with a link to vectors. | Post URL recorded. | ⬜ | dropped |
 
 ## 7. Non-functional requirements
 

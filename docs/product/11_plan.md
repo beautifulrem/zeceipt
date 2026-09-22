@@ -32,7 +32,7 @@ Cut trigger: cumulative slippage on either owner's work exceeding 2 pd, or the 2
 
 Failure floors (baseline), time-phased. T/PM: relief available in the cut table is 4.0 pd (items 1, 2, 4, 5, 6 and the T part of 9); items 1 and 4 spend 1.5 on day one. **Before 10-01** T/PM's margin is 0.625 pd of spare (0.5 in 09-25 → 09-26 freed by item 4, 0.125 in 09-27 → 09-28), no buffer tokens, and 1.0 pd of in-window relief (item 5, 0.25, in 09-27 → 09-28; the 3.3.3.1 half of item 2, 0.75, in 09-29 → 09-30). **From 10-01** it has the remaining 1.5 pd of relief, the 1.5 pd T buffer and 0.625 spare, so overall T/PM absorbs ≈ 5.25 pd of slippage. R: relief is 4.0 pd (items 3, 7, 8 and the R part of 9), **of which only 0.5 (item 3) lands before 10-01**; before 10-01 R's margin is the 0.5 pd buffer in 09-25 → 09-26 plus that 0.5, i.e. 1.0 pd, and after 10-01 a further 3.5 pd of relief and 1.25 spare. Beyond those the plan degrades to the solo scope in §1.1 (one person's work with the other person's days as pure buffer).
 
-Calendar levelling: §3 places every person-day-bearing leaf in a dated window such that each owner carries at most 0.75 pd per calendar day in every window, counting the prose budget lines (`{budget …}` for Must 6, `{buffer …}` for the reserve) as load; the checker recomputes this per window and checks that the tokens total Must 6's 1.0 and the Buffer row's 2.0. Must-priority leaves are never placed in the last two windows; the last windows hold Should items, investigations and submission process only.
+Calendar levelling: §3 places every person-day-bearing leaf in a dated window such that each owner carries at most 0.75 pd per calendar day in every window, counting the prose budget lines (`{budget …}` for Must 6, `{buffer …}` for the reserve) as load; the checker recomputes this per window and checks that the tokens total Must 6's 1.0 and the Buffer row's 2.0. Must-priority leaves are never placed in the last two windows (10-08 → 10-11), and a submission-form deliverable (5.1.1.x, 5.1.2.x) may sit there only with a named in-window fallback in the Milestone cell; the checker enforces both by joining leaf → requirement id → priority.
 
 ### 1.1 Solo branch (headcount unconfirmed, WBS 2.4.3.3; RSK-19)
 
@@ -84,26 +84,26 @@ Columns follow the WBS owner letters: the R column lists only R-owned leaves, th
 | 09-27 → 09-28 | Auto-issuance (3.3.6.1); post v0 to zips #387 + forum (3.3.3.4) — 1.5 | Public receipt page (3.3.6.2); weekly update video 1 (5.1.1.3); Discord announcement (4.1.2.4) — 1.375; **U: domain (4.1.1.2)** | First console-issued receipt on regtest; format posted; video 1 |
 | 09-29 → 09-30 | Audit-pack page + exports (3.3.6.3) — 1.5 | Konclave adapter (3.3.3.1); Solana client (3.3.2.2) — 1.0; {budget 0.5} Must 6 first public-chain issuance run — requires 3.4.1.4/3.4.1.5 funded by 09-26; if funding slips, both runs move into 10-01 → 10-07 and the ≥ 15-receipt target becomes best-effort (RSK-3) | Konclave adapter lands 09-30 for the outreach |
 | 10-01 → 10-03 | Well-known keys (3.3.3.3); Solana program (3.3.2.1); devnet deployment (3.3.2.3); ZIP-321 non-custodial adapter (3.3.5.6, Must — in time for the technical demo); Zkool-on-mainnet check with the first funded batch (3.3.4.2) — 2.0 | OpenZcash export (3.3.3.2) and demo branch (4.2.1.4); pilot batches ZecHub DAO (4.2.1.1) and Zcash Brazil (4.2.1.2) — 2.0; {buffer 0.25} | Devnet attestation in PROOF; first pilot batch; **10-03 cut review** |
-| 10-04 → 10-07 | Should 8 prototype (3.3.4.5; cut item 7); tag v0.1.0 + release notes (4.1.1.4); NU7 re-test on 10-07 (3.3.4.4); `cargo audit` + secrets scan (3.4.2.3); reproducible wasm note (3.4.2.4) — 3.0 | Description + GTM paragraph (5.1.2.2); category decision (5.1.2.4); logo (5.1.2.5); initial upload on 10-05 (5.2.1.1); weekly update video 2 on 10-05 (5.1.1.5); pitch video recording (5.1.1.1) — 2.125; {budget 0.5} Must 6 second issuance run (same funding dependency; fallback as above); {buffer 0.125}; **U: npm publish (4.1.1.3)** | Initial upload 10-05 (shift if the window opens on another day) |
-| 10-08 → 10-09 | zips thread follow-up (4.1.2.1); Zallet adapter (3.3.5.5, Should; not in the cut table — if this window slips it is dropped, not rescued); technical demo video (5.1.1.2) — 1.5 | YouTube upload + link test (5.1.1.4); grantee pilot (4.2.1.3); 1Click leg (3.3.2.4) — 1.0; {buffer 0.375}; [restored only if T/PM slack appears: notifications + reconciliation (3.3.6.4)] | Final videos 10-09 |
+| 10-04 → 10-07 | Should 8 prototype (3.3.4.5; cut item 7); NU7 re-test on 10-07 (3.3.4.4); technical demo video (5.1.1.2, recorded once ZIP-321 and the Solana program have landed) — 3.0 | Description + GTM paragraph (5.1.2.2); category decision (5.1.2.4); logo (5.1.2.5); initial upload on 10-05 (5.2.1.1); weekly update video 2 on 10-05 (5.1.1.5); pitch video recording (5.1.1.1) — 2.125; {budget 0.5} Must 6 second issuance run (same funding dependency; fallback as above); {buffer 0.125}; **U: npm publish (4.1.1.3)** | Initial upload 10-05 (shift if the window opens on another day) |
+| 10-08 → 10-09 | zips thread follow-up (4.1.2.1); Zallet adapter (3.3.5.5, Should; not in the cut table — if this window slips it is dropped, not rescued); tag v0.1.0 + release notes (4.1.1.4); `cargo audit` + secrets scan (3.4.2.3); reproducible wasm note (3.4.2.4) — 1.5 | YouTube upload + link test (5.1.1.4); grantee pilot (4.2.1.3); 1Click leg (3.3.2.4) — 1.0; {buffer 0.375}; [restored only if T/PM slack appears: notifications + reconciliation (3.3.6.4)] | Final videos uploaded 10-09. Fallback: the upload (5.1.1.4) has 0.125 spare + 0.375 buffer in-window; if a video itself slips, ship the pitch video alone and add the technical demo before the 10-11 final submission from the 10-10 → 10-11 T spare (0.25) and buffer (1.0); Zallet (3.3.5.5) and the grantee pilot (4.2.1.3) are dropped first |
 | 10-10 → 10-11 | Investigations (3.3.4.1, 3.3.4.3) — 0.5; documentation-only during the freeze, any code change defers to post-submission | Freeze + form re-check (5.2.1.2); final submission (5.2.1.3) — 0.5; {buffer 0.75} | Final submission 10-11; one-day buffer to 10-12 |
 
-Per-owner scheduled totals: R leaves 1.5 + 1.0 + 1.5 + 1.5 + 2.0 + 3.0 + 1.5 + 0.5 = 12.5 (= 11.25 + 0.75 video + 0.5 security/wasm), plus buffer 0.5 = 13.0 (matches §1); T/PM leaves after the day-one cuts 1.5 + 1.0 + 1.375 + 1.0 + 2.0 + 2.125 + 1.0 + 0.5 = 10.5 (= 12.75 − 0.75 video moved − 1.0 − 0.5 cut), plus Must 6 1.0 and buffer 1.5 (0.25 + 0.125 + 0.375 + 0.75) = 13.0 against 14.25, leaving 1.25 spare (0.5 in 09-25 → 09-26, 0.125 in 09-27 → 09-28, 0.25 in 10-04 → 10-07, 0.125 in 10-08 → 10-09, 0.25 in 10-10 → 10-11).
+Per-owner scheduled totals (unchanged by the 10-04/10-08 swap of the technical demo with the release/audit leaves): R leaves 1.5 + 1.0 + 1.5 + 1.5 + 2.0 + 3.0 + 1.5 + 0.5 = 12.5 (= 11.25 + 0.75 video + 0.5 security/wasm), plus buffer 0.5 = 13.0 (matches §1); T/PM leaves after the day-one cuts 1.5 + 1.0 + 1.375 + 1.0 + 2.0 + 2.125 + 1.0 + 0.5 = 10.5 (= 12.75 − 0.75 video moved − 1.0 − 0.5 cut), plus Must 6 1.0 and buffer 1.5 (0.25 + 0.125 + 0.375 + 0.75) = 13.0 against 14.25, leaving 1.25 spare (0.5 in 09-25 → 09-26, 0.125 in 09-27 → 09-28, 0.25 in 10-04 → 10-07, 0.125 in 10-08 → 10-09, 0.25 in 10-10 → 10-11).
 
 Stop-loss history: the 2026-09-25 kill criterion ("Ironwood recovery fails → Sapling fallback → withdraw 09-27") was retired on 2026-09-22 when the regtest proof landed (RSK-18).
 
 ## 4. Metrics
 
-| Horizon | Metric | Target | How counted |
-|---|---|---|---|
-| By 2026-10-12 | Receipts issued on public chains (testnet/mainnet) | ≥ 15 | PROOF §6/§7 txids |
-| | Real issuing organisation | ≥ 1 (ZecHub DAO or Zcash Brazil) | named in README with their consent |
-| | Third-party emitter or consumer | ≥ 1 (Konclave adapter or OpenZcash demo branch) | link |
-| | npm + crate downloads | ≥ 50 | registry stats |
-| | Publicly posted third-party verifications | ≥ 3 | forum/X/CI links |
-| | Tamper rejection | 100% (on video) | video + CI |
-| +90 days | Orgs / receipts per month / integrations | 3 / 300 / 2 | console counts, integrations list |
-| +12 months | Second-chain verifier pilot (Solana confidential balances or Aleo records) | 1 | pilot agreement |
+| Horizon | Metric | Baseline target | Solo-branch target (§1.1) | How counted |
+|---|---|---|---|---|
+| By 2026-10-12 | Receipts issued on public chains (testnet/mainnet) | ≥ 15 | ≥ 3 (one issuance run, one pilot) | PROOF §6/§7 txids |
+| | Real issuing organisation | ≥ 1 (ZecHub DAO or Zcash Brazil) | ≥ 1 (ZecHub DAO) | named in README with their consent |
+| | Third-party emitter or consumer | ≥ 1 (Konclave adapter or OpenZcash demo branch) | one external verification of a receipt posted on the forum (adapters are dropped) | link |
+| | npm + crate downloads | ≥ 50 | ≥ 20 | registry stats |
+| | Publicly posted third-party verifications | ≥ 3 | ≥ 1 | forum/X/CI links |
+| | Tamper rejection | 100% (on video) | 100% (on video) | video + CI |
+| +90 days | Orgs / receipts per month / integrations | 3 / 300 / 2 | 2 / 100 / 1 | console counts, integrations list |
+| +12 months | Second-chain verifier pilot (Solana confidential balances or Aleo records) | 1 | 1 | pilot agreement |
 
 Browser verification leaves no trace by design (no telemetry); adoption is counted through downloads, posts and integrations only.
 

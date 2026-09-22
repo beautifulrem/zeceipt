@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, form deliverables there carry a fallback; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -261,6 +261,43 @@ for num in sorted(pd_of):
     if num not in solo_leaves:
         errors.append(f"11_plan.md §1.1: leaf {num} carries person-days but is neither kept nor dropped in the solo branch")
 
+# priorities: leaf → REQ ids → priority; Must leaves never in the last two windows; form deliverables there need a fallback
+prio = dict(re.findall(r"^\| (REQ-[A-Z]+-\d+) \| ([MSCW]) \|", req_defs, re.M))
+solo_col = dict(re.findall(r"^\| (REQ-(?:CON|SOL|INT)-\d+) \| [MSCW] \|.*\| ([a-z]+)[^|]*\|$", req_defs, re.M))
+leaf_reqs = {}
+for m in leaf_re.finditer(wbs):
+    num, rest = m.groups()
+    ids_here = re.findall(r"\bREQ-[A-Z]+-\d+\b", rest)
+    if ids_here:
+        leaf_reqs[num] = ids_here
+win_list = re.findall(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| ([^|]*) \| ([^|]*)\|$", sched, re.M)
+for w0, w1, rc, tc, ms in win_list[-2:]:
+    live = re.sub(r"\[[^\]]*\]", "", rc + " " + tc)
+    for n in re.findall(r"\b(\d\.\d\.\d\.\d)\b", live):
+        if any(prio.get(r) == "M" for r in leaf_reqs.get(n, [])):
+            errors.append(f"11_plan.md §3: Must-priority leaf {n} sits in one of the last two windows ({w0})")
+        if re.match(r"5\.1\.[12]\.", n) and "fallback" not in ms.lower():
+            errors.append(f"11_plan.md §3: submission deliverable {n} in window {w0} without a named fallback in the Milestone cell")
+
+# solo column in 01 §4–§6 agrees with the §1.1 kept/dropped lists
+solo_kept_tbl = solo.split("Dropped in the solo branch")[0] if solo else ""
+solo_dropped = solo.split("Dropped in the solo branch")[1] if "Dropped in the solo branch" in solo else ""
+kept_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_kept_tbl))
+dropped_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_dropped))
+for rid, val in solo_col.items():
+    leaves_of = [n for n, rs in leaf_reqs.items() if rid in rs]
+    if not leaves_of:
+        continue
+    any_kept = any(n in kept_ids for n in leaves_of)
+    all_dropped = all(n in dropped_ids and n not in kept_ids for n in leaves_of)
+    if all_dropped and val != "dropped":
+        errors.append(f"01_requirements.md: {rid} says solo '{val}' but all its leaves {leaves_of} are dropped in §1.1")
+    if any_kept and val == "dropped":
+        errors.append(f"01_requirements.md: {rid} says solo 'dropped' but a leaf of it {leaves_of} is kept in §1.1")
+for rid, pr in prio.items():
+    if pr == "M" and rid.startswith(("REQ-CON", "REQ-SOL", "REQ-INT")) and rid not in solo_col:
+        errors.append(f"01_requirements.md: Must requirement {rid} lacks a Solo column value")
+
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
@@ -269,7 +306,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}; solo column rows: {len(solo_col)}; priority map: {len(prio)}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

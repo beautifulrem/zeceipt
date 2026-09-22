@@ -8,7 +8,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 |---|---|---|
 | Product name | Zeceipt (confirm) | 👤 |
 | Description | ≤ 500 words; draft in §2 (≈ 450 words) | 🟡 |
-| Blockchains and tools integrated | Zcash (Ironwood, Orchard, Sapling; lightwalletd/Zaino gRPC; Zkool GraphQL); Solana (attestation program, devnet); NEAR Intents 1Click (optional). Solana is dropped entirely if the solo branch activates (`11_plan.md` §1.1, RSK-19), which forfeits accelerator eligibility `[R1]`; re-check this row on 2026-09-24 | ⬜ finalise after REQ-SOL / 2026-09-24 |
+| Blockchains and tools integrated | Zcash (Ironwood, Orchard, Sapling; lightwalletd/Zaino gRPC; Zkool GraphQL); Solana (attestation program, devnet); NEAR Intents 1Click (optional). Solana is dropped entirely if the solo branch activates (`11_plan.md` §1.1, RSK-19), which forfeits accelerator eligibility `[R1]`; re-check this row on 2026-09-24. At the 10-05 initial upload the field reads "Solana: devnet attestation program (program id + signature if deployed by 10-03, otherwise 'in progress'); NEAR Intents 1Click leg pending"; finalised at the 10-11 submission | ⬜ finalise after REQ-SOL / 2026-09-24 / 10-05 draft |
 | Track | Zcash | ✅ |
 | Category | **Payments & Remittance** (primary): receipts are a payments artefact and the console pays. Forced to **Developer Infrastructure** if the solo branch activates (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) because that branch ships a minimal console; otherwise decided 2026-10-03 at the cut review (Developer Infrastructure if the console is cut) | ⬜ 2026-09-24 / 2026-10-03 |
 | Team members with background | names, roles, 2-line bios | 👤 |
@@ -35,7 +35,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 
 **Business.** Open-source core; issuer seats ($79–299/mo), hosted receipt pages and audit packs, verification API and licensing to compliance vendors. Execution tools (Konclave, ZBooks, Zallet) are integrations, not competitors: they plug in by exporting one key column.
 
-**Traction targets by submission.** ≥ 15 receipts on public chains, one real issuing organisation, one third-party integration, ≥ 3 public verifications. [Replace with actuals.]
+**Traction targets by submission.** Baseline plan: ≥ 15 receipts on public chains, one real issuing organisation, one third-party integration, ≥ 3 public verifications; solo-branch plan (`11_plan.md` §4): ≥ 3 receipts, one issuing organisation, one external verification posted publicly. [Replace with actuals.]
 
 **Team.** [Two founder-market-fit sentences from the team; roles.]
 
@@ -69,9 +69,9 @@ This table is the authority for dates visible outside the team (posts, videos, u
 | 2026-09-30 | Konclave author outreach with adapter draft (3.3.3.1 lands 09-30) | `08` §2 |
 | 2026-10-01 | First pilot batch (testnet/mainnet) | `08` §2 |
 | 2026-10-03 | Console + Solana status review; cut decisions | `06` RSK-6/7, `11` §2 |
-| 2026-10-04 | `npm publish @zeceipt/verify` (U); `cargo audit` | WBS 4.1.1.3, 3.4.2.3 |
+| 2026-10-04 | `npm publish @zeceipt/verify` (U) | WBS 4.1.1.3 |
 | 2026-10-05 | Initial upload; weekly update 2 (shift to the actual window-open day) | `11` §3 |
-| 2026-10-09 | Final videos | `11` §3 |
+| 2026-10-09 | Final videos uploaded; tag v0.1.0; `cargo audit` + secrets scan | `11` §3, WBS 4.1.1.4, 3.4.2.3 |
 | 2026-10-10 | Freeze; form re-check | `11` §3 |
 | 2026-10-11 | Final submission | `11` §3 |
 | 2026-10-12 | Deadline (buffer) | `[R1]` |

@@ -54,4 +54,4 @@ Optional revenue: 1Click affiliate fee on ZEC→USDC settlement (Could).
 
 ## 6. Metrics (detail in `11_plan.md` §4)
 
-Pre-submission: ≥ 15 receipts on public chains (blocked on funding), ≥ 1 real issuing org, ≥ 1 third-party emitter/consumer, npm/crate downloads ≥ 50, ≥ 3 publicly posted verifications. 90 days: 3 orgs / 300 receipts / 2 integrations.
+Baseline plan, pre-submission: ≥ 15 receipts on public chains (blocked on funding), ≥ 1 real issuing org, ≥ 1 third-party emitter/consumer, npm/crate downloads ≥ 50, ≥ 3 publicly posted verifications; 90 days: 3 orgs / 300 receipts / 2 integrations. Solo branch: ≥ 3 receipts, 1 org, 1 public external verification, ≥ 20 downloads; 90 days: 2 / 100 / 1 (`11_plan.md` §4).

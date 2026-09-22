@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -221,8 +221,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 3.4.2 Quality gates
 - 3.4.2.1 ✅ R — 26 tests, clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
-- 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-04 → 10-07.
-- 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact. 0.25 pd, 2026-10-04 → 10-07.
+- 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
+- 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact. 0.25 pd, 2026-10-08 → 10-09.
 
 ---
 
@@ -233,7 +233,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 4.1.1.1 👤 ⬜ U — Create GitHub org/repo, push, enable CI.
 - 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example.
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve.
-- 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-04 → 10-07.
+- 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-08 → 10-09.
 #### 4.1.2 Community and design test
 - 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-10-08 → 10-09.
 - 4.1.2.2 ⬜ PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24.
@@ -259,7 +259,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 ### 5.1 Materials
 #### 5.1.1 Videos
 - 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-04 → 10-07.
-- 5.1.1.2 ⬜ R — Technical demo 2–3 min (outline `11_plan.md` §5; recorded by the Rust engineer, who narrates the stack). 0.75 pd, 2026-10-08 → 10-09.
+- 5.1.1.2 ⬜ R — Technical demo 2–3 min (outline `11_plan.md` §5; recorded by the Rust engineer, who narrates the stack). 0.75 pd, 2026-10-04 → 10-07.
 - 5.1.1.3 ⬜ PM — Weekly update video 1 (60 s, 09-28). 0.125 pd, 2026-09-27 → 09-28.
 - 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-08 → 10-09.
 - 5.1.1.5 ⬜ PM — Weekly update video 2 (60 s, 10-05). 0.125 pd, 2026-10-04 → 10-07.
