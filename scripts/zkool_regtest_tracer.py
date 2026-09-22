@@ -16,8 +16,8 @@ never through a proxy) from a mnemonic file, then runs the whole flow and prints
 
 Nothing here touches Zeceipt; receipts are issued afterwards with the `zeceipt` CLI (see PROOF §5b).
 
-Usage:
-  NO_PROXY='*' python3 scripts/zkool_regtest_tracer.py --mnemonic-file /path/outside/repo \
+Usage (the opener bypasses any system proxy by design, so no NO_PROXY is needed):
+  python3 scripts/zkool_regtest_tracer.py --mnemonic-file /path/outside/repo \
       --graphql http://127.0.0.1:9000/graphql --recipients 3 --memo-prefix INV-R-00 --memo-start 2 \
       --amounts 1.01,1.02,1.03 [--use-internal|--no-use-internal] [--issuer-id N]
 
@@ -33,8 +33,17 @@ import urllib.parse
 import urllib.request
 
 POOL_TRANSPARENT, POOL_SAPLING, POOL_ORCHARD, POOL_IRONWOOD = 1, 2, 4, 8
-# Loopback-only opener: the restore payload must never be routed through a system proxy.
-OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: a misconfigured or hostile local server must not be able to bounce the restore POST elsewhere."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        return None
+
+
+# Loopback-only, proxy-less, redirect-refusing opener: the restore payload never leaves 127.0.0.1.
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
 
 def gql(url, query, variables=None, quiet=False, redact=False):
@@ -54,7 +63,7 @@ def gql(url, query, variables=None, quiet=False, redact=False):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--graphql", default="http://127.0.0.1:9000/graphql")
-    ap.add_argument("--mnemonic-file", required=True)
+    ap.add_argument("--mnemonic-file", required=True)  # key-material-allowed: throwaway regtest phrase, file outside the repo
     ap.add_argument("--issuer-id", type=int, default=None, help="reuse an existing issuer account id instead of restoring")
     ap.add_argument("--use-internal", action=argparse.BooleanOptionalAction, default=True,
                     help="restore the issuer with Zkool's useInternal flag (needed for notes at the internal scope)")
@@ -75,7 +84,7 @@ def main():
     print(f"[tracer] node height at start: {h0}\n")
 
     if a.issuer_id is None:
-        phrase = open(a.mnemonic_file).read().strip()
+        phrase = open(a.mnemonic_file).read().strip()  # key-material-allowed: read once, posted to loopback only, deleted below
         issuer = gql(url, "mutation($new: NewAccount!) { createAccount(newAccount: $new) }",
                      {"new": {"name": "issuer-regtest", "key": phrase, "passphrase": "", "aindex": 0, "birth": a.birth,
                               "pools": POOL_TRANSPARENT | POOL_SAPLING | POOL_ORCHARD | POOL_IRONWOOD,

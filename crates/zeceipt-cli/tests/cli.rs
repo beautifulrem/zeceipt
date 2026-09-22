@@ -281,3 +281,71 @@ fn regtest_receipt_verifies_offline_and_tamper_fails() {
     ]);
     assert_eq!((c, stage(&o)), (1, "txid".into()));
 }
+
+/// `is_change` is `null` when the issuer key cannot recognise change (bare OVK)
+/// and a real boolean when a UFVK is supplied (Zkool batch fixture: 3 payments,
+/// change excluded by default, flagged with `--include-change`).
+#[test]
+fn is_change_is_null_with_bare_ovk_and_boolean_with_ufvk() {
+    let ovk = std::fs::read_to_string(fixture("synthetic-ovk.hex")).unwrap();
+    let (code, out, err) = run(&[
+        "issue",
+        "--raw-tx-file",
+        &fixture("synthetic-ironwood.hex"),
+        "--ovk",
+        ovk.trim(),
+        "--label",
+        "t",
+    ]);
+    assert_eq!(code, 0, "stderr: {err}");
+    assert!(
+        err.contains("bare OVK cannot recognise change"),
+        "warning missing: {err}"
+    );
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert!(v["receipts"][0]["recovered"]["is_change"].is_null());
+
+    let ufvk = std::fs::read_to_string(fixture("regtest-issuer-ufvk.txt")).unwrap();
+    let tx =
+        fixture("regtest-48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2.hex");
+    let (code, out, err) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &tx,
+        "--ufvk",
+        ufvk.trim(),
+        "--label",
+        "t",
+    ]);
+    assert_eq!(code, 0, "stderr: {err}");
+    assert!(!err.contains("bare OVK"));
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let receipts = v["receipts"].as_array().unwrap();
+    assert_eq!(receipts.len(), 3);
+    assert!(receipts
+        .iter()
+        .all(|r| r["recovered"]["is_change"] == false));
+
+    let (code, out, _) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &tx,
+        "--ufvk",
+        ufvk.trim(),
+        "--label",
+        "t",
+        "--include-change",
+    ]);
+    assert_eq!(code, 0);
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let receipts = v["receipts"].as_array().unwrap();
+    assert_eq!(receipts.len(), 4);
+    let change: Vec<_> = receipts
+        .iter()
+        .filter(|r| r["recovered"]["is_change"] == true)
+        .collect();
+    assert_eq!(change.len(), 1);
+    assert_eq!(change[0]["recovered"]["value_zec"], "217.25048750");
+}

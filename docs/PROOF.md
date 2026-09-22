@@ -127,7 +127,7 @@ The same matrix runs in CI (`.github/workflows/ci.yml`, including `pack` → `ve
 
 All verification ran inside the page (`zeceipt-wasm 0.1.0 (zeceipt-v0) ready`). The gRPC-web call is a hand-encoded `GetTransaction` (`packages/verify/src/index.js`, `fetchRawTx`), no proxy.
 
-Timing (2026-09-22, NFR-4). Chrome 153 on `demo/index.html` served locally, `performance.now()` around `verifyReceipt` from `src/index.js`: **7.28 ms** per verify (20-run average) on the synthetic fixture (9,166-byte tx, signed, challenge bound) and, later the same day, **6.05 ms** on the Zkool batch fixture `regtest-48db254a…` (15,478 bytes, 4 Ironwood actions, receipt for output 1 with signature and challenge) — now the largest transaction in `fixtures/`, 77 % of the NFR's 20 KB bound; the remaining gap is small enough that the bound argument below is no longer doing real work: verification decrypts exactly one output, so cost is dominated by transaction parsing, linear in bytes — a 20 KB transaction is ≈ 2× parse work, ≈ 15 ms, ~65× inside the 1 s budget (extrapolated, not measured). Node 26 on the committed wasm: init 13.9 ms; `verify_receipt` 4.11 ms (regtest fixture) / 3.19 ms (synthetic). CLI (release build, `/usr/bin/time`): `zeceipt inspect --txid 0e85513c…da69` fetching the mainnet tx from `zec.rocks` over gRPC/TLS 1.15 s wall; `zeceipt issue --regtest --raw-tx-file … --ufvk …` (trial-decrypt of both outputs + signing, offline) 0.00 s wall; `zeceipt verify --regtest --raw-tx-file …` offline 0.01 s. So a public-node `issue` is fetch-bound at ≈ 1–2 s. The page shows the mined height for fetched transactions and tells the user to confirm depth on an explorer or their own node; it does not compute confirmations itself.
+Timing (2026-09-22, NFR-4). Chrome 153 on `demo/index.html` served locally, `performance.now()` around `verifyReceipt` from `src/index.js`, 20-run averages, signed and challenge-bound receipts: **7.28 ms** on the synthetic fixture (9,166-byte tx) and **6.05 ms** on the Zkool batch fixture `regtest-48db254a…` (15,478 bytes, 4 Ironwood actions, receipt for output 1). 69 % more bytes cost no more time: verification decrypts exactly one output, so the cost is dominated by that single trial decryption and is roughly flat in transaction size across 9–15 KB. At 6–7 ms the measurement is **more than 130× inside the 1 s budget**; the remaining 23 % to the NFR's 20 KB bound is not measured but cannot plausibly change that order of magnitude. Node 26 on the committed wasm: init 13.9 ms; `verify_receipt` 4.11 ms (regtest fixture) / 3.19 ms (synthetic). CLI (release build, `/usr/bin/time`): `zeceipt inspect --txid 0e85513c…da69` fetching the mainnet tx from `zec.rocks` over gRPC/TLS 1.15 s wall; `zeceipt issue --regtest --raw-tx-file … --ufvk …` (trial-decrypt of both outputs + signing, offline) 0.00 s wall; `zeceipt verify --regtest --raw-tx-file …` offline 0.01 s. So a public-node `issue` is fetch-bound at ≈ 1–2 s. The page shows the mined height for fetched transactions and tells the user to confirm depth on an explorer or their own node; it does not compute confirmations itself.
 
 ## 3. unit — protocol-level round trip
 
@@ -313,7 +313,7 @@ Tracer bullet for the payout console's primary execution backend (REQ-CON-7; WBS
 
 Two runs are recorded. **Run 1** (transcript `zkool-tracer.txt`) used `--issuer-id 5`, an account restored by hand with `useInternal: true` after a first restore with `useInternal: false` (account 1) had shown a balance of 0 — zcash-devtool had shielded the coinbase and sent change at the internal scope, so Zkool must scan that scope. Run 1's recipient lines below end in `"outputs": []`: that first script version queried `outputs` (the sender-side view, empty for received shielded notes); the recipient's shielded view is `notes { value pool memo }`, captured separately in `zkool-recipient-notes.txt` and quoted in full further down. **Run 2** (`zkool-tracer-run2.txt`) re-ran the committed script end to end — restore path with `useInternal: true`, new recipients, `notes` query, memo assertion — and exited 0.
 
-### Run 1 transcript (`[tracer]` lines in full, then the script's final JSON)
+### Run 1 transcript (`raw/tools/regtest/zkool-tracer.txt`; `[tracer]` lines in full, then the script's final JSON; the `$ gql …` echoes are omitted)
 
 ```
 [tracer] node height at start: 620
@@ -355,28 +355,25 @@ Two runs are recorded. **Run 1** (transcript `zkool-tracer.txt`) used `--issuer-
 
 Three fresh Zkool accounts (ids 6–8, Ironwood only) received 1.01 / 1.02 / 1.03 REG with memos `INV-R-002` / `INV-R-003` / `INV-R-004` in **one** v6 transaction `48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2`, mined at height 626, 19 s after `pay` returned (8.5 s to build and prove). Block 626 contains exactly one non-coinbase transaction (checked with `getblock`).
 
-### Recipient views and memo-limit probe (`zkool-recipient-notes.txt`, verbatim)
+### Recipient views and memo-limit probe (`raw/tools/regtest/recipient-notes.sh` → `zkool-recipient-notes.txt`, verbatim)
 
 ```
-$ curl --noproxy "*" -s -X POST http://127.0.0.1:9000/graphql -d '{"query":"{ transactionsByAccount(idAccount: <6|7|8>, height: 0) { txid height value notes { value pool memo } } }"}'
-# account 6
-{"data":{"transactionsByAccount":[{"txid":"48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2","height":626,"value":"1.01000000","notes":[{"value":"1.01000000","pool":3,"memo":"INV-R-002"}]}]}}
-# account 7
+$ curl --noproxy '*' -s -X POST http://127.0.0.1:9000/graphql -H 'Content-Type: application/json' -d '{"query":"{ transactionsByAccount(idAccount: 6, height: 0) { txid height value notes { value pool memo } } }"}'
+{"data":{"transactionsByAccount":[{"txid":"1d4c12e77197d79430dc6de8dbb9725d1ff1d9e482d217397c6c98afd8b7cdcb","height":648,"value":"0.00100000","notes":[{"value":"0.00100000","pool":3,"memo":"MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"}]},{"txid":"48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2","height":626,"value":"1.01000000","notes":[{"value":"1.01000000","pool":3,"memo":"INV-R-002"}]}]}}
+$ curl --noproxy '*' -s -X POST http://127.0.0.1:9000/graphql -H 'Content-Type: application/json' -d '{"query":"{ transactionsByAccount(idAccount: 7, height: 0) { txid height value notes { value pool memo } } }"}'
 {"data":{"transactionsByAccount":[{"txid":"48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2","height":626,"value":"1.02000000","notes":[{"value":"1.02000000","pool":3,"memo":"INV-R-003"}]}]}}
-# account 8
+$ curl --noproxy '*' -s -X POST http://127.0.0.1:9000/graphql -H 'Content-Type: application/json' -d '{"query":"{ transactionsByAccount(idAccount: 8, height: 0) { txid height value notes { value pool memo } } }"}'
 {"data":{"transactionsByAccount":[{"txid":"48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2","height":626,"value":"1.03000000","notes":[{"value":"1.03000000","pool":3,"memo":"INV-R-004"}]}]}}
-# memo-limit probe transactions (issuer account 5): 512-byte memo accepted, 513 rejected
-{"data":{"transactionsByAccount":[]}}
-# memo-limit probe: 512-byte memo tx 1d4c12e77197d79430dc6de8dbb9725d1ff1d9e482d217397c6c98afd8b7cdcb (issuer 5 -> recipient 6, 0.001 REG); recipient 6 after sync:
-{"data":{"synchronizeAccount":959}}
+$ # memo-limit probe, 512 bytes (already mined as 1d4c12e77197d79430dc6de8dbb9725d1ff1d9e482d217397c6c98afd8b7cdcb, height 648): recipient 6's view with memo lengths
 {"txid": "1d4c12e77197d79430dc6de8dbb9725d1ff1d9e482d217397c6c98afd8b7cdcb", "height": 648, "value": "0.00100000", "memo_len": [512]}
 {"txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2", "height": 626, "value": "1.01000000", "memo_len": [9]}
-# 513-byte memo attempt (same recipient) was rejected client-side: "Memo length 513 is larger than maximum of 512"
+$ # memo-limit probe, 513 bytes: pay(idAccount: 5, recipients: [{address: <recipient 6 UA>, amount: "0.001", memo: "M"×513}], srcPools: 8)
+{"data":null,"errors":[{"message":"Memo length 513 is larger than maximum of 512","locations":[{"line":1,"column":39}],"path":["pay"]}]}
 ```
 
-The 512-byte memo was accepted (tx `1d4c12e77197d79430dc6de8dbb9725d1ff1d9e482d217397c6c98afd8b7cdcb`, height 648, seen by recipient 6 with a 512-character memo); the 513-byte memo was rejected before signing.
+The 512-byte memo was accepted (tx `1d4c12e77197d79430dc6de8dbb9725d1ff1d9e482d217397c6c98afd8b7cdcb`, height 648, seen by recipient 6 with a 512-character memo); the 513-byte memo was rejected before signing with the error object captured above.
 
-### Run 2 — reproduction with the committed script (`zkool-tracer-run2.txt`)
+### Run 2 — reproduction with the committed script (`raw/tools/regtest/zkool-tracer-run2.txt`; `[tracer]` lines and the createAccount echo in full, then the script's final JSON; the `$ gql …` echoes are omitted)
 
 ```
 [tracer] node height at start: 960
@@ -432,7 +429,7 @@ No padding: 3 recipients + change = exactly 4 Ironwood actions. The raw transact
 
 The first `zeceipt issue` run (external-scope UFVK, change excluded "by default") returned **four** receipts: output 0 was the 217.25048750 REG change, opened by the *external* OVK. Zkool encrypts change with the external OVK; zcash-devtool (§5) encrypts change with a key the UFVK does not expose (still unopened by either scope). So scope is not a change signal. Fixed the same day in `zeceipt-core`: both scopes are always tried, and an output is change when its recovered recipient is an address of the issuer's own full viewing key (either ZIP 32 scope, `IncomingViewingKey::diversifier_index` for Orchard/Ironwood, `decrypt_diversifier` for Sapling). `Recovered.is_change` is reported (`null` from the CLI when a bare `--ovk` cannot recognise change, with a warning). Regression test `zkool_batch_fixture_excludes_change_by_own_address` (3 receipts without `--include-change`, 4 with, change flagged, memos and values asserted). Residual cases are recorded in `docs/THREAT_MODEL.md` and RSK-20.
 
-### Receipts after the fix (`issue-batch2.sh` → `issue-batch2.out`; JSON abridged to the recovered fields, receipts written to `receipts-batch2/`)
+### Receipts after the fix (`raw/tools/regtest/issue-batch2.sh` → `raw/tools/regtest/issue-batch2.out`; JSON abridged to the recovered fields, receipts written to `raw/tools/regtest/receipts-batch2/`)
 
 ```
 $ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat fixtures/regtest-issuer-ufvk.txt) --txid 48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2 --label 'batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG' --challenge auditor-nonce-12 --key-file issuer.key --key-id 2026-09 --out-dir receipts-batch2
@@ -480,7 +477,7 @@ $ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat fixtures
 exit=0
 ```
 
-### Verification matrix (`verify-batch2.sh` → `verify-batch2.out`, verbatim)
+### Verification matrix (`raw/tools/regtest/verify-batch2.sh` → `raw/tools/regtest/verify-batch2.out`, verbatim)
 
 ```
 $ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 receipts-batch2/48db254a361e9676-ironwood-1.json --challenge auditor-nonce-12 --require-signature
