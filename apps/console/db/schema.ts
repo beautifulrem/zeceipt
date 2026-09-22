@@ -52,16 +52,20 @@ export const submissionClaims = sqliteTable(
   ],
 );
 
-/** txid → (nonce, attempt that recorded it). Never deleted, so a superseded txid still resolves. */
+/**
+ * (org, txid) → (nonce, attempt that recorded it). Never deleted, so a superseded txid still resolves.
+ * Keyed per org like every other table: one org's record can never take over another org's entry.
+ */
 export const submissionTxids = sqliteTable(
   "submission_txids",
   {
-    txid: text("txid").primaryKey(),
     orgId: text("org_id").notNull(),
+    txid: text("txid").notNull(),
     nonce: text("nonce").notNull(),
     attempt: integer("attempt").notNull(),
   },
   (t) => [
+    primaryKey({ columns: [t.orgId, t.txid] }),
     foreignKey({ columns: [t.orgId, t.nonce], foreignColumns: [submissions.orgId, submissions.nonce] }),
     check("submission_txids_hex", sql`length(${t.txid}) = 64 and ${t.txid} not glob '*[^0-9a-f]*'`),
   ],

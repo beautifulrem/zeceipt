@@ -31,7 +31,7 @@ jobs:
           node-version: 24
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
-      - name: console library — install type-checker (lockfile), type check, unit tests against the debug zeceipt binary
+      - name: console library — install dependencies (lockfile; better-sqlite3 prebuilt binary), type check, unit tests against the debug zeceipt binary
         working-directory: apps/console
         run: |
           npm ci --no-audit --no-fund

@@ -35,14 +35,17 @@ function toColumns(rec: SubmissionRecord) {
   };
 }
 
-/** Run `fn` synchronously; SQLITE_BUSY / SQLITE_LOCKED after the busy timeout → typed, retryable `StoreBusyError`. */
+/**
+ * Run `fn` synchronously; SQLITE_BUSY (another connection holds the write lock past the busy timeout) →
+ * typed, retryable `StoreBusyError`. SQLITE_LOCKED is not mapped: within one connection it signals a bug.
+ */
 function sync<T>(fn: () => T): Promise<T> {
   try {
     return Promise.resolve(fn());
   } catch (e) {
     for (let c: unknown = e; c; c = (c as { cause?: unknown }).cause) {
       const code = (c as { code?: unknown }).code;
-      if (typeof code === "string" && /^SQLITE_(BUSY|LOCKED)/.test(code)) return Promise.reject(new StoreBusyError(`database is locked (${code}); nothing was changed`));
+      if (typeof code === "string" && /^SQLITE_BUSY/.test(code)) return Promise.reject(new StoreBusyError(`database is locked (${code}); nothing was changed`));
     }
     return Promise.reject(e);
   }
@@ -106,7 +109,7 @@ export class SqliteIdempotencyStore implements IdempotencyStore {
           if (next.txid) {
             tx.insert(submissionTxids)
               .values({ txid: next.txid, orgId: this.orgId, nonce: next.nonce, attempt: next.attempts })
-              .onConflictDoUpdate({ target: submissionTxids.txid, set: { orgId: this.orgId, nonce: next.nonce, attempt: next.attempts } })
+              .onConflictDoUpdate({ target: [submissionTxids.orgId, submissionTxids.txid], set: { nonce: next.nonce, attempt: next.attempts } })
               .run();
           }
           return true;

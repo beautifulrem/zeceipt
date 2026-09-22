@@ -1,5 +1,10 @@
 // One behavioural contract for every `IdempotencyStore` (memory, file, SQLite). A store is only used by
 // `ZkoolBackend` through this interface, so passing this suite is what "a correct store" means.
+//
+// The "N concurrent callers" cases start N calls at once within one process. For the file store they
+// genuinely interleave; the memory and SQLite stores run each call to completion synchronously, so for
+// them these cases check sequential semantics only. Real cross-connection races on SQLite are in
+// store-race.test.ts (worker threads) and zkool-backend.test.ts (two OS processes).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

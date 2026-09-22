@@ -10,10 +10,11 @@ CREATE TABLE `submission_claims` (
 );
 --> statement-breakpoint
 CREATE TABLE `submission_txids` (
-	`txid` text PRIMARY KEY NOT NULL,
 	`org_id` text NOT NULL,
+	`txid` text NOT NULL,
 	`nonce` text NOT NULL,
 	`attempt` integer NOT NULL,
+	PRIMARY KEY(`org_id`, `txid`),
 	FOREIGN KEY (`org_id`,`nonce`) REFERENCES `submissions`(`org_id`,`nonce`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "submission_txids_hex" CHECK(length("submission_txids"."txid") = 64 and "submission_txids"."txid" not glob '*[^0-9a-f]*')
 );

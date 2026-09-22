@@ -66,7 +66,7 @@ test("the schema rejects impossible records on its own (CHECK, NOT NULL, foreign
   for (const [what, v] of bad) assert.throws(() => ins.run(...v), constraint(kinds[what] ?? "CHECK"), what);
   assert.throws(() => db.$client.prepare("INSERT INTO submission_claims VALUES ('org', 'no-such-nonce', 2, 0, 1)").run(), constraint("FOREIGNKEY"));
   assert.throws(() => db.$client.prepare("INSERT INTO submission_claims VALUES ('org', 'n1', 1, 0, 1)").run(), constraint("CHECK"), "attempt 1 is never claimed");
-  assert.throws(() => db.$client.prepare("INSERT INTO submission_txids VALUES (?, 'org', 'no-such-nonce', 1)").run("a".repeat(64)), constraint("FOREIGNKEY"));
+  assert.throws(() => db.$client.prepare("INSERT INTO submission_txids (org_id, txid, nonce, attempt) VALUES ('org', ?, 'no-such-nonce', 1)").run("a".repeat(64)), constraint("FOREIGNKEY"));
 });
 
 test("records are scoped by org: the same nonce in two orgs is two independent records", async () => {
@@ -79,6 +79,11 @@ test("records are scoped by org: the same nonce in two orgs is two independent r
   assert.equal((await b.get("same"))?.state, "submitting");
   assert.equal(await b.findByTxid("1".repeat(64)), undefined);
   assert.equal((await a.findByTxid("1".repeat(64)))?.record.batchId, "batch-same");
+  // Both orgs record the same txid (a misconfiguration, e.g. one Zkool account shared by two orgs): each
+  // org keeps its own index entry; neither can take over the other's.
+  assert.equal(await b.update({ ...base("same", { batchId: "other" }), state: "broadcast", txid: "1".repeat(64) }, { attempts: 1, states: ["submitting"] }), true);
+  assert.equal((await a.findByTxid("1".repeat(64)))?.record.batchId, "batch-same");
+  assert.equal((await b.findByTxid("1".repeat(64)))?.record.batchId, "other");
   assert.throws(() => new SqliteIdempotencyStore(db, { orgId: "" }), RangeError);
 });
 
@@ -95,8 +100,9 @@ test("a write blocked by another process's lock ends in StoreBusyError after the
   assert.ok(Date.now() - t0 >= 400, "waited for the busy timeout each time");
   holder.exec("ROLLBACK");
   holder.close();
-  // The libSQL defect (tursodatabase/libsql-client-ts#352): after a busy failure, later writes reported
-  // success but never committed. Check every write is visible to an independent connection.
+  // The libSQL defect (root cause of tursodatabase/libsql-client-ts#352; our reproduction): after a busy
+  // failure, later writes reported success but never committed. Every write must be visible to an
+  // independent connection (same library, so the lock is real).
   assert.equal(await store.update({ ...base("n-busy"), attempts: 2 }, { attempts: 1, states: ["submitting"] }), true);
   assert.equal((await store.createIntent(base("n-busy-2"))).created, true);
   assert.equal(await store.claimAttempt("n-busy", 3, 1_000), true);

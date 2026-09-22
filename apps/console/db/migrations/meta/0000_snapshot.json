@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7b7f6934-3a9d-465d-b6c8-5e6bebe418e6",
+  "id": "6541e644-c96c-46eb-bf84-3c687eb5a030",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "submission_claims": {
@@ -83,15 +83,15 @@
     "submission_txids": {
       "name": "submission_txids",
       "columns": {
-        "txid": {
-          "name": "txid",
+        "org_id": {
+          "name": "org_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "org_id": {
-          "name": "org_id",
+        "txid": {
+          "name": "txid",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -130,7 +130,15 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "submission_txids_org_id_txid_pk": {
+          "columns": [
+            "org_id",
+            "txid"
+          ],
+          "name": "submission_txids_org_id_txid_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {
         "submission_txids_hex": {
