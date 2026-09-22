@@ -41,7 +41,8 @@ export interface ZkoolTx { txid: string; height: number; value: string; fee: str
 export interface ZkoolBalance { height: number | null; ironwood: string; orchard: string; sapling: string; transparent: string; total: string }
 export interface ZkoolRecipient { address: string; zat: bigint; memo: string }
 
-const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+/** Hosts that count as loopback (Zkool has no authentication, so it stays on loopback unless allowed). */
+export const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
 export class ZkoolClient {
   readonly url: string;
@@ -51,7 +52,7 @@ export class ZkoolClient {
 
   constructor(opts: ZkoolClientOptions) {
     const u = new URL(opts.url);
-    if (!opts.allowRemote && !LOOPBACK.has(u.hostname)) {
+    if (!opts.allowRemote && !LOOPBACK_HOSTS.has(u.hostname)) {
       throw new Error(`refusing non-loopback Zkool endpoint ${u.hostname}: the server has no authentication (pass allowRemote to override)`);
     }
     this.url = u.toString();

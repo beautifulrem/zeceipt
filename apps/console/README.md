@@ -26,7 +26,7 @@ The console reads its configuration only from `ZECEIPT_*` environment variables,
 - **`hot` (the demo mode, on regtest):** the seed lives only in Zkool, and the console holds the issuer's viewing key (UFVK) and pays through Zkool's GraphQL endpoint. `ZECEIPT_ZKOOL_URL` and `ZECEIPT_ZKOOL_ACCOUNT` are required, and the endpoint stays on loopback unless `ZECEIPT_ZKOOL_ALLOW_REMOTE=true`.
 - **`external`:** an external signer holds the keys, and the console holds the UFVK only. Any Zkool setting is refused (REQ-CON-17).
 
-Wrap keys (`ZECEIPT_WRAP_KEYS`, `kid:base64` of 32 random bytes; the last one seals) never appear in errors, in `configSummary`, or in the JSON form of the config.
+Wrap keys (`ZECEIPT_WRAP_KEYS`, `kid:base64` of 32 random bytes; the last one seals) are held as `SecretBytes`. They never appear in errors, in `configSummary`, or in any JSON, inspect or string form of the config or the `Keyring` (`keyringFromConfig`).
 
 Submission states:
 - `submitting` → `broadcast` (txid recorded).

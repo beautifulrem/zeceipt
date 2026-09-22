@@ -5,7 +5,9 @@
 
 import { isAbsolute } from "node:path";
 import { z } from "zod";
-import type { WrapKey } from "../crypto/seal.ts";
+import { Keyring } from "../crypto/seal.ts";
+import { SecretBytes } from "../crypto/secret.ts";
+import { LOOPBACK_HOSTS } from "../execution/zkool-client.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
 
 export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean } } | { mode: "external" };
@@ -16,8 +18,8 @@ export interface ConsoleConfig {
   orgId: string;
   network: Network;
   confirmations: number;
-  /** Deployment wrap keys, in order; the last one seals new values. Never logged or serialized. */
-  wrapKeys: WrapKey[];
+  /** Deployment wrap keys, in order; the last one seals. Each key is SecretBytes: redacted in every string/JSON/inspect form. */
+  wrapKeys: { kid: string; key: SecretBytes }[];
   lightwalletdUrl: string;
   issuer: { bin: string; ufvkFile: string; keyFile: string; keyId: string };
 }
@@ -64,8 +66,8 @@ const httpUrl = z.url({ protocol: /^https?$/ }).refine((s) => {
   } catch {
     return false;
   }
-});
-const absPath = z.string().refine((s) => isAbsolute(s) && !s.startsWith("file:") && s !== ":memory:");
+}).transform((s) => new URL(s).href); // stored normalised (scheme case, trailing whitespace, default path)
+const absPath = z.string().refine((s) => isAbsolute(s) && !s.startsWith("file:") && s !== ":memory:" && !/[\u0000-\u001f\u007f]/.test(s));
 const intIn = (min: number, max: number) => z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min).max(max));
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): ConsoleConfig {
@@ -100,7 +102,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     const url = field("ZKOOL_URL", httpUrl, "must be an http(s) URL without credentials of the Zkool GraphQL endpoint (required in hot custody)");
     const account = field("ZKOOL_ACCOUNT", intIn(0, 2 ** 31 - 1), "must be the Zkool account id, an integer ≥ 0 (required in hot custody)");
     const allowRemote = field("ZKOOL_ALLOW_REMOTE", z.enum(["true", "false"]).transform((s) => s === "true"), "must be true or false", { fallback: false });
-    if (url !== undefined && account !== undefined && allowRemote !== undefined) custody = { mode: "hot", zkool: { url, account, allowRemote } };
+    // Zkool has no authentication: a non-loopback endpoint needs the explicit opt-in (ZkoolClient enforces the
+    // same rule; checking here puts it in the one startup report).
+    if (url !== undefined && allowRemote === false && !LOOPBACK_HOSTS.has(new URL(url).hostname)) {
+      problems.push({ variable: `${P}ZKOOL_URL`, message: "is not a loopback address; set ZECEIPT_ZKOOL_ALLOW_REMOTE=true to allow a remote Zkool deliberately" });
+    } else if (url !== undefined && account !== undefined && allowRemote !== undefined) custody = { mode: "hot", zkool: { url, account, allowRemote } };
   } else if (mode === "external") {
     // REQ-CON-17: with an external signer the app holds a viewing key only; any hot-wallet endpoint is a misconfiguration.
     for (const k of ["ZKOOL_URL", "ZKOOL_ACCOUNT", "ZKOOL_ALLOW_REMOTE"]) {
@@ -131,40 +137,43 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     lightwalletdUrl: lightwalletdUrl!,
     issuer: { bin: bin!, ufvkFile: ufvkFile!, keyFile: keyFile!, keyId: keyId! },
   };
-  // Key bytes never reach JSON (logs, error reporters, API responses).
-  Object.defineProperty(config, "toJSON", { enumerable: false, value: () => ({ ...config, wrapKeys: config.wrapKeys.map((k) => ({ kid: k.kid, key: "[redacted]" })) }) });
   return deepFreeze(config);
 }
 
-/** `kid:base64[,kid:base64…]`; each key 32 bytes; kids unique. Messages never contain any part of the value. */
-function parseWrapKeys(raw: string | undefined, problems: ConfigProblem[]): WrapKey[] | undefined {
+/**
+ * `kid:base64[,kid:base64…]`; each key 32 bytes; kids unique. Messages name entries by position only — never
+ * a key id or any other part of the value (a key written in the id's place would otherwise be echoed).
+ */
+function parseWrapKeys(raw: string | undefined, problems: ConfigProblem[]): ConsoleConfig["wrapKeys"] | undefined {
   const variable = `${P}WRAP_KEYS`;
   if (raw === undefined) {
     problems.push({ variable, message: "is required (kid:base64 of 32 random bytes, comma-separated; the last one seals)" });
     return undefined;
   }
-  const keys: WrapKey[] = [];
+  const keys: ConsoleConfig["wrapKeys"] = [];
   const parts = raw.split(",");
   for (const [i, part] of parts.entries()) {
     const at = `entry ${i + 1} of ${parts.length}`;
     const sep = part.indexOf(":");
     const kid = sep > 0 ? part.slice(0, sep).trim() : "";
     const b64 = sep > 0 ? part.slice(sep + 1).trim() : "";
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(kid)) {
-      problems.push({ variable, message: `${at}: needs a key id of 1–64 characters of A-Z, a-z, 0-9, _ and - before ":"` });
+    // Ids are at most 32 characters, so a base64 key (≥ 43) put in the id's place is refused, never shown.
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(kid)) {
+      problems.push({ variable, message: `${at}: needs a key id of 1–32 characters of A-Z, a-z, 0-9, _ and - before ":"` });
       continue;
     }
     const std = /^[A-Za-z0-9+/]*={0,2}$/.test(b64) ? b64 : undefined;
     const bytes = std !== undefined ? Buffer.from(std, "base64") : undefined;
     if (!bytes || bytes.length !== 32 || bytes.toString("base64").replace(/=+$/, "") !== std!.replace(/=+$/, "")) {
-      problems.push({ variable, message: `${at} (key id ${kid}): must be base64 of exactly 32 bytes` });
+      problems.push({ variable, message: `${at}: the key must be base64 of exactly 32 bytes` });
       continue;
     }
     if (keys.some((k) => k.kid === kid)) {
-      problems.push({ variable, message: `${at}: duplicate key id ${kid}` });
+      problems.push({ variable, message: `${at}: its key id repeats an earlier entry's` });
       continue;
     }
-    keys.push({ kid, key: new Uint8Array(bytes) });
+    keys.push({ kid, key: new SecretBytes(bytes) });
+    bytes.fill(0);
   }
   return keys.length === parts.length ? keys : undefined;
 }
@@ -184,8 +193,13 @@ export function configSummary(c: ConsoleConfig): Record<string, unknown> {
   };
 }
 
+/** The Keyring for this deployment (the only consumer of the key bytes). */
+export function keyringFromConfig(c: ConsoleConfig): Keyring {
+  return new Keyring(c.wrapKeys);
+}
+
 function deepFreeze<T>(o: T): T {
-  if (o && typeof o === "object" && !(o instanceof Uint8Array)) {
+  if (o && typeof o === "object" && !(o instanceof SecretBytes)) {
     for (const v of Object.values(o)) deepFreeze(v);
     Object.freeze(o);
   }

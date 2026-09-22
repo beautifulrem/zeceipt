@@ -4,7 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hkdfSync, randomBytes } from "node:crypto";
-import { Keyring, openSealed, seal, SealError, sealedKid } from "../lib/index.ts";
+import { inspect } from "node:util";
+import { Keyring, openSealed, seal, SealError, sealedKid, SecretBytes } from "../lib/index.ts";
 
 const k1 = { kid: "k1", key: Buffer.alloc(32, 1) };
 const k2 = { kid: "k2", key: Buffer.alloc(32, 2) };
@@ -84,6 +85,14 @@ test("keyring validation: at least one key, 32-byte keys, unique well-formed kid
   assert.throws(() => new Keyring([{ kid: "k1", key: randomBytes(31) }]), RangeError);
   assert.throws(() => new Keyring([{ kid: "a.b", key: randomBytes(32) }]), RangeError);
   assert.throws(() => new Keyring([{ kid: "", key: randomBytes(32) }]), RangeError);
+  assert.throws(() => new Keyring([{ kid: "k".repeat(33), key: randomBytes(32) }]), RangeError, "ids are at most 32 characters (shorter than any base64 key)");
+  // Built from SecretBytes; the keyring itself never shows key bytes.
+  const secretKey = Buffer.alloc(32, 0x7e);
+  const ring = new Keyring([{ kid: "s1", key: new SecretBytes(secretKey) }]);
+  assert.deepEqual(openSealed(ring, "o", ctx, seal(ring, "o", ctx, secret)), secret);
+  for (const out of [JSON.stringify(ring), inspect(ring, { depth: 20, showHidden: true }), JSON.stringify({ ...ring }), String(new SecretBytes(secretKey))]) {
+    assert.ok(!out.includes(secretKey.toString("base64").slice(0, 16)) && !out.includes("126,126,126"), out);
+  }
   assert.throws(() => new Keyring([k1, { kid: "k1", key: randomBytes(32) }]), RangeError);
   assert.equal(new Keyring([k2, k1]).current, "k1");
   assert.throws(() => new Keyring([k1]).orgKey("k1", ""), RangeError);

@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { ConfigError, configSummary, loadConfig } from "../lib/index.ts";
+import { ConfigError, configSummary, keyringFromConfig, loadConfig } from "../lib/index.ts";
 
 const K1 = Buffer.alloc(32, 0xa1).toString("base64");
 const K2 = Buffer.alloc(32, 0xb2).toString("base64");
@@ -57,7 +57,12 @@ test("a valid configuration is typed, frozen, and defaults applied", () => {
   assert.equal(c.confirmations, 3);
   assert.equal(c.custody.mode === "hot" && c.custody.zkool.allowRemote, true);
   assert.deepEqual(c.wrapKeys.map((k) => k.kid), ["k1", "k2"]);
-  assert.deepEqual(Buffer.from(c.wrapKeys[1].key), Buffer.alloc(32, 0xb2));
+  assert.deepEqual(Buffer.from(c.wrapKeys[1].key.reveal()), Buffer.alloc(32, 0xb2));
+  // reveal() hands out a copy: mutating it cannot change the stored key ("deep-frozen" includes the bytes).
+  const copy = c.wrapKeys[1].key.reveal();
+  copy[0] ^= 0xff;
+  assert.deepEqual(Buffer.from(c.wrapKeys[1].key.reveal()), Buffer.alloc(32, 0xb2));
+  assert.equal(loadConfig({ ...hot, ZECEIPT_ZKOOL_URL: "HTTP://127.0.0.1:9000" }).custody.mode === "hot" && (loadConfig({ ...hot, ZECEIPT_ZKOOL_URL: "HTTP://127.0.0.1:9000" }).custody as { zkool: { url: string } }).zkool.url, "http://127.0.0.1:9000/", "URLs are stored normalised");
   assert.equal(loadConfig({ ...hot, ZECEIPT_CONFIRMATIONS: "12" }).confirmations, 12);
   assert.ok(Object.isFrozen(c) && Object.isFrozen(c.issuer) && Object.isFrozen(c.wrapKeys) && Object.isFrozen(c.custody));
   assert.throws(() => ((c as { orgId: string }).orgId = "x"), TypeError);
@@ -104,6 +109,9 @@ test("every rule, and all problems reported together", () => {
   }
   assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_URL: "http://user:pw@127.0.0.1:9000/graphql" }), ["ZECEIPT_ZKOOL_URL"], "credentials in a URL");
   assert.deepEqual(problems({ ...hot, ZECEIPT_LIGHTWALLETD_URL: "https://user@lwd.example" }), ["ZECEIPT_LIGHTWALLETD_URL"], "user in a URL");
+  assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_URL: "http://10.0.0.5:9000/graphql" }), ["ZECEIPT_ZKOOL_URL"], "remote Zkool without the opt-in");
+  assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_URL: "http://10.0.0.5:9000/graphql", ZECEIPT_ZKOOL_ALLOW_REMOTE: "true" }), [], "remote Zkool with the opt-in");
+  assert.deepEqual(problems({ ...hot, ZECEIPT_DB_PATH: "/var/lib/a\nb.db" }), ["ZECEIPT_DB_PATH"], "control character in a path");
   const missing = problems({});
   assert.ok(missing.includes("ZECEIPT_CUSTODY_MODE") && missing.includes("ZECEIPT_WRAP_KEYS") && missing.includes("ZECEIPT_DB_PATH"));
 });
@@ -116,17 +124,33 @@ test("wrap keys: 32 bytes each, strict base64, unique well-formed ids; the last 
   assert.deepEqual(w(`k1:${K1},k1:${K2}`), ["ZECEIPT_WRAP_KEYS"], "duplicate id");
   assert.deepEqual(w(`:${K1}`), ["ZECEIPT_WRAP_KEYS"], "empty id");
   assert.deepEqual(w(`a.b:${K1}`), ["ZECEIPT_WRAP_KEYS"], "bad id");
+  assert.deepEqual(w(`${"k".repeat(33)}:${K1}`), ["ZECEIPT_WRAP_KEYS"], "id longer than 32");
+  assert.deepEqual(w(`${"k".repeat(32)}:${K1}`), [], "id of exactly 32");
   assert.deepEqual(w(K1), ["ZECEIPT_WRAP_KEYS"], "no id");
   assert.deepEqual(w(`k1:${K1},`), ["ZECEIPT_WRAP_KEYS"], "trailing comma");
   assert.deepEqual(w(`k1:${K1.replace(/=+$/, "")}`), [], "unpadded base64 is fine");
   assert.equal(loadConfig({ ...hot, ZECEIPT_WRAP_KEYS: `old:${K2},new:${K1}` }).wrapKeys.at(-1)?.kid, "new");
 });
 
-test("no secret appears in errors, the summary or the JSON form", () => {
+test("no secret appears in errors, the summary, or any ordinary handling of the config", async () => {
+  const { inspect } = await import("node:util");
   const secretB64 = Buffer.alloc(32, 0x5c).toString("base64");
   const secretHex = Buffer.alloc(32, 0x5c).toString("hex");
   const good = loadConfig({ ...hot, ZECEIPT_WRAP_KEYS: `k1:${secretB64}` });
-  const outputs = [JSON.stringify(good), JSON.stringify(configSummary(good)), String(configSummary(good))];
+  const bytesAsNumbers = [...Buffer.alloc(32, 0x5c)].slice(0, 8).join(",");
+  const outputs = [
+    JSON.stringify(good),
+    JSON.stringify({ ...good }),
+    JSON.stringify(good.wrapKeys),
+    JSON.stringify(structuredClone(good)),
+    inspect(good, { depth: 20 }),
+    inspect(good.wrapKeys, { depth: 20, showHidden: true }),
+    `${good.wrapKeys[0].key}`,
+    String(good.wrapKeys[0].key),
+    JSON.stringify(configSummary(good)),
+    inspect(keyringFromConfig(good), { depth: 20, showHidden: true }),
+    JSON.stringify(keyringFromConfig(good)),
+  ];
   // A malformed wrap-key value (one byte short) must not be echoed either.
   const shortB64 = Buffer.alloc(31, 0x5c).toString("base64");
   try {
@@ -134,10 +158,24 @@ test("no secret appears in errors, the summary or the JSON form", () => {
   } catch (e) {
     outputs.push(String(e), (e as Error).message, JSON.stringify(e), JSON.stringify((e as ConfigError).problems));
   }
+  // A key written where the id belongs (reversed order), or repeated, must not be echoed as a "key id".
+  const urlSafe = Buffer.alloc(32, 0x5c).toString("base64url").replace(/=+$/, "");
+  assert.equal(urlSafe.length, 43, "a 32-byte key is 43 characters of base64url, longer than any key id");
+  for (const v of [`${urlSafe}:k1`, `k1:${secretB64},k1:${secretB64}`, `${urlSafe}:${urlSafe}`, `${urlSafe}:${secretB64}`]) {
+    try {
+      loadConfig({ ...hot, ZECEIPT_WRAP_KEYS: v });
+      assert.fail(`accepted ${v.slice(0, 4)}…`);
+    } catch (e) {
+      outputs.push(String(e), JSON.stringify((e as ConfigError).problems));
+    }
+  }
   for (const o of outputs) {
-    for (const needle of [secretB64, secretB64.slice(0, 20), shortB64.slice(0, 20), secretHex]) assert.ok(!o.includes(needle), `leaked in: ${o.slice(0, 80)}`);
+    for (const needle of [secretB64, secretB64.slice(0, 20), shortB64.slice(0, 20), secretHex, urlSafe.slice(0, 20), bytesAsNumbers]) {
+      assert.ok(!o.includes(needle), `leaked in: ${o.slice(0, 80)}`);
+    }
   }
   assert.deepEqual(JSON.parse(JSON.stringify(good)).wrapKeys, [{ kid: "k1", key: "[redacted]" }]);
+  assert.deepEqual(JSON.parse(JSON.stringify({ ...good })).wrapKeys, [{ kid: "k1", key: "[redacted]" }]);
   assert.deepEqual(configSummary(good).wrapKeyIds, ["k1"]);
 });
 
@@ -152,12 +190,16 @@ test("one owner: no production file other than lib/config/env.ts mentions ZECEIP
       else if (/\.(ts|tsx|js|mjs)$/.test(name) && p !== join(root, "lib/config/env.ts") && /ZECEIPT_/.test(readFileSync(p, "utf8"))) hits.push(p.slice(root.length + 1));
     }
   };
-  for (const d of ["lib", "db", "app"]) {
-    try {
-      walk(join(root, d));
-    } catch {
-      /* app/ does not exist yet */
-    }
+  walk(join(root, "lib"));
+  walk(join(root, "db"));
+  try {
+    walk(join(root, "app"));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; // app/ arrives with slice C2
+  }
+  // Root-level config files (next.config.ts, drizzle.config.ts, instrumentation.ts, …) count too.
+  for (const name of readdirSync(root)) {
+    if (/\.(ts|mts|js|mjs)$/.test(name) && /ZECEIPT_/.test(readFileSync(join(root, name), "utf8"))) hits.push(name);
   }
   assert.deepEqual(hits, []);
 });

@@ -5,6 +5,8 @@
 // envelope names its key id; the keyring's last key seals and every listed key opens (Rails' rotation model).
 
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
+import { inspect } from "node:util";
+import { SecretBytes } from "./secret.ts";
 import { ExecutionError } from "../execution/types.ts";
 
 const SALT = "zeceipt/wrap/v1";
@@ -19,44 +21,58 @@ export class SealError extends ExecutionError {
 }
 
 export interface WrapKey {
-  /** Key id stored with every sealed value (non-empty, no "."). */
+  /** Key id stored with every sealed value (1–32 of [A-Za-z0-9_-]; shorter than any base64 key). */
   kid: string;
-  /** 32 random bytes from the deployment's secret store. */
-  key: Uint8Array;
+  /** 32 random bytes from the deployment's secret store (wrap in SecretBytes wherever it is held). */
+  key: Uint8Array | SecretBytes;
 }
 
 export class Keyring {
-  private readonly keys: Map<string, Buffer>;
-  private readonly derived = new Map<string, Buffer>();
+  // Runtime-private (#): invisible to JSON, spread, structuredClone and inspect.
+  readonly #keys: Map<string, Buffer>;
+  readonly #derived = new Map<string, Buffer>();
   /** The kid new values are sealed under: the last key given. */
   readonly current: string;
 
   constructor(keys: WrapKey[]) {
     if (keys.length === 0) throw new RangeError("keyring needs at least one wrap key");
-    this.keys = new Map();
+    this.#keys = new Map();
     for (const k of keys) {
-      if (!/^[A-Za-z0-9_-]{1,64}$/.test(k.kid)) throw new RangeError("key id must be 1–64 characters of [A-Za-z0-9_-]");
-      if (this.keys.has(k.kid)) throw new RangeError(`duplicate key id ${k.kid}`);
-      if (k.key.length !== 32) throw new RangeError(`wrap key ${k.kid} must be 32 bytes`);
-      this.keys.set(k.kid, Buffer.from(k.key));
+      // ≤ 32 characters: a 32-byte key in base64 is ≥ 43, so a key can never pass for (and be shown as) an id.
+      if (!/^[A-Za-z0-9_-]{1,32}$/.test(k.kid)) throw new RangeError("key id must be 1–32 characters of [A-Za-z0-9_-]");
+      if (this.#keys.has(k.kid)) throw new RangeError(`duplicate key id ${k.kid}`);
+      const bytes = k.key instanceof SecretBytes ? k.key.reveal() : k.key;
+      if (bytes.length !== 32) throw new RangeError(`wrap key ${k.kid} must be 32 bytes`);
+      this.#keys.set(k.kid, Buffer.from(bytes));
     }
     this.current = keys[keys.length - 1].kid;
   }
 
+  /** Key ids only. */
+  get kids(): string[] {
+    return [...this.#keys.keys()];
+  }
+  toJSON(): { kids: string[]; current: string } {
+    return { kids: this.kids, current: this.current };
+  }
+  [inspect.custom](): string {
+    return `Keyring { kids: ${JSON.stringify(this.kids)}, current: ${JSON.stringify(this.current)} }`;
+  }
+
   has(kid: string): boolean {
-    return this.keys.has(kid);
+    return this.#keys.has(kid);
   }
 
   /** HKDF-SHA256(ikm = wrap key, salt = "zeceipt/wrap/v1", info = "org:" + orgId) → 32 bytes. */
   orgKey(kid: string, orgId: string): Buffer {
-    const wrap = this.keys.get(kid);
+    const wrap = this.#keys.get(kid);
     if (!wrap) throw new SealError("seal_unknown_kid", "the sealed value names a key id this keyring does not hold");
     if (!orgId) throw new RangeError("orgId is required");
     const cacheKey = `${kid}\u0000${orgId}`;
-    let k = this.derived.get(cacheKey);
+    let k = this.#derived.get(cacheKey);
     if (!k) {
       k = Buffer.from(hkdfSync("sha256", wrap, SALT, `org:${orgId}`, 32));
-      this.derived.set(cacheKey, k);
+      this.#derived.set(cacheKey, k);
     }
     return k;
   }
