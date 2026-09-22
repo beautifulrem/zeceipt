@@ -23,7 +23,7 @@ Money: integer zatoshi (`bigint`) and integer USD cents. Rates: decimal string +
 | `submission_claims` (built) | (org_id, nonce, attempt, gen) PK, claimed_at_ms | exclusive, recoverable retry claims; FK to `submissions`; REQ-CON-7 |
 | `submission_txids` (built) | (org_id, txid) PK, nonce, attempt | (org, txid) → the attempt that recorded it; never deleted; written in the same transaction as the record; REQ-CON-7 |
 
-Batch state machine: `draft → awaiting_approvals → approved → submitting → broadcast → confirming(n) → confirmed → receipts_issued`; failure edges: `submitting → failed_retryable`, `broadcast → unknown_outcome` (after timeout, manual reconcile), any → `cancelled` (only before broadcast).
+Batch status is derived, never stored (built, slice B3: `lib/data/status.ts`, table in `.trellis/tasks/09-23-batch-status/design.md` §3.3.1.3.4.2). It is computed from the submission record, the chain status and the receipt count, so it cannot drift from them. The states are `draft`, `submitting`, `retryable`, `needs_attention`, `pending`, `confirming(n of N)`, `confirmed`, `receipts_partial`, `receipts_issued` and `expired`, each with a next action (`submit`, `wait`, `issue_receipts`, `resend_expired`, `none`). It fails closed: only a mined transaction with N confirmations counts as confirmed. The names follow Stripe's PaymentIntent lifecycle `[R54]` and PayPal's batch/item statuses `[R48]` (REQ-CON-7, REQ-CON-11). Approval states (`awaiting_approvals`, `approved`) and `cancelled` arrive with the approvals slice.
 
 ## 2. Execution-backend adapter contract
 

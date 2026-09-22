@@ -64,7 +64,16 @@ export interface Submitted {
 export type TxStatus =
   | { state: "pending"; broadcastAt: string }
   | { state: "mined"; height: number; confirmations: number; tip: number }
-  | { state: "unknown"; reason: string };
+  | { state: "unknown"; cause: UnknownCause; reason: string };
+
+/** Why a transaction's status is unknown (machine-readable; `reason` is for people). */
+export type UnknownCause =
+  | "malformed_txid" // not a txid at all
+  | "not_ours" // not mined and never broadcast by this console
+  | "superseded" // its nonce was re-sent after it expired
+  | "interrupted" // the index names it but the record does not yet (a submit reconciles)
+  | "expired" // not mined by its expiry bound: it can never be mined
+  | "timeout"; // broadcast, not mined, older than the pending timeout
 
 export interface StatusOptions {
   /** Treat a broadcast tx as `pending` for this long before calling it `unknown`. Default 30 min. */

@@ -316,7 +316,7 @@ export class ZkoolBackend implements PayoutBackend {
   }
 
   async status(txid: string, opts: StatusOptions = {}): Promise<TxStatus> {
-    if (!/^[0-9a-f]{64}$/.test(txid)) return { state: "unknown", reason: "malformed txid" };
+    if (!/^[0-9a-f]{64}$/.test(txid)) return { state: "unknown", cause: "malformed_txid", reason: "malformed txid" };
     const { tip, scanned } = await this.heights();
     const entry = await this.store.findByTxid(txid);
     const cur = entry?.record;
@@ -328,16 +328,16 @@ export class ZkoolBackend implements PayoutBackend {
     const since = rec?.intentHeight ?? 0;
     const tx = (await this.client.transactions(this.account, since)).find((t) => t.txid === txid);
     if (tx && tx.height > 0) return { state: "mined", height: tx.height, confirmations: tip - tx.height + 1, tip };
-    if (superseded) return { state: "unknown", reason: `superseded: nonce ${cur.nonce} was re-sent (attempt ${cur.attempts}) after this transaction expired` };
-    if (cur && !rec) return { state: "unknown", reason: `nonce ${cur.nonce} does not record this txid yet (an interrupted write); a submit with the same nonce reconciles it` };
-    if (!rec?.broadcastAt) return { state: "unknown", reason: "not mined and not broadcast by this console" };
+    if (superseded) return { state: "unknown", cause: "superseded", reason: `superseded: nonce ${cur.nonce} was re-sent (attempt ${cur.attempts}) after this transaction expired` };
+    if (cur && !rec) return { state: "unknown", cause: "interrupted", reason: `nonce ${cur.nonce} does not record this txid yet (an interrupted write); a submit with the same nonce reconciles it` };
+    if (!rec?.broadcastAt) return { state: "unknown", cause: "not_ours", reason: "not mined and not broadcast by this console" };
     if (rec.expiresBy !== undefined && scanned > rec.expiresBy) {
-      return { state: "unknown", reason: `expired: not mined by height ${rec.expiresBy} (scanned to ${scanned}), it can no longer be mined; resubmitExpired re-sends under the same nonce` };
+      return { state: "unknown", cause: "expired", reason: `expired: not mined by height ${rec.expiresBy} (scanned to ${scanned}), it can no longer be mined; resubmitExpired re-sends under the same nonce` };
     }
     const age = this.now().getTime() - Date.parse(rec.broadcastAt);
     const timeout = opts.pendingTimeoutMs ?? this.pendingTimeoutMs;
     if (age <= timeout) return { state: "pending", broadcastAt: rec.broadcastAt };
-    return { state: "unknown", reason: `broadcast ${Math.round(age / 60_000)} min ago and still not mined (timeout ${Math.round(timeout / 60_000)} min)` };
+    return { state: "unknown", cause: "timeout", reason: `broadcast ${Math.round(age / 60_000)} min ago and still not mined (timeout ${Math.round(timeout / 60_000)} min)` };
   }
 }
 

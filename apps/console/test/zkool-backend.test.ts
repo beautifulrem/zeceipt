@@ -247,12 +247,13 @@ test("status: pending → mined with confirmations; unknown after timeout or for
   const mined = await b.status(txid);
   assert.equal(mined.state, "mined");
   if (mined.state === "mined") assert.equal(mined.confirmations, 3);
-  assert.equal((await b.status("ab".repeat(32))).state, "unknown");
-  assert.equal((await b.status("nothex")).state, "unknown");
+  assert.deepEqual(await b.status("ab".repeat(32)).then((x) => [x.state, x.state === "unknown" && x.cause]), ["unknown", "not_ours"]);
+  assert.deepEqual(await b.status("nothex").then((x) => [x.state, x.state === "unknown" && x.cause]), ["unknown", "malformed_txid"]);
   const { txid: t2 } = await b.submit(batch("st2"), "nonce-st2");
   clock = new Date(clock.getTime() + 120_000);
   const late = await b.status(t2);
   assert.equal(late.state, "unknown");
+  if (late.state === "unknown") assert.equal(late.cause, "timeout");
   fake.mine();
 });
 
@@ -265,6 +266,7 @@ test("status: a broadcast that was never mined is reported expired once the tip 
   const st = await b.status(txid);
   assert.equal(st.state, "unknown");
   if (st.state === "unknown") assert.match(st.reason, /expired: not mined by height/);
+  if (st.state === "unknown") assert.equal(st.cause, "expired");
 });
 
 for (const kind of ["file", "sqlite"] as const) {
@@ -340,6 +342,7 @@ test("resubmitExpired: only after the account is scanned past the bound with not
   assert.equal(fake.payCalls, calls + 2);
   await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /can still be mined/);
   assert.match((await b.status(first.txid) as { reason: string }).reason, /superseded/);
+  assert.equal((await b.status(first.txid) as { cause: string }).cause, "superseded");
   fake.mine();
   assert.equal((await b.status(again.txid)).state, "mined");
   await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /was mined/);
@@ -427,6 +430,7 @@ test("status tells an interrupted record write apart from a superseded attempt",
   const st = await b.status(txid);
   assert.equal(st.state, "unknown");
   if (st.state === "unknown") assert.match(st.reason, /interrupted write/);
+  if (st.state === "unknown") assert.equal(st.cause, "interrupted");
 });
 
 test("resubmitExpired records a fallback bound when the post-pay bound request failed, instead of refusing forever", async () => {

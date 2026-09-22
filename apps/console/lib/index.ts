@@ -16,5 +16,7 @@ export { BatchInvalidError, batchNonce, createBatch, getBatch, listBatches, newB
 export type { BatchItemInput, BatchProblem, BatchProblemCode, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";
 export { Keyring, open as openSealed, seal, SealError, sealedKid } from "./crypto/seal.ts";
 export type { WrapKey } from "./crypto/seal.ts";
-export { listReceipts, recordReceipts, ReceiptRecordError, rewrapReceipts, sealedKidsInUse } from "./data/receipts.ts";
+export { countReceipts, listReceipts, recordReceipts, ReceiptRecordError, rewrapReceipts, sealedKidsInUse } from "./data/receipts.ts";
+export { deriveBatchStatus, getBatchStatus } from "./data/status.ts";
+export type { BatchFacts, BatchState, BatchStatus, NextAction } from "./data/status.ts";
 export type { RecordResult, StoredReceipt } from "./data/receipts.ts";

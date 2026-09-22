@@ -222,3 +222,8 @@ export function sealedKidsInUse(db: ConsoleDb): Promise<string[]> {
     (db.$client.prepare("SELECT DISTINCT json_extract(sealed, '$.kid') AS kid FROM receipts ORDER BY kid").all() as { kid: string }[]).map((r) => r.kid),
   );
 }
+
+/** Number of receipts recorded for a batch (no decryption). */
+export function countReceipts(db: ConsoleDb, orgId: string, batchId: string): Promise<number> {
+  return runSync(() => (db.$client.prepare("SELECT count(*) AS n FROM receipts WHERE org_id = ? AND batch_id = ?").get(orgId, batchId) as { n: number }).n);
+}
