@@ -3,11 +3,11 @@
 // idempotently and atomically), list them back decrypted, and re-wrap them under the newest key.
 // The receipt envelope and URL are sealed (they contain the output's OCK); the AAD is the row's identity.
 
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
 import { batchItems, receipts, submissions } from "../../db/schema.ts";
-import { Keyring, open, seal } from "../crypto/seal.ts";
+import { Keyring, open, seal, SealError, sealedKid } from "../crypto/seal.ts";
 import { ExecutionError } from "../execution/types.ts";
 import type { AutoIssueResult, IssuedReceipt } from "../issuance/auto-issue.ts";
 import { batchNonce, getBatch } from "./batches.ts";
@@ -30,6 +30,8 @@ export interface RecordResult {
 
 export interface StoredReceipt {
   idx: number;
+  /** Set when this row's sealed payload did not open (the other rows are still returned); then `receipt`/`url` are absent. */
+  openError?: SealError["code"];
   payableId: string;
   txid: string;
   pool: Pool;
@@ -40,8 +42,8 @@ export interface StoredReceipt {
   issuedAt: string;
   verifiedAt: string;
   sealedKid: string;
-  receipt: Record<string, unknown>;
-  url: string;
+  receipt?: Record<string, unknown>;
+  url?: string;
 }
 
 const context = (txid: string, pool: string, outputIndex: number) => ({ purpose: "receipt", txid, pool, index: outputIndex });
@@ -148,8 +150,17 @@ export function listReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, bat
       .orderBy(asc(receipts.idx))
       .all()
       .map(({ r, payableId }) => {
-        const payload = JSON.parse(open(keyring, orgId, context(r.txid, r.pool, r.outputIndex), r.sealed).toString("utf8")) as { receipt: Record<string, unknown>; url: string };
+        // One row that does not open (unknown key, tampering) must not hide the others: report it per row.
+        let payload: { receipt: Record<string, unknown>; url: string } | undefined;
+        let openError: SealError["code"] | undefined;
+        try {
+          payload = JSON.parse(open(keyring, orgId, context(r.txid, r.pool, r.outputIndex), r.sealed).toString("utf8"));
+        } catch (e) {
+          if (!(e instanceof SealError)) throw e;
+          openError = e.code;
+        }
         return {
+          ...(openError ? { openError } : {}),
           idx: r.idx,
           payableId,
           txid: r.txid,
@@ -161,19 +172,29 @@ export function listReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, bat
           issuedAt: r.issuedAt,
           verifiedAt: r.verifiedAt,
           sealedKid: r.sealedKid,
-          receipt: payload.receipt,
-          url: payload.url,
+          ...(payload ? { receipt: payload.receipt, url: payload.url } : {}),
         };
       }),
   );
 }
 
-/** Re-seal every receipt of `orgId` not yet under the keyring's newest key (key rotation, `05` §1). */
-export function rewrapReceipts(db: ConsoleDb, keyring: Keyring, orgId: string): Promise<number> {
+/**
+ * Re-seal receipts of `orgId` not yet under the keyring's newest key (key rotation, `05` §1), at most `limit`
+ * per call (one synchronous transaction each; call until it returns 0). Rows are selected by the key id inside
+ * each envelope, not only by the `sealed_kid` copy (the schema keeps the two equal; this does not rely on it).
+ */
+export function rewrapReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, opts: { limit?: number } = {}): Promise<number> {
+  const limit = opts.limit ?? 500;
   return runSync(() =>
     db.transaction(
       (tx) => {
-        const stale = tx.select().from(receipts).where(and(eq(receipts.orgId, orgId), ne(receipts.sealedKid, keyring.current))).all();
+        const stale = tx
+          .select()
+          .from(receipts)
+          .where(and(eq(receipts.orgId, orgId), sql`(json_extract(${receipts.sealed}, '$.kid') IS NOT ${keyring.current} OR ${receipts.sealedKid} IS NOT ${keyring.current})`))
+          .limit(limit)
+          .all()
+          .filter((r) => sealedKid(r.sealed) !== keyring.current || r.sealedKid !== keyring.current);
         for (const r of stale) {
           const ctx = context(r.txid, r.pool, r.outputIndex);
           const sealed = seal(keyring, orgId, ctx, open(keyring, orgId, ctx, r.sealed));
@@ -186,5 +207,15 @@ export function rewrapReceipts(db: ConsoleDb, keyring: Keyring, orgId: string): 
       },
       { behavior: "immediate" },
     ),
+  );
+}
+
+/**
+ * Key ids still named by any sealed receipt envelope (all orgs). A wrap key may be retired from the keyring
+ * only when it is absent from this list; otherwise the rows sealed under it would no longer open.
+ */
+export function sealedKidsInUse(db: ConsoleDb): Promise<string[]> {
+  return runSync(() =>
+    (db.$client.prepare("SELECT DISTINCT json_extract(sealed, '$.kid') AS kid FROM receipts ORDER BY kid").all() as { kid: string }[]).map((r) => r.kid),
   );
 }

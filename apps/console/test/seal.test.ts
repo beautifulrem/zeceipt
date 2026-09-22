@@ -53,7 +53,14 @@ test("a sealed value opens only for its own row, org and key; tampering is detec
   for (const f of ["iv", "tag", "ct"] as const) assert.throws(() => openSealed(ring, "org-a", ctx, flip(f)), authFailed, `tampered ${f}`);
   // An envelope naming a kid the keyring does not hold fails before any decryption.
   const unknown = JSON.stringify({ ...JSON.parse(env), kid: "k9" });
-  assert.throws(() => openSealed(ring, "org-a", ctx, unknown), (e: unknown) => e instanceof SealError && e.code === "seal_unknown_kid");
+  assert.throws(() => openSealed(ring, "org-a", ctx, unknown), (e: unknown) => e instanceof SealError && e.code === "seal_unknown_kid" && !e.message.includes("k9"));
+  // Strict envelope: base64url junk and unknown fields are malformed, not silently ignored.
+  const o = JSON.parse(env);
+  for (const bad of [JSON.stringify({ ...o, iv: `${o.iv}!!` }), JSON.stringify({ ...o, ct: `${o.ct}=` }), JSON.stringify({ ...o, extra: 1 }), JSON.stringify([o])]) {
+    assert.throws(() => openSealed(ring, "org-a", ctx, bad), (e: unknown) => e instanceof SealError && e.code === "seal_malformed", bad);
+  }
+  // "org" is reserved in the context: the org is always bound by the keyring call.
+  assert.throws(() => seal(ring, "org-a", { ...ctx, org: "org-b" }, secret), RangeError);
   for (const bad of ["", "{}", "not json", JSON.stringify({ ...JSON.parse(env), v: 2 }), JSON.stringify({ ...JSON.parse(env), iv: "AAAA" })]) {
     assert.throws(() => openSealed(ring, "org-a", ctx, bad), (e: unknown) => e instanceof SealError && e.code === "seal_malformed", bad);
   }

@@ -2,9 +2,8 @@
 // replaces this later), restricted to the batch's own recipients (`--only-to`, RSK-20), then cross-checks
 // every receipt against the batch item it should prove and verifies it before returning anything.
 
-import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { execFile, spawn } from "node:child_process";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { decimalToZat } from "../execution/money.ts";
@@ -85,6 +84,31 @@ function sourceFlags(cli: ZeceiptCliOptions, txid: string): string[] {
   return ["--endpoint", cli.endpoint, "--txid", txid];
 }
 
+/**
+ * Run `zeceipt` with `input` on stdin (no shell, bounded output, timeout). Used for `verify -`, so a receipt
+ * (which contains an OCK) is never written to a file.
+ */
+function zeceiptStdin(cli: ZeceiptCliOptions, args: string[], input: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cli.bin, args, { stdio: ["pipe", "pipe", "pipe"], timeout: cli.timeoutMs ?? 120_000 });
+    let stdout = "";
+    let stderr = "";
+    const limit = 16 * 1024 * 1024;
+    child.stdout.setEncoding("utf8").on("data", (d: string) => {
+      stdout += d;
+      if (stdout.length > limit) child.kill();
+    });
+    child.stderr.setEncoding("utf8").on("data", (d: string) => {
+      stderr += d;
+      if (stderr.length > limit) child.kill();
+    });
+    child.on("error", (e) => reject(new Error(`running ${cli.bin} failed: ${e.message}`)));
+    child.on("close", (code, signal) => (code === null ? reject(new Error(`running ${cli.bin} failed: ${signal ?? "killed"}`)) : resolve({ code, stdout, stderr })));
+    child.stdin.on("error", () => {}); // the child may exit before reading everything; its exit code decides
+    child.stdin.end(input);
+  });
+}
+
 async function zeceipt(cli: ZeceiptCliOptions, args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
     const { stdout, stderr } = await run(cli.bin, args, { timeout: cli.timeoutMs ?? 120_000, maxBuffer: 16 * 1024 * 1024 });
@@ -108,7 +132,7 @@ export async function autoIssue(args: {
   status: TxStatus;
   requiredConfirmations: number;
   cli: ZeceiptCliOptions;
-  /** Directory to write the receipt JSON files into (optional). */
+  /** Tools and the regtest proof only: also write each receipt (it contains an OCK) as a 0600 file here. The console never sets this. */
   outDir?: string;
 }): Promise<AutoIssueResult> {
   const { batch, txid, status, requiredConfirmations, cli } = args;
@@ -175,14 +199,12 @@ export async function autoIssue(args: {
   if (extra.length) problems.push(`${extra.length} receipt(s) for outputs not in the batch: ${extra.map(outputKey).join(", ")}`);
   if (problems.length) throw new IssuanceMismatchError(problems);
 
-  // Verify each receipt exactly as a recipient would (signature + challenge required).
-  const dir = await mkdtemp(join(tmpdir(), "zeceipt-verify-"));
-  try {
+  // Verify each receipt exactly as a recipient would (signature + challenge required). The receipt goes to
+  // `zeceipt verify -` on stdin: it contains the output's OCK and is never written to a file here.
+  {
     const receipts: IssuedReceipt[] = [];
     for (const { item, r } of pairs) {
-      const f = join(dir, `${item.payableId.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
-      await writeFile(f, JSON.stringify(r.receipt), { mode: 0o600 });
-      const v = await zeceipt(cli, ["verify", ...netFlags(batch), ...(cli.rawTxFile ? ["--raw-tx-file", cli.rawTxFile] : ["--endpoint", cli.endpoint!]), f, "--challenge", cli.challenge, "--require-signature"]);
+      const v = await zeceiptStdin(cli, ["verify", ...netFlags(batch), ...(cli.rawTxFile ? ["--raw-tx-file", cli.rawTxFile] : ["--endpoint", cli.endpoint!]), "-", "--challenge", cli.challenge, "--require-signature"], JSON.stringify(r.receipt));
       let valid = false;
       try {
         valid = v.code === 0 && JSON.parse(v.stdout).valid === true;
@@ -193,17 +215,16 @@ export async function autoIssue(args: {
       receipts.push({ payableId: item.payableId, outputIndex: r.recovered.index, receipt: r.receipt, url: r.url, recovered: r.recovered, verified: true });
     }
     if (args.outDir) {
-      // Everything passed: publish the files (same names as `zeceipt issue --out-dir`), each atomically.
-      await mkdir(args.outDir, { recursive: true });
+      // Tools and the regtest proof only — the console never passes outDir; it stores receipts sealed
+      // (`recordReceipts`). Files hold OCKs, so they are owner-only (0600) in an owner-only directory.
+      await mkdir(args.outDir, { recursive: true, mode: 0o700 });
       for (const x of receipts) {
         const name = `${txid.slice(0, 16)}-${x.recovered.pool}-${x.recovered.index}.json`;
         const tmp = join(args.outDir, `.${name}.tmp`);
-        await writeFile(tmp, JSON.stringify(x.receipt, null, 2), { mode: 0o644 });
+        await writeFile(tmp, JSON.stringify(x.receipt, null, 2), { mode: 0o600 });
         await rename(tmp, join(args.outDir, name));
       }
     }
     return { state: "issued", txid, height: out.height ?? status.height, receipts, skippedNotInAllowList: out.skipped_not_in_allow_list };
-  } finally {
-    await rm(dir, { recursive: true, force: true });
   }
 }

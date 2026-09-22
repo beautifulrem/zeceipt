@@ -57,6 +57,13 @@
       "when": 1790114996384,
       "tag": "0007_receipts_immutable",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790115446907,
+      "tag": "0008_receipts_sealed_valid",
+      "breakpoints": true
     }
   ]
 }

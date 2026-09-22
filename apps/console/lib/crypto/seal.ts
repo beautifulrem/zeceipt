@@ -50,7 +50,7 @@ export class Keyring {
   /** HKDF-SHA256(ikm = wrap key, salt = "zeceipt/wrap/v1", info = "org:" + orgId) → 32 bytes. */
   orgKey(kid: string, orgId: string): Buffer {
     const wrap = this.keys.get(kid);
-    if (!wrap) throw new SealError("seal_unknown_kid", `no wrap key with id ${JSON.stringify(kid)} in the keyring`);
+    if (!wrap) throw new SealError("seal_unknown_kid", "the sealed value names a key id this keyring does not hold");
     if (!orgId) throw new RangeError("orgId is required");
     const cacheKey = `${kid}\u0000${orgId}`;
     let k = this.derived.get(cacheKey);
@@ -62,8 +62,9 @@ export class Keyring {
   }
 }
 
-/** Canonical AAD: the context object with sorted keys, plus the org, as JSON. */
+/** Canonical AAD: the context object with sorted keys, plus the org, as JSON. `org` is reserved. */
 function aad(orgId: string, context: Record<string, string | number>): Buffer {
+  if (Object.hasOwn(context, "org")) throw new RangeError("the context key \"org\" is reserved (the org is always bound)");
   const entries = Object.entries({ ...context, org: orgId }).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return Buffer.from(JSON.stringify(Object.fromEntries(entries)), "utf8");
 }
@@ -84,21 +85,30 @@ export function sealedKid(envelope: string): string {
   return parse(envelope).kid;
 }
 
+/** Strict base64url: only the alphabet, and it must re-encode to itself (Node's decoder skips junk). */
+function b64strict(s: string): Buffer | undefined {
+  if (!/^[A-Za-z0-9_-]*$/.test(s)) return undefined;
+  const b = Buffer.from(s, "base64url");
+  return b.toString("base64url") === s ? b : undefined;
+}
+
 function parse(envelope: string): { kid: string; iv: Buffer; tag: Buffer; ct: Buffer } {
+  const malformed = () => new SealError("seal_malformed", "sealed value is not a valid envelope");
   let e: unknown;
   try {
     e = JSON.parse(envelope);
   } catch {
-    throw new SealError("seal_malformed", "sealed value is not a valid envelope");
+    throw malformed();
   }
   const o = e as { v?: unknown; kid?: unknown; iv?: unknown; tag?: unknown; ct?: unknown };
-  if (o?.v !== 1 || typeof o.kid !== "string" || typeof o.iv !== "string" || typeof o.tag !== "string" || typeof o.ct !== "string") {
-    throw new SealError("seal_malformed", "sealed value is not a valid envelope");
-  }
-  const iv = Buffer.from(o.iv, "base64url");
-  const tag = Buffer.from(o.tag, "base64url");
-  if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) throw new SealError("seal_malformed", "sealed value is not a valid envelope");
-  return { kid: o.kid, iv, tag, ct: Buffer.from(o.ct, "base64url") };
+  if (typeof e !== "object" || e === null || Array.isArray(e)) throw malformed();
+  if (Object.keys(o).sort().join(",") !== "ct,iv,kid,tag,v") throw malformed(); // exactly the known fields
+  if (o.v !== 1 || typeof o.kid !== "string" || typeof o.iv !== "string" || typeof o.tag !== "string" || typeof o.ct !== "string") throw malformed();
+  const iv = b64strict(o.iv);
+  const tag = b64strict(o.tag);
+  const ct = b64strict(o.ct);
+  if (!iv || !tag || !ct || iv.length !== IV_BYTES || tag.length !== TAG_BYTES) throw malformed();
+  return { kid: o.kid, iv, tag, ct };
 }
 
 export function open(keyring: Keyring, orgId: string, context: Record<string, string | number>, envelope: string): Buffer {

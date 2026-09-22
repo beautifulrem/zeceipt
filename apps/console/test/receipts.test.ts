@@ -24,6 +24,7 @@ import {
   ReceiptRecordError,
   rewrapReceipts,
   SealError,
+  sealedKidsInUse,
   SqliteIdempotencyStore,
   toExecutionBatch,
   type AutoIssueResult,
@@ -110,9 +111,9 @@ test("record → list: three real receipts, decrypted back intact, still verifyi
   const rows = db.$client.prepare("SELECT * FROM receipts WHERE batch_id = ?").all(rec.id) as Record<string, unknown>[];
   for (const [i, row] of rows.entries()) {
     const text = JSON.stringify(row);
-    const ock = listed[i].receipt.ock as string;
+    const ock = listed[i].receipt!.ock as string;
     assert.ok(ock && !text.includes(ock), "OCK must not be stored in plaintext");
-    assert.ok(!text.includes(listed[i].url.split("/r/")[1].slice(0, 40)), "URL payload must not be stored in plaintext");
+    assert.ok(!text.includes(listed[i].url!.split("/r/")[1].slice(0, 40)), "URL payload must not be stored in plaintext");
   }
 });
 
@@ -164,15 +165,20 @@ test("the schema refuses impossible receipts; receipts cannot be deleted or chan
   const { rec, issued } = await issuedBatch("schema");
   await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued });
   const ins = db.$client.prepare("INSERT INTO receipts (org_id, txid, pool, output_index, batch_id, idx, value_zat, recipient, memo_text, issued_at, verified_at, sealed, sealed_kid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+  const env = JSON.stringify({ v: 1, kid: "k1", iv: "AAAAAAAAAAAAAAAA", tag: "AAAAAAAAAAAAAAAAAAAAAA", ct: "AA" });
   const row = (over: Record<number, unknown>) => {
-    const v: unknown[] = [orgOf(rec), "aa".repeat(32), "ironwood", 7, rec.id, 0, 1, "uregtest1x", "m", "t", "t", "{}", "k1"];
+    const v: unknown[] = [orgOf(rec), TXID, "ironwood", 7, rec.id, 0, 1, "uregtest1x", "m", "t", "t", env, "k1"];
     for (const [i, x] of Object.entries(over)) v[Number(i)] = x;
     return () => ins.run(...v);
   };
   const c = (want: string) => (e: unknown) => (e as { code?: string }).code === want;
   assert.throws(row({ 2: "transparent" }), c("SQLITE_CONSTRAINT_CHECK"), "pool");
   assert.throws(row({ 3: -1 }), c("SQLITE_CONSTRAINT_CHECK"), "index");
-  assert.throws(row({ 1: "XX".repeat(32) }), c("SQLITE_CONSTRAINT_CHECK"), "txid");
+  assert.throws(row({ 1: "XX".repeat(32) }), c("SQLITE_CONSTRAINT_TRIGGER"), "txid (not the batch's broadcast)");
+  assert.throws(row({ 1: "aa".repeat(32) }), (e: unknown) => /own broadcast/.test(String((e as Error).message)), "another txid");
+  assert.throws(row({ 11: "{}" }), /not a valid envelope/, "sealed not an envelope");
+  assert.throws(row({ 11: "garbage" }), /not a valid envelope/, "sealed not JSON");
+  assert.throws(row({ 12: "k2" }), /not a valid envelope/, "sealed_kid differs from the envelope's kid");
   assert.throws(row({ 6: 0 }), c("SQLITE_CONSTRAINT_CHECK"), "value");
   assert.throws(row({ 5: 9 }), c("SQLITE_CONSTRAINT_FOREIGNKEY"), "no such item");
   assert.throws(row({}), c("SQLITE_CONSTRAINT_UNIQUE"), "a second receipt for item 0");
@@ -180,9 +186,12 @@ test("the schema refuses impossible receipts; receipts cannot be deleted or chan
   assert.throws(() => db.$client.prepare("DELETE FROM receipts WHERE org_id = ? AND batch_id = ?").run(...key), /never deleted/);
   assert.throws(() => db.$client.prepare("UPDATE receipts SET value_zat = 5 WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key), /never changes/);
   assert.throws(() => db.$client.prepare("UPDATE receipts SET memo_text = 'x' WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key), /never changes/);
+  // The re-wrap columns may change, but only to a well-formed envelope whose own kid matches sealed_kid.
+  assert.throws(() => db.$client.prepare("UPDATE receipts SET sealed_kid = 'k2' WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key), /not a valid envelope/, "drifted kid");
+  assert.throws(() => db.$client.prepare("UPDATE receipts SET sealed = 'garbage' WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key), /not a valid envelope/, "garbage payload");
   const raw = new Database(dbPath); // recursive triggers OFF
   try {
-    const r = raw.prepare("INSERT OR REPLACE INTO receipts (org_id, txid, pool, output_index, batch_id, idx, value_zat, recipient, memo_text, issued_at, verified_at, sealed, sealed_kid) SELECT org_id, txid, pool, output_index, batch_id, idx, 1, 'evil', 'evil', 't', 't', '{}', 'k1' FROM receipts WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key);
+    const r = raw.prepare("INSERT OR REPLACE INTO receipts (org_id, txid, pool, output_index, batch_id, idx, value_zat, recipient, memo_text, issued_at, verified_at, sealed, sealed_kid) SELECT org_id, txid, pool, output_index, batch_id, idx, 1, 'evil', 'evil', 't', 't', sealed, sealed_kid FROM receipts WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key);
     assert.equal(r.changes, 0);
     assert.throws(() => raw.prepare("DELETE FROM receipts WHERE org_id = ? AND batch_id = ?").run(...key), /never deleted/);
   } finally {
@@ -198,7 +207,8 @@ test("a sealed payload moved to another row does not open there (the row identit
   await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued });
   // Re-wrapping is the one allowed update; abuse it to copy item 0's sealed payload onto item 1.
   db.$client.prepare("UPDATE receipts SET sealed = (SELECT sealed FROM receipts WHERE org_id = ? AND batch_id = ? AND idx = 0) WHERE org_id = ? AND batch_id = ? AND idx = 1").run(orgOf(rec), rec.id, orgOf(rec), rec.id);
-  await assert.rejects(listReceipts(db, ring, orgOf(rec), rec.id), (e: unknown) => e instanceof SealError && e.code === "seal_auth_failed");
+  const listed = await listReceipts(db, ring, orgOf(rec), rec.id);
+  assert.deepEqual(listed.map((r) => [r.idx, r.openError ?? "ok", r.receipt === undefined]), [[0, "ok", false], [1, "seal_auth_failed", true], [2, "ok", false]], "the moved payload does not open; the other rows still do");
 });
 
 test("key rotation: rewrap under a new key, retire the old one, every receipt still opens", async () => {
@@ -212,11 +222,14 @@ test("key rotation: rewrap under a new key, retire the old one, every receipt st
   await recordReceipts(db, new Keyring([k1]), { orgId: org, batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
   const before = await listReceipts(db, new Keyring([k1]), org, rec.id);
   const both = new Keyring([k1, k2]);
-  assert.equal(await rewrapReceipts(db, both, org), 3);
+  assert.deepEqual(await sealedKidsInUse(db).then((k) => k.includes("k1")), true, "k1 is still in use: it must not be retired yet");
+  assert.equal(await rewrapReceipts(db, both, org, { limit: 2 }), 2, "chunked");
+  assert.equal(await rewrapReceipts(db, both, org, { limit: 2 }), 1);
   assert.equal(await rewrapReceipts(db, both, org), 0, "nothing left under the old key");
   const after = await listReceipts(db, new Keyring([k2]), org, rec.id); // old key retired
   assert.deepEqual(after.map((r) => [r.receipt, r.url, r.sealedKid]), before.map((r) => [r.receipt, r.url, "k2"]));
-  await assert.rejects(listReceipts(db, new Keyring([k1]), org, rec.id), (e: unknown) => e instanceof SealError && e.code === "seal_unknown_kid");
+  assert.deepEqual((await listReceipts(db, new Keyring([k1]), org, rec.id)).map((r) => r.openError), ["seal_unknown_kid", "seal_unknown_kid", "seal_unknown_kid"]);
+  assert.ok(!(db.$client.prepare("SELECT DISTINCT json_extract(sealed, '$.kid') AS kid FROM receipts WHERE org_id = ?").all(org) as { kid: string }[]).some((r) => r.kid === "k1"));
 });
 
 test("an output already receipted for one batch cannot be receipted for another batch of the same org", async () => {
@@ -230,4 +243,22 @@ test("an output already receipted for one batch cannot be receipted for another 
     (e: unknown) => e instanceof ReceiptRecordError && e.code === "receipt_mismatch" && e.message.includes(`already has a receipt for batch ${first.rec.id}`),
   );
   assert.deepEqual(await listReceipts(db, ring, org, second.rec.id), []);
+});
+
+test("autoIssue never writes a receipt (OCK) to a temp file; outDir (tools only) is owner-only", async () => {
+  const { readdir, stat } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const temps = async () => (await readdir(tmpdir())).filter((f) => f.startsWith("zeceipt-verify-"));
+  const before = await temps();
+  const org = "org-b2-files";
+  const rec = await createBatch(db, { orgId: org, network: "regtest", title: "files", items: PAYEES });
+  const outDir = join(dir, "out-files");
+  const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, outDir, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, keyId: "2026-09", challenge: "files" } });
+  assert.equal(out.state, "issued");
+  assert.deepEqual(await temps(), before, "no zeceipt-verify-* temp directory was created");
+  assert.equal((await stat(outDir)).mode & 0o777, 0o700);
+  const files = await readdir(outDir);
+  assert.equal(files.length, 3);
+  for (const f of files) assert.equal((await stat(join(outDir, f))).mode & 0o777, 0o600, f);
+  void SealError;
 });

@@ -1,6 +1,6 @@
 # @zeceipt/console — execution and issuance library
 
-The payout console's server-side core, written so the Next.js app (next task) calls it directly. No UI yet. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store; batches, items and receipts follow.
+The payout console's server-side core, written so the Next.js app (next task) calls it directly. No UI yet. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
 
 | Module | What it does |
 |---|---|
