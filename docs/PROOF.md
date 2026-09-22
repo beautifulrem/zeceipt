@@ -432,7 +432,7 @@ The first `zeceipt issue` run (external-scope UFVK, change excluded "by default"
 ### Receipts after the fix (`scripts/regtest/issue-batch2.sh` → `raw/tools/regtest/issue-batch2.out`; JSON abridged to the recovered fields, receipts written to `raw/tools/regtest/receipts-batch2/`)
 
 ```
-$ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat <workspace>/zeceipt/fixtures/regtest-issuer-ufvk.txt) --txid 48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2 --label 'batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG' --challenge auditor-nonce-12 --key-file issuer.key --key-id 2026-09 --out-dir receipts-batch2
+$ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat fixtures/regtest-issuer-ufvk.txt) --txid 48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2 --label 'batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG' --challenge auditor-nonce-12 --key-file $ARTIFACT_DIR/issuer.key --key-id 2026-09 --out-dir $ARTIFACT_DIR/receipts-batch2   (run from the repo root; ARTIFACT_DIR holds the signing key and receives the receipts)
 {
   "height": 626,
   "receipts": [

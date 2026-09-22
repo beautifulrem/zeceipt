@@ -477,9 +477,13 @@ else:
 
 # NFR-1's evidence cell must quote the source guard's actual summary line (counts drift when scripts are added)
 try:
-    guard_line = subprocess.run([sys.executable, str(repo / "scripts" / "check_source_guards.py")], capture_output=True, text=True, timeout=120).stdout.splitlines()[0].strip()
+    guard_proc = subprocess.run([sys.executable, str(repo / "scripts" / "check_source_guards.py")], capture_output=True, text=True, timeout=120)
+    guard_line = guard_proc.stdout.splitlines()[0].strip()
+    if guard_proc.returncode != 0:
+        errors.append("scripts/check_source_guards.py failed; NFR-1's evidence cannot be green: " + guard_proc.stdout.strip().splitlines()[-1])
 except Exception as e:  # pragma: no cover
     guard_line = f"<guard failed: {e}>"
+    errors.append(guard_line)
 nfr1 = re.search(r"^\| NFR-1 .*$", req_defs, re.M)
 if not nfr1 or guard_line not in nfr1.group(0):
     errors.append(f"01_requirements.md: NFR-1 evidence must quote the guard's summary line verbatim: '{guard_line}'")

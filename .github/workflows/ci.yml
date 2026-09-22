@@ -24,6 +24,8 @@ jobs:
           if ./target/debug/zeceipt verify; then exit 1; else test $? -eq 3; fi
       - name: source guards — no key material in workspace code (NFR-1, REQ-CLI-6), no secrets in logs (NFR-6)
         run: python3 scripts/check_source_guards.py
+      - name: product docs consistent (WBS/requirements/plan invariants, NFR-1 evidence pinned to the guard output)
+        run: python3 scripts/check_product_docs.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
