@@ -18,7 +18,7 @@ parentPort!.on("message", async (m: { op: "create" | "cas" | "claim"; nonce: str
   Atomics.wait(gate, 1, 0); // released together
   let result: unknown;
   try {
-    if (m.op === "create") result = (await store.createIntent(base(m.nonce, { batchId: `w${me}` }))).created;
+    if (m.op === "create") result = (await store.createIntent(base(m.nonce, { createdAt: `w${me}` }))).created; // same identity for all; the SQLite schema forbids identity changes
     else if (m.op === "cas") result = await store.update({ ...base(m.nonce), state: "broadcast", txid: createHash("sha256").update(`${m.nonce}/${me}`).digest("hex") }, { attempts: 1, states: ["submitting"] });
     else result = await store.claimAttempt(m.nonce, 2, 60_000);
   } catch (e) {

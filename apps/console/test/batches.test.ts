@@ -4,6 +4,7 @@
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import Database from "better-sqlite3";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -177,4 +178,87 @@ test("end to end: submit the loaded batch → one payment; a fresh load replays 
   } finally {
     await fake.stop();
   }
+});
+
+test("freeze hardening: REPLACE of a frozen batch is aborted even on a connection without recursive triggers", async () => {
+  const rec = await createBatch(db, { orgId: ORG, network: "regtest", title: "replace me", items: items("rp") });
+  const store = new SqliteIdempotencyStore(db, { orgId: ORG });
+  await store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), state: "submitting", createdAt: "t", attempts: 1 });
+  const replace = (conn: Database.Database) => () =>
+    conn.prepare("INSERT OR REPLACE INTO batches (org_id, id, network, title, created_at, updated_at) VALUES (?, ?, 'main', 'hijacked', 'x', 'x')").run(ORG, rec.id);
+  assert.equal(db.$client.pragma("recursive_triggers", { simple: true }), 1, "openDb enables recursive triggers");
+  assert.throws(replace(db.$client), /frozen/);
+  const raw = new Database(join(dir, "console.db")); // a plain connection: recursive_triggers OFF (SQLite default)
+  try {
+    assert.equal(raw.pragma("recursive_triggers", { simple: true }), 0);
+    assert.throws(replace(raw), /frozen/, "the BEFORE INSERT trigger alone blocks REPLACE");
+    assert.throws(() => raw.prepare("REPLACE INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, 0, 'rp-p1', '', 'uregtest1abc', 5, 'INV-rp-1')").run(ORG, rec.id), /frozen/);
+  } finally {
+    raw.close();
+  }
+  const still = await getBatch(db, ORG, rec.id);
+  assert.deepEqual([still?.network, still?.title], ["regtest", "replace me"]);
+});
+
+test("freeze hardening: the submission (payment ledger) cannot be deleted or re-pointed, so it cannot unfreeze its batch", async () => {
+  const rec = await createBatch(db, { orgId: ORG, network: "regtest", title: "ledger", items: items("lg") });
+  const store = new SqliteIdempotencyStore(db, { orgId: ORG });
+  const digest = batchDigest(toExecutionBatch(rec));
+  await store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: digest, state: "submitting", createdAt: "t", attempts: 1 });
+  const q = (sql: string, ...a: unknown[]) => () => db.$client.prepare(sql).run(...a);
+  const key = [ORG, batchNonce(rec)];
+  assert.throws(q("DELETE FROM submissions WHERE org_id = ? AND nonce = ?", ...key), /never deleted/);
+  assert.throws(q("UPDATE submissions SET batch_id = 'elsewhere' WHERE org_id = ? AND nonce = ?", ...key), /never change/);
+  assert.throws(q("UPDATE submissions SET org_id = 'other' WHERE org_id = ? AND nonce = ?", ...key), /never change/);
+  assert.throws(q("UPDATE submissions SET nonce = 'n2' WHERE org_id = ? AND nonce = ?", ...key), /never change/);
+  assert.throws(q("UPDATE submissions SET batch_digest = ? WHERE org_id = ? AND nonce = ?", "b".repeat(64), ...key), /never change/);
+  // The store's own compare-and-set (which rewrites every column with the same identity) still works.
+  assert.equal(await store.update({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: digest, state: "broadcast", txid: "c".repeat(64), createdAt: "t", attempts: 1 }, { attempts: 1, states: ["submitting"] }), true);
+  assert.throws(q("DELETE FROM submission_txids WHERE org_id = ? AND txid = ?", ORG, "c".repeat(64)), /never deleted/);
+  assert.throws(q("UPDATE batch_items SET zat = 777 WHERE org_id = ? AND batch_id = ?", ORG, rec.id), /frozen/);
+});
+
+test("the freeze needs the store's org and the backend's batch id to match the batch (documented precondition)", async () => {
+  const rec = await createBatch(db, { orgId: ORG, network: "regtest", title: "wrong org", items: items("wo") });
+  const wrong = new SqliteIdempotencyStore(db, { orgId: "some-other-org" });
+  await wrong.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), state: "submitting", createdAt: "t", attempts: 1 });
+  // A submission recorded under another org does not freeze this org's batch: the pairing is the caller's job.
+  db.$client.prepare("UPDATE batches SET title = 'still editable' WHERE org_id = ? AND id = ?").run(ORG, rec.id);
+  assert.equal((await getBatch(db, ORG, rec.id))?.title, "still editable");
+});
+
+test("createBatch refuses text that cannot round-trip (lone surrogates) and console fields out of bounds, writing nothing", async () => {
+  const before = [count("batches"), count("batch_items")];
+  const ok = items("tx");
+  const cases: [string, Parameters<typeof createBatch>[1], string[]][] = [
+    ["surrogate memo", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], memo: "INV-\ud800-1" }] }, ["memo_malformed"]],
+    ["surrogate payable", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], payableId: "p-\udc00" }] }, ["payable_malformed"]],
+    ["empty title", { orgId: ORG, network: "regtest", title: "", items: ok }, ["title_invalid"]],
+    ["long title", { orgId: ORG, network: "regtest", title: "t".repeat(201), items: ok }, ["title_invalid"]],
+    ["surrogate title", { orgId: ORG, network: "regtest", title: "t\ud800", items: ok }, ["title_invalid"]],
+    ["empty payable id", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], payableId: "" }] }, ["payable_id_invalid"]],
+    ["long payable id", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], payableId: "p".repeat(201) }] }, ["payable_id_invalid"]],
+    ["long label", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], label: "l".repeat(201) }] }, ["label_invalid"]],
+    ["surrogate label", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], label: "\udfff" }] }, ["label_invalid"]],
+  ];
+  for (const [what, input, codes] of cases) {
+    const e = await createBatch(db, input).catch((x: unknown) => x);
+    assert.ok(e instanceof BatchInvalidError, what);
+    assert.deepEqual(e.problems.map((p) => p.code), codes, what);
+  }
+  await assert.rejects(createBatch(db, { orgId: "", network: "regtest", title: "t", items: ok }), RangeError);
+  // The same well-formedness rules hold at preflight (one shared rule set).
+  const backend = new ZkoolBackend({ client: new ZkoolClient({ url: "http://127.0.0.1:1/graphql" }), account: 9, store: new SqliteIdempotencyStore(db, { orgId: ORG }) });
+  assert.deepEqual(backend.staticProblems({ id: "x", network: "regtest", items: [{ payableId: "p\ud800", address: R[0], zat: 1n, memo: "M\udc00" }] }).map((p) => p.code), ["memo_malformed", "payable_malformed"]);
+  assert.deepEqual([count("batches"), count("batch_items")], before);
+  // Title and label at exactly 200 characters are fine.
+  await createBatch(db, { orgId: ORG, network: "regtest", title: "t".repeat(200), items: [{ ...items("edge")[0], label: "l".repeat(200), payableId: "p".repeat(200) }] });
+});
+
+test("listBatches orders by creation time, not by id, so caller-supplied ids keep the order", async () => {
+  const org = "org-order";
+  const ids = ["ffffffff-ffff-7fff-bfff-ffffffffffff", "00000000-0000-7000-8000-000000000000"];
+  const first = await createBatch(db, { orgId: org, network: "regtest", title: "first", items: items("o1") }, { now: () => new Date("2026-09-23T08:00:00Z"), newId: () => ids[0] });
+  const second = await createBatch(db, { orgId: org, network: "regtest", title: "second", items: items("o2") }, { now: () => new Date("2026-09-23T09:00:00Z"), newId: () => ids[1] });
+  assert.deepEqual((await listBatches(db, org)).map((b) => b.id), [second.id, first.id]);
 });

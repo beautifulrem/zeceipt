@@ -29,6 +29,8 @@ export type PreflightProblemCode =
   | "amount_too_large"
   | "memo_empty"
   | "memo_too_long"
+  | "memo_malformed"
+  | "payable_malformed"
   | "memo_duplicate"
   | "duplicate_payable"
   | "insufficient_funds";

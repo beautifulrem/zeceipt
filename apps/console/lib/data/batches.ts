@@ -7,7 +7,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
 import { batchItems, batches } from "../../db/schema.ts";
-import { ExecutionError, type Batch, type Network, type PreflightProblem } from "../execution/types.ts";
+import { ExecutionError, type Batch, type Network, type PreflightProblem, type PreflightProblemCode } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
 
 export interface BatchItemInput {
@@ -37,10 +37,32 @@ export interface BatchSummary {
   totalZat: bigint;
 }
 
-/** The batch would be refused by preflight's static rules; nothing was written. */
+/** Problems the repository adds to preflight's static rules: fields the console stores but the chain never sees. */
+export type BatchProblemCode = PreflightProblemCode | "title_invalid" | "payable_id_invalid" | "label_invalid";
+export interface BatchProblem extends Omit<PreflightProblem, "code"> {
+  code: BatchProblemCode;
+}
+
+const LIMIT = 200; // characters: title, payable id, label (the schema's CHECKs)
+
+/** Console-only field rules, so the repository never surfaces a raw SQLite constraint error. */
+function recordProblems(input: CreateBatchInput): BatchProblem[] {
+  const problems: BatchProblem[] = [];
+  if (input.title.length < 1 || input.title.length > LIMIT || !input.title.isWellFormed()) {
+    problems.push({ code: "title_invalid", detail: `title must be 1–${LIMIT} characters of well-formed text` });
+  }
+  input.items.forEach((it, i) => {
+    if (it.payableId.length < 1 || it.payableId.length > LIMIT) problems.push({ code: "payable_id_invalid", itemIndex: i, detail: `payable id must be 1–${LIMIT} characters` });
+    const label = it.label ?? "";
+    if (label.length > LIMIT || !label.isWellFormed()) problems.push({ code: "label_invalid", itemIndex: i, detail: `label must be at most ${LIMIT} characters of well-formed text` });
+  });
+  return problems;
+}
+
+/** The batch would be refused by preflight's static rules or the console's field rules; nothing was written. */
 export class BatchInvalidError extends ExecutionError {
-  readonly problems: PreflightProblem[];
-  constructor(problems: PreflightProblem[]) {
+  readonly problems: BatchProblem[];
+  constructor(problems: BatchProblem[]) {
     super("batch_invalid", `batch is invalid: ${problems.map((p) => p.code).join(", ")}`);
     this.problems = problems;
   }
@@ -89,10 +111,11 @@ export interface CreateBatchInput {
 }
 
 export function createBatch(db: ConsoleDb, input: CreateBatchInput, opts: { maxRecipients?: number; now?: () => Date; newId?: () => string } = {}): Promise<BatchRecord> {
+  if (!input.orgId) return Promise.reject(new RangeError("orgId is required"));
   const now = (opts.now ?? (() => new Date()))();
   const id = (opts.newId ?? (() => newBatchId(now.getTime())))();
   const candidate: Batch = { id, network: input.network, items: input.items.map((i) => ({ payableId: i.payableId, address: i.address, zat: i.zat, memo: i.memo })) };
-  const problems = batchProblems(candidate, { maxRecipients: opts.maxRecipients ?? 50 });
+  const problems: BatchProblem[] = [...batchProblems(candidate, { maxRecipients: opts.maxRecipients ?? 50 }), ...recordProblems(input)];
   if (problems.length) return Promise.reject(new BatchInvalidError(problems));
   const rec: BatchRecord = {
     orgId: input.orgId,
@@ -132,6 +155,7 @@ export function getBatch(db: ConsoleDb, orgId: string, id: string): Promise<Batc
   });
 }
 
+/** Newest first by `created_at`, then id (UUIDv7 ids are time-ordered, so ties within a millisecond stay stable). */
 export function listBatches(db: ConsoleDb, orgId: string): Promise<BatchSummary[]> {
   return runSync(() =>
     db
@@ -142,13 +166,14 @@ export function listBatches(db: ConsoleDb, orgId: string): Promise<BatchSummary[
         createdAt: batches.createdAt,
         itemCount: sql<number>`count(${batchItems.idx})`,
         // Summed as SQLite's 64-bit integer and returned as text: a total can exceed 2^53 (50 items of 2.1e15).
+        // The 64-bit sum itself overflows only above ~4,392 items of 2.1e15, far past maxRecipients.
         totalZat: sql<string>`cast(coalesce(sum(${batchItems.zat}), 0) as text)`,
       })
       .from(batches)
       .leftJoin(batchItems, and(eq(batchItems.orgId, batches.orgId), eq(batchItems.batchId, batches.id)))
       .where(eq(batches.orgId, orgId))
       .groupBy(batches.orgId, batches.id)
-      .orderBy(desc(batches.id))
+      .orderBy(desc(batches.createdAt), desc(batches.id))
       .all()
       .map((r) => ({ ...r, itemCount: Number(r.itemCount), totalZat: BigInt(r.totalZat) })),
   );

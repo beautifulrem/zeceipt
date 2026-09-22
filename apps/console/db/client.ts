@@ -36,6 +36,8 @@ export function openDb(opts: OpenDbOptions): ConsoleDb {
   client.pragma("journal_mode = WAL"); // readers never block the writer, across processes
   client.pragma("synchronous = FULL"); // the nonce table is a payment ledger: fsync every commit
   client.pragma("foreign_keys = ON");
+  // Defence in depth: REPLACE-driven deletes fire delete triggers too (the freeze has insert triggers as well).
+  client.pragma("recursive_triggers = ON");
   return drizzle(client, { schema }) as ConsoleDb;
 }
 

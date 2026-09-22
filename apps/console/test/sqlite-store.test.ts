@@ -49,7 +49,17 @@ test("migrations apply once (one journal row per committed migration); a second 
   const names = (type: string) =>
     (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);
   assert.deepEqual(names("table"), ["batch_items", "batches", "submission_claims", "submission_txids", "submissions"]);
-  assert.deepEqual(names("trigger"), ["batch_items_frozen_delete", "batch_items_frozen_insert", "batch_items_frozen_update", "batches_frozen_delete", "batches_frozen_update"]);
+  assert.deepEqual(names("trigger"), [
+    "batch_items_frozen_delete",
+    "batch_items_frozen_insert",
+    "batch_items_frozen_update",
+    "batches_frozen_delete",
+    "batches_frozen_insert",
+    "batches_frozen_update",
+    "submission_txids_no_delete",
+    "submissions_identity_fixed",
+    "submissions_no_delete",
+  ]);
 });
 
 test("the schema rejects impossible records on its own (CHECK, NOT NULL, foreign keys)", () => {

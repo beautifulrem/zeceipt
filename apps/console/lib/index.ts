@@ -13,4 +13,4 @@ export { openDb, migrateDb, MIGRATIONS_DIR, type ConsoleDb, type OpenDbOptions }
 export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./issuance/auto-issue.ts";
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";
 export { BatchInvalidError, batchNonce, createBatch, getBatch, listBatches, newBatchId, toExecutionBatch } from "./data/batches.ts";
-export type { BatchItemInput, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";
+export type { BatchItemInput, BatchProblem, BatchProblemCode, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";

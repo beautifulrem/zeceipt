@@ -71,7 +71,12 @@ export const submissionTxids = sqliteTable(
   ],
 );
 
-/** A payout batch: one transaction paying every item. Immutable once a submission exists (triggers, 0002). */
+/**
+ * A payout batch: one transaction paying every item. Immutable once a submission exists (triggers in
+ * migrations 0002 and 0003). The freeze is keyed by `(submissions.org_id, submissions.batch_id)`, so it holds
+ * only if the nonce store's `orgId` equals this batch's `org_id` and the executed `Batch.id` equals `id`
+ * (no foreign key on purpose: tools and the file store create submissions that belong to no console batch).
+ */
 export const batches = sqliteTable(
   "batches",
   {

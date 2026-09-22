@@ -56,6 +56,8 @@ export interface IdempotencyStore {
   claimAttempt(nonce: string, attempt: number, reclaimAfterMs: number): Promise<boolean>;
   // Within one org, recording a txid already indexed under another nonce moves the index entry to the newer
   // record in every store; per-org unique memos make that impossible in practice (one txid pays one batch).
+  // A record's identity (org, nonce, batchId, batchDigest) never changes after `createIntent`; the backend
+  // always writes back the stored identity, and the SQLite schema refuses any change (trigger).
   // Preconditions shared by all stores: `claimAttempt` is only called for a nonce whose record exists
   // (the SQLite store's foreign key rejects anything else), and records are well-formed (64-hex digest
   // and txid; the SQLite schema's CHECKs reject malformed ones, the memory store does not check).

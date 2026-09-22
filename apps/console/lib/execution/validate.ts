@@ -20,6 +20,10 @@ export function batchProblems(batch: Batch, opts: { maxRecipients: number }): Pr
     if (!a.ok) problems.push({ code: a.code, itemIndex: i, detail: a.detail });
     if (it.zat <= 0n) problems.push({ code: "amount_nonpositive", itemIndex: i, detail: `amount ${it.zat} zat` });
     if (it.zat > MAX_ZAT) problems.push({ code: "amount_too_large", itemIndex: i, detail: `amount ${it.zat} zat > the 21M ZEC supply` });
+    // A lone UTF-16 surrogate cannot be stored or sent as UTF-8 (SQLite stores U+FFFD instead), so the
+    // batch read back would differ from the one paid and its digest would no longer match its nonce.
+    if (!it.memo.isWellFormed()) problems.push({ code: "memo_malformed", itemIndex: i, detail: "memo contains a lone UTF-16 surrogate" });
+    if (!it.payableId.isWellFormed()) problems.push({ code: "payable_malformed", itemIndex: i, detail: "payable id contains a lone UTF-16 surrogate" });
     const bytes = Buffer.byteLength(it.memo, "utf8");
     // The memo is the payable reference: reconciliation and receipt matching need it.
     if (bytes === 0) problems.push({ code: "memo_empty", itemIndex: i, detail: "memo is empty (it must carry the payable reference)" });
