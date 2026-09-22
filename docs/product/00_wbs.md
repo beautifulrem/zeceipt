@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, round 13 = 97/100, round 14 = 97/100, round 15 = 95/100 (a scope-propagation regression), round 16 = 96/100, round 17 = 97/100, round 18 = 97/100, round 19 = 97/100, round 20 = 97/100, round 21 = 98/100, round 22 = 99/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 ✅ PM — Requirements and the whole product package reviewed by an independent agent (this task's AC8) over 23 rounds: 65 → 83 → 87 → 90 → 92 → 94 → 95 → 96 → 95 → 96 → 96 → 97 → 97 → 97 → 95 → 96 → 97 → 97 → 97 → 97 → 98 → 99 → **100/100** (2026-09-22, commit `b86b183`). Reports and dispositions in `docs/product/reviews/round-1.md` … `round-23.md`.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -307,10 +307,10 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | Phase | Leaves | ✅ | 🟡 | ⬜ | 👤 |
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
-| 2 Product definition | 44 | 39 | 1 | 2 | 2 |
+| 2 Product definition | 44 | 40 | 0 | 2 | 2 |
 | 3 Engineering | 63 | 27 | 0 | 34 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 106 | 2 | 67 | 10 |
+| **Total** | 185 | 107 | 1 | 67 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).
