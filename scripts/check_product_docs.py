@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -235,6 +235,7 @@ for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| (
         live = re.sub(r"\[[^\]]*\]", "", cell)  # bracketed = cut / restored-only
         nums = re.findall(r"\b(\d\.\d\.\d\.\d)\b", live)
         load_w = sum(max(pd_of.get(n, 0.0) - cut_day_one.get(n, 0.0), 0.0) for n in nums)
+        load_w += sum(float(x) for x in re.findall(r"\{(?:budget|buffer) (\d+(?:\.\d+)?)\}", live))
         if load_w > 0.75 * days + 1e-6:
             errors.append(f"11_plan.md §3: window {wm.group(1)}{' → ' + wm.group(2) if wm.group(2) else ''} {col} load {load_w} pd exceeds {0.75 * days} pd")
         for n in re.findall(r"\b(\d\.\d\.\d\.\d)\b", cell):
@@ -244,6 +245,14 @@ for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| (
                     errors.append(f"00_wbs.md: leaf {n} dated {a} → {b} but listed in window {w0} → {w1}")
 if windows == 0:
     errors.append("11_plan.md §3: no dated windows found")
+tok_buffer = sum(float(x) for x in re.findall(r"\{buffer (\d+(?:\.\d+)?)\}", sched))
+tok_budget = sum(float(x) for x in re.findall(r"\{budget (\d+(?:\.\d+)?)\}", sched))
+buf_row = re.search(r"^\| Buffer \| [^|]* \| (\d+(?:\.\d+)?) \|", budget, re.M)
+m6_row = re.search(r"^\| Must 6 [^|]* \| [^|]* \| (\d+(?:\.\d+)?) \|", budget, re.M)
+if not buf_row or abs(tok_buffer - float(buf_row.group(1))) > 1e-6:
+    errors.append(f"11_plan.md §3: {{buffer}} tokens sum to {tok_buffer}, Buffer row says {buf_row.group(1) if buf_row else '?'}")
+if not m6_row or abs(tok_budget - float(m6_row.group(1))) > 1e-6:
+    errors.append(f"11_plan.md §3: {{budget}} tokens sum to {tok_budget}, Must 6 row says {m6_row.group(1) if m6_row else '?'}")
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
@@ -253,7 +262,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

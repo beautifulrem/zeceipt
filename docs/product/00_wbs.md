@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -193,9 +193,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-10-01 → 10-03.
 - 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27 → 09-28.
 #### 3.3.4 Open technical questions
-- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd, 2026-10-08 → 10-09 (timebox).
+- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd, 2026-10-10 → 10-11 (timebox).
 - 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured). 0.25 pd, 2026-10-01 → 10-03 (with the first funded batch).
-- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd, 2026-10-08 → 10-09.
+- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd, 2026-10-10 → 10-11.
 - 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after the 2026-10-06 activation. 0.25 pd, 2026-10-04 → 10-07 (run on 10-07).
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
 #### 3.3.5 Payout console — payables, batches, execution
@@ -204,7 +204,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-01 → 10-03.
-- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-09-25 → 09-26.
+- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-08 → 10-09.
 #### 3.3.6 Payout console — receipts, pages, exports
 - 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
@@ -221,8 +221,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 3.4.2 Quality gates
 - 3.4.2.1 ✅ R — 26 tests, clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
-- 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan).
-- 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact.
+- 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-04 → 10-07.
+- 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact. 0.25 pd, 2026-10-04 → 10-07.
 
 ---
 
@@ -259,9 +259,10 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 ### 5.1 Materials
 #### 5.1.1 Videos
 - 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-04 → 10-07.
-- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline `11_plan.md` §5). 0.75 pd, 2026-10-08 → 10-09.
-- 5.1.1.3 ⬜ PM — Weekly update videos ×2 (09-28 and 10-05; budget booked in the first window). 0.25 pd, 2026-09-27 → 09-28.
+- 5.1.1.2 ⬜ R — Technical demo 2–3 min (outline `11_plan.md` §5; recorded by the Rust engineer, who narrates the stack). 0.75 pd, 2026-10-08 → 10-09.
+- 5.1.1.3 ⬜ PM — Weekly update video 1 (60 s, 09-28). 0.125 pd, 2026-09-27 → 09-28.
 - 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-08 → 10-09.
+- 5.1.1.5 ⬜ PM — Weekly update video 2 (60 s, 10-05). 0.125 pd, 2026-10-04 → 10-07.
 #### 5.1.2 Written
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
 - 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04 → 10-07.
@@ -305,7 +306,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | 2 Product definition | 44 | 39 | 1 | 2 | 2 |
 | 3 Engineering | 60 | 27 | 0 | 31 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
-| 5 Submission | 16 | 3 | 0 | 12 | 1 |
-| **Total** | 180 | 106 | 2 | 62 | 10 |
+| 5 Submission | 17 | 3 | 0 | 13 | 1 |
+| **Total** | 181 | 106 | 2 | 63 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

@@ -18,7 +18,7 @@ Dates here are a subset of the single timeline in `09_submission_checklist.md` Â
 | 2026-09-27 | Post format v0 + vectors to zips #387 (design test, public timestamp) | R |
 | 2026-09-28 | Register `zeceipt.xyz`, host demo page | U |
 | 2026-09-28 | Weekly update video 1 (60 s, English) on X, tag @colosseum | PM |
-| 2026-09-29 | Konclave author outreach with adapter PR draft | PM/U |
+| 2026-09-30 | Konclave author outreach with adapter PR draft (adapter lands 09-30, WBS 3.3.3.1) | PM/U |
 | 2026-10-01 | First pilot batch (ZecHub bounties or a grantee team) on testnet/mainnet | PM |
 | 2026-10-04 | `npm publish @zeceipt/verify` | U |
 | 2026-10-05 | Weekly update 2; initial submission upload | PM |

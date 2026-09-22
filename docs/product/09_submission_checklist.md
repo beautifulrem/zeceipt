@@ -66,7 +66,7 @@ This table is the authority for dates visible outside the team (posts, videos, u
 | 2026-09-25 | Funding checkpoint (RSK-3 trigger) | `06` |
 | 2026-09-27 | zips #387 post | `08` §2 |
 | 2026-09-28 | Weekly update video 1; register `zeceipt.xyz` (U) | `08` §2, WBS 4.1.1.2 |
-| 2026-09-29 | Konclave author outreach with adapter draft | `08` §2 |
+| 2026-09-30 | Konclave author outreach with adapter draft (3.3.3.1 lands 09-30) | `08` §2 |
 | 2026-10-01 | First pilot batch (testnet/mainnet) | `08` §2 |
 | 2026-10-03 | Console + Solana status review; cut decisions | `06` RSK-6/7, `11` §2 |
 | 2026-10-04 | `npm publish @zeceipt/verify` (U); `cargo audit` | WBS 4.1.1.3, 3.4.2.3 |
