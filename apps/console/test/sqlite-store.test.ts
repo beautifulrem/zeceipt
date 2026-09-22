@@ -6,10 +6,11 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { migrateDb, NonceConflictError, openDb, SqliteIdempotencyStore, StoreBusyError, ZkoolBackend, ZkoolClient, type Batch, type ConsoleDb } from "../lib/index.ts";
+import { MIGRATIONS_DIR, migrateDb, NonceConflictError, openDb, SqliteIdempotencyStore, StoreBusyError, ZkoolBackend, ZkoolClient, type Batch, type ConsoleDb } from "../lib/index.ts";
 import { base } from "./helpers/store-contract.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 
@@ -40,12 +41,15 @@ test("openDb refuses in-memory and URL-style locations, and sets WAL, FULL sync 
   assert.equal(db.$client.pragma("foreign_keys", { simple: true }), 1);
 });
 
-test("migrations apply once; a second run is a no-op", () => {
+test("migrations apply once (one journal row per committed migration); a second run is a no-op", () => {
   const { db } = fresh("migrate");
   migrateDb(db);
-  assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, 1);
-  const tables = db.$client.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[];
-  assert.deepEqual(tables.map((r) => r.name), ["submission_claims", "submission_txids", "submissions"]);
+  const journal = JSON.parse(readFileSync(join(MIGRATIONS_DIR, "meta", "_journal.json"), "utf8")) as { entries: unknown[] };
+  assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, journal.entries.length);
+  const names = (type: string) =>
+    (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);
+  assert.deepEqual(names("table"), ["batch_items", "batches", "submission_claims", "submission_txids", "submissions"]);
+  assert.deepEqual(names("trigger"), ["batch_items_frozen_delete", "batch_items_frozen_insert", "batch_items_frozen_update", "batches_frozen_delete", "batches_frozen_update"]);
 });
 
 test("the schema rejects impossible records on its own (CHECK, NOT NULL, foreign keys)", () => {

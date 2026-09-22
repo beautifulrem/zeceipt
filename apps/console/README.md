@@ -8,7 +8,9 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | `lib/execution/zkool-backend.ts` | `ZkoolBackend`: `preflight` (all problems at once), `submit` (idempotent per nonce), `status` (`pending` / `mined` / `unknown`), `reconcile`, `resubmitExpired` |
 | `lib/execution/idempotency.ts` | `IdempotencyStore` interface, `FileIdempotencyStore` (O_EXCL intent per nonce, fenced lock lease, txid index), `MemoryIdempotencyStore`, `batchDigest` |
 | `lib/execution/sqlite-store.ts` | `SqliteIdempotencyStore`: the console's nonce store; every write is one synchronous `BEGIN IMMEDIATE` transaction; compare-and-set via conditional `UPDATE`; scoped by `orgId` |
-| `db/schema.ts`, `db/client.ts`, `db/migrations/` | Drizzle schema (`submissions`, `submission_claims`, `submission_txids`), `openDb` (better-sqlite3; WAL, FULL sync, foreign keys, busy timeout), `migrateDb` |
+| `db/schema.ts`, `db/client.ts`, `db/errors.ts`, `db/migrations/` | Drizzle schema (`submissions`, `submission_claims`, `submission_txids`, `batches`, `batch_items`) plus the freeze triggers (custom migration `0002`), `openDb` (better-sqlite3; WAL, FULL sync, foreign keys, busy timeout), `migrateDb`, busy → `StoreBusyError` |
+| `lib/execution/validate.ts` | `batchProblems`: the one static rule set shared by preflight and the batch repository |
+| `lib/data/batches.ts` | Batch repository: `createBatch` (validated, atomic), `getBatch`, `listBatches` (exact totals), `toExecutionBatch`, `batchNonce` (`batch/<id>`), `newBatchId` (UUIDv7) |
 | `lib/execution/zkool-client.ts` | GraphQL client; loopback-only by default; distinguishes a server refusal from a lost answer |
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |
 | `lib/issuance/auto-issue.ts` | `autoIssue`: confirmation gate, `zeceipt issue --only-to …`, per-item cross-check, verification |

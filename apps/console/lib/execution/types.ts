@@ -26,6 +26,7 @@ export type PreflightProblemCode =
   | "address_hrp"
   | "address_checksum"
   | "amount_nonpositive"
+  | "amount_too_large"
   | "memo_empty"
   | "memo_too_long"
   | "memo_duplicate"

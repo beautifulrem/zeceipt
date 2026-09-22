@@ -6,7 +6,8 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { submissionClaims, submissions, submissionTxids } from "../../db/schema.ts";
-import { StoreBusyError, type Expect, type IdempotencyStore, type SubmissionRecord, type TxidEntry } from "./idempotency.ts";
+import { runSync as sync } from "../../db/errors.ts";
+import type { Expect, IdempotencyStore, SubmissionRecord, TxidEntry } from "./idempotency.ts";
 
 type Row = typeof submissions.$inferSelect;
 
@@ -33,22 +34,6 @@ function toColumns(rec: SubmissionRecord) {
     broadcastAt: rec.broadcastAt ?? null,
     error: rec.error ?? null,
   };
-}
-
-/**
- * Run `fn` synchronously; SQLITE_BUSY (another connection holds the write lock past the busy timeout) →
- * typed, retryable `StoreBusyError`. SQLITE_LOCKED is not mapped: within one connection it signals a bug.
- */
-function sync<T>(fn: () => T): Promise<T> {
-  try {
-    return Promise.resolve(fn());
-  } catch (e) {
-    for (let c: unknown = e; c; c = (c as { cause?: unknown }).cause) {
-      const code = (c as { code?: unknown }).code;
-      if (typeof code === "string" && /^SQLITE_BUSY/.test(code)) return Promise.reject(new StoreBusyError(`database is locked (${code}); nothing was changed`));
-    }
-    return Promise.reject(e);
-  }
 }
 
 export class SqliteIdempotencyStore implements IdempotencyStore {

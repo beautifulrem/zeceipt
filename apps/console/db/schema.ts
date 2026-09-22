@@ -4,7 +4,7 @@
 // with the orgs slice.
 
 import { sql } from "drizzle-orm";
-import { check, foreignKey, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { check, foreignKey, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 /** One row per (org, nonce): the payment-attempt ledger of a batch. Never pruned (design 3.3.1.3.1.1.3). */
 export const submissions = sqliteTable(
@@ -68,5 +68,55 @@ export const submissionTxids = sqliteTable(
     primaryKey({ columns: [t.orgId, t.txid] }),
     foreignKey({ columns: [t.orgId, t.nonce], foreignColumns: [submissions.orgId, submissions.nonce] }),
     check("submission_txids_hex", sql`length(${t.txid}) = 64 and ${t.txid} not glob '*[^0-9a-f]*'`),
+  ],
+);
+
+/** A payout batch: one transaction paying every item. Immutable once a submission exists (triggers, 0002). */
+export const batches = sqliteTable(
+  "batches",
+  {
+    orgId: text("org_id").notNull(),
+    id: text("id").notNull(),
+    network: text("network", { enum: ["main", "test", "regtest"] }).notNull(),
+    title: text("title").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.id] }),
+    check("batches_id_uuid", sql`length(${t.id}) = 36 and ${t.id} glob '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'`),
+    check("batches_network", sql`${t.network} in ('main', 'test', 'regtest')`),
+    check("batches_title_len", sql`length(${t.title}) between 1 and 200`),
+  ],
+);
+
+/**
+ * One output of a batch. Label and address are copied from the payee at creation so later payee edits never
+ * rewrite what was paid; `payable_id` is the stable reference (PayPal's `sender_item_id`). Amounts are exact
+ * integer zatoshi (≤ 2.1e15 < 2^53).
+ */
+export const batchItems = sqliteTable(
+  "batch_items",
+  {
+    orgId: text("org_id").notNull(),
+    batchId: text("batch_id").notNull(),
+    idx: integer("idx").notNull(),
+    payableId: text("payable_id").notNull(),
+    label: text("label").notNull(),
+    address: text("address").notNull(),
+    zat: integer("zat").notNull(),
+    memo: text("memo").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.batchId, t.idx] }),
+    foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
+    unique("batch_items_payable_unique").on(t.orgId, t.batchId, t.payableId),
+    unique("batch_items_memo_unique").on(t.orgId, t.batchId, t.memo),
+    check("batch_items_idx", sql`${t.idx} >= 0`),
+    check("batch_items_payable_len", sql`length(${t.payableId}) between 1 and 200`),
+    check("batch_items_label_len", sql`length(${t.label}) <= 200`),
+    check("batch_items_address", sql`length(${t.address}) between 1 and 1000 and ${t.address} = lower(${t.address})`),
+    check("batch_items_zat", sql`typeof(${t.zat}) = 'integer' and ${t.zat} between 1 and 2100000000000000`),
+    check("batch_items_memo_bytes", sql`length(cast(${t.memo} as blob)) between 1 and 512`),
   ],
 );

@@ -7,7 +7,10 @@ export { ZkoolClient, ZkoolGraphqlError, ZkoolTransportError, POOL } from "./exe
 export { FileIdempotencyStore, MemoryIdempotencyStore, StoreBusyError, batchDigest } from "./execution/idempotency.ts";
 export type { Expect, IdempotencyStore, SubmissionRecord, SubmissionState, TxidEntry } from "./execution/idempotency.ts";
 export { ZkoolBackend, isPreBuildRefusal } from "./execution/zkool-backend.ts";
+export { batchProblems, MEMO_MAX_BYTES } from "./execution/validate.ts";
 export { SqliteIdempotencyStore } from "./execution/sqlite-store.ts";
 export { openDb, migrateDb, MIGRATIONS_DIR, type ConsoleDb, type OpenDbOptions } from "../db/client.ts";
 export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./issuance/auto-issue.ts";
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";
+export { BatchInvalidError, batchNonce, createBatch, getBatch, listBatches, newBatchId, toExecutionBatch } from "./data/batches.ts";
+export type { BatchItemInput, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";
