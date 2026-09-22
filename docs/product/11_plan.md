@@ -36,7 +36,7 @@ Calendar levelling: §3 places every person-day-bearing leaf in a dated window s
 
 ### 1.1 Solo branch (headcount unconfirmed, WBS 2.4.3.3; RSK-19)
 
-Every commit to date has one author. If a second person is not confirmed by 2026-09-24, this branch replaces the baseline from that day. Rule: multiply **all non-U work** (R, T and PM alike) by 1.6; U leaves are excluded from the budget entirely. Capacity 19 days (09-23 → 10-11) × 1 × 0.75 = **14.25 person-days**, of which 0.25 is held as buffer. The real reserve is that 0.25 pd plus the two below-the-line cuts (1.6 pd scaled) — 1.85 pd in total; the buffer alone is not the cushion. Every leaf is priced identically in both branches (REQ-CON-21 was added on 2026-09-22 at 0.4 scaled and is what reduced the buffer from 0.65). AI-assisted implementation is the working mode but is not counted as capacity. Every person-day-bearing leaf appears below either as kept or as dropped (the checker enforces this).
+Every commit to date has one author. If a second person is not confirmed by 2026-09-24, this branch replaces the baseline from that day. Rule: multiply **all non-U work** (R, T and PM alike) by 1.6; U leaves are excluded from the budget entirely. Capacity 19 days (09-23 → 10-11) × 1 × 0.75 = **14.25 person-days**, of which 0.25 is held as buffer. The real reserve is that 0.25 pd plus the two below-the-line cuts (1.6 pd scaled) — 1.85 pd in total; the buffer alone is not the cushion. Every leaf is priced identically in both branches except where the kept table marks a reduction in scope (4.1.2.2 shorter forum post, 5.1.2.2 leaner description, 5.2.1.1 and 5.2.1.2 lighter upload and re-check); the checker enforces that any other price difference is an error. (REQ-CON-21 was added on 2026-09-22 at 0.4 scaled and is what reduced the buffer from 0.65.) AI-assisted implementation is the working mode but is not counted as capacity. Every person-day-bearing leaf appears below either as kept or as dropped (the checker enforces this).
 
 | Kept | Leaves / scope | Unscaled pd | Scaled pd |
 |---|---|---|---|
@@ -44,7 +44,7 @@ Every commit to date has one author. If a second person is not confirmed by 2026
 | Must 6 public-chain evidence + README, reduced to one testnet/mainnet run and a PROOF section | budget line | 0.25 | 0.4 |
 | Pitch + technical demo videos (both are form fields) with their upload and link test; no weekly updates | 5.1.1.1 (0.75), 5.1.1.2 (0.75), 5.1.1.4 (0.25) | 1.75 | 2.8 |
 | Outreach minimal: forum post + one pilot (ZecHub DAO) | 4.1.2.2 (0.25 reduced), 4.2.1.1 (0.5) | 0.75 | 1.2 |
-| Submission process minimal: description, upload, freeze, final | 5.1.2.2 (0.25 reduced), 5.2.1.1 (0.125), 5.2.1.2 (0.125), 5.2.1.3 (0.25) | 0.75 | 1.2 |
+| Submission process minimal: description, upload, freeze, final | 5.1.2.2 (0.25 reduced), 5.2.1.1 (0.125 reduced), 5.2.1.2 (0.125 reduced), 5.2.1.3 (0.25) | 0.75 | 1.2 |
 | User actions still expected (outside the budget): push repo (4.1.1.1), npm publish (4.1.1.3, REQ-WEB-8), funding (3.4.1.4, 3.4.1.5) | U leaves | — | — |
 | Security self-review before submission (RSK-17) | 3.4.2.3 (0.25) | 0.25 | 0.4 |
 | **Kept total** | | 8.75 | **14.0** |
