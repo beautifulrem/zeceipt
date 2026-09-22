@@ -470,6 +470,23 @@ test("file store lease: a writer suspended past staleLockMs loses the lock and w
   assert.equal((await b2.get("n-lease"))?.error, "B");
 });
 
+test("file store: temp files left by a crash are swept once older than staleLockMs; fresh ones are kept", async () => {
+  const d = join(dir, "sweep");
+  const store = new FileIdempotencyStore(d, { staleLockMs: 1_000 });
+  await store.createIntent({ nonce: "n-sweep", batchId: "b", batchDigest: "d".repeat(64), createdAt: "t", state: "submitting", attempts: 1 });
+  const stale = join(d, `${"a".repeat(64)}.txid.deadbeef.tmp`);
+  const fresh = join(d, `${"b".repeat(64)}.txid.cafebabe.tmp`);
+  await writeFile(stale, "n-x\n1");
+  await writeFile(fresh, "n-y\n1");
+  const old = new Date(Date.now() - 60_000);
+  await utimes(stale, old, old);
+  assert.equal(await store.update({ nonce: "n-sweep", batchId: "b", batchDigest: "d".repeat(64), createdAt: "t", state: "broadcast", txid: "c".repeat(64), attempts: 1 }, { attempts: 1, states: ["submitting"] }), true);
+  const { readdir } = await import("node:fs/promises");
+  const left = (await readdir(d)).filter((f) => f.endsWith(".tmp"));
+  assert.deepEqual(left, [`${"b".repeat(64)}.txid.cafebabe.tmp`]);
+  assert.equal((await store.findByTxid("c".repeat(64)))?.record.nonce, "n-sweep");
+});
+
 test("file store lease: a holder suspended after its write does not delete the next holder's lock", async () => {
   const d = join(dir, "lease-exit");
   const a = new FileIdempotencyStore(d, { staleLockMs: 100 });

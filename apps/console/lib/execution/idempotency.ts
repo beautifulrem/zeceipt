@@ -6,7 +6,7 @@
 // before the payment call. A record that exists therefore means "a payment may have been sent".
 
 import { createHash, randomBytes } from "node:crypto";
-import { link, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { link, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { zatToDecimal } from "./money.ts";
 import { ExecutionError, type Batch } from "./types.ts";
@@ -144,7 +144,9 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
  * One JSON file per nonce under `dir`. `createIntent` uses O_EXCL (`wx`), so two processes racing on
  * the same nonce cannot both proceed. Updates are write-temp-then-rename (atomic on POSIX); file contents
  * and the directory entry are fsynced so a record survives a power loss once the call returns. A small
- * `txid → nonce, attempt` index file makes `findByTxid` O(1).
+ * `txid → nonce, attempt` index file makes `findByTxid` O(1). The directory must be on a filesystem with
+ * hard links (APFS, ext4 …; not FAT/exFAT or some network mounts): index entries are placed with `link()`.
+ * Temp files left by a crash are harmless and are swept once older than `staleLockMs`.
  */
 export class FileIdempotencyStore implements IdempotencyStore {
   private readonly dir: string;
@@ -198,6 +200,24 @@ export class FileIdempotencyStore implements IdempotencyStore {
     await this.syncDir();
   }
 
+  /**
+   * Remove temp files (`*.tmp`) older than `staleLockMs`: a writer takes milliseconds, so an old temp file
+   * was left by a crash. Temp files are never read; removing them changes nothing.
+   */
+  async sweepTmp(): Promise<number> {
+    let removed = 0;
+    const names = await readdir(this.dir).catch(() => [] as string[]);
+    for (const name of names) {
+      if (!name.endsWith(".tmp")) continue;
+      const p = join(this.dir, name);
+      const st = await stat(p).catch(() => undefined);
+      if (st && Date.now() - st.mtimeMs > this.staleLockMs) {
+        await unlink(p).then(() => removed++, () => {});
+      }
+    }
+    return removed;
+  }
+
   /** Persist directory entries (a create or rename is durable only once its directory is synced). */
   private async syncDir() {
     const dh = await open(this.dir, "r");
@@ -243,6 +263,7 @@ export class FileIdempotencyStore implements IdempotencyStore {
   }
 
   async update(next: SubmissionRecord, expect: Expect) {
+    await this.sweepTmp();
     return this.withLock(next.nonce, async (stillHeld) => {
       if (!matches(await this.get(next.nonce), expect)) return false;
       // Fence: if this process was suspended past `staleLockMs` its lock may have been broken and taken
