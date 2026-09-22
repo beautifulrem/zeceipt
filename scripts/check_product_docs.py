@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; every §3 body row parses as a window; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept leaf; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -227,7 +227,7 @@ for m in leaf_re.finditer(wbs):
         b = _d(dm.group(2)) if dm.group(2) else a
         leaf_dates[num] = (a, b)
 windows = 0
-for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M):
+for wm in re.finditer(r"^\s*\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M):
     w0 = _d(wm.group(1)); w1 = _d(wm.group(2)) if wm.group(2) else w0
     days = (w1 - w0).days + 1
     windows += 1
@@ -244,7 +244,7 @@ for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| (
                 if a < w0 or b > w1:
                     errors.append(f"00_wbs.md: leaf {n} dated {a} → {b} but listed in window {w0} → {w1}")
 sched_tbl = sched.split("| Window |")[1] if "| Window |" in sched else ""
-body_rows = [ln for ln in sched_tbl.splitlines()[2:] if ln.startswith("|")]  # skip header line remainder + separator
+body_rows = [ln for ln in sched_tbl.splitlines()[2:] if ln.strip().startswith("|")]  # skip header line remainder + separator
 if windows != len(body_rows):
     errors.append(f"11_plan.md §3: {len(body_rows)} table body rows but only {windows} parsed as windows (a malformed date or cell separator hides a row from the checks)")
 if windows == 0:
@@ -274,10 +274,10 @@ for n in re.findall(r"^\| (NFR-\d+) ", req_defs, re.M):
 leaf_reqs = {}
 for m in leaf_re.finditer(wbs):
     num, rest = m.groups()
-    ids_here = re.findall(r"\bREQ-[A-Z]+-\d+\b", rest)
+    ids_here = re.findall(r"\b(?:REQ-[A-Z]+|NFR)-\d+\b", rest)
     if ids_here:
         leaf_reqs[num] = ids_here
-win_list = re.findall(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| ([^|]*) \| ([^|]*)\|$", sched, re.M)
+win_list = re.findall(r"^\s*\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| ([^|]*) \| ([^|]*)\|$", sched, re.M)
 for idx, (w0, w1, rc, tc, ms) in enumerate(win_list):
     live = re.sub(r"\[[^\]]*\]", "", rc + " " + tc)
     for n in re.findall(r"\b(\d\.\d\.\d\.\d)\b", live):
@@ -303,7 +303,12 @@ for rid, val in solo_col.items():
         if val == "dropped" and n in kept_ids:
             errors.append(f"01_requirements.md: {rid} is 'dropped' but cites kept leaf {n}")
     leaves_of = [n for n, rs in leaf_reqs.items() if rid in rs]
+    # the §8 traceability leaf counts as a leaf of the requirement even if the WBS line does not name the id
+    for mrid, _st, mleaf, _ev in matrix_rows:
+        if mrid == rid and mleaf not in leaves_of:
+            leaves_of.append(mleaf)
     if not leaves_of:
+        errors.append(f"01_requirements.md: {rid} has no WBS leaf naming it and no §8 leaf; the Solo value cannot be cross-checked")
         continue
     any_kept = any(n in kept_ids for n in leaves_of)
     all_dropped = all(n in dropped_ids and n not in kept_ids for n in leaves_of)
