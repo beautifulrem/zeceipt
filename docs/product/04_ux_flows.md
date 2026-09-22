@@ -11,13 +11,13 @@
 ## 2. Flows
 
 ### FLOW-1 Issuer runs a batch (P1/P2)
-1. Import CSV (Konclave `label,address,value[,memo]` or zecpay `name,wallet,amount,currency,payout_currency`) or add payables by hand → validation report (bad UA, duplicate address, missing W-9/TIN for a `tax_flag = us_1099` recipient whose calendar-year aggregate reaches $2,000 `[R26]`; KYC status is shown but does not block).
-2. Create batch → lock rate (two sources shown with deviation; > 3% blocks).
+1. Add payables by hand, or import CSV (Konclave `label,address,value[,memo]` or zecpay `name,wallet,amount,currency,payout_currency`; REQ-CON-19, baseline only — the solo branch is manual entry only) → validation report (bad UA, duplicate address, missing W-9/TIN for a `tax_flag = us_1099` recipient whose calendar-year aggregate reaches $2,000 `[R26]`; KYC status is shown but does not block).
+2. Create batch → lock rate from one source with its timestamp (REQ-CON-4); at execution a > 3% move since the lock blocks until re-quote (REQ-CON-21). A second source with a cross-source disagreement check is REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch).
 3. Approvals: two approvers each see recipients, totals, rate; approve → HMAC recorded; any edit resets approvals.
 4. Execute: choose backend (Zkool hot-custody · external signer via per-recipient ZIP-321 QR); confirm dialog restates totals.
 5. Track: pending → broadcast → confirmed(n); failure rows retryable, no duplicates.
 6. Receipts issued automatically; links copied or emailed; export CSVs (OpenZcash / QBO / Xero).
-Error states: rate source down (use the other, mark), backend unreachable (batch stays approved), tx not found after 30 min (mark "unknown outcome", require manual reconcile), recipient address on the wrong network (blocked at import).
+Error states: rate source down (the lock is blocked and the batch stays in draft; falling back to a second source is REQ-CON-20, planned), backend unreachable (batch stays approved), tx not found after 30 min (mark "unknown outcome", require manual reconcile), recipient address on the wrong network (blocked at import).
 
 ### FLOW-2 Recipient verifies (P3)
 1. Opens `https://<host>/r/<payload>` (or pastes a receipt into the demo page).

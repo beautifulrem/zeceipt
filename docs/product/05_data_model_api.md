@@ -10,7 +10,7 @@ Money: integer zatoshi (`bigint`) and integer USD cents. Rates: decimal string +
 | `members` | id, org_id, email, role (admin/approver/operator/viewer) | an org must have ≥ 2 members with role approver before any batch can leave `draft` |
 | `recipients` | id, org_id, display_name, ua, network, kyc_status, tax_flag (us_1099/non_us/none), settlement_pref (zec/usdc_sol), notes | `ua` validated for `network`; duplicates flagged not blocked |
 | `payables` | id, org_id, recipient_id, kind (milestone/invoice/bounty/salary), usd_cents, reference, source_ref (grant/issue link), status | reference is unique per org (becomes the memo) |
-| `batches` | id, org_id, state, rate_zec_usd, rate_sources_json, rate_locked_at, backend (zkool/zallet/zip321), txid, broadcast_at, confirmed_height, nonce | state machine below; `nonce` prevents double submission |
+| `batches` | id, org_id, state, rate_zec_usd, rate_sources_json (≥ 1 entry: source name, quote, fetched_at; a second entry only once REQ-CON-20 (Should, cut item 4) is built), rate_locked_at, rate_at_execution, backend (zkool/zallet/zip321), txid, broadcast_at, confirmed_height, nonce | state machine below; `nonce` prevents double submission; preflight rejects `submitting` when `rate_at_execution` differs from `rate_zec_usd` by > 3% (REQ-CON-21) |
 | `batch_items` | batch_id, payable_id, zat, output_index (nullable until confirmed), receipt_id (nullable) | `zat = floor(usd_cents × 10^8 / (100 × rate_zec_usd))` computed in integer/decimal arithmetic (never binary floats), floor so the payer never overpays by rounding; `rounding_dust_zat = exact − zat` stored; `sum(zat) + fee ≤ funded balance` checked at preflight |
 | `approvals` | id, batch_id, member_id, hmac, approved_at | hmac = HMAC-SHA256(org secret, batch id ‖ sorted(recipient ua, zat) ‖ rate ‖ backend); invalid if batch content changes; execution requires 2 valid approvals from distinct approvers |
 | `receipts` | id, org_id, batch_item_id, txid, pool, output_index, receipt_json, url, recovered_value_zat, recovered_recipient, memo_text, issued_at | unique (txid, pool, output_index); ock inside receipt_json is stored encrypted at rest |
@@ -66,7 +66,7 @@ Array of receipt envelopes (spec §2). Public feed for ledgers (FLOW-5).
 
 - Receipt envelope v0: `spec/receipt-v0.md` §2 (JSON), §5 (signing), URL form `/r/<base64url(json)>`.
 - Audit pack: `{"version":"zeceipt-v0","title","declared_total_zat","receipts":[…]}` (spec §8).
-- Well-known issuer keys (`/.well-known/zeceipt.json`, REQ-INT-3):
+- Well-known issuer keys (`/.well-known/zeceipt.json`, REQ-INT-3 — Should, planned for leaf 3.3.3.3, dropped in the solo branch):
 ```json
 { "version": "zeceipt-v0", "org": "Example DAO", "root_pubkey": "<hex>",
   "keys": [ {"key_id": "2026-09", "pubkey": "<hex>", "valid_from": "2026-09-01", "valid_to": null, "revoked_at": null} ],

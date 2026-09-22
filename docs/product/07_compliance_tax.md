@@ -8,12 +8,12 @@ Zeceipt is not tax software and does not file anything. It records, per payment,
 - Information reporting: for payments made after 2025-12-31 the Form 1099-NEC/MISC threshold is **$2,000** (previously $600), indexed for inflation from 2027, and the backup-withholding trigger is aligned to $2,000 (P.L. 119-21 §70433, amending IRC §6041(a), §6041A(a)(2), §3406(b)(6)) `[R26]`. Practitioner interpretation, not primary source: aggregate per payee per calendar year; e-file when filing ≥ 10 information returns; IRIS replaces FIRE for the 2027 filing season; some states keep $600 (e.g. Mississippi, Wisconsin) `[R26]`.
 - Payer's own gain/loss on disposing ZEC at payment is a separate event (holding period matters) `[R26]`.
 
-What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with two sources and timestamp, confirmation date/height, recipient reference, receipt link. What it exports (baseline plan; dropped under the solo branch, NFR-9): per-recipient calendar-year totals with a `threshold_reached` flag (default $2,000, configurable) (`05_data_model_api.md` §3.4).
+What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with its source and timestamp (a second source is planned, REQ-CON-20), confirmation date/height, recipient reference, receipt link. What it exports (baseline plan; dropped under the solo branch, NFR-9): per-recipient calendar-year totals with a `threshold_reached` flag (default $2,000, configurable) (`05_data_model_api.md` §3.4).
 
 ## 2. Fair-market-value policy
 
-- Rate locked at approval from two sources (Kraken ZEC/USD, CoinGecko), stored with the timestamp; the execution-time rate is also recorded; both appear in exports so an accountant can choose the method and apply it consistently (the "reasonable, consistently applied" standard in practitioner guidance `[R26]`).
-- Deviation > 3% between lock and execution blocks execution until re-quoted (REQ-CON-4).
+- Rate locked at approval from one source (Kraken ZEC/USD) and stored with the timestamp (REQ-CON-4); the execution-time rate is also recorded; both the lock and execution rates appear in exports so an accountant can choose the method and apply it consistently (the "reasonable, consistently applied" standard in practitioner guidance `[R26]`). A second source (CoinGecko) with a cross-source disagreement check is planned as REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch).
+- Deviation > 3% between the approval lock and the execution quote blocks execution until re-quoted (REQ-CON-21, Must under both branches).
 
 ## 3. European Union
 

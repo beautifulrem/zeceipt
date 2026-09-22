@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share five consecutive words of obligation text; every §3 body row parses as a window; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -337,15 +337,33 @@ for rid, pr in prio.items():
 
 # no two requirements may state the same obligation (shared 5-word shingle in the Requirement text)
 req_text_of = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\| (?:[MSCW] \| )?([^|]*)\|", req_defs, re.M))
-stop = {"the","a","an","and","or","of","to","for","with","per","in","on","from","by","is","are","as","at","that","this","its","it"}
+stop = {"the","a","an","and","or","of","to","for","with","per","in","on","from","by","is","are","as","at","that","this","its","it","one","each","all"}
+synonyms = {"annual": "yearly", "calendar-year": "yearly", "calendaryear": "yearly", "year": "yearly", "preparation": "", "export": "exports", "exported": "exports",
+            "recipient": "recipient", "recipients": "recipient", "totals": "total", "usd": "usd"}
 shingles = {}
 for rid, txt in req_text_of.items():
-    words = [w for w in re.findall(r"[a-z0-9]+", txt.lower()) if w not in stop]
-    for k in range(len(words) - 4):
-        sh = " ".join(words[k:k + 5])
+    words = [synonyms.get(w, w) for w in re.findall(r"[a-z0-9-]+", txt.lower())]
+    words = [w for w in words if w and w not in stop]
+    for k in range(len(words) - 2):
+        tri = words[k:k + 3]
+        if all(w in {"ironwood", "orchard", "sapling", "v4", "v5", "v6", "kraken", "coingecko", "quickbooks", "xero", "openzcash"} for w in tri):
+            continue  # shared enumerations of pools/sources/formats are not shared obligations
+        sh = " ".join(tri)
         if sh in shingles and shingles[sh] != rid:
             errors.append(f"01_requirements.md: {rid} and {shingles[sh]} share the obligation text '{sh}'")
         shingles.setdefault(sh, rid)
+
+# every REQ/NFR id cited in any product doc must exist; a Should/Could/Won't id cited in the policy docs (04, 05, 07) must be marked as planned/cut/dropped on that line
+for name, text in files.items():
+    if name in ("01_requirements.md",) or name.startswith("reviews"):
+        continue
+    for ln in text.splitlines():
+        for rid in set(re.findall(r"\b(?:REQ-[A-Z]+|NFR)-\d+\b", ln)):
+            if rid not in id_set:
+                errors.append(f"{name}: cites unknown requirement {rid}")
+            elif name in ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md") and prio.get(rid) in ("S", "C", "W") \
+                    and not re.search(r"planned|cut item|dropped|baseline only|roadmap|Should|Could|Won't", ln):
+                errors.append(f"{name}: states {rid} (priority {prio.get(rid)}) as policy without marking it planned/cut: '{ln[:80]}'")
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
