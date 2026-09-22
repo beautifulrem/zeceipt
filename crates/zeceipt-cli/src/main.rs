@@ -2,6 +2,7 @@
 //!
 //! Exit codes: 0 valid / success, 1 invalid receipt, 2 pending (transaction not
 //! found or unconfirmed), 3 usage or configuration error.
+#![forbid(unsafe_code)]
 
 use std::path::PathBuf;
 use std::process::ExitCode;

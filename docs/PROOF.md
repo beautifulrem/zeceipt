@@ -116,7 +116,7 @@ The same matrix runs in CI (`.github/workflows/ci.yml`, including `pack` → `ve
 
 ## 2b. synthetic + mainnet-read — browser verifier (WASM) in Chrome (2026-09-22)
 
-`packages/verify/pkg` (committed) built with `wasm-pack build crates/zeceipt-wasm --target web --release` (809 KB `.wasm`; see README for the wasm32 clang note). Served `packages/verify/` locally and drove `demo/index.html` in Chrome:
+`packages/verify/pkg` (committed) built with `wasm-pack build crates/zeceipt-wasm --target web --release` (696 KB `.wasm` = 712,801 bytes at HEAD; see README for the wasm32 clang note). Served `packages/verify/` locally and drove `demo/index.html` in Chrome:
 
 | input | result shown by the page |
 |---|---|
@@ -126,6 +126,8 @@ The same matrix runs in CI (`.github/workflows/ci.yml`, including `pack` → `ve
 | "Fetch raw tx from public gRPC-web node" with a probe receipt for mainnet txid `0e85513c…da69` | status: `fetched from https://zjs.zec.rocks/mainnet (mined at height 3491284)`; 18,332 hex chars, prefix `06000080` (v6); verification then fails at `recovery` as expected for a random ock |
 
 All verification ran inside the page (`zeceipt-wasm 0.1.0 (zeceipt-v0) ready`). The gRPC-web call is a hand-encoded `GetTransaction` (`packages/verify/src/index.js`, `fetchRawTx`), no proxy.
+
+Timing (2026-09-22, NFR-4): the committed wasm in Node 26 (`performance.now()`, 20-run averages) — init 13.9 ms; `verify_receipt` 4.11 ms on the regtest fixture (9,166-byte tx, signed, challenge bound) and 3.19 ms on the synthetic fixture. CLI (release build, `/usr/bin/time`): `zeceipt inspect --txid 0e85513c…da69` fetching the mainnet tx from `zec.rocks` over gRPC/TLS 1.15 s wall; `zeceipt verify --regtest --raw-tx-file …` offline 0.01 s. The page shows the mined height for fetched transactions and tells the user to confirm depth on an explorer or their own node; it does not compute confirmations itself.
 
 ## 3. unit — protocol-level round trip
 

@@ -10,25 +10,25 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 1.1 Competition intelligence
 #### 1.1.1 Rules, tracks, prizes, judging
-- 1.1.1.1 ✅ PM — Rules PDF, FAQ, track pages digested; criteria and factors listed. Evidence: KB `01`–`08`, `[R1]`.
+- 1.1.1.1 ✅ PM — Rules PDF, FAQ, track pages digested; criteria and factors listed. `09_submission_checklist.md` §6, `[R1]`.
 - 1.1.1.2 ✅ PM — Zcash track sponsor expectations (50–100 submissions, ZODL contact). `[R2]`.
-- 1.1.1.3 ✅ PM — Submission form fields and video specs captured. KB `04_submission`, `[R1]`.
+- 1.1.1.3 ✅ PM — Submission form fields and video specs captured. `09_submission_checklist.md` §1, `[R1]`.
 - 1.1.1.4 👤 ⬜ U — Submission window open date confirmed on Colosseum Discord/FAQ (assumed 2026-10-05).
 #### 1.1.2 Past winners and current entrants
-- 1.1.2.1 ✅ PM — 337 past winners profiled (180 deep, 157 honourable). KB `winners/`, `[R36]`.
-- 1.1.2.2 ✅ PM — 36 current public repos profiled, 17 deep. KB `projects/`.
-- 1.1.2.3 ✅ PM — 86 external hackathons / 167 projects library migrated. KB `other_hackathons/`.
-- 1.1.2.4 🟡 T — Weekly rescan of new Zcash-track repos (done 2026-09-21 only; next 2026-09-28). `20` §17.11.
+- 1.1.2.1 ✅ PM — 337 past winners profiled (180 deep, 157 honourable); win patterns summarised. `[R36]` `[R22]`; `03_market_competition.md` §5 (archive: private KB).
+- 1.1.2.2 ✅ PM — 36 current public repos profiled, 17 deep; overlaps listed. `[R9]` `[R15]` `[R16]`; `03_market_competition.md` §3.
+- 1.1.2.3 ✅ PM — 86 external hackathons / 167 projects reviewed for win patterns. `[R36]` (archive: private KB).
+- 1.1.2.4 🟡 PM — Weekly rescan of new Zcash-track repos (done 2026-09-21 only; next 2026-09-28). `03_market_competition.md` §5.
 #### 1.1.3 Judges
-- 1.1.3.1 ✅ PM — 21 judges profiled with X handles and inferred tracks. KB `19_judges`.
-- 1.1.3.2 ✅ PM — Receipt-version Q&A per judge. KB `19_judges` §七.
+- 1.1.3.1 ✅ PM — 21 judges profiled with X handles and inferred tracks. `[R1]`; answer sheet `11_plan.md` §6 (archive: private KB).
+- 1.1.3.2 ✅ PM — Receipt-version Q&A per judge. `11_plan.md` §6.
 - 1.1.3.3 ⬜ PM — Identify the ZODL-appointed Zcash judge once announced (watch forum/Discord).
 - 1.1.3.4 ⬜ PM — Prepare a one-page "why not Arcium / Solana audit keys" comparison for the Arcium judges.
 
 ### 1.2 Domain and technology research
 #### 1.2.1 Zcash protocol state
 - 1.2.1.1 ✅ R — Ironwood/NU6.3 status, Orchard sealed, migration progress. `[R20]`.
-- 1.2.1.2 ✅ R — NU7 timeline (2026-11-05 target; ZSA deferred). KB `21` §一.
+- 1.2.1.2 ✅ R — NU7 timeline (testnet 2026-10-06, mainnet target 2026-11-05; ZSA deferred). `[R20]`; `06_risk_register.md` RSK-14.
 - 1.2.1.3 ✅ R — ZIP 311/303/304/310/316/321/324 read; ZIP 311 input requirement understood. `[R7]`.
 - 1.2.1.4 ✅ R — Ironwood note-encryption domain and key hierarchy confirmed in crate source. `[R21]`.
 #### 1.2.2 Tooling and wallets
@@ -38,7 +38,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 1.2.2.4 ✅ R — lightwalletd/Zaino RPCs and public endpoints. `[R34]`.
 #### 1.2.3 Adjacent ecosystems and mature products
 - 1.2.3.1 ✅ PM — Monero prove-payment UX. `[R31]`.
-- 1.2.3.2 ✅ PM — Solana confidential balances auditor model. KB `21` §四.
+- 1.2.3.2 ✅ PM — Solana confidential balances auditor model. `[R41]`; `03_market_competition.md` §3.
 - 1.2.3.3 ✅ PM — Request Finance objects, statuses, webhooks, pricing. `[R27]`.
 - 1.2.3.4 ✅ PM — Toku, Rise, Bitwage pricing and deliverables. `[R28]`–`[R30]`.
 #### 1.2.4 Accounting and tax formats
@@ -66,10 +66,10 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 1.4.1.3 ✅ PM — Dead/dormant products (Zwage, zecpay, Glasspane). `[R12]`–`[R14]`.
 - 1.4.1.4 ✅ PM — Feature-level matrix. `03_market_competition.md` §3.
 #### 1.4.2 Positioning
-- 1.4.2.1 ✅ PM — Three-layer map (execution / finance-ops / disclosure). KB `20` §五.
+- 1.4.2.1 ✅ PM — Three-layer map (execution / finance-ops / disclosure). `03_market_competition.md` §4.
 - 1.4.2.2 ✅ PM — Honest ZIP 311 scoping ("outputs half"). `spec/receipt-v0.md` §1.
 - 1.4.2.3 ✅ PM — Prior-art disclosure file. `docs/PRIOR_ART.md`.
-- 1.4.2.4 ✅ PM — Independent red-team and alternatives review, verdict adopted. KB `20` §十六.
+- 1.4.2.4 ✅ PM — Independent red-team and alternatives review, verdict adopted. `11_plan.md` §7.
 
 ---
 
@@ -77,8 +77,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 2.1 Problem and value
 #### 2.1.1 Problem statement
-- 2.1.1.1 ✅ PM — Problem statement written and scored. KB `20` §二, §十七.
-- 2.1.1.2 ✅ PM — "Why now" (Ironwood, ZODL/Zallet stack, AMLR 2027). KB `20` §二.
+- 2.1.1.1 ✅ PM — Problem statement written. `02_personas_jtbd.md` §0.
+- 2.1.1.2 ✅ PM — "Why now" (Ironwood, ZODL/Zallet stack, AMLR 2027). `02_personas_jtbd.md` §0.
 - 2.1.1.3 ✅ PM — Non-goals listed. `01_requirements.md` §0.
 - 2.1.1.4 ✅ PM — One-line pitch: "Private outside, provable per payment." `README.md`.
 #### 2.1.2 Value proposition and pricing
@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 ✅ PM — Requirements reviewed by independent agent (this task's AC8).
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, report committed at `docs/product/reviews/round-1.md`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -126,15 +126,15 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.4.1.1 ✅ PM — Technical risks. `06_risk_register.md`.
 - 2.4.1.2 ✅ PM — Market/competition risks. same.
 - 2.4.1.3 ✅ PM — Regulatory risks. same.
-- 2.4.1.4 ✅ PM — Schedule risks and stop-loss. same; KB `20` §17.14.
+- 2.4.1.4 ✅ PM — Schedule risks and stop-loss. `06_risk_register.md` RSK-6/7/18; `11_plan.md` §2–§3.
 #### 2.4.2 Compliance and tax
 - 2.4.2.1 ✅ PM — What the product records for 1099-NEC/W-2. `07_compliance_tax.md`.
 - 2.4.2.2 ✅ PM — FMV source and timestamp policy. same.
 - 2.4.2.3 ✅ PM — EU AMLR positioning. same.
 - 2.4.2.4 ✅ PM — Data retention and privacy commitments. same.
 #### 2.4.3 Planning
-- 2.4.3.1 ✅ PM — Day-by-day plan with person-days, cut order. KB `20` §17.14.
-- 2.4.3.2 ✅ PM — Success metrics (countable). KB `20` §17.8.
+- 2.4.3.1 ✅ PM — Day-by-day plan with person-days, cut order. `11_plan.md` §1–§3.
+- 2.4.3.2 ✅ PM — Success metrics (countable). `11_plan.md` §4.
 - 2.4.3.3 👤 ⬜ U — Team roster and founder-market-fit lines.
 - 2.4.3.4 👤 🟡 U — Product name confirmed (working name Zeceipt; npm/GitHub/.xyz/.io free).
 
@@ -177,11 +177,11 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.2.3.4 ✅ T — Committed pkg + node staleness guard in CI. `packages/verify/test/verify.mjs`.
 
 ### 3.3 Product surfaces (open)
-#### 3.3.1 Payout console (child task `09-21-payout-console`)
-- 3.3.1.1 ⬜ T — Data model + migrations (REQ-CON-1..3). `05_data_model_api.md`.
-- 3.3.1.2 ⬜ T — Payables, batches, FX lock, two-person approval with HMAC (REQ-CON-4..7).
-- 3.3.1.3 ⬜ T — Execution adapters: Zkool GraphQL primary, Zallet, per-recipient ZIP-321 (REQ-CON-8..10).
-- 3.3.1.4 ⬜ T — Auto-issuance, receipt page, audit pack page, exports (REQ-CON-11..14).
+#### 3.3.1 Payout console — foundations (child task `09-21-payout-console`; stack decided: Next.js 15 App Router, TypeScript strict, Tailwind, libSQL + Drizzle; `.trellis/spec/frontend/index.md`)
+- 3.3.1.1 ⬜ T — Stack scaffold, config validation for custody mode (REQ-CON-17), `.env` schema, deploy target = Fly.io single node (SQLite volume). 0.5 pd, 2026-09-23.
+- 3.3.1.2 ⬜ T — Auth/session (email magic link; SIWZ optional) and role matrix (REQ-CON-1). 0.5 pd, 2026-09-23.
+- 3.3.1.3 ⬜ T — Data model + migrations for orgs/members/recipients (REQ-CON-2) per `05_data_model_api.md` §1. 0.5 pd, 2026-09-23.
+- 3.3.1.4 ⬜ T — API surface: route handlers `/api/{recipients,payables,batches,approvals,receipts,exports}` writing `audit_log`; OpenAPI stub. 0.5 pd, 2026-09-23.
 #### 3.3.2 Solana attestation (child task `09-21-solana-attestation`)
 - 3.3.2.1 ⬜ R — Anchor program: ed25519 precompile check + PDA row (REQ-SOL-1..2).
 - 3.3.2.2 ⬜ T — Client that verifies then submits (REQ-SOL-3).
@@ -197,13 +197,27 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured).
 - 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances.
 - 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after 2026-10-06.
+- 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-01 → 10-03.
+#### 3.3.5 Payout console — payables, batches, execution
+- 3.3.5.1 ⬜ T — Payables + CSV import (Konclave `label,address,value[,memo]`, zecpay columns) with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.5 pd, 2026-09-24.
+- 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10). 1 pd, 2026-09-24.
+- 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25.
+- 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-24.
+- 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-09-30.
+- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-09-25.
+#### 3.3.6 Payout console — receipts, pages, exports
+- 3.3.6.1 ⬜ T — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-26.
+- 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-26.
+- 3.3.6.3 ⬜ T — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-8). 1.5 pd, 2026-09-27 → 09-28.
+- 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-02.
 
 ### 3.4 Evidence and quality
 #### 3.4.1 Proof log
 - 3.4.1.1 ✅ R — mainnet-read. PROOF §1.
 - 3.4.1.2 ✅ R — synthetic (CLI + browser). PROOF §2/§2b.
 - 3.4.1.3 ✅ R — regtest consensus-valid transaction. PROOF §5.
-- 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim). PROOF §4/§6.
+- 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
+- 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
 - 3.4.2.1 ✅ R — 26 tests, clippy `-D warnings`, fmt. CI file.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
@@ -244,8 +258,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 5.1 Materials
 #### 5.1.1 Videos
-- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (script KB `20` §16.6).
-- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline KB `20` §17.14).
+- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5).
+- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline `11_plan.md` §5).
 - 5.1.1.3 ⬜ PM — Weekly update videos ×2.
 - 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links.
 #### 5.1.2 Written
@@ -259,7 +273,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 5.2.1.1 ⬜ PM — Initial upload on window-open day (assumed 2026-10-05).
 - 5.2.1.2 ⬜ PM — Final videos by 2026-10-09; freeze 2026-10-10.
 - 5.2.1.3 ⬜ PM — Final submission 2026-10-11 (one-day buffer).
-- 5.2.1.4 ⬜ PM — Post-submission: keep shipping; interview prep (KB `19_judges`).
+- 5.2.1.4 ⬜ PM — Post-submission: keep shipping; interview prep (`11_plan.md` §6).
 #### 5.2.2 Compliance with rules
 - 5.2.2.1 ✅ PM — English-only content. All repo docs English.
 - 5.2.2.2 ✅ PM — Pre-existing code disclosure. `docs/PRE_EVENT_STATE.md`.
@@ -268,15 +282,30 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ---
 
+## Asks of the user (all 👤 leaves, by due date)
+
+| Due | Leaf | Ask | Why it blocks |
+|---|---|---|---|
+| 2026-09-22 | 1.1.1.4 | Confirm the submission window open date (Colosseum Discord/FAQ) | sets the initial-upload day (5.2.1.1) and weekly video 2 |
+| 2026-09-22 | 2.4.3.4 | Confirm the product name (default: Zeceipt) | README, npm scope, domain |
+| 2026-09-24 | 4.1.1.1 | Create the GitHub org/repo, push, enable CI | CI has never run; judges need a public URL; dead links in README/package.json |
+| 2026-09-24 | 2.4.3.3 | Team roster and two founder-market-fit sentences | pitch video, submission form |
+| 2026-09-25 | 3.4.1.4 | Claim testnet TAZ from a faucet (human CAPTCHA/PoW gate) | first public-chain receipt (PROOF §6) |
+| 2026-09-26 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | headline metric ≥ 15 public receipts |
+| 2026-09-26 | 4.1.2.3 | Decide whether to contact Konclave's author (default: yes) | adapter PR and pilot |
+| 2026-09-28 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
+| 2026-10-04 | 4.1.1.3 | `npm publish @zeceipt/verify` | REQ-WEB-8; integrator story |
+| 2026-10-09 | 5.1.2.3 | Team backgrounds, location, logo for the form | submission form fields |
+
 ## Roll-up
 
 | Phase | Leaves | ✅ | 🟡 | ⬜ | 👤 |
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
-| 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 48 | 27 | 0 | 20 | 1 |
+| 2 Product definition | 44 | 39 | 1 | 2 | 2 |
+| 3 Engineering | 60 | 27 | 0 | 31 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 16 | 3 | 0 | 12 | 1 |
-| **Total** | 168 | 107 | 1 | 51 | 9 |
+| **Total** | 180 | 106 | 2 | 62 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

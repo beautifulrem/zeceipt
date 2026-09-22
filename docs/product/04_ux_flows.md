@@ -11,7 +11,7 @@
 ## 2. Flows
 
 ### FLOW-1 Issuer runs a batch (P1/P2)
-1. Import CSV (Konclave `label,address,value[,memo]` or zecpay `name,wallet,amount,currency,payout_currency`) or add payables by hand → validation report (bad UA, duplicate address, missing KYC on ≥ $2,000 aggregate `[R26]`).
+1. Import CSV (Konclave `label,address,value[,memo]` or zecpay `name,wallet,amount,currency,payout_currency`) or add payables by hand → validation report (bad UA, duplicate address, missing W-9/TIN for a `tax_flag = us_1099` recipient whose calendar-year aggregate reaches $2,000 `[R26]`; KYC status is shown but does not block).
 2. Create batch → lock rate (two sources shown with deviation; > 3% blocks).
 3. Approvals: two approvers each see recipients, totals, rate; approve → HMAC recorded; any edit resets approvals.
 4. Execute: choose backend (Zkool hot-custody · external signer via per-recipient ZIP-321 QR); confirm dialog restates totals.

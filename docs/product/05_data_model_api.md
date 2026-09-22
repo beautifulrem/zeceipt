@@ -7,14 +7,15 @@ Money: integer zatoshi (`bigint`) and integer USD cents. Rates: decimal string +
 | Table | Key fields | Invariants |
 |---|---|---|
 | `orgs` | id, name, network (main/test/regtest), custody_mode (hot/external), issuer_key_id, ufvk_encrypted | one active issuer key; UFVK encrypted at rest with an org wrap key |
-| `members` | id, org_id, email, role (admin/approver/operator/viewer) | ≥ 2 approvers required to execute |
+| `members` | id, org_id, email, role (admin/approver/operator/viewer) | an org must have ≥ 2 members with role approver before any batch can leave `draft` |
 | `recipients` | id, org_id, display_name, ua, network, kyc_status, tax_flag (us_1099/non_us/none), settlement_pref (zec/usdc_sol), notes | `ua` validated for `network`; duplicates flagged not blocked |
 | `payables` | id, org_id, recipient_id, kind (milestone/invoice/bounty/salary), usd_cents, reference, source_ref (grant/issue link), status | reference is unique per org (becomes the memo) |
 | `batches` | id, org_id, state, rate_zec_usd, rate_sources_json, rate_locked_at, backend (zkool/zallet/zip321), txid, broadcast_at, confirmed_height, nonce | state machine below; `nonce` prevents double submission |
-| `batch_items` | batch_id, payable_id, zat, output_index (nullable until confirmed), receipt_id (nullable) | zat = round(usd_cents / rate) with recorded rounding |
-| `approvals` | id, batch_id, member_id, hmac, approved_at | hmac = HMAC-SHA256(org secret, batch id ‖ sorted(recipient ua, zat) ‖ rate ‖ backend); invalid if batch content changes |
+| `batch_items` | batch_id, payable_id, zat, output_index (nullable until confirmed), receipt_id (nullable) | `zat = floor(usd_cents × 10^8 / (100 × rate_zec_usd))` computed in integer/decimal arithmetic (never binary floats), floor so the payer never overpays by rounding; `rounding_dust_zat = exact − zat` stored; `sum(zat) + fee ≤ funded balance` checked at preflight |
+| `approvals` | id, batch_id, member_id, hmac, approved_at | hmac = HMAC-SHA256(org secret, batch id ‖ sorted(recipient ua, zat) ‖ rate ‖ backend); invalid if batch content changes; execution requires 2 valid approvals from distinct approvers |
 | `receipts` | id, org_id, batch_item_id, txid, pool, output_index, receipt_json, url, recovered_value_zat, recovered_recipient, memo_text, issued_at | unique (txid, pool, output_index); ock inside receipt_json is stored encrypted at rest |
 | `issuer_keys` | id, org_id, key_id, pubkey_hex, secret_encrypted, valid_from, valid_to, revoked_at | drives `/.well-known/zeceipt.json` |
+| (wrap key) | — | Encryption at rest (UFVK, OCKs in `receipts`, issuer secrets) uses an org wrap key derived from a deployment master key held in the process environment / secret store, never in the database; rotation re-wraps rows. In hot-custody mode the seed is only in the Zkool process; in external-signer mode no seed exists on the host (REQ-CON-17). |
 | `audit_log` | id, org_id, actor, action, payload_hash, at | append-only |
 
 Batch state machine: `draft → awaiting_approvals → approved → submitting → broadcast → confirming(n) → confirmed → receipts_issued`; failure edges: `submitting → failed_retryable`, `broadcast → unknown_outcome` (after timeout, manual reconcile), any → `cancelled` (only before broadcast).
@@ -47,7 +48,7 @@ Receipt issuance is backend-independent: after `Mined{height}` and N confirmatio
 
 ### 3.2 QuickBooks Online 3-column (`qbo.csv`) `[R32]`
 `Date,Description,Amount`
-- `Date` `MM/DD/YYYY`; `Description` = `reference — recipient display name`; `Amount` negative for money out, plain decimal, no currency symbols or thousands separators; header row only; file split at ~1,000 rows to stay under the size limit. (4-column variant `Date,Description,Credit,Debit` available as an option.)
+- `Date` `MM/DD/YYYY`; `Description` = `reference — recipient display name`; `Amount` negative for money out, plain decimal, no currency symbols or thousands separators; header row only; file split when a chunk approaches the ~350 KB upload limit recorded in `[R32]` (≈ 5,000 short rows; inference from the size limit, not a documented row cap). (4-column variant `Date,Description,Credit,Debit` available as an option.)
 
 ### 3.3 Xero bank statement (`xero.csv`) `[R32]`
 `Date,Amount,Payee,Description,Reference`

@@ -5,9 +5,11 @@
 1. **Zcash grant and bounty programs** (P1): ZecHub DAO (weekly bounties), FPF/ZCG (1,015-row public ledger), ZF grants. Value: verifiable public ledger; auditor packs. Channel: forum post + ZecHub Discord + OpenZcash "verified" demo branch.
 2. **Zcash-native teams and DAOs** (P2): Zcash Brazil (Konclave), Shielded Labs, ZODL contractors, grantee teams. Channel: Konclave CSV adapter; direct outreach to Konclave's author.
 3. **Developers** (P5): crates + npm + vectors; zips #387 post; ZecHub wiki page.
-4. **Post-hackathon**: compliance/verification API for exchanges and KYT vendors; second chain (Solana confidential balances) as the same receipt format.
+4. **Post-hackathon**: compliance/verification API for exchanges and KYT vendors; second chain: the same envelope and verification UX over a chain-specific disclosure primitive (Solana confidential balances use per-mint ElGamal auditor keys, not per-output keys `[R41]`; a per-transfer disclosure there needs its own primitive and is research, not a port).
 
 ## 2. Launch sequence (dates)
+
+Dates here are a subset of the single timeline in `09_submission_checklist.md` §5; if they ever disagree, §5 wins.
 
 | Date | Action | Owner |
 |---|---|---|
@@ -34,10 +36,10 @@
 | Tier | Price | Includes | Benchmark logic |
 |---|---|---|---|
 | Open source | free | crates, npm, CLI, format, vectors | dev adoption; grant-fundable public good |
-| Issuer | $0 up to 20 receipts/month | hosted receipt pages, one org, one issuer key | free tier like Bitwage's standard `[R29]` |
+| Issuer | $0 up to 20 receipts/month | hosted receipt pages, one org, one issuer key | free entry tier (Bitwage's per-employee pricing `[R29]` is unverified, second-hand; the free tier stands on its own) |
 | Team | $79/month | 500 receipts/month, audit-pack hosting, exports (OpenZcash/QBO/Xero/1099 totals), 5 seats | below Request Finance Growth ($250) since we are an add-on, above Rise's $49/contractor unit `[R27]` `[R28]` |
 | Organisation | from $299/month | unlimited receipts, well-known key binding, verification API quota, priority support | Request Finance Pro/Scale range `[R27]` |
-| Verification API / licensing | usage-based; enterprise licence | compliance vendors, exchanges, ledgers | six-figure KYT contracts as the ceiling reference (KB `20` §17.3) |
+| Verification API / licensing | usage-based; enterprise licence | compliance vendors, exchanges, ledgers | commercial KYT/compliance deployments quoted at $50k–$200k/yr and above as the ceiling reference `[R40]` |
 
 Optional revenue: 1Click affiliate fee on ZEC→USDC settlement (Could).
 
@@ -48,6 +50,6 @@ Optional revenue: 1Click affiliate fee on ZEC→USDC settlement (Could).
 - Proof points (countable): receipts issued, packs verified, third-party verifications, integrations.
 - What we are not: not a wallet, not a vault, not an EOR, not a full ZIP 311.
 
-## 6. Metrics (from KB `20` §17.8)
+## 6. Metrics (detail in `11_plan.md` §4)
 
 Pre-submission: ≥ 15 receipts on public chains (blocked on funding), ≥ 1 real issuing org, ≥ 1 third-party emitter/consumer, npm/crate downloads ≥ 50, ≥ 3 publicly posted verifications. 90 days: 3 orgs / 300 receipts / 2 integrations.

@@ -45,7 +45,7 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 | REQ-WEB-4 | M | Fetch raw tx over gRPC-web from public nodes with failover; page states that the node learns the txid. | Fetch of a mainnet txid succeeds from `zjs.zec.rocks`. | ✅ PROOF §2b |
 | REQ-WEB-5 | M | Committed package must not drift from the format: node guard verifies committed vectors (all Network×Pool) through the committed wasm. | `node packages/verify/test/verify.mjs` ALL OK in CI. | ✅ CI step |
 | REQ-WEB-6 | M | Signature-only check API for integrators. | `checkSignature()` returns signed/valid/pubkey. | ✅ `check_signature` export |
-| REQ-WEB-7 | S | Receipt page renders the three-part outcome (cryptographic validity, chain inclusion, issuer binding) and confirmations from the data source. | Page shows confirmation depth when fetched from a node. | 🟡 height shown; binding lookup not implemented |
+| REQ-WEB-7 | S | Receipt page renders the three-part outcome (cryptographic validity, chain inclusion, issuer binding). | Page shows the mined height when fetched from a node and states that confirmation depth must be checked elsewhere; issuer binding rendered as confirmed/unknown. | 🟡 mined height shown + depth disclaimer (PROOF §2b); binding lookup ⬜ (WBS 3.3.3.3) |
 | REQ-WEB-8 | C | Publish `@zeceipt/verify` to npm with working links. | Package resolvable; README links live. | 👤 user action |
 
 ## 4. Payout console (`apps/console`)
@@ -93,10 +93,10 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 
 | ID | Requirement | Acceptance criterion | Status |
 |---|---|---|---|
-| NFR-1 Security | No spending keys, seeds or mnemonics accepted anywhere in the workspace; `forbid(unsafe_code)`; no `unwrap` in library code. | Reviewer grep + clippy; CLI has no such flags. | ✅ |
+| NFR-1 Security | No spending keys, seeds or mnemonics accepted anywhere in the workspace; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. | Reviewer grep + clippy; CLI has no such flags. | ✅ (reviewer round 1 of the product package confirmed the grep; CLI crate attribute added 2026-09-22) |
 | NFR-2 Privacy | Only per-output OCKs are disclosed; UFVK/OVK never leave the issuer; hosted verifier discloses which txid it fetches. | Spec §9; demo copy. | ✅ |
 | NFR-3 Reliability | Endpoint failover; `pending` distinct from `invalid`; idempotent issuance. | lwd tests; CLI exit 2 path. | ✅ (console idempotency ⬜) |
-| NFR-4 Performance | Browser verify < 1 s after wasm load for a 20 KB tx; CLI issue < 5 s per tx on public nodes. | Measured in Chrome (sub-second); CLI live runs ~1–3 s. | ✅ (informal) |
+| NFR-4 Performance | Browser verify < 1 s after wasm load for a 20 KB tx; CLI fetch+parse < 5 s per tx on public nodes. | Measured 2026-09-22 (PROOF §2b timing): wasm init 13.9 ms, verify 3–4 ms per 9 KB tx (node, 20-run average); CLI `inspect` of a mainnet tx over gRPC 1.15 s wall; offline verify 0.01 s. | ✅ measured |
 | NFR-5 Portability | Pure-Rust core compiles to wasm32; Linux/macOS CI. | wasm-pack build; CI file. | ✅ |
 | NFR-6 Observability | `tracing` levels; secrets never above `trace`. | Logging spec. | ✅ |
 | NFR-7 Accessibility & copy | English UI; outcomes have text not only colour; proves/does-not-prove always shown. | Demo page. | ✅ (console ⬜) |
@@ -104,29 +104,67 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 
 ## 8. Traceability matrix (requirement → WBS leaf → evidence)
 
-| Requirement | WBS leaf(s) | Evidence or plan |
-|---|---|---|
-| REQ-CORE-1 | 3.1.2.1 | test `parses_mainnet_v6_fixture_and_enumerates_ironwood_actions` |
-| REQ-CORE-2, -3, -4 | 3.1.2.2 | tests `*_round_trip_*`, `official_orchard_test_vectors_ock_and_recovery` |
-| REQ-CORE-5, -6, -7 | 3.1.2.3, 3.1.3.1, 3.1.3.2 | `tests/offline_e2e.rs`, `tamper_each_field_breaks_signature` |
-| REQ-CORE-8 | 3.1.3.4 | `spec/test-vectors/receipt-v0.json`, `committed_test_vectors_match` |
-| REQ-CORE-9 | 3.1.2.4 | PROOF §5 (regtest) |
-| REQ-CORE-10 | 3.1.3.3 | `audit_pack_round_trip` |
-| REQ-CLI-1 … -6 | 3.2.1.1, 3.2.1.2, 3.2.1.3 | `crates/zeceipt-cli/tests/cli.rs`, PROOF §2 |
-| REQ-CLI-7 | 3.2.1.4 | planned (privacy modes) |
-| REQ-CLI-8 | 3.2.2.4 | planned (`--features live`) |
-| REQ-WEB-1 … -4 | 3.2.3.1, 3.2.3.2 | `crates/zeceipt-wasm`, `packages/verify/src` |
-| REQ-WEB-5, -6 | 3.2.3.3 | PROOF §2b (Chrome incl. tamper/XSS) |
-| REQ-WEB-7, -8 | 3.2.3.4 | `packages/verify/test/verify.mjs`, CI node guard |
-| REQ-CON-1, -2, -3 | 3.3.1.1 | `05_data_model_api.md` §1 |
-| REQ-CON-4 … -7 | 3.3.1.2 | `04_ux_flows.md` FLOW-1, `05` §1 state machine |
-| REQ-CON-8, -9, -10 | 3.3.1.3 | `05` §2 adapter contract |
-| REQ-CON-11 … -14 | 3.3.1.4 | `05` §3 exports, `04` SCR-6..8 |
-| REQ-CON-15, -16 | 3.3.1.4 (cut order 1–2, `06` RSK-6) | Should; first to cut |
-| REQ-CON-17 | 3.3.1.3 | `docs/THREAT_MODEL.md` custody modes; SCR-5 notice |
-| REQ-SOL-1, -2 | 3.3.2.1 | `05` §4 attestation row |
-| REQ-SOL-3 | 3.3.2.2 | planned |
-| REQ-SOL-4 | 3.3.2.3 | PROOF §7 (to add) |
-| REQ-SOL-5 | 3.3.2.4 | `[R33]` asset ids measured; quote pending |
-| REQ-INT-1 … -4 | 3.3.3.1 … 3.3.3.4 | `[R10]` CSV format, `[R5]` columns, `05` §4 well-known, zips #387 |
-| NFR-1 … -8 | 3.4.2.1, 3.4.2.2, 3.4.2.3, 3.4.2.4 | CI file, review journal, planned audit/reproducible build |
+One row per requirement. Evidence for ✅ rows is a test name, a PROOF section or a repo file (`[R37]` is the proof log itself); ⬜/🟡 rows point at the plan. Checked by `scripts/check_product_docs.py` (leaf numbers exist; test names exist under `crates/`; no ⬜ row cites PROOF).
+
+| Requirement | Status | WBS leaf | Evidence or plan |
+|---|---|---|---|
+| REQ-CORE-1 | ✅ | 3.1.2.1 | test `parses_mainnet_v6_fixture_and_enumerates_ironwood_actions` |
+| REQ-CORE-2 | ✅ | 3.1.2.2 | tests `official_orchard_test_vectors_ock_and_recovery`, `ironwood_round_trip_ock_derivation_and_recovery`, `sapling_round_trip_ock_derivation_and_recovery` |
+| REQ-CORE-3 | ✅ | 3.1.2.2 | same tests + `verify_rejects_txid_mismatch_and_wrong_index` |
+| REQ-CORE-4 | ✅ | 3.1.3.1 | tests `tamper_each_field_breaks_signature`, `committed_test_vectors_match` |
+| REQ-CORE-5 | ✅ | 3.1.2.3 | `crates/zeceipt-core/tests/offline_e2e.rs` |
+| REQ-CORE-6 | ✅ | 3.1.2.3 | PROOF §2, §5 `[R37]` |
+| REQ-CORE-7 | ✅ | 3.1.3.3 | test `audit_pack_round_trip`; CLI test `inspect_issue_pack_and_verify_pack_offline` |
+| REQ-CORE-8 | ✅ | 3.1.2.4 | PROOF §5 (regtest) `[R37]` |
+| REQ-CORE-9 | ⬜ | 3.3.4.5 | Should 8 prototype (`11_plan.md` §1); first item in the cut order |
+| REQ-CORE-10 | ⬜ | 3.3.3.3 | `05_data_model_api.md` §4 well-known file |
+| REQ-CLI-1 | ✅ | 3.2.1.1 | `crates/zeceipt-cli/tests/cli.rs`; PROOF §2 |
+| REQ-CLI-2 | ✅ | 3.2.1.2 | tests `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` |
+| REQ-CLI-3 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` |
+| REQ-CLI-4 | ✅ | 3.2.1.3 | test `inspect_issue_pack_and_verify_pack_offline` |
+| REQ-CLI-5 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` (stage `network`) |
+| REQ-CLI-6 | ✅ | 3.2.1.1 | implementation review round 2 (journal); no seed/key flags in `crates/zeceipt-cli/src/main.rs` |
+| REQ-CLI-7 | ⬜ | 3.2.1.4 | planned: `--block-range`, `--tor` |
+| REQ-CLI-8 | ⬜ | 3.2.2.4 | planned: `--features live` |
+| REQ-WEB-1 | ✅ | 3.2.3.1 | PROOF §2b `[R37]` |
+| REQ-WEB-2 | ✅ | 3.2.3.3 | PROOF §2b (stage shown for tamper cases) |
+| REQ-WEB-3 | ✅ | 3.2.3.3 | PROOF §2b (escaping check) |
+| REQ-WEB-4 | ✅ | 3.2.3.2 | PROOF §2b (fetch from `zjs.zec.rocks`); `packages/verify/src/index.js` |
+| REQ-WEB-5 | ✅ | 3.2.3.4 | `packages/verify/test/verify.mjs`; CI node guard |
+| REQ-WEB-6 | ✅ | 3.2.3.1 | `check_signature` export in `crates/zeceipt-wasm/src/lib.rs` |
+| REQ-WEB-7 | 🟡 | 3.3.6.2 | mined height shown (PROOF §2b); binding lookup with 3.3.3.3 |
+| REQ-WEB-8 | 👤 | 4.1.1.3 | npm publish after links resolve |
+| REQ-CON-1 | ⬜ | 3.3.1.2 | auth/session + role matrix |
+| REQ-CON-2 | ⬜ | 3.3.1.3 | `05_data_model_api.md` §1 `recipients` |
+| REQ-CON-3 | ⬜ | 3.3.5.1 | `05` §1 `payables`; `[R10]` Konclave CSV, `[R12]` zecpay columns |
+| REQ-CON-4 | ⬜ | 3.3.5.2 | `05` §1 `batches` rate fields |
+| REQ-CON-5 | ⬜ | 3.3.5.3 | `05` §1 `approvals` HMAC |
+| REQ-CON-6 | ⬜ | 3.3.5.1 | `04_ux_flows.md` SCR-2 linkability warning; spec §9 |
+| REQ-CON-7 | ⬜ | 3.3.5.4 | `05` §2 zkool-graphql adapter `[R18]` |
+| REQ-CON-8 | ⬜ | 3.3.5.5 | `05` §2 zallet-rpc adapter `[R19]` |
+| REQ-CON-9 | ⬜ | 3.3.5.6 | `05` §2 zip321-manual adapter `[R17]` |
+| REQ-CON-10 | ⬜ | 3.3.5.2 | `05` §1 batch state machine |
+| REQ-CON-11 | ⬜ | 3.3.6.1 | auto-issuance via `zeceipt_core::issue` |
+| REQ-CON-12 | ⬜ | 3.3.6.2 | `04` SCR-10, FLOW-2 |
+| REQ-CON-13 | ⬜ | 3.3.6.3 | `04` SCR-11, FLOW-3 |
+| REQ-CON-14 | ⬜ | 3.3.6.3 | `05` §3 export columns `[R5]` `[R32]` |
+| REQ-CON-15 | ⬜ | 3.3.6.4 | cut order item 2 (`11_plan.md` §2) |
+| REQ-CON-16 | ⬜ | 3.3.6.4 | cut order item 2 |
+| REQ-CON-17 | ⬜ | 3.3.1.1 | `docs/THREAT_MODEL.md` custody modes; `04` SCR-5 notice; config validation |
+| REQ-SOL-1 | ⬜ | 3.3.2.1 | `05` §4 attestation row |
+| REQ-SOL-2 | ⬜ | 3.3.2.1 | PDA keyed by (txid, index) |
+| REQ-SOL-3 | ⬜ | 3.3.2.2 | client verifies with `@zeceipt/verify` first |
+| REQ-SOL-4 | ⬜ | 3.3.2.3 | devnet deployment; evidence section to be added to the proof log |
+| REQ-SOL-5 | ⬜ | 3.3.2.4 | `[R33]` asset ids known; quote/min amount to measure |
+| REQ-INT-1 | ⬜ | 3.3.3.1 | `[R10]` CSV format |
+| REQ-INT-2 | ⬜ | 3.3.3.2 | `[R5]` columns; `05` §3.1 |
+| REQ-INT-3 | ⬜ | 3.3.3.3 | `05` §4 well-known contract |
+| REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 post planned 2026-09-27 |
+| NFR-1 | ✅ | 3.4.2.1 | clippy `-D warnings`; grep; `forbid(unsafe_code)` in all five crates |
+| NFR-2 | ✅ | 3.1.2.3 | spec §9; demo page node disclosure (PROOF §2b) |
+| NFR-3 | ✅ | 3.2.2.3 | lwd unit tests; exit 2 path; console idempotency with 3.3.6.1 |
+| NFR-4 | ✅ | 3.4.2.1 | PROOF §2b timing (2026-09-22) |
+| NFR-5 | ✅ | 3.2.3.1 | wasm-pack build; CI wasm job |
+| NFR-6 | ✅ | 3.1.1.2 | `.trellis/spec/backend` logging rule; `tracing` in lwd/cli |
+| NFR-7 | ✅ | 3.2.3.3 | demo page copy (PROOF §2b); console with 3.3.6.2 |
+| NFR-8 | ⬜ | 3.3.6.3 | exports test (REQ-CON-14) |

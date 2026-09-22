@@ -2,6 +2,12 @@
 
 Evidence-based: every persona cites public statements or data (`[Rn]` in `10_research_log.md`). No interviews have been run yet (WBS 1.3.2.3/1.3.2.4 open).
 
+## 0. Problem statement and why now
+
+Problem: organisations that pay people in shielded ZEC cannot prove a single payment without handing over a viewing key that reveals every payment, so public ledgers stay "trust me" `[R5]`, recipients get no receipt, and auditors are asked for all-or-nothing access `[R3]`. Payout tools keep an internal ledger but produce no chain-verifiable artefact `[R10]` `[R11]`.
+
+Why now: the Ironwood pool activated on 2026-07-28 and the Orchard pool is sealed, so every new shielded payment uses a domain no receipt tool had implemented `[R20]`; ZIP 311 defines the disclosure primitive but has no implementation and the funded SDK application targets 2027 `[R7]` `[R8]`; the Zallet/Zaino stack replaces zcashd in the same window `[R19]` `[R34]`; EU AMLR makes on-demand provability the condition for privacy assets at regulated counterparties from 2027-07 `[R23]`; only one major exchange withdraws to shielded addresses, so most organisational payments still start transparent and need a private-but-provable path `[R24]`.
+
 ## P1 — Grant-program operations (primary buyer)
 
 - Who: the FPF/ZCG staff who pay milestones and bounties; Zcash Foundation grants; ZecHub DAO bounty admin.
@@ -50,7 +56,7 @@ Evidence-based: every persona cites public statements or data (`[Rn]` in `10_res
 
 ## Judges as user proxies
 
-Colosseum judges evaluate on Functionality, Impact, Novelty, UX, Open-source, Business Plan `[R1]`. The ZODL-appointed Zcash judge will test "is this real ZEC usage" `[R2]`. Answers are prepared in KB `19_judges` §七.
+Colosseum judges evaluate on Functionality, Potential Impact, Novelty, UX, Open-source, Business Plan `[R1]`. The ZODL-appointed Zcash judge will test "is this real ZEC usage" `[R2]`. Answers are prepared in `11_plan.md` §6; the criterion-by-criterion map is `09_submission_checklist.md` §6.
 
 ## Prioritisation
 
