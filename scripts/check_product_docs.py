@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -243,9 +243,10 @@ for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| (
                 a, b = leaf_dates[n]
                 if a < w0 or b > w1:
                     errors.append(f"00_wbs.md: leaf {n} dated {a} → {b} but listed in window {w0} → {w1}")
-raw_rows = len(re.findall(r"^\| \d{2}-\d{2}", sched, re.M))
-if windows != raw_rows:
-    errors.append(f"11_plan.md §3: {raw_rows} dated rows but only {windows} parsed as windows (a malformed cell separator hides a row from the checks)")
+sched_tbl = sched.split("| Window |")[1] if "| Window |" in sched else ""
+body_rows = [ln for ln in sched_tbl.splitlines()[2:] if ln.startswith("|")]  # skip header line remainder + separator
+if windows != len(body_rows):
+    errors.append(f"11_plan.md §3: {len(body_rows)} table body rows but only {windows} parsed as windows (a malformed date or cell separator hides a row from the checks)")
 if windows == 0:
     errors.append("11_plan.md §3: no dated windows found")
 tok_buffer = sum(float(x) for x in re.findall(r"\{buffer (\d+(?:\.\d+)?)\}", sched))
@@ -290,7 +291,17 @@ solo_kept_tbl = solo.split("Dropped in the solo branch")[0] if solo else ""
 solo_dropped = solo.split("Dropped in the solo branch")[1] if "Dropped in the solo branch" in solo else ""
 kept_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_kept_tbl))
 dropped_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_dropped))
+solo_cells = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\|.*\| ((?:kept|reduced|dropped)[^|]*)\|$", req_defs, re.M))
 for rid, val in solo_col.items():
+    cell = solo_cells.get(rid, "")
+    cited = re.findall(r"\b(\d\.\d\.\d\.\d)\b", cell)
+    if val == "reduced":
+        kept_cited = [n for n in cited if n in kept_ids]
+        if not kept_cited:
+            errors.append(f"01_requirements.md: {rid} is 'reduced' but its Solo cell cites no kept leaf (cite the leaf that carries the surviving obligation)")
+    for n in cited:
+        if val == "dropped" and n in kept_ids:
+            errors.append(f"01_requirements.md: {rid} is 'dropped' but cites kept leaf {n}")
     leaves_of = [n for n, rs in leaf_reqs.items() if rid in rs]
     if not leaves_of:
         continue
