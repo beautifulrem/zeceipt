@@ -80,5 +80,6 @@ Array of receipt envelopes (spec §2). Public feed for ledgers (FLOW-5).
   "signature": "<hex ed25519 by root over canonical JSON of keys>" }
 ```
 Verifier semantics: signature validity from the inline key; binding lookup can only upgrade to "confirmed"; unknown/lapsed → "issuer binding unknown".
+- Console health (built, slice C2): `GET /api/health` → `application/health+json`, `{"status":"pass","checks":{"sqlite:responsiveness":[{"status":"pass"}]}}` with 200, or `fail` with 503; `Cache-Control: no-store`; no version, path, org or dependency details `[R57]`.
 - Verification API (hosted, optional): `POST /v1/verify {receipt, raw_tx_hex?, challenge?}` → same JSON as the CLI; stateless, cacheable by (txid, index, ock hash).
 - Solana attestation row (REQ-SOL-1): `zcash_txid[32] ‖ output_index u32 ‖ sha256(recovered recipient ‖ value ‖ memo) ‖ usd_cents u64 ‖ date u32 (days) ‖ key_id len+bytes`, signed by the issuer key; program verifies via the ed25519 precompile and stores at PDA `["receipt", txid, index]`.

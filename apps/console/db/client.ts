@@ -41,13 +41,25 @@ export function openDb(opts: OpenDbOptions): ConsoleDb {
   return drizzle(client, { schema }) as ConsoleDb;
 }
 
-export const MIGRATIONS_DIR = join(import.meta.dirname, "migrations");
+/**
+ * The migrations shipped next to this file, for callers running this source under Node (tests, tools).
+ * A function, not a module-level constant: inside a bundle (Next.js/Turbopack) `import.meta.dirname` is
+ * undefined, and evaluating `join(undefined, …)` at load time would crash every importer (design C2
+ * 3.3.1.1.6.6). The app passes its folder to `migrateDb` instead.
+ */
+export function defaultMigrationsDir(): string {
+  const here = import.meta.dirname;
+  if (typeof here !== "string") {
+    throw new Error("migrations folder unknown inside a bundle: pass it to migrateDb (the app uses <cwd>/db/migrations)");
+  }
+  return join(here, "migrations");
+}
 
 /**
  * Apply pending migrations (Drizzle journal in `__drizzle_migrations`; a second run is a no-op).
  * Run once at startup in a single process, before serving requests. A second concurrent migrator fails
  * ("table already exists") without corrupting anything, but deployments must not rely on that.
  */
-export function migrateDb(db: ConsoleDb): void {
-  migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+export function migrateDb(db: ConsoleDb, migrationsFolder: string = defaultMigrationsDir()): void {
+  migrate(db, { migrationsFolder });
 }

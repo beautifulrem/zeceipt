@@ -4,3 +4,8 @@
 .DS_Store
 *.key
 /*.out
+
+# Next.js build output and its generated type references (apps/console)
+.next/
+next-env.d.ts
+*.tsbuildinfo

@@ -1,6 +1,6 @@
-# @zeceipt/console — execution and issuance library
+# @zeceipt/console — payout console (Next.js app and its execution and issuance library)
 
-The payout console's server-side core, written so the Next.js app (next task) calls it directly. No UI yet. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
+The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentation.ts`) around its server-side library (`lib/`). No batch pages yet (slice E); the app serves `/` and `/api/health`. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
 
 | Module | What it does |
 |---|---|
@@ -18,6 +18,9 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | `lib/execution/zkool-client.ts` | GraphQL client; loopback-only by default; distinguishes a server refusal from a lost answer |
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |
 | `lib/issuance/auto-issue.ts` | `autoIssue`: confirmation gate, `zeceipt issue --only-to …`, per-item cross-check, verification |
+| `lib/server/context.ts`, `lib/server/register-node.ts` | The per-process server context (`bootServerContext`: config → keyring → database → migrations → wrap keys removed from the environment; published once on `globalThis`), `serverContext()` (throws before boot), `bootFailureLines`; `registerNode` boots or exits the process with code 1 |
+| `lib/server/health.ts`, `app/api/health/route.ts` | `GET /api/health`: `application/health+json`, `{"status":"pass"}` 200 or `{"status":"fail"}` 503, `no-store`, no configuration details |
+| `instrumentation.ts`, `app/layout.tsx`, `app/page.tsx`, `next.config.ts` | Next.js entry points: `register()` (Node.js runtime only) calls `registerNode`; the root layout and a placeholder `/` |
 
 ## Configuration and custody modes
 
@@ -37,11 +40,17 @@ Record writes are compare-and-set per attempt (`IdempotencyStore.update`), so a 
 
 `autoIssue` matches every receipt to its own batch item (memo, value, payee address via the CLI's `matched_only_to`, not change, no output claimed twice). It verifies each receipt and only then writes the files; on any mismatch it throws and writes nothing.
 
+## Running the console
+
+`npm run build` needs no `ZECEIPT_*` variables: configuration is checked when the server starts, not when it is built. `npm start` (`next start`, run from this directory) boots once, before serving: it validates the configuration, builds the keyring, opens the database and applies pending migrations from `db/migrations`, then removes `ZECEIPT_WRAP_KEYS` from the process environment. If any step fails, it prints `startup refused: <variable>: <reason>` lines (never a value) and **exits with code 1**. A failed boot must not leave a server running: Next.js 16 keeps serving 500s after a throwing `register()`, which would look healthy to a process manager. `GET /api/health` answers `{"status":"pass"}` (200) while the database responds, and `{"status":"fail"}` (503) otherwise. It reports nothing else, and it does not check Zkool or lightwalletd.
+
 Run (Node ≥ 24; TypeScript runs natively, `tsc` only type-checks):
 
 ```sh
 npm ci
 npx tsc --noEmit -p .
 ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts          # unit tests (fake Zkool + real zeceipt on fixtures)
+npm run test:app                                                           # next build, then next start: health passes; bad config exits 1
 ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts                     # live regtest, see docs/REGTEST_RUNBOOK.md and PROOF §5c
+npm run build && set -a && . ./.env && set +a && npm start                 # the app, with a filled-in copy of .env.example
 ```

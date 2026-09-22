@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MIGRATIONS_DIR, migrateDb, NonceConflictError, openDb, SqliteIdempotencyStore, StoreBusyError, ZkoolBackend, ZkoolClient, type Batch, type ConsoleDb } from "../lib/index.ts";
+import { defaultMigrationsDir, migrateDb, NonceConflictError, openDb, SqliteIdempotencyStore, StoreBusyError, ZkoolBackend, ZkoolClient, type Batch, type ConsoleDb } from "../lib/index.ts";
 import { base } from "./helpers/store-contract.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 
@@ -44,7 +44,7 @@ test("openDb refuses in-memory and URL-style locations, and sets WAL, FULL sync 
 test("migrations apply once (one journal row per committed migration); a second run is a no-op", () => {
   const { db } = fresh("migrate");
   migrateDb(db);
-  const journal = JSON.parse(readFileSync(join(MIGRATIONS_DIR, "meta", "_journal.json"), "utf8")) as { entries: unknown[] };
+  const journal = JSON.parse(readFileSync(join(defaultMigrationsDir(), "meta", "_journal.json"), "utf8")) as { entries: unknown[] };
   assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, journal.entries.length);
   const names = (type: string) =>
     (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);

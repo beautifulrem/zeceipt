@@ -37,6 +37,9 @@ jobs:
           npm ci --no-audit --no-fund
           npx tsc --noEmit -p .
           ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts
+      - name: console app — next build without ZECEIPT_* variables, then next start boots and passes /api/health; bad configuration exits 1 before answering (REQ-CON-17)
+        working-directory: apps/console
+        run: ZECEIPT_APP_E2E=1 node --test test/app.e2e.test.ts
   wasm:
     runs-on: ubuntu-latest
     steps:

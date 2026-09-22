@@ -9,7 +9,7 @@ export type { Expect, IdempotencyStore, SubmissionRecord, SubmissionState, TxidE
 export { ZkoolBackend, isPreBuildRefusal } from "./execution/zkool-backend.ts";
 export { batchProblems, MEMO_MAX_BYTES } from "./execution/validate.ts";
 export { SqliteIdempotencyStore } from "./execution/sqlite-store.ts";
-export { openDb, migrateDb, MIGRATIONS_DIR, type ConsoleDb, type OpenDbOptions } from "../db/client.ts";
+export { openDb, migrateDb, defaultMigrationsDir, type ConsoleDb, type OpenDbOptions } from "../db/client.ts";
 export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./issuance/auto-issue.ts";
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";
 export { BatchInvalidError, batchNonce, createBatch, getBatch, listBatches, newBatchId, toExecutionBatch } from "./data/batches.ts";
@@ -20,6 +20,8 @@ export { countReceipts, listReceipts, recordReceipts, ReceiptRecordError, rewrap
 export { deriveBatchStatus, getBatchStatus } from "./data/status.ts";
 export type { BatchFacts, BatchState, BatchStatus, NextAction } from "./data/status.ts";
 export type { RecordResult, StoredReceipt } from "./data/receipts.ts";
-export { ConfigError, configSummary, keyringFromConfig, loadConfig } from "./config/env.ts";
+export { ConfigError, configSummary, keyringFromConfig, loadConfig, scrubSecretEnv } from "./config/env.ts";
+export { bootFailureLines, bootServerContext, ContextNotReadyError, SERVER_CONTEXT_KEY, serverContext } from "./server/context.ts";
+export type { BootOptions, ServerContext } from "./server/context.ts";
 export { SecretBytes } from "./crypto/secret.ts";
 export type { ConfigProblem, ConsoleConfig, CustodyConfig } from "./config/env.ts";

@@ -198,6 +198,15 @@ export function configSummary(c: ConsoleConfig): Record<string, unknown> {
   };
 }
 
+/**
+ * Remove the wrap keys' variable from the environment once the Keyring holds them (boot, slice C2), so
+ * later code in this process (routes, child processes that inherit `process.env`) never sees them.
+ * Best-effort like the zeroing above: it narrows exposure, it is not a boundary.
+ */
+export function scrubSecretEnv(env: Record<string, string | undefined> = process.env): void {
+  delete env[`${P}WRAP_KEYS`];
+}
+
 /** The Keyring for this deployment (the only consumer of the key bytes). */
 export function keyringFromConfig(c: ConsoleConfig): Keyring {
   return new Keyring(c.wrapKeys);
