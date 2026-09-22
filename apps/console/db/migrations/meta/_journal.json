@@ -71,6 +71,13 @@
       "when": 1790115784655,
       "tag": "0009_receipts_sealed_strict",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790115953548,
+      "tag": "0010_receipts_sealed_nonnull",
+      "breakpoints": true
     }
   ]
 }

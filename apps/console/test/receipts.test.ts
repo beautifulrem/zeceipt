@@ -194,6 +194,10 @@ test("the schema refuses impossible receipts; receipts cannot be deleted or chan
   assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_set(sealed, '$.v', json('true')) WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "v = true");
   assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_set(sealed, '$.extra', 1) WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "extra field");
   assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_set(sealed, '$.kid', 1), sealed_kid = '1' WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "numeric kid");
+  // Five keys in total but a required one missing: the check must not evaluate to NULL and let the row through.
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_remove(json_set(sealed, '$.x', 'y'), '$.ct') WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "ct replaced by x");
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = json_remove(json_set(sealed, '$.x', 1), '$.v') WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "v replaced by x");
+  assert.throws(() => db.$client.prepare(`UPDATE receipts SET sealed = '{"k\\u0069d":"kY",' || substr(json_remove(sealed, '$.tag'), 2), sealed_kid = 'kY' WHERE org_id = ? AND batch_id = ? AND idx = 0`).run(...key), /not a valid envelope/, "escaped duplicate kid in place of tag");
   const raw = new Database(dbPath); // recursive triggers OFF
   try {
     const r = raw.prepare("INSERT OR REPLACE INTO receipts (org_id, txid, pool, output_index, batch_id, idx, value_zat, recipient, memo_text, issued_at, verified_at, sealed, sealed_kid) SELECT org_id, txid, pool, output_index, batch_id, idx, 1, 'evil', 'evil', 't', 't', sealed, sealed_kid FROM receipts WHERE org_id = ? AND batch_id = ? AND idx = 0").run(...key);
