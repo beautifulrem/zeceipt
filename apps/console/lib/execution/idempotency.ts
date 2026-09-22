@@ -152,6 +152,7 @@ export class FileIdempotencyStore implements IdempotencyStore {
   private readonly dir: string;
   private readonly staleLockMs: number;
   private readonly lockWaitMs: number;
+  private lastSweepMs = Number.NEGATIVE_INFINITY;
   constructor(dir: string, opts: { staleLockMs?: number; lockWaitMs?: number } = {}) {
     this.dir = dir;
     this.staleLockMs = opts.staleLockMs ?? 30_000;
@@ -172,7 +173,11 @@ export class FileIdempotencyStore implements IdempotencyStore {
     } finally {
       await fh.close();
     }
-    await rename(tmp, path);
+    await rename(tmp, path).catch((e: NodeJS.ErrnoException) => {
+      // Our temp file was swept: we were suspended past staleLockMs, i.e. we lost the lease. Nothing landed.
+      if (e.code === "ENOENT") throw new StoreBusyError(`lost the lease while writing ${path} (temp file swept); nothing was written`);
+      throw e;
+    });
     await this.syncDir();
   }
 
@@ -193,7 +198,9 @@ export class FileIdempotencyStore implements IdempotencyStore {
     try {
       await link(tmp, path);
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; // an entry exists: it never moves
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") throw new StoreBusyError(`lost the lease while indexing ${path} (temp file swept); nothing was written`);
+      if (code !== "EEXIST") throw e; // EEXIST: an entry exists, and it never moves
     } finally {
       await unlink(tmp).catch(() => {});
     }
@@ -205,6 +212,9 @@ export class FileIdempotencyStore implements IdempotencyStore {
    * was left by a crash. Temp files are never read; removing them changes nothing.
    */
   async sweepTmp(): Promise<number> {
+    // Reading the directory is O(files) and the store is never pruned, so sweep at most once per staleLockMs.
+    if (Date.now() - this.lastSweepMs < this.staleLockMs) return 0;
+    this.lastSweepMs = Date.now();
     let removed = 0;
     const names = await readdir(this.dir).catch(() => [] as string[]);
     for (const name of names) {
