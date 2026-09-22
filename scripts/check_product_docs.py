@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -377,7 +377,7 @@ for name in ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md"):
             errors.append(f"{name}: capability statement without a requirement id: '{body[:90]}'")
 
 # §0 Must-set list must be sorted within each prefix
-must_list = re.search(r"the Must set reduces to ([^.]*)\.", req_text)
+must_list = re.search(r"the Must set reduces to (.*?)\.\s+(?:Everything|REQ|NFR|Where|Every)", req_text, re.S)
 if must_list:
     ids_in = re.findall(r"REQ-([A-Z]+)-(\d+)", must_list.group(1))
     by_prefix = {}
@@ -386,6 +386,19 @@ if must_list:
     for pre, nums in by_prefix.items():
         if nums != sorted(nums):
             errors.append(f"01_requirements.md §0: Must-set list for REQ-{pre} is not in numeric order: {nums}")
+
+# §1.1 buffer figures must all equal the solo kept-table Buffer row
+solo_buf = re.search(r"^\| Buffer \| \| \| (\d+(?:\.\d+)?) \|", solo, re.M)
+if not solo_buf:
+    errors.append("11_plan.md §1.1: solo Buffer row not found")
+else:
+    for fig in re.findall(r"(\d+(?:\.\d+)?) (?:pd )?(?:is held as buffer|pd buffer|buffer beyond)", solo) + re.findall(r"buffer beyond (\d+(?:\.\d+)?)", solo) + re.findall(r"of which (\d+(?:\.\d+)?) is held as buffer", solo):
+        if abs(float(fig) - float(solo_buf.group(1))) > 1e-6:
+            errors.append(f"11_plan.md §1.1: buffer figure {fig} disagrees with the kept-table Buffer row {solo_buf.group(1)}")
+    rsk = files.get("06_risk_register.md", "")
+    m19 = re.search(r"with a (\d+(?:\.\d+)?) pd buffer", rsk)
+    if m19 and abs(float(m19.group(1)) - float(solo_buf.group(1))) > 1e-6:
+        errors.append(f"06_risk_register.md: RSK-19 buffer {m19.group(1)} disagrees with 11_plan.md §1.1 Buffer row {solo_buf.group(1)}")
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
