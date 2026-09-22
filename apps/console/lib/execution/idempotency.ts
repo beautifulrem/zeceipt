@@ -232,8 +232,9 @@ export class FileIdempotencyStore implements IdempotencyStore {
    * still the stale one (same inode and mtime), so two waiters can never both break it or break a fresh
    * lock. A holder that is alive but suspended longer than `staleLockMs` (SIGSTOP, sleep, a hung disk)
    * loses the lease; `fn` gets `stillHeld()`, which throws `StoreBusyError` once the lock file is no
-   * longer the one this holder created, and `update` calls it before each write. The remaining window is
-   * a suspension between that check and the rename itself (RSK-21). A break lock is
+   * longer the one this holder created, and `update` calls it before each write. On exit the lock is
+   * removed only if it is still this holder's (same inode and mtime). The remaining window is a
+   * suspension between the last check and the rename itself (RSK-21). A break lock is
    * itself held for microseconds; one older than `staleLockMs` is removed. Waits up to `lockWaitMs`
    * (default `staleLockMs + 5 s`, always longer than it takes a dead writer's lock to go stale), then
    * throws `StoreBusyError` (a lock that keeps being renewed by live writers).
@@ -265,15 +266,12 @@ export class FileIdempotencyStore implements IdempotencyStore {
         throw new StoreBusyError(`lost the lease on ${lock} (held longer than ${staleLockMs} ms); nothing more was written`);
       }
     };
-    let lost = false;
     try {
       return await fn(stillHeld);
-    } catch (e) {
-      lost = e instanceof StoreBusyError;
-      throw e;
     } finally {
-      // Never delete a lock that another writer now holds.
-      if (!lost) await unlink(lock).catch(() => {});
+      // Never delete a lock that another writer now holds: unlink only if the file is still the one we created.
+      const st = await stat(lock).catch(() => undefined);
+      if (st && st.ino === held.ino && st.mtimeMs === held.mtimeMs) await unlink(lock).catch(() => {});
     }
   }
 

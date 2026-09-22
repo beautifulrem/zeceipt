@@ -479,3 +479,24 @@ test("file store lease: a writer suspended past staleLockMs loses the lock and w
   await assert.rejects(slow, StoreBusyError);
   assert.equal((await b2.get("n-lease"))?.error, "B");
 });
+
+test("file store lease: a holder suspended after its write does not delete the next holder's lock", async () => {
+  const d = join(dir, "lease-exit");
+  const a = new FileIdempotencyStore(d, { staleLockMs: 100 });
+  const base = { nonce: "n-exit", batchId: "b", batchDigest: "d", createdAt: "t", state: "submitting" as const, attempts: 1 };
+  await a.createIntent(base);
+  const { createHash } = await import("node:crypto");
+  const lock = join(d, `${createHash("sha256").update("n-exit").digest("hex")}.lock`);
+  // Simulate the next holder's lock appearing after A's write but before A's exit cleanup.
+  const origWrite = (a as unknown as { writeAtomic: (p: string, b: string) => Promise<void> }).writeAtomic.bind(a);
+  (a as unknown as { writeAtomic: (p: string, b: string) => Promise<void> }).writeAtomic = async (p: string, body: string) => {
+    await origWrite(p, body);
+    if (p.endsWith(".json")) {
+      await rm(lock);
+      await writeFile(lock, "B");
+    }
+  };
+  assert.equal(await a.update({ ...base, attempts: 2 }, { attempts: 1, states: ["submitting"] }), true);
+  const { readFile } = await import("node:fs/promises");
+  assert.equal(await readFile(lock, "utf8"), "B", "the other holder's lock must survive");
+});
