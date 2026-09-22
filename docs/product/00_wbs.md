@@ -222,7 +222,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 31 Rust tests + 105 TypeScript console tests (and 1 opt-in regtest e2e), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
+- 3.4.2.1 ✅ R — 31 Rust tests + 108 TypeScript console tests (and 1 opt-in regtest e2e), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.

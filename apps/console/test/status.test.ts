@@ -60,11 +60,12 @@ test("the status table, row by row (design §3.3.1.3.4.2)", () => {
     ["broadcast, confirmed, 1 of 3 receipts", { submission: sub("broadcast"), chain: mined(5), receipts: 1 }, "receipts_partial", "issue_receipts"],
     ["broadcast, confirmed, all receipts", { submission: sub("broadcast"), chain: mined(2), receipts: 3 }, "receipts_issued", "none"],
     ["broadcast, expired", { submission: sub("broadcast", { expiresBy: 150 }), chain: unknown("expired") }, "expired", "resend_expired"],
-    ["broadcast, timeout", { submission: sub("broadcast"), chain: unknown("timeout") }, "needs_attention", "wait"],
-    ["broadcast, superseded", { submission: sub("broadcast"), chain: unknown("superseded") }, "needs_attention", "submit"],
-    ["broadcast, interrupted", { submission: sub("broadcast"), chain: unknown("interrupted") }, "needs_attention", "submit"],
-    ["broadcast, not ours", { submission: sub("broadcast"), chain: unknown("not_ours") }, "needs_attention", "submit"],
-    ["broadcast, malformed", { submission: sub("broadcast"), chain: unknown("malformed_txid") }, "needs_attention", "submit"],
+    ["broadcast, timeout, bound recorded", { submission: sub("broadcast", { expiresBy: 150 }), chain: unknown("timeout") }, "needs_attention", "wait"],
+    ["broadcast, timeout, no bound", { submission: sub("broadcast"), chain: unknown("timeout") }, "needs_attention", "record_expiry"],
+    ["broadcast, superseded", { submission: sub("broadcast"), chain: unknown("superseded") }, "needs_attention", "investigate"],
+    ["broadcast, interrupted", { submission: sub("broadcast"), chain: unknown("interrupted") }, "needs_attention", "investigate"],
+    ["broadcast, not ours", { submission: sub("broadcast"), chain: unknown("not_ours") }, "needs_attention", "investigate"],
+    ["broadcast, malformed", { submission: sub("broadcast"), chain: unknown("malformed_txid") }, "needs_attention", "investigate"],
   ];
   for (const [what, f, state, next] of rows) {
     const s = deriveBatchStatus(facts(f));
@@ -114,7 +115,7 @@ test("reader end to end with the fake Zkool: draft → pending → confirming �
     const rec = await createBatch(db, { orgId: org, network: "regtest", title: "status", items: PAYEES.map((p) => ({ ...p, memo: `${p.memo}-s` })) });
     const store = new SqliteIdempotencyStore(db, { orgId: org });
     const backend = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
-    const read = () => getBatchStatus(db, backend, store, org, rec.id, { requiredConfirmations: 3 }).then((s) => [s?.state, s?.next]);
+    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 3 }).then((s) => [s?.state, s?.next]);
     assert.deepEqual(await read(), ["draft", "submit"]);
     await backend.submit(toExecutionBatch(rec), batchNonce(rec));
     assert.deepEqual(await read(), ["pending", "wait"]);
@@ -122,7 +123,7 @@ test("reader end to end with the fake Zkool: draft → pending → confirming �
     assert.deepEqual(await read(), ["confirming", "wait"]);
     fake.mine(2);
     assert.deepEqual(await read(), ["confirmed", "issue_receipts"]);
-    assert.equal(await getBatchStatus(db, backend, store, org, "00000000-0000-7000-8000-000000000000", { requiredConfirmations: 3 }), undefined);
+    assert.equal(await getBatchStatus(db, backend, org, "00000000-0000-7000-8000-000000000000", { requiredConfirmations: 3 }), undefined);
     const cols = (db.$client.prepare("SELECT name FROM pragma_table_info('batches')").all() as { name: string }[]).map((c) => c.name);
     assert.ok(!cols.includes("state"), "the status is derived, not a column");
   } finally {
@@ -146,7 +147,7 @@ test("with the real fixture transaction and real receipts: confirmed → receipt
     fake.mined.push({ txid: TXID, height: fake.height, expiry: fake.height + 40, recipients: [] });
     fake.height += 1;
     const backend = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
-    const read = () => getBatchStatus(db, backend, store, org, rec.id, { requiredConfirmations: 2 });
+    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 2 });
     assert.deepEqual(await read().then((s) => [s?.state, s?.next]), ["confirmed", "issue_receipts"]);
     const keyFile = join(dir, "issuer.key");
     execFileSync(BIN, ["keygen", "--out", keyFile]);
@@ -163,4 +164,80 @@ test("with the real fixture transaction and real receipts: confirmed → receipt
   } finally {
     await fake.stop();
   }
+});
+
+test("a broadcast whose expiry bound was never recorded: record_expiry → (after expiry) expired → resend; never 'wait' forever", async () => {
+  const fake = await new FakeZkool().start();
+  try {
+    const org = "org-b3-nobound";
+    const rec = await createBatch(db, { orgId: org, network: "regtest", title: "nobound", items: PAYEES.map((p) => ({ ...p, memo: `${p.memo}-nb` })) });
+    const store = new SqliteIdempotencyStore(db, { orgId: org });
+    const backend = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store, pendingTimeoutMs: 1 });
+    fake.failCurrentHeight = true; // the post-pay bound request fails
+    await backend.submit(toExecutionBatch(rec), batchNonce(rec));
+    fake.failCurrentHeight = false;
+    fake.drop();
+    fake.advance(200);
+    await new Promise((r) => setTimeout(r, 5)); // past the 1 ms pending timeout
+    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 1 }).then((s) => [s?.state, s?.next]);
+    assert.deepEqual(await read(), ["needs_attention", "record_expiry"]);
+    const bound = await backend.ensureExpiryBound(batchNonce(rec));
+    assert.equal(await backend.ensureExpiryBound(batchNonce(rec)), bound, "idempotent");
+    assert.deepEqual(await read(), ["needs_attention", "wait"]);
+    fake.advance(bound - fake.height + 1);
+    assert.deepEqual(await read(), ["expired", "resend_expired"]);
+    await backend.resubmitExpired(toExecutionBatch(rec), batchNonce(rec));
+    // Read the new attempt with the default pending timeout (this test's backend uses 1 ms to force "timeout").
+    const normal = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
+    assert.deepEqual(await getBatchStatus(db, normal, org, rec.id, { requiredConfirmations: 1 }).then((x) => [x?.state, x?.next]), ["pending", "wait"]);
+  } finally {
+    await fake.stop();
+  }
+});
+
+test("a reader must use the backend's own store: a backend on another org's store yields investigate, never an endless 'submit'", async () => {
+  const fake = await new FakeZkool().start();
+  try {
+    const org = "org-b3-mine";
+    const rec = await createBatch(db, { orgId: org, network: "regtest", title: "mine", items: PAYEES.map((p) => ({ ...p, memo: `${p.memo}-m` })) });
+    const client = new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 });
+    const mine = new ZkoolBackend({ client, account: 9, store: new SqliteIdempotencyStore(db, { orgId: org }) });
+    await mine.submit(toExecutionBatch(rec), batchNonce(rec));
+    // A misconfigured reader: reads the right record through `store`, but its status() consults another org's index.
+    const other = new ZkoolBackend({ client, account: 9, store: new SqliteIdempotencyStore(db, { orgId: "someone-else" }) });
+    const mixed = { status: other.status.bind(other), store: mine.store, inFlightMs: mine.inFlightMs };
+    const s = await getBatchStatus(db, mixed, org, rec.id, { requiredConfirmations: 1 });
+    assert.deepEqual([s?.state, s?.next, s?.detail.cause], ["needs_attention", "investigate", "not_ours"]);
+    // The correctly paired reader sees the truth.
+    assert.deepEqual(await getBatchStatus(db, mine, org, rec.id, { requiredConfirmations: 1 }).then((x) => x?.state), "pending");
+  } finally {
+    await fake.stop();
+  }
+});
+
+test("the reader never combines a submission snapshot with the chain status of a different attempt", async () => {
+  const org = "org-b3-torn";
+  const rec = await createBatch(db, { orgId: org, network: "regtest", title: "torn", items: PAYEES.map((p) => ({ ...p, memo: `${p.memo}-t` })) });
+  const store = new SqliteIdempotencyStore(db, { orgId: org });
+  const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: NOW.toISOString(), attempts: 1 };
+  await store.createIntent({ ...base, state: "submitting" });
+  await store.update({ ...base, state: "broadcast", txid: "aa".repeat(32), broadcastAt: "t" }, { attempts: 1, states: ["submitting"] });
+  let calls = 0;
+  const source = {
+    store,
+    inFlightMs: 600_000,
+    // While the reader asks about attempt 1's txid, another process starts attempt 2 (e.g. resubmitExpired).
+    status: async (txid: string): Promise<TxStatus> => {
+      calls++;
+      if (txid === "aa".repeat(32)) {
+        await store.claimAttempt(base.nonce, 2, 600_000);
+        await store.update({ ...base, state: "submitting", attempts: 2, createdAt: NOW.toISOString() }, { attempts: 1, states: ["broadcast"] });
+        return unknown("expired");
+      }
+      return mined(9);
+    },
+  };
+  const s = await getBatchStatus(db, source, org, rec.id, { requiredConfirmations: 1, now: () => NOW });
+  assert.deepEqual([s?.state, s?.next], ["submitting", "wait"], "the newer record wins; the stale 'expired' answer is discarded");
+  assert.equal(calls, 1);
 });

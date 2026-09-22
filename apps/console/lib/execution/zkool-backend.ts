@@ -68,8 +68,10 @@ export class ZkoolBackend implements PayoutBackend {
   readonly name = "zkool-graphql" as const;
   private readonly client: ZkoolClient;
   private readonly account: number;
-  private readonly store: IdempotencyStore;
-  private readonly inFlightMs: number;
+  /** The nonce store this backend writes (readers of batch status must use the same one). */
+  readonly store: IdempotencyStore;
+  /** Age after which a `submitting` record is stale. */
+  readonly inFlightMs: number;
   private readonly pendingTimeoutMs: number;
   private readonly maxRecipients: number;
   private readonly txExpiryDelta: number;
@@ -176,6 +178,25 @@ export class ZkoolBackend implements PayoutBackend {
    * txid). Refused unless the account is scanned past the recorded expiry bound and no transaction
    * paying the batch was mined.
    */
+  /**
+   * Record the expiry bound of a broadcast whose post-pay bound request failed (node tip now + delta +
+   * margin; the tip now is ≥ the tip when Zkool built). Without a bound, `status` can never report the
+   * transaction as expired. Idempotent: returns the recorded bound, writing only when none exists.
+   */
+  async ensureExpiryBound(nonce: string): Promise<number> {
+    const rec = await this.store.get(nonce);
+    if (!rec) throw new ExecutionError("unknown_nonce", `nonce ${nonce} was never submitted`);
+    if (rec.state !== "broadcast") throw new ExecutionError("not_broadcast", `nonce ${nonce} is ${rec.state}`);
+    if (rec.expiresBy !== undefined) return rec.expiresBy;
+    const expiresBy = (await this.client.currentHeight()) + this.txExpiryDelta + this.expiryMarginBlocks;
+    if (!(await this.save({ ...rec, expiresBy }, rec, ["broadcast"]))) {
+      const now = await this.store.get(nonce);
+      if (now?.expiresBy !== undefined) return now.expiresBy;
+      throw new SubmissionInFlightError(nonce, 0);
+    }
+    return expiresBy;
+  }
+
   async resubmitExpired(batch: Batch, nonce: string): Promise<Submitted> {
     const rec = await this.store.get(nonce);
     if (!rec) throw new ExecutionError("unknown_nonce", `nonce ${nonce} was never submitted`);

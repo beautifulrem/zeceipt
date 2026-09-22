@@ -12,7 +12,7 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | `lib/execution/validate.ts` | `batchProblems`: the one static rule set shared by preflight and the batch repository |
 | `lib/crypto/seal.ts` | Sealing at rest: `Keyring` (wrap keys by id, per-org HKDF-SHA256), `seal`/`open` (AES-256-GCM, 96-bit random IV, the row identity as AAD), typed `SealError` |
 | `lib/data/receipts.ts` | `recordReceipts` (the batch's own broadcast only, matched to items, idempotent, atomic), `listReceipts` (decrypted), `rewrapReceipts` (key rotation) |
-| `lib/data/status.ts` | `deriveBatchStatus` (pure: the status table from the submission record, chain status and receipt count; fail closed) and `getBatchStatus` (gathers the facts; the status is never stored) |
+| `lib/data/status.ts` | `deriveBatchStatus` (pure: the status table from the submission record, chain status and receipt count; fail closed) and `getBatchStatus` (gathers the facts through the backend's own store; never stored); next actions include `record_expiry` (`ZkoolBackend.ensureExpiryBound`) and `investigate` |
 | `lib/data/batches.ts` | Batch repository: `createBatch` (validated, atomic), `getBatch`, `listBatches` (exact totals), `toExecutionBatch`, `batchNonce` (`batch/<id>`), `newBatchId` (UUIDv7) |
 | `lib/execution/zkool-client.ts` | GraphQL client; loopback-only by default; distinguishes a server refusal from a lost answer |
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |

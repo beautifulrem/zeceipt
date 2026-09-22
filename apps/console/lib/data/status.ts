@@ -21,8 +21,17 @@ export type BatchState =
   | "receipts_issued"
   | "expired";
 
-/** What an operator (or a worker) can do next. `resend_expired` is a human decision (`resubmitExpired`). */
-export type NextAction = "submit" | "wait" | "issue_receipts" | "resend_expired" | "none";
+/**
+ * What an operator (or a worker) can do next:
+ * - `submit`: call `submit` again with the same nonce (first time, retry, or reconciliation);
+ * - `wait`: nothing to do yet;
+ * - `issue_receipts`: run `autoIssue` + `recordReceipts`;
+ * - `resend_expired`: a human decision (`resubmitExpired`), the transaction can never be mined;
+ * - `record_expiry`: call `ensureExpiryBound` (a broadcast has no expiry bound, so it could never be reported expired);
+ * - `investigate`: the records disagree in a way no automatic call resolves (see `detail.cause`);
+ * - `none`: finished.
+ */
+export type NextAction = "submit" | "wait" | "issue_receipts" | "resend_expired" | "record_expiry" | "investigate" | "none";
 
 export interface BatchStatus {
   state: BatchState;
@@ -74,8 +83,14 @@ export function deriveBatchStatus(f: BatchFacts): BatchStatus {
   if (c.state === "pending") return { state: "pending", next: "wait", detail: { txid } };
   if (c.state === "unknown") {
     if (c.cause === "expired") return { state: "expired", next: "resend_expired", detail: { txid, cause: c.cause, expiresBy: s.expiresBy } };
-    if (c.cause === "timeout") return { state: "needs_attention", next: "wait", detail: { txid, cause: c.cause } };
-    return { state: "needs_attention", next: "submit", detail: { txid, cause: c.cause } };
+    if (c.cause === "timeout") {
+      // Without a recorded expiry bound, status can never say "expired": record it, then waiting resolves.
+      if (s.expiresBy === undefined) return { state: "needs_attention", next: "record_expiry", detail: { txid, cause: c.cause } };
+      return { state: "needs_attention", next: "wait", detail: { txid, cause: c.cause, expiresBy: s.expiresBy } };
+    }
+    // superseded / interrupted / not_ours / malformed_txid for the record's own txid: `submit` would only
+    // replay the recorded txid, so no automatic call resolves it (e.g. a reader using another store or org).
+    return { state: "needs_attention", next: "investigate", detail: { txid, cause: c.cause } };
   }
   const required = f.requiredConfirmations;
   if (c.confirmations < required) return { state: "confirming", next: "wait", detail: { txid, confirmations: c.confirmations, required } };
@@ -85,19 +100,43 @@ export function deriveBatchStatus(f: BatchFacts): BatchStatus {
   return { state: "receipts_issued", next: "none", detail: { txid, receipts: f.receipts, items: f.itemCount } };
 }
 
-/** Gather the facts for one batch and derive its status. Asks the chain only when the batch was broadcast. */
+/** The backend's own view: its chain status, the nonce store it writes, and its in-flight window. */
+export interface StatusSource {
+  status: PayoutBackend["status"];
+  readonly store: IdempotencyStore;
+  readonly inFlightMs: number;
+}
+
+/**
+ * Gather the facts for one batch and derive its status. Uses the backend's own store and in-flight window,
+ * so the reader cannot disagree with what `submit` will do. Asks the chain only when the batch was broadcast,
+ * and re-reads the submission afterwards: if it changed meanwhile (another attempt started), the facts are
+ * gathered once more so a stale snapshot is never combined with a newer chain status.
+ */
 export async function getBatchStatus(
   db: ConsoleDb,
-  backend: Pick<PayoutBackend, "status">,
-  store: IdempotencyStore,
+  backend: StatusSource,
   orgId: string,
   batchId: string,
-  opts: { requiredConfirmations: number; inFlightMs?: number; now?: () => Date },
+  opts: { requiredConfirmations: number; now?: () => Date },
 ): Promise<BatchStatus | undefined> {
   const batch = await getBatch(db, orgId, batchId);
   if (!batch) return undefined;
-  const submission = await store.get(batchNonce(batch));
-  const chain = submission?.state === "broadcast" && submission.txid ? await backend.status(submission.txid) : undefined;
+  const nonce = batchNonce(batch);
+  const same = (a?: SubmissionRecord, b?: SubmissionRecord) => a?.attempts === b?.attempts && a?.state === b?.state && a?.txid === b?.txid;
+  let submission = await backend.store.get(nonce);
+  let chain: TxStatus | undefined;
+  for (let pass = 0; pass < 2; pass++) {
+    chain = submission?.state === "broadcast" && submission.txid ? await backend.status(submission.txid) : undefined;
+    const again = await backend.store.get(nonce);
+    if (same(submission, again)) break;
+    submission = again;
+    chain = undefined;
+  }
+  if (submission?.state === "broadcast" && !chain) {
+    // It changed twice while we read: report the newest record without a chain answer rather than guess.
+    return { state: "submitting", next: "wait", detail: { txid: submission.txid } };
+  }
   return deriveBatchStatus({
     itemCount: batch.items.length,
     submission,
@@ -105,6 +144,6 @@ export async function getBatchStatus(
     receipts: await countReceipts(db, orgId, batchId),
     requiredConfirmations: opts.requiredConfirmations,
     now: (opts.now ?? (() => new Date()))(),
-    inFlightMs: opts.inFlightMs ?? 10 * 60_000,
+    inFlightMs: backend.inFlightMs,
   });
 }
