@@ -165,14 +165,19 @@ function parseWrapKeys(raw: string | undefined, problems: ConfigProblem[]): Cons
     const std = /^[A-Za-z0-9+/]*={0,2}$/.test(b64) ? b64 : undefined;
     const bytes = std !== undefined ? Buffer.from(std, "base64") : undefined;
     if (!bytes || bytes.length !== 32 || bytes.toString("base64").replace(/=+$/, "") !== std!.replace(/=+$/, "")) {
+      bytes?.fill(0);
       problems.push({ variable, message: `${at}: the key must be base64 of exactly 32 bytes` });
       continue;
     }
     if (keys.some((k) => k.kid === kid)) {
+      bytes.fill(0);
       problems.push({ variable, message: `${at}: its key id repeats an earlier entry's` });
       continue;
     }
     keys.push({ kid, key: new SecretBytes(bytes) });
+    // Best-effort hygiene only: the raw variable still sits in process.env (the app may delete it after
+    // loading), and reveal() copies and the Keyring's buffers are not zeroed. Within one trusted process
+    // this is not a boundary; the guarantees are the redaction ones (SecretBytes, #private fields).
     bytes.fill(0);
   }
   return keys.length === parts.length ? keys : undefined;
