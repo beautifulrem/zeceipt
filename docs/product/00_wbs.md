@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, round 13 = 97/100, round 14 = 97/100, round 15 = 95/100 (a scope-propagation regression), round 16 = 96/100, round 17 = 97/100, round 18 = 97/100, round 19 = 97/100, round 20 = 97/100, round 21 = 98/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, round 13 = 97/100, round 14 = 97/100, round 15 = 95/100 (a scope-propagation regression), round 16 = 96/100, round 17 = 97/100, round 18 = 97/100, round 19 = 97/100, round 20 = 97/100, round 21 = 98/100, round 22 = 99/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
