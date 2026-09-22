@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -254,6 +254,13 @@ if not buf_row or abs(tok_buffer - float(buf_row.group(1))) > 1e-6:
 if not m6_row or abs(tok_budget - float(m6_row.group(1))) > 1e-6:
     errors.append(f"11_plan.md §3: {{budget}} tokens sum to {tok_budget}, Must 6 row says {m6_row.group(1) if m6_row else '?'}")
 
+# solo branch: every pd-bearing leaf is listed in §1.1 (kept table or dropped list)
+solo = plan.split("### 1.1")[1].split("## 2.")[0] if "### 1.1" in plan else ""
+solo_leaves = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo))
+for num in sorted(pd_of):
+    if num not in solo_leaves:
+        errors.append(f"11_plan.md §1.1: leaf {num} carries person-days but is neither kept nor dropped in the solo branch")
+
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
@@ -262,7 +269,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

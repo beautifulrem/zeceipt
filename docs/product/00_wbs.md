@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -186,16 +186,16 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.2.1 ⬜ R — Anchor program: ed25519 precompile check + PDA row (REQ-SOL-1, REQ-SOL-2). 0.5 pd, 2026-10-01 → 10-03.
 - 3.3.2.2 ⬜ T — Client that verifies then submits (REQ-SOL-3). 0.25 pd, 2026-09-29 → 09-30.
 - 3.3.2.3 ⬜ R — Devnet deployment and PROOF entry (REQ-SOL-4). 0.25 pd, 2026-10-01 → 10-03.
-- 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5). 0.5 pd, 2026-10-04 → 10-07.
+- 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5). 0.5 pd, 2026-10-08 → 10-09.
 #### 3.3.3 Integrations
 - 3.3.3.1 ⬜ T — Konclave CSV (`label,address,value[,memo]`) → receipt issuance adapter (REQ-INT-1). 0.75 pd, 2026-09-29 → 09-30.
 - 3.3.3.2 ⬜ T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2). 0.75 pd, 2026-10-01 → 10-03.
 - 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-10-01 → 10-03.
 - 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27 → 09-28.
 #### 3.3.4 Open technical questions
-- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd, 2026-10-10 → 10-11 (timebox).
+- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd, 2026-10-10 → 10-11 (timebox; documentation-only during the freeze — any code change defers to post-submission).
 - 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured). 0.25 pd, 2026-10-01 → 10-03 (with the first funded batch).
-- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd, 2026-10-10 → 10-11.
+- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd, 2026-10-10 → 10-11 (documentation-only during the freeze).
 - 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after the 2026-10-06 activation. 0.25 pd, 2026-10-04 → 10-07 (run on 10-07).
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
 #### 3.3.5 Payout console — payables, batches, execution
@@ -203,8 +203,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10). 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-25 → 09-26.
-- 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-01 → 10-03.
-- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-08 → 10-09.
+- 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
+- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-01 → 10-03.
 #### 3.3.6 Payout console — receipts, pages, exports
 - 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
@@ -266,8 +266,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 5.1.2 Written
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
 - 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04 → 10-07.
-- 5.1.2.3 👤 ⬜ U — Team members with background context; team location; logo.
+- 5.1.2.3 👤 ⬜ U — Team members with background context; team location.
 - 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale; forced to Developer Infrastructure if the solo branch activates (RSK-19). `09_submission_checklist.md` §1. 0.25 pd, 2026-10-04 → 10-07.
+- 5.1.2.5 ⬜ PM — Logo / graphic: simple wordmark + receipt glyph (SVG) for the form. 0.25 pd, 2026-10-04 → 10-07.
 
 ### 5.2 Process
 #### 5.2.1 Timeline
@@ -296,7 +297,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | 2026-09-26 | 4.1.2.3 | Decide whether to contact Konclave's author (default: yes) | adapter PR and pilot |
 | 2026-09-28 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
 | 2026-10-04 | 4.1.1.3 | `npm publish @zeceipt/verify` | REQ-WEB-8; integrator story |
-| 2026-10-09 | 5.1.2.3 | Team backgrounds, location, logo for the form | submission form fields |
+| 2026-10-09 | 5.1.2.3 | Team backgrounds and location for the form | submission form fields |
 
 ## Roll-up
 
@@ -306,7 +307,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | 2 Product definition | 44 | 39 | 1 | 2 | 2 |
 | 3 Engineering | 60 | 27 | 0 | 31 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
-| 5 Submission | 17 | 3 | 0 | 13 | 1 |
-| **Total** | 181 | 106 | 2 | 63 | 10 |
+| 5 Submission | 18 | 3 | 0 | 14 | 1 |
+| **Total** | 182 | 106 | 2 | 64 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

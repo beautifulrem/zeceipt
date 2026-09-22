@@ -13,7 +13,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Category | **Payments & Remittance** (primary): receipts are a payments artefact and the console pays. Forced to **Developer Infrastructure** if the solo branch activates (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) because that branch ships a minimal console; otherwise decided 2026-10-03 at the cut review (Developer Infrastructure if the console is cut) | ⬜ 2026-09-24 / 2026-10-03 |
 | Team members with background | names, roles, 2-line bios | 👤 |
 | Team location / country | | 👤 |
-| Logo / graphic | simple wordmark + receipt glyph (SVG) | ⬜ |
+| Logo / graphic | simple wordmark + receipt glyph (SVG); team-made (PM, WBS 5.1.2.5, 0.25 pd, 2026-10-04 → 10-07) | ⬜ |
 | GitHub repository | public URL (open source encouraged; private allowed with judge access) | 👤 push |
 | Presentation (pitch) video | ≤ 3 min, YouTube unlisted | ⬜ |
 | Product demo video | ≤ 3 min technical, YouTube unlisted | ⬜ |
