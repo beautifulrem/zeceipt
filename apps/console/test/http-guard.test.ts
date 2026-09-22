@@ -61,12 +61,18 @@ test("problem+json: RFC 9457 members, our code, no-store; HttpProblem carries it
   assert.deepEqual(await internalError().json(), { type: "about:blank", title: "Internal Server Error", status: 500, detail: "the console could not complete this request", code: "internal" });
 });
 
-test("proxy.ts applies the rule and exports no matcher (so no path can fall outside it)", async () => {
-  const src = readFileSync(join(import.meta.dirname, "..", "proxy.ts"), "utf8");
-  assert.doesNotMatch(src, /export\s+const\s+config/);
-  const mod = (await import("../proxy.ts")) as Record<string, unknown>;
-  assert.equal(mod.config, undefined);
-  const proxy = mod.proxy as (r: Request) => Response | undefined;
-  assert.equal(proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "127.0.0.1:3000" } })), undefined);
-  assert.equal(proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "evil.example" } }))?.status, 403);
+test("proxy.ts: pages and static files pass through it; /api/ is outside it (routes guard themselves)", async () => {
+  // Next's own matcher evaluation (it needs the AsyncLocalStorage global its server provides).
+  (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= (await import("node:async_hooks")).AsyncLocalStorage;
+  const { unstable_doesMiddlewareMatch } = await import("next/experimental/testing/server.js");
+  const mod = await import("../proxy.ts");
+  assert.deepEqual(mod.config, { matcher: "/((?!api/).*)" });
+  for (const url of ["/", "/batches/x", "/_next/static/chunks/a.js", "/favicon.ico", "/api", "/apix", "/API/batches"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config: mod.config, url }), true, url);
+  }
+  for (const url of ["/api/health", "/api/batches", "/api/batches/x", "/api/batches/x/submit"]) {
+    assert.equal(unstable_doesMiddlewareMatch({ config: mod.config, url }), false, url);
+  }
+  assert.equal(mod.proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "127.0.0.1:3000" } })), undefined);
+  assert.equal(mod.proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "evil.example" } }))?.status, 403);
 });

@@ -3,7 +3,7 @@
   "info": {
     "title": "Zeceipt payout console API",
     "version": "0.1.0",
-    "description": "The console's HTTP API as built so far (walking skeleton, slices C2 and D1). Loopback-only until authentication exists: every request needs a loopback Host (localhost, *.localhost, 127.0.0.1, [::1]); unsafe methods are refused when Sec-Fetch-Site is cross-site or same-site, or when Origin is present and is not this host's own origin. Errors are RFC 9457 problem details (application/problem+json) with an extension member `code`."
+    "description": "The console's HTTP API as built so far (walking skeleton, slices C2 and D1). Loopback-only until authentication exists: every operation can answer 403 (problem+json) from the request guard; every request needs a loopback Host (localhost, *.localhost, 127.0.0.1, [::1]); unsafe methods are refused when Sec-Fetch-Site is cross-site or same-site, or when Origin is present and is not this host's own origin. Errors are RFC 9457 problem details (application/problem+json) with an extension member `code`."
   },
   "servers": [
     {
@@ -35,6 +35,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
           }
         }
       }

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { request as httpRequest } from "node:http";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -106,6 +106,32 @@ async function waitHealthy(port: number, child: ChildProcess, output: () => stri
   }
   assert.fail(`not healthy; output:\n${output()}`);
 }
+/**
+ * Send the head (and optional first bytes) of a request on a raw socket, then stall with the socket open:
+ * resolves with the status line and how long the server took, or null if nothing came back in `waitMs`.
+ */
+function stalled(port: number, head: string, first: Buffer | undefined, waitMs: number) {
+  return new Promise<{ line: string; ms: number } | null>((ok, fail) => {
+    const t0 = Date.now();
+    const sock = connect(port, "127.0.0.1", () => {
+      sock.write(head);
+      if (first) sock.write(first);
+    });
+    const timer = setTimeout(() => {
+      sock.destroy();
+      ok(null);
+    }, waitMs);
+    sock.once("data", (d) => {
+      clearTimeout(timer);
+      sock.destroy();
+      ok({ line: d.toString("latin1").split("\r\n")[0], ms: Date.now() - t0 });
+    });
+    sock.on("error", (e) => {
+      clearTimeout(timer);
+      fail(e);
+    });
+  });
+}
 const within = <T>(p: Promise<T>, ms: number, what: string) =>
   Promise.race([p, new Promise<never>((_, fail) => setTimeout(() => fail(new Error(`timed out: ${what}`)), ms).unref())]);
 
@@ -172,7 +198,7 @@ for (const [name, extra, variable] of [
   });
 }
 
-test("guard and batch routes through next start: foreign Host and cross-site writes refused everywhere; same-origin create and read", { skip: !RUN }, async () => {
+test("guard and batch routes through next start: foreign Host and cross-site writes refused everywhere; same-origin create and read; oversize bodies refused while arriving", { skip: !RUN }, async () => {
   const s = await start(demoEnv("routes"));
   await waitHealthy(s.port, s.child, s.output);
   const self = `127.0.0.1:${s.port}`;
@@ -211,6 +237,19 @@ test("guard and batch routes through next start: foreign Host and cross-site wri
   })();
   const tooBig = await raw(s.port, "POST", "/api/batches", { host: self, "content-type": "application/json", "transfer-encoding": "chunked" }, big);
   assert.equal(tooBig.status, 413);
+
+  // An oversize body is refused while it is still arriving, not after the client finishes (review D1
+  // round 1: behind proxy.ts, Next read the whole upload first). Both requests stall with the socket open.
+  const head = (framing: string) => `POST /api/batches HTTP/1.1\r\nHost: ${self}\r\nContent-Type: application/json\r\n${framing}\r\n\r\n`;
+  const declared = await stalled(s.port, head("Content-Length: 9000000"), undefined, 5_000);
+  assert.ok(declared, "a declared 9 MB body with nothing sent got no answer within 5 s");
+  assert.match(declared.line, /^HTTP\/1\.1 413 /);
+  assert.ok(declared.ms < 2_000, `declared oversize answered after ${declared.ms} ms`);
+  const chunks304k = Buffer.concat(Array.from({ length: 19 }, () => Buffer.concat([Buffer.from("4000\r\n"), Buffer.alloc(16384, 0x20), Buffer.from("\r\n")])));
+  const streaming = await stalled(s.port, head("Transfer-Encoding: chunked"), chunks304k, 5_000);
+  assert.ok(streaming, "a chunked body stalled after 304 KiB got no answer within 5 s");
+  assert.match(streaming.line, /^HTTP\/1\.1 413 /);
+  assert.ok(streaming.ms < 2_000, `chunked oversize answered after ${streaming.ms} ms`);
   assertNoKey(s.output());
   s.child.kill("SIGTERM");
   await within(s.exited, 10_000, "shutdown");

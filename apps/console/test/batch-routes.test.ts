@@ -1,4 +1,4 @@
-// Batch routes that move no money (slice D1), called as plain Requests against a booted context on a
+// Batch routes that move no money (slice D1), called through the real route exports against a booted context on a
 // temporary database: create (201, Location), validation (422 every problem, 400 paths without values),
 // tenant and network from config, list with exact totals above 2^53, 404s, 503 before boot, fixed 500.
 
@@ -8,7 +8,9 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bootServerContext, defaultMigrationsDir, SERVER_CONTEXT_KEY, type ServerContext } from "../lib/index.ts";
-import { handleCreate, handleGet, handleList, type BatchJson, type BatchSummaryJson } from "../lib/http/batches.ts";
+import type { BatchJson, BatchSummaryJson } from "../lib/http/batches.ts";
+import * as collection from "../app/api/batches/route.ts";
+import * as item from "../app/api/batches/[id]/route.ts";
 import type { ProblemJson } from "../lib/http/problem.ts";
 
 const R = [
@@ -24,6 +26,10 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
     headers: { host: HOST, "content-type": "application/json", origin: `http://${HOST}`, "sec-fetch-site": "same-origin", ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
+// The real route exports (guard + handler + problem mapping), called as Next would call them.
+const handleCreate = (req: Request) => collection.POST(req, undefined);
+const handleList = () => collection.GET(new Request(`http://${HOST}/api/batches`, { headers: { host: HOST } }), undefined);
+const handleGet = (id: string) => item.GET(new Request(`http://${HOST}/api/batches/${encodeURIComponent(id)}`, { headers: { host: HOST } }), { params: Promise.resolve({ id }) });
 const draft = (over: Record<string, unknown> = {}) => ({
   title: "September contributors",
   items: [
@@ -130,7 +136,7 @@ test("400: schema problems give paths and zod messages, never the submitted valu
   assert.equal((await read(await handleCreate(post(draft({ items: Array.from({ length: 51 }, (_, i) => ({ payableId: `p${i}`, address: R[0], zat: "1", memo: `m${i}` })) }))))).status, 400);
 });
 
-test("the handler re-applies the guard for its unsafe method, and body limits apply", async () => {
+test("the route applies the guard itself (API routes are outside proxy.ts), and body limits apply", async () => {
   assert.equal((await read(await handleCreate(post(draft(), { origin: "http://evil.example" })))).body.code, "origin_mismatch");
   assert.equal((await read(await handleCreate(post(draft(), { host: "evil.example" })))).body.code, "host_not_allowed");
   assert.equal((await read(await handleCreate(post(draft(), { "content-type": "text/plain" })))).status, 415);

@@ -1,11 +1,7 @@
-import { handleCreate, handleList } from "../../../lib/http/batches.ts";
+import { batchProblem, createBatchResponse, listBatchesResponse } from "../../../lib/http/batches.ts";
+import { guarded } from "../../../lib/http/route.ts";
 
 export const dynamic = "force-dynamic";
 
-export function GET(): Promise<Response> {
-  return handleList();
-}
-
-export function POST(req: Request): Promise<Response> {
-  return handleCreate(req);
-}
+export const GET = guarded(() => listBatchesResponse());
+export const POST = guarded((req) => createBatchResponse(req), batchProblem);
