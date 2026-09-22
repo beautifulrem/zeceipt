@@ -7,6 +7,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtempSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -69,6 +70,41 @@ async function start(env: Record<string, string>) {
   child.stderr!.on("data", (d) => (out += d));
   const exited = new Promise<number | null>((ok) => child.on("exit", (code) => ok(code)));
   return { port, child, exited, output: () => out };
+}
+/** A raw HTTP/1.1 request (fetch cannot set Host); a stream body is sent chunked, with no Content-Length. */
+function raw(port: number, method: string, path: string, headers: Record<string, string>, body?: string | Iterable<Buffer>) {
+  return new Promise<{ status: number; type: string | undefined; body: string }>((ok, fail) => {
+    const r = httpRequest({ host: "127.0.0.1", port, method, path, headers }, (res) => {
+      let b = "";
+      res.setEncoding("utf8");
+      res.on("data", (d) => (b += d));
+      res.on("end", () => ok({ status: res.statusCode ?? 0, type: res.headers["content-type"], body: b }));
+      res.on("error", fail);
+    });
+    r.on("error", fail);
+    if (typeof body === "string") r.end(body);
+    else if (body) {
+      void (async () => {
+        for (const chunk of body) {
+          if (r.destroyed) return;
+          if (!r.write(chunk)) await new Promise((res) => r.once("drain", res).once("close", res)); // respect backpressure
+        }
+        r.end();
+      })();
+    } else r.end();
+  });
+}
+async function waitHealthy(port: number, child: ChildProcess, output: () => string) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline && child.exitCode === null) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/api/health`);
+      if (r.status === 200) return;
+    } catch {
+      await new Promise((res) => setTimeout(res, 200));
+    }
+  }
+  assert.fail(`not healthy; output:\n${output()}`);
 }
 const within = <T>(p: Promise<T>, ms: number, what: string) =>
   Promise.race([p, new Promise<never>((_, fail) => setTimeout(() => fail(new Error(`timed out: ${what}`)), ms).unref())]);
@@ -135,3 +171,47 @@ for (const [name, extra, variable] of [
     assertNoKey(s.output());
   });
 }
+
+test("guard and batch routes through next start: foreign Host and cross-site writes refused everywhere; same-origin create and read", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("routes"));
+  await waitHealthy(s.port, s.child, s.output);
+  const self = `127.0.0.1:${s.port}`;
+  const home = await raw(s.port, "GET", "/", { host: self });
+  const chunk = /\/_next\/static\/[^"']+\.js/.exec(home.body)?.[0];
+  assert.ok(chunk, "a static chunk is referenced by /");
+  assert.equal((await raw(s.port, "GET", chunk, { host: self })).status, 200);
+
+  // DNS rebinding: a foreign Host is refused on pages, API, static files and writes alike.
+  for (const [method, path] of [["GET", "/"], ["GET", "/api/health"], ["GET", chunk], ["GET", "/api/batches"], ["POST", "/api/batches"]] as const) {
+    const r = await raw(s.port, method, path, { host: "evil.example", "content-type": "application/json" }, method === "POST" ? "{}" : undefined);
+    assert.equal(r.status, 403, `${method} ${path}`);
+    assert.equal(r.type, "application/problem+json");
+    assert.equal((JSON.parse(r.body) as { code: string }).code, "host_not_allowed");
+  }
+  // Cross-site writes are refused before any handler runs.
+  const draft = JSON.stringify({ title: "e2e", items: [{ payableId: "p1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "E2E-1" }] });
+  for (const h of [{ origin: "http://evil.example" }, { "sec-fetch-site": "cross-site" }, { origin: "null" }] as Record<string, string>[]) {
+    const r = await raw(s.port, "POST", "/api/batches", { host: self, "content-type": "application/json", ...h }, draft);
+    assert.equal(r.status, 403, JSON.stringify(h));
+  }
+  assert.equal((JSON.parse((await raw(s.port, "GET", "/api/batches", { host: self })).body) as { batches: unknown[] }).batches.length, 0, "nothing was created");
+
+  // Same-origin create, then read it back.
+  const created = await raw(s.port, "POST", "/api/batches", { host: self, "content-type": "application/json", origin: `http://${self}`, "sec-fetch-site": "same-origin" }, draft);
+  assert.equal(created.status, 201, created.body);
+  const id = (JSON.parse(created.body) as { id: string }).id;
+  const got = await raw(s.port, "GET", `/api/batches/${id}`, { host: self });
+  assert.equal(got.status, 200);
+  assert.equal((JSON.parse(got.body) as { items: { zat: string }[] }).items[0].zat, "1000");
+  assert.equal((await raw(s.port, "GET", "/api/batches/not-a-batch", { host: self })).status, 404);
+
+  // A chunked body with no Content-Length is cut off at the ceiling (413), not read to the end.
+  const big = (function* () {
+    for (let i = 0; i < 40; i++) yield Buffer.alloc(16 * 1024, 0x20);
+  })();
+  const tooBig = await raw(s.port, "POST", "/api/batches", { host: self, "content-type": "application/json", "transfer-encoding": "chunked" }, big);
+  assert.equal(tooBig.status, 413);
+  assertNoKey(s.output());
+  s.child.kill("SIGTERM");
+  await within(s.exited, 10_000, "shutdown");
+});

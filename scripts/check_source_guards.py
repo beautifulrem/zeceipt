@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Source guards run in CI (NFR-1 / REQ-CLI-6 and NFR-6).
 
-1. No key-material vocabulary in non-test library/binary code (crates, `apps/console/lib/**/*.ts`, `apps/console/db/**/*.ts` and the console app: `app/**/*.ts(x)`, `instrumentation.ts`, `next.config.ts`), nor in any `scripts/**/*.py|*.sh` code line unless the file carries the header marker
+1. No key-material vocabulary in non-test library/binary code (crates, `apps/console/lib/**/*.ts`, `apps/console/db/**/*.ts` and the console app: `app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`), nor in any `scripts/**/*.py|*.sh` code line unless the file carries the header marker
    `# key-material-allowed: regtest-only harness` in its first three lines AND that line is tagged
    `# key-material-allowed` (currently only the Zkool regtest tracer, two lines):
    whole words `seed`, `mnemonic`, `spending` (case-insensitive) in `crates/*/src/**/*.rs`,
@@ -25,13 +25,13 @@ files = sorted((repo / "crates").glob("*/src/**/*.rs"))
 ALLOW_MARK = "# key-material-allowed: regtest-only harness"
 py_files = [p for p in sorted((repo / "scripts").rglob("*")) if p.suffix in (".py", ".sh") and p.name != "check_source_guards.py"]
 # The console's TypeScript library, database layer and Next.js app ship in the product: scanned like crate code
-# (no carve-out possible). The app: route handlers and pages under app/, plus the root instrumentation and config.
+# (no carve-out possible). The app: route handlers and pages under app/, plus the root instrumentation, proxy and config.
 console = repo / "apps" / "console"
 ts_files = sorted([
     *(console / "lib").rglob("*.ts"),
     *(console / "db").rglob("*.ts"),
     *(p for p in (console / "app").rglob("*") if p.suffix in (".ts", ".tsx")),
-    *(p for p in (console / "instrumentation.ts", console / "next.config.ts") if p.exists()),
+    *(p for p in (console / "instrumentation.ts", console / "proxy.ts", console / "next.config.ts") if p.exists()),
 ])
 for path in files:
     text = path.read_text(encoding="utf-8")

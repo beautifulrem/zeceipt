@@ -1,0 +1,438 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zeceipt payout console API",
+    "version": "0.1.0",
+    "description": "The console's HTTP API as built so far (walking skeleton, slices C2 and D1). Loopback-only until authentication exists: every request needs a loopback Host (localhost, *.localhost, 127.0.0.1, [::1]); unsafe methods are refused when Sec-Fetch-Site is cross-site or same-site, or when Origin is present and is not this host's own origin. Errors are RFC 9457 problem details (application/problem+json) with an extension member `code`."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000"
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Liveness of the console and its database (IETF health+json)",
+        "responses": {
+          "200": {
+            "description": "pass",
+            "content": {
+              "application/health+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "fail",
+            "content": {
+              "application/health+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/batches": {
+      "get": {
+        "operationId": "listBatches",
+        "summary": "Batches of this deployment's org, newest first",
+        "responses": {
+          "200": {
+            "description": "The list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batches"
+                  ],
+                  "properties": {
+                    "batches": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BatchSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createBatch",
+        "summary": "Create a draft batch (moves no money). Not idempotent: a retry creates a second draft.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "/api/batches/{id}"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/batches/{id}": {
+      "get": {
+        "operationId": "getBatch",
+        "summary": "One batch with its items",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Problem": {
+        "description": "RFC 9457 problem details",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "checks": {
+            "type": "object"
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "const": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal"
+          },
+          "problems": {
+            "type": "array",
+            "description": "batch_invalid: every domain problem",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "detail"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "issues": {
+            "type": "array",
+            "description": "body_invalid: schema issues (path and message; never the submitted value)",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "message"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateBatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "items"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "1–200 characters of plain text"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "payableId",
+                "address",
+                "zat",
+                "memo"
+              ],
+              "properties": {
+                "payableId": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "Unified address for the deployment's network"
+                },
+                "zat": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,16}$",
+                  "description": "Integer zatoshi as a decimal string (1 ZEC = 100000000 zat); strings because totals can exceed 2^53."
+                },
+                "memo": {
+                  "type": "string",
+                  "description": "1–512 UTF-8 bytes, unique within the batch"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Batch": {
+        "type": "object",
+        "required": [
+          "id",
+          "network",
+          "title",
+          "createdAt",
+          "totalZat",
+          "items"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "network": {
+            "enum": [
+              "main",
+              "test",
+              "regtest"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalZat": {
+            "type": "string",
+            "pattern": "^[0-9]{1,16}$",
+            "description": "Integer zatoshi as a decimal string (1 ZEC = 100000000 zat); strings because totals can exceed 2^53."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "idx",
+                "payableId",
+                "label",
+                "address",
+                "zat",
+                "memo"
+              ],
+              "properties": {
+                "idx": {
+                  "type": "integer"
+                },
+                "payableId": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "zat": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,16}$",
+                  "description": "Integer zatoshi as a decimal string (1 ZEC = 100000000 zat); strings because totals can exceed 2^53."
+                },
+                "memo": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "BatchSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "network",
+          "title",
+          "createdAt",
+          "itemCount",
+          "totalZat"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "network": {
+            "enum": [
+              "main",
+              "test",
+              "regtest"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "totalZat": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          }
+        }
+      }
+    }
+  }
+}
