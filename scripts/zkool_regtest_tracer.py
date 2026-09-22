@@ -1,40 +1,53 @@
 #!/usr/bin/env python3
+# key-material-allowed: regtest-only harness — reads a throwaway regtest mnemonic from a file outside the
+# repository to drive a local Zkool wallet backend; never used with mainnet or testnet keys (NFR-1 carve-out).
 """Tracer bullet for the Zkool GraphQL execution backend on the local regtest chain (WBS 3.3.5.4, REQ-CON-7).
 
-Runs the whole flow against a `zkool_graphql` server and prints a verbatim transcript:
+Regtest-only harness. It restores the issuer account in a local `zkool_graphql` server (loopback only,
+never through a proxy) from a mnemonic file, then runs the whole flow and prints a transcript:
   1. currentHeight
-  2. restore the issuer account from a mnemonic file (never printed, never in the repo)
+  2. restore the issuer account from the mnemonic file (never printed) — or reuse --issuer-id
   3. create N recipient accounts, read their unified addresses
   4. sync the issuer, print its balance
   5. pay N recipients with N memos in one transaction (srcPools = Ironwood)
-  6. wait for the tx to be mined (polls the node height and the issuer's transactions)
-  7. sync each recipient and print the note/memo it sees
+  6. wait for the tx to be mined (polls the issuer's confirmed transactions)
+  7. sync each recipient and print the shielded note it received (`notes { value pool memo }`);
+     exit 1 unless every recipient sees exactly the expected memo and amount
 
 Nothing here touches Zeceipt; receipts are issued afterwards with the `zeceipt` CLI (see PROOF §5b).
 
 Usage:
-  python3 scripts/zkool_regtest_tracer.py --mnemonic-file /path/outside/repo --graphql http://127.0.0.1:9000/graphql \
-      --recipients 3 --memo-prefix INV-R-00 --memo-start 2 --amounts 1.01,1.02,1.03 [--issuer-id 1]
+  NO_PROXY='*' python3 scripts/zkool_regtest_tracer.py --mnemonic-file /path/outside/repo \
+      --graphql http://127.0.0.1:9000/graphql --recipients 3 --memo-prefix INV-R-00 --memo-start 2 \
+      --amounts 1.01,1.02,1.03 [--use-internal|--no-use-internal] [--issuer-id N]
+
+`--use-internal` (default on) restores the issuer with Zkool's `useInternal: true`; on this chain the
+zcash-devtool wallet shielded its coinbase and sent change at the internal scope, so without it the
+balance reads 0 (PROOF §5b).
 """
 import argparse
 import json
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 POOL_TRANSPARENT, POOL_SAPLING, POOL_ORCHARD, POOL_IRONWOOD = 1, 2, 4, 8
+# Loopback-only opener: the restore payload must never be routed through a system proxy.
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def gql(url, query, variables=None, quiet=False):
+def gql(url, query, variables=None, quiet=False, redact=False):
     body = json.dumps({"query": query, "variables": variables or {}}).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=600) as r:
+    with OPENER.open(req, timeout=600) as r:
         out = json.loads(r.read())
     if not quiet:
         shown = json.dumps(out, ensure_ascii=False)
         print(f"$ gql {query.strip().splitlines()[0][:70]}…\n{shown[:1200]}{'…' if len(shown) > 1200 else ''}\n")
     if "errors" in out:
-        raise SystemExit(f"GraphQL error: {out['errors']}")
+        msg = "[redacted: error text may echo the input]" if redact else out["errors"]
+        raise SystemExit(f"GraphQL error: {msg}")
     return out["data"]
 
 
@@ -43,6 +56,8 @@ def main():
     ap.add_argument("--graphql", default="http://127.0.0.1:9000/graphql")
     ap.add_argument("--mnemonic-file", required=True)
     ap.add_argument("--issuer-id", type=int, default=None, help="reuse an existing issuer account id instead of restoring")
+    ap.add_argument("--use-internal", action=argparse.BooleanOptionalAction, default=True,
+                    help="restore the issuer with Zkool's useInternal flag (needed for notes at the internal scope)")
     ap.add_argument("--recipients", type=int, default=3)
     ap.add_argument("--memo-prefix", default="INV-R-00")
     ap.add_argument("--memo-start", type=int, default=2)
@@ -51,24 +66,23 @@ def main():
     ap.add_argument("--wait", type=int, default=600, help="seconds to wait for mining")
     a = ap.parse_args()
     url = a.graphql
+    host = urllib.parse.urlparse(url).hostname
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        raise SystemExit(f"refusing to send wallet material to a non-loopback host: {host}")
     t_start = time.time()
 
     h0 = gql(url, "{ currentHeight }")["currentHeight"]
     print(f"[tracer] node height at start: {h0}\n")
 
     if a.issuer_id is None:
-        mnemonic = open(a.mnemonic_file).read().strip()
-        # direct call so the mnemonic is never echoed into the transcript
-        body = {"query": "mutation($new: NewAccount!) { createAccount(newAccount: $new) }",
-                "variables": {"new": {"name": "issuer-regtest", "key": mnemonic, "passphrase": "", "aindex": 0, "birth": a.birth,
-                                      "pools": POOL_TRANSPARENT | POOL_SAPLING | POOL_ORCHARD | POOL_IRONWOOD, "useInternal": False}}}
-        req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            out = json.loads(r.read())
-        if "errors" in out:
-            raise SystemExit(f"createAccount(issuer) error: {out['errors']}")
-        issuer = out["data"]["createAccount"]
-        print(f"$ gql mutation createAccount(issuer from mnemonic file, key redacted) -> id {issuer}\n")
+        phrase = open(a.mnemonic_file).read().strip()
+        issuer = gql(url, "mutation($new: NewAccount!) { createAccount(newAccount: $new) }",
+                     {"new": {"name": "issuer-regtest", "key": phrase, "passphrase": "", "aindex": 0, "birth": a.birth,
+                              "pools": POOL_TRANSPARENT | POOL_SAPLING | POOL_ORCHARD | POOL_IRONWOOD,
+                              "useInternal": a.use_internal}},
+                     quiet=True, redact=True)["createAccount"]
+        del phrase
+        print(f"$ gql mutation createAccount(issuer from file, key redacted, useInternal={str(a.use_internal).lower()}) -> id {issuer}\n")
     else:
         issuer = a.issuer_id
 
@@ -90,6 +104,8 @@ def main():
     print(f"[tracer] issuer sync took {time.time()-t0:.1f}s\n")
     bal = gql(url, "query($id: Int!) { balanceByAccount(idAccount: $id) { height transparent sapling orchard ironwood total } }", {"id": issuer})["balanceByAccount"]
     print(f"[tracer] issuer balance: {bal}\n")
+    if float(bal["ironwood"]) <= 0:
+        raise SystemExit("issuer has no Ironwood balance — restore with --use-internal on this chain (see PROOF §5b)")
 
     payment = {"recipients": [{"address": r["address"], "amount": r["amount"], "memo": r["memo"]} for r in recips],
                "srcPools": POOL_IRONWOOD, "confirmations": 1}
@@ -97,7 +113,6 @@ def main():
     txid = gql(url, "mutation($id: Int!, $pay: Payment!) { pay(idAccount: $id, payment: $pay) }", {"id": issuer, "pay": payment})["pay"]
     print(f"[tracer] pay returned txid {txid} in {time.time()-t1:.1f}s\n")
 
-    # wait for mining: poll node height, then the issuer's confirmed transactions
     mined_height = None
     deadline = time.time() + a.wait
     while time.time() < deadline:
@@ -109,16 +124,23 @@ def main():
             mined_height = hit[0]["height"]
             break
     print(f"[tracer] mined at height {mined_height} ({time.time()-t1:.0f}s after pay)\n")
+    if mined_height is None:
+        raise SystemExit("transaction was not mined within --wait seconds")
 
+    failures = 0
     for r in recips:
         gql(url, "mutation($id: Int!) { synchronizeAccount(idAccount: $id, fast: false) }", {"id": r["id"]}, quiet=True)
-        b = gql(url, "query($id: Int!) { balanceByAccount(idAccount: $id) { total } }", {"id": r["id"]}, quiet=True)["balanceByAccount"]
-        txs = gql(url, "query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid height outputs { pool vout value address memo } } }", {"id": r["id"]}, quiet=True)["transactionsByAccount"]
-        print(f"[tracer] recipient {r['id']} ({r['address'][:20]}…) balance {b['total']} expected {r['amount']} memo {r['memo']!r}: {json.dumps(txs, ensure_ascii=False)[:600]}\n")
+        txs = gql(url, "query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid height value notes { value pool memo } } }", {"id": r["id"]}, quiet=True)["transactionsByAccount"]
+        mine = [t for t in txs if t["txid"] == txid]
+        notes = [n for t in mine for n in t["notes"]]
+        ok = len(notes) == 1 and notes[0]["memo"] == r["memo"] and float(notes[0]["value"]) == float(r["amount"])
+        failures += 0 if ok else 1
+        print(f"[tracer] recipient {r['id']} {r['address']} expected {r['amount']} {r['memo']!r} -> {'OK' if ok else 'MISMATCH'}: {json.dumps(mine, ensure_ascii=False)}\n")
 
-    print(json.dumps({"txid": txid, "mined_height": mined_height, "issuer": issuer,
+    print(json.dumps({"txid": txid, "mined_height": mined_height, "issuer": issuer, "use_internal": a.use_internal,
                       "recipients": [{"id": r["id"], "address": r["address"], "amount": r["amount"], "memo": r["memo"]} for r in recips],
-                      "elapsed_s": round(time.time() - t_start, 1)}, indent=2))
+                      "recipient_memo_failures": failures, "elapsed_s": round(time.time() - t_start, 1)}, indent=2))
+    sys.exit(1 if failures else 0)
 
 
 if __name__ == "__main__":

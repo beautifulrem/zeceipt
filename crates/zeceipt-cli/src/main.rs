@@ -89,7 +89,7 @@ enum Cmd {
         /// Key id published in the issuer's well-known file.
         #[arg(long)]
         key_id: Option<String>,
-        /// Also issue receipts for change outputs (internal scope).
+        /// Also issue receipts for change outputs (outputs paying one of the issuer's own addresses).
         #[arg(long)]
         include_change: bool,
         /// Public host used to build shareable URLs.
@@ -271,7 +271,7 @@ async fn run() -> anyhow::Result<ExitCode> {
                 items.push(json!({
                     "receipt": r,
                     "url": r.to_url(&host)?,
-                    "recovered": recovered_json(&rec),
+                    "recovered": recovered_json(&rec, keys.can_detect_change()),
                 }));
             }
             println!(
@@ -528,7 +528,7 @@ fn stage(e: &CoreError) -> &'static str {
     }
 }
 
-fn recovered_json(rec: &zeceipt_core::Recovered) -> serde_json::Value {
+fn recovered_json(rec: &zeceipt_core::Recovered, change_known: bool) -> serde_json::Value {
     json!({
         "pool": rec.pool.as_str(),
         "index": rec.index,
@@ -536,7 +536,8 @@ fn recovered_json(rec: &zeceipt_core::Recovered) -> serde_json::Value {
         "value_zat": rec.value_zat,
         "value_zec": format_zec(rec.value_zat),
         "memo": memo_json(&rec.memo),
-        "is_change": rec.is_change,
+        // `null` when the issuer key cannot recognise change (bare OVK): unknown is not "no".
+        "is_change": if change_known { json!(rec.is_change) } else { serde_json::Value::Null },
     })
 }
 

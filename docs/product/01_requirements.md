@@ -33,7 +33,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CLI-3 | M | Failure stage reported in JSON using the REQ-CORE-5 stage names plus the CLI-only stages `parse`, `tx` and `network`. | Each stage asserted. | ✅ same | kept (done) |
 | REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
 | REQ-CLI-5 | M | Network context guard: explicit `--testnet`/`--regtest` with a mainnet receipt is rejected at stage `network`. | Test asserts. | ✅ `failure_stages_and_exit_1` | kept (done) |
-| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `source guards` (`scripts/check_source_guards.py`) fails if the whole words seed/mnemonic/spending appear in any crate's non-test code. | ✅ CI source guards (passes locally) | kept (done) |
+| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `source guards` (`scripts/check_source_guards.py`) fails if the whole words seed/mnemonic/spending appear in any crate's non-test code or in a script without the documented regtest-harness carve-out. | ✅ CI source guards (passes locally) | kept (done) |
 | REQ-CLI-7 | S | Privacy modes: `--block-range` (scan blocks instead of asking for a txid) and `--tor`/custom endpoint. | Verifying via block range works on regtest without a `GetTransaction` call. | ⬜ WBS 3.2.1.4 | dropped |
 | REQ-CLI-8 | S | Live integration test behind `--features live`. | CI job optional; local run documented. | ⬜ WBS 3.2.2.4 | dropped |
 
@@ -99,10 +99,10 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 
 | ID | Requirement | Acceptance criterion | Status | Solo branch (`11_plan.md` §1.1) |
 |---|---|---|---|---|
-| NFR-1 Security | No spending keys, seeds or mnemonics accepted anywhere in the workspace; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. | CI step `source guards` (`scripts/check_source_guards.py`) scans all five crates' non-test code for the whole words seed/mnemonic/spending and fails on a hit; clippy `-D warnings`; attribute present in all five crates. | ✅ CI source guards (passes locally, 6 files) | kept |
+| NFR-1 Security | No spending keys, seeds or mnemonics accepted by the shipped crates, CLI or verifier; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. Carve-out: `scripts/zkool_regtest_tracer.py` is a regtest-only harness that reads a throwaway regtest mnemonic from a file outside the repository to drive a local wallet backend (marker `# key-material-allowed` in its first lines). | CI step `source guards` (`scripts/check_source_guards.py`) scans all five crates' non-test code and every `scripts/*.py` for the whole words seed/mnemonic/spending and fails on a hit unless the file carries the carve-out marker; clippy `-D warnings`; attribute present in all five crates. | ✅ CI source guards (passes locally, 6 files) | kept |
 | NFR-2 Privacy | Only per-output OCKs are disclosed; UFVK/OVK never leave the issuer; hosted verifier discloses which txid it fetches. | Spec §9; demo copy. | ✅ | kept |
 | NFR-3 Reliability | Endpoint failover; `pending` distinct from `invalid`; idempotent issuance. | lwd tests; CLI exit 2 path. | ✅ (console idempotency ⬜) | kept |
-| NFR-4 Performance | Browser verify < 1 s after wasm load for a transaction up to 20 KB; CLI issue < 5 s per tx on public nodes. | Measured at 9,166 bytes, the largest committed fixture: Chrome 153 on `demo/index.html` 7.28 ms per verify; the 20 KB case is bounded by the parse-linear argument (verification decrypts exactly one output, so cost is dominated by transaction parsing, linear in bytes: ≈ 2× parse work ≈ 15 ms, ~65× inside the 1 s budget). Node: init 13.9 ms. CLI issue = fetch (1.15 s measured, `inspect` over gRPC) + trial-decrypt/sign (offline `issue --regtest` 0.00 s wall) < 5 s. PROOF §2b. | ✅ measured at the largest fixture; 20 KB bounded, not measured (a 20 KB fixture would tighten it, WBS 3.4.2.4 note) | kept |
+| NFR-4 Performance | Browser verify < 1 s after wasm load for a transaction up to 20 KB; CLI issue < 5 s per tx on public nodes. Measured in Chrome 153 on `demo/index.html`: 7.28 ms per verify at 9,166 bytes and 6.05 ms at 15,478 bytes (the Zkool batch fixture, now the largest committed, 77 % of 20 KB); the last 23 % to 20 KB is bounded by the parse-linear argument (verification decrypts exactly one output; parsing is linear in bytes), ~100× inside the 1 s budget. Node: init 13.9 ms. CLI issue = fetch (1.15 s measured, `inspect` over gRPC) + trial-decrypt/sign (offline `issue --regtest` 0.00 s wall) < 5 s. PROOF §2b. | ✅ measured at 9 KB and 15 KB in Chrome; the last 23 % to 20 KB bounded, not measured (WBS 3.4.2.4 note) | kept |
 | NFR-5 Portability | Pure-Rust core compiles to wasm32; Linux/macOS CI. | wasm-pack build; CI file. | ✅ | kept |
 | NFR-6 Observability | `tracing` levels; secrets never above `trace`. | CI step `source guards` fails if any `trace!/debug!/info!/warn!/error!` line in any crate mentions the whole words ock/ovk/memo. | ✅ CI source guards (passes locally) | kept |
 | NFR-7 Accessibility & copy | English UI; outcomes have text not only colour; proves/does-not-prove always shown. | Node guard asserts the demo page source contains the words "proves" and "does not prove" and that result rows carry a text label (`packages/verify/test/verify.mjs`, copy check). | ✅ demo page (copy check in node guard, 2026-09-22); console ⬜ | kept |
@@ -147,7 +147,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-4 | ⬜ | 3.3.5.2 | `05` §1 `batches` rate fields |
 | REQ-CON-5 | ⬜ | 3.3.5.3 | `05` §1 `approvals` HMAC |
 | REQ-CON-6 | ⬜ | 3.3.5.1 | `04_ux_flows.md` SCR-2 linkability warning; spec §9 |
-| REQ-CON-7 | ⬜ | 3.3.5.4 | `05` §2 zkool-graphql adapter `[R18]` |
+| REQ-CON-7 | 🟡 | 3.3.5.4 | PROOF §5b (backend proven on regtest, `scripts/zkool_regtest_tracer.py`, reproduced in run 2); console adapter + batch nonce open; `05` §2 `[R18]` |
 | REQ-CON-8 | ⬜ | 3.3.5.5 | `05` §2 zallet-rpc adapter `[R19]` |
 | REQ-CON-9 | ⬜ | 3.3.5.6 | `05` §2 zip321-manual adapter `[R17]` |
 | REQ-CON-10 | ⬜ | 3.3.5.2 | `05` §1 batch state machine |
@@ -174,7 +174,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | NFR-1 | ✅ | 3.4.2.1 | CI source guards; clippy `-D warnings`; `forbid(unsafe_code)` in all five crates |
 | NFR-2 | ✅ | 3.2.3.3 | spec §9; demo page node disclosure (PROOF §2b) |
 | NFR-3 | ✅ | 3.2.2.3 | lwd unit tests; exit 2 path; console idempotency with 3.3.6.1 |
-| NFR-4 | ✅ | 3.4.2.1 | PROOF §2b timing (2026-09-22) at the largest fixture; 20 KB bounded by the parse-linear argument |
+| NFR-4 | ✅ | 3.4.2.1 | PROOF §2b timing (2026-09-22) at 9,166 and 15,478 bytes; the rest to 20 KB bounded by the parse-linear argument |
 | NFR-5 | ✅ | 3.2.3.1 | wasm-pack build; CI wasm job |
 | NFR-6 | ✅ | 3.4.2.1 | CI source guards (log-line rule) |
 | NFR-7 | ✅ | 3.2.3.4 | node guard copy check; console with 3.3.6.2 |
