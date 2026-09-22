@@ -12,12 +12,19 @@ import { join } from "node:path";
 import { ConfigError, keyringFromConfig, loadConfig, scrubSecretEnv, type ConsoleConfig } from "../config/env.ts";
 import type { Keyring } from "../crypto/seal.ts";
 import { ExecutionError } from "../execution/types.ts";
+import { SqliteIdempotencyStore } from "../execution/sqlite-store.ts";
+import { ZkoolBackend } from "../execution/zkool-backend.ts";
+import { ZkoolClient } from "../execution/zkool-client.ts";
 import { migrateDb, openDb, type ConsoleDb } from "../../db/client.ts";
 
 export interface ServerContext {
   readonly config: ConsoleConfig;
   readonly db: ConsoleDb;
   readonly keyring: Keyring;
+  /** The execution nonce store (SQLite, scoped to the org); the backend and status readers share it. */
+  readonly store: SqliteIdempotencyStore;
+  /** The Zkool backend in hot custody; undefined in external custody, where this console never pays (slice D2). */
+  readonly backend?: ZkoolBackend;
 }
 
 export interface BootOptions {
@@ -65,7 +72,14 @@ export function bootServerContext(env: Record<string, string | undefined>, opts:
     throw e;
   }
   scrubSecretEnv(env);
-  const ctx: ServerContext = Object.freeze({ config, db, keyring });
+  // No network call here: a wallet outage must not stop the console from starting (slice C2's health rule).
+  const store = new SqliteIdempotencyStore(db, { orgId: config.orgId });
+  const custody = config.custody;
+  const backend =
+    custody.mode === "hot"
+      ? new ZkoolBackend({ client: new ZkoolClient({ url: custody.zkool.url, allowRemote: custody.zkool.allowRemote }), account: custody.zkool.account, store })
+      : undefined;
+  const ctx: ServerContext = Object.freeze({ config, db, keyring, store, backend });
   slot[SERVER_CONTEXT_KEY] = ctx;
   return ctx;
 }

@@ -1,0 +1,229 @@
+// Submit and status routes (slice D2) through the real route exports, against the fake Zkool and a
+// temporary database: pays once (replay returns the same txid with Idempotent-Replayed), status moves
+// draft → pending → confirming → confirmed, and every failure states whether money may have moved
+// (`payment`), never quotes the wallet, and never reports an uncertain outcome as a failure.
+
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import Database from "better-sqlite3";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, type ServerContext } from "../lib/index.ts";
+import type { BatchJson } from "../lib/http/batches.ts";
+import type { ProblemJson } from "../lib/http/problem.ts";
+import * as collection from "../app/api/batches/route.ts";
+import * as submitRoute from "../app/api/batches/[id]/submit/route.ts";
+import * as statusRoute from "../app/api/batches/[id]/status/route.ts";
+import { FakeZkool } from "./helpers/fake-zkool.ts";
+
+const R = [
+  "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
+  "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
+];
+const HOST = "127.0.0.1:3000";
+const slot = globalThis as { [SERVER_CONTEXT_KEY]?: ServerContext };
+const dir = mkdtempSync(join(tmpdir(), "zeceipt-submit-"));
+const WALLET_TEXT = ["Not enough funds, 1.5 more ZEC", "tcp connect error", "bad-txns", "Unavailable"];
+let fake: FakeZkool;
+let n = 0;
+
+type Body = Partial<BatchJson> & Partial<ProblemJson> & { txid?: string; replayed?: boolean; via?: string; batchId?: string; state?: string; next?: string; detail?: Record<string, unknown> };
+const read = async (r: Response) => ({ status: r.status, headers: r.headers, text: "", body: (await r.json()) as Body });
+const headers = { host: HOST, "content-type": "application/json", origin: `http://${HOST}`, "sec-fetch-site": "same-origin" };
+const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function createDraft(zat = ["1000", "2500"]) {
+  n++;
+  const body = { title: `batch ${n}`, items: zat.map((z, i) => ({ payableId: `p${n}-${i}`, address: R[i % 2], zat: z, memo: `M${n}-${i}` })) };
+  const r = await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify(body) }), undefined);
+  assert.equal(r.status, 201);
+  return (await r.json()) as BatchJson;
+}
+const submit = (id: string, body: unknown, init: RequestInit = {}) =>
+  submitRoute.POST(new Request(`http://${HOST}/api/batches/${id}/submit`, { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body), ...init }), params(id));
+const status = async (id: string) => read(await statusRoute.GET(new Request(`http://${HOST}/api/batches/${id}/status`, { headers: { host: HOST } }), params(id)));
+const noWalletText = (b: Body) => {
+  const s = JSON.stringify(b);
+  for (const w of WALLET_TEXT) assert.ok(!s.includes(w), `wallet text ${JSON.stringify(w)} in ${s.slice(0, 200)}`);
+};
+
+function boot(extra: Record<string, string | undefined> = {}) {
+  slot[SERVER_CONTEXT_KEY]?.db.$client.close();
+  delete slot[SERVER_CONTEXT_KEY];
+  const env: Record<string, string | undefined> = {
+    ZECEIPT_CUSTODY_MODE: "hot",
+    ZECEIPT_ZKOOL_URL: fake.url,
+    ZECEIPT_ZKOOL_ACCOUNT: "9",
+    ZECEIPT_DB_PATH: join(dir, `ctx-${extra.ZECEIPT_CUSTODY_MODE ?? "hot"}.db`),
+    ZECEIPT_ORG_ID: "demo-org",
+    ZECEIPT_NETWORK: "regtest",
+    ZECEIPT_CONFIRMATIONS: "3",
+    ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 3).toString("base64")}`,
+    ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137",
+    ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt",
+    ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
+    ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ...extra,
+  };
+  for (const k of Object.keys(env)) if (env[k] === undefined) delete env[k];
+  return bootServerContext(env, { migrationsFolder: defaultMigrationsDir() });
+}
+
+before(async () => {
+  fake = await new FakeZkool().start();
+  boot();
+});
+after(async () => {
+  slot[SERVER_CONTEXT_KEY]?.db.$client.close();
+  delete slot[SERVER_CONTEXT_KEY];
+  await fake.stop();
+});
+
+test("pays once: 202 with a txid, a replay returns the same txid with Idempotent-Replayed; status follows the chain", async () => {
+  const b = await createDraft();
+  assert.deepEqual((await status(b.id!)).body, { batchId: b.id, state: "draft", next: "submit", detail: { items: 2 } });
+  const calls = fake.payCalls;
+  const first = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.equal(first.status, 202);
+  assert.match(first.body.txid!, /^[0-9a-f]{64}$/);
+  assert.deepEqual([first.body.replayed, first.body.via, first.headers.get("idempotent-replayed")], [false, "fresh", null]);
+  assert.equal(first.headers.get("location"), `/api/batches/${b.id}/status`);
+  assert.equal(first.headers.get("cache-control"), "no-store");
+
+  const again = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.equal(again.status, 202);
+  assert.deepEqual([again.body.txid, again.body.replayed, again.body.via, again.headers.get("idempotent-replayed")], [first.body.txid, true, "record", "true"]);
+  assert.equal(fake.payCalls, calls + 1, "exactly one pay");
+
+  assert.equal((await status(b.id!)).body.state, "pending");
+  fake.mine();
+  const confirming = await status(b.id!);
+  assert.deepEqual([confirming.body.state, confirming.body.next, confirming.body.detail?.confirmations], ["confirming", "wait", 1]);
+  fake.mine(2);
+  const confirmed = await status(b.id!);
+  assert.deepEqual([confirmed.body.state, confirmed.body.next, confirmed.body.detail?.txid], ["confirmed", "issue_receipts", first.body.txid]);
+});
+
+test("confirmation: missing, malformed or mismatched totals are refused before any wallet call", async () => {
+  const b = await createDraft();
+  const calls = fake.payCalls;
+  for (const [body, code] of [[{}, "body_invalid"], [{ confirmTotalZat: 3500 }, "body_invalid"], [{ confirmTotalZat: "3500", extra: 1 }, "body_invalid"], [{ confirmTotalZat: "3499" }, "confirmation_mismatch"]] as const) {
+    const r = await read(await submit(b.id!, body));
+    assert.equal(r.body.code, code, JSON.stringify(body));
+    assert.equal(r.body.payment, "not_sent");
+  }
+  assert.equal((await read(await submit(b.id!, "{", {}))).body.code, "malformed_json");
+  assert.equal(fake.payCalls, calls, "pay never called");
+  assert.equal((await status(b.id!)).body.state, "draft");
+});
+
+test("refused before build: 409 payment_rejected, not_sent, no wallet text; a resubmit pays", async () => {
+  const b = await createDraft();
+  fake.nextPay = "refused";
+  const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.deepEqual([r.status, r.body.code, r.body.payment], [409, "payment_rejected", "not_sent"]);
+  noWalletText(r.body);
+  const s = await status(b.id!);
+  assert.deepEqual([s.body.state, s.body.next], ["retryable", "submit"]);
+  assert.match(String(s.body.detail?.error), /Not enough funds/, "the operator sees the wallet's reason in the status");
+  const paid = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.deepEqual([paid.status, paid.body.replayed], [202, false]);
+});
+
+test("preflight failure: 422 with problems, not_sent", async () => {
+  const b = await createDraft(["2000000000"]); // 20 ZEC > the fake's 10 ZEC
+  const calls = fake.payCalls;
+  const r = await read(await submit(b.id!, { confirmTotalZat: "2000000000" }));
+  assert.deepEqual([r.status, r.body.code, r.body.payment], [422, "preflight_failed", "not_sent"]);
+  assert.deepEqual(r.body.problems!.map((p) => p.code), ["insufficient_funds"]);
+  assert.equal(fake.payCalls, calls);
+});
+
+test("uncertain outcomes: 502 outcome_unknown with payment unknown; status never shows draft or failure", async () => {
+  for (const mode of ["grpc-error-sent", "node-rejected"] as const) {
+    const b = await createDraft();
+    fake.nextPay = mode;
+    const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.deepEqual([r.status, r.body.code, r.body.payment], [502, "outcome_unknown", "unknown"], mode);
+    noWalletText(r.body);
+    const s = await status(b.id!);
+    assert.ok(!["draft", "retryable", "pending", "confirmed"].includes(s.body.state!), `${mode}: status ${s.body.state}`);
+    assert.equal(s.body.state, "needs_attention");
+  }
+});
+
+test("a second submit while the first is paying: 409 submission_in_flight with Retry-After; the first completes", async () => {
+  const b = await createDraft();
+  fake.payDelayMs = 600;
+  try {
+    const first = submit(b.id!, { confirmTotalZat: "3500" });
+    await new Promise((r) => setTimeout(r, 150));
+    const second = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.deepEqual([second.status, second.body.code, second.body.payment, second.headers.get("retry-after")], [409, "submission_in_flight", "unknown", "5"]);
+    assert.equal((await read(await first)).status, 202);
+  } finally {
+    fake.payDelayMs = 0;
+  }
+});
+
+test("a client that disconnects mid-pay does not abort the pay: the broadcast is recorded", async () => {
+  const b = await createDraft();
+  fake.payDelayMs = 300;
+  try {
+    const ac = new AbortController();
+    const pending = submit(b.id!, { confirmTotalZat: "3500" }, { signal: ac.signal });
+    setTimeout(() => ac.abort(), 50);
+    const r = await pending;
+    assert.equal(r.status, 202);
+    assert.equal((await status(b.id!)).body.state, "pending");
+  } finally {
+    fake.payDelayMs = 0;
+  }
+});
+
+test("store busy (another process holds the write lock): 503 store_busy, Retry-After, not_sent", async () => {
+  const b = await createDraft();
+  const other = new Database(slot[SERVER_CONTEXT_KEY]!.config.dbPath);
+  other.exec("BEGIN IMMEDIATE");
+  try {
+    const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.deepEqual([r.status, r.body.code, r.body.payment, r.headers.get("retry-after")], [503, "store_busy", "not_sent", "1"]);
+  } finally {
+    other.exec("ROLLBACK");
+    other.close();
+  }
+});
+
+test("nonce conflict: 409 nonce_conflict, not_sent", async () => {
+  const b = await createDraft();
+  const rec = (await getBatch(slot[SERVER_CONTEXT_KEY]!.db, "demo-org", b.id!))!;
+  await slot[SERVER_CONTEXT_KEY]!.store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: "0".repeat(64), state: "submitting", createdAt: new Date().toISOString(), attempts: 1 });
+  const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.deepEqual([r.status, r.body.code, r.body.payment], [409, "nonce_conflict", "not_sent"]);
+});
+
+test("unknown batch: 404 on both routes; the wallet unreachable: 502 wallet_unavailable with payment unknown", async () => {
+  for (const r of [await read(await submit("0190a0d6-7e3b-7c61-8d3f-4a2b1c0d9e8f", { confirmTotalZat: "1" })), await status("nope")]) {
+    assert.deepEqual([r.status, r.body.code], [404, "batch_not_found"]);
+  }
+  const b = await createDraft();
+  await fake.stop();
+  try {
+    const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.deepEqual([r.status, r.body.code, r.body.payment], [502, "wallet_unavailable", "unknown"]);
+    noWalletText(r.body);
+  } finally {
+    fake = await new FakeZkool().start();
+  }
+});
+
+test("external custody: no backend; submit and status answer 409 custody_external", async () => {
+  const ctx = boot({ ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined });
+  assert.equal(ctx.backend, undefined);
+  const b = await createDraft();
+  for (const r of [await read(await submit(b.id!, { confirmTotalZat: "3500" })), await status(b.id!)]) {
+    assert.deepEqual([r.status, r.body.code, r.body.payment], [409, "custody_external", "not_sent"]);
+  }
+});

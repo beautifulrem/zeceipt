@@ -11,6 +11,7 @@ import { request as httpRequest } from "node:http";
 import { connect, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { FakeZkool } from "./helpers/fake-zkool.ts";
 
 const RUN = process.env.ZECEIPT_APP_E2E === "1";
 const APP = resolve(import.meta.dirname, "..");
@@ -253,4 +254,39 @@ test("guard and batch routes through next start: foreign Host and cross-site wri
   assertNoKey(s.output());
   s.child.kill("SIGTERM");
   await within(s.exited, 10_000, "shutdown");
+});
+
+test("submit and status through next start: pays once against a fake wallet, replays, and follows the chain", { skip: !RUN }, async () => {
+  const fake = await new FakeZkool().start();
+  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9" }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, "content-type": "application/json", origin: `http://${self}`, "sec-fetch-site": "same-origin" };
+    const draft = JSON.stringify({ title: "pay", items: [{ payableId: "p1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "PAY-1" }] });
+    const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, draft)).body) as { id: string }).id;
+    assert.equal((JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state, "draft");
+
+    // A cross-site submit is refused before anything runs.
+    assert.equal((await raw(s.port, "POST", `/api/batches/${id}/submit`, { ...same, origin: "http://evil.example" }, '{"confirmTotalZat":"1000"}')).status, 403);
+    assert.equal(fake.payCalls, 0);
+
+    const first = await raw(s.port, "POST", `/api/batches/${id}/submit`, same, '{"confirmTotalZat":"1000"}');
+    assert.equal(first.status, 202, first.body);
+    const txid = (JSON.parse(first.body) as { txid: string }).txid;
+    const again = await raw(s.port, "POST", `/api/batches/${id}/submit`, same, '{"confirmTotalZat":"1000"}');
+    assert.equal(again.status, 202);
+    assert.deepEqual(JSON.parse(again.body), { batchId: id, txid, replayed: true, via: "record", status: `/api/batches/${id}/status` });
+    assert.equal(fake.payCalls, 1, "one payment for two submits");
+
+    assert.equal((JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state, "pending");
+    fake.mine(2);
+    const st = JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string; detail: { txid: string } };
+    assert.deepEqual([st.state, st.detail.txid], ["confirmed", txid]);
+    assertNoKey(s.output());
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown");
+    await fake.stop();
+  }
 });

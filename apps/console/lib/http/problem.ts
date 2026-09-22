@@ -12,6 +12,8 @@ export interface ProblemJson {
   detail: string;
   code: string;
   problems?: { code: string; index?: number; detail: string }[];
+  /** Execution problems (slice D2): whether money may have moved. */
+  payment?: "not_sent" | "unknown";
   issues?: { path: string; message: string }[];
 }
 
@@ -19,18 +21,20 @@ const TITLES: Record<number, string> = {
   400: "Bad Request",
   403: "Forbidden",
   404: "Not Found",
+  409: "Conflict",
   413: "Content Too Large",
   415: "Unsupported Media Type",
   422: "Unprocessable Content",
   500: "Internal Server Error",
+  502: "Bad Gateway",
   503: "Service Unavailable",
 };
 
-export function problem(status: number, code: string, detail: string, extra: Record<string, unknown> = {}): Response {
+export function problem(status: number, code: string, detail: string, extra: Record<string, unknown> = {}, headers: Record<string, string> = {}): Response {
   const body = { ...extra, type: "about:blank", title: TITLES[status] ?? "Error", status, detail, code };
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": PROBLEM_CONTENT_TYPE, "Cache-Control": "no-store" },
+    headers: { ...headers, "Content-Type": PROBLEM_CONTENT_TYPE, "Cache-Control": "no-store" },
   });
 }
 

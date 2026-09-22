@@ -36,7 +36,7 @@ test("every route file's methods are documented, and every documented operation 
 });
 
 test("the documented problem codes are exactly the codes the console emits", () => {
-  const src = ["lib/http/guard.ts", "lib/http/body.ts", "lib/http/problem.ts", "lib/http/route.ts", "lib/http/batches.ts"].map((f) => readFileSync(join(APP, f), "utf8")).join("\n");
+  const src = ["lib/http/guard.ts", "lib/http/body.ts", "lib/http/problem.ts", "lib/http/route.ts", "lib/http/batches.ts", "lib/http/submit.ts"].map((f) => readFileSync(join(APP, f), "utf8")).join("\n");
   const emitted = new Set([...src.matchAll(/(?:problem|HttpProblem)\(\s*\d{3},\s*"([a-z_]+)"/g)].map((m) => m[1]));
   const documented = new Set(spec.components.schemas.Problem.properties.code.description.split(/,\s*/));
   assert.deepEqual([...emitted].sort(), [...documented].sort());

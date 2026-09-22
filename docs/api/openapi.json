@@ -175,6 +175,213 @@
           }
         }
       }
+    },
+    "/api/batches/{id}/submit": {
+      "post": {
+        "operationId": "submitBatch",
+        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `payment` (not_sent or unknown). A client disconnect does not abort a payment in progress.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "confirmTotalZat"
+                ],
+                "properties": {
+                  "confirmTotalZat": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,17}$",
+                    "description": "Must equal the batch total (zatoshi)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Broadcast (fresh or replayed); confirmation pending",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "/api/batches/{id}/status"
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "const": "true"
+                },
+                "description": "Present when no new payment was made"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "txid",
+                    "replayed",
+                    "via",
+                    "status"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "txid": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "replayed": {
+                      "type": "boolean"
+                    },
+                    "via": {
+                      "enum": [
+                        "fresh",
+                        "record",
+                        "reconciled"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/batches/{id}/status": {
+      "get": {
+        "operationId": "getBatchStatus",
+        "summary": "The batch's derived status (never stored): draft, submitting, retryable, needs_attention, pending, confirming, confirmed, receipts_partial, receipts_issued or expired, with the next action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "state",
+                    "next",
+                    "detail"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "draft",
+                        "submitting",
+                        "retryable",
+                        "needs_attention",
+                        "pending",
+                        "confirming",
+                        "confirmed",
+                        "receipts_partial",
+                        "receipts_issued",
+                        "expired"
+                      ]
+                    },
+                    "next": {
+                      "enum": [
+                        "submit",
+                        "wait",
+                        "issue_receipts",
+                        "resend_expired",
+                        "record_expiry",
+                        "investigate",
+                        "none"
+                      ]
+                    },
+                    "detail": {
+                      "type": "object",
+                      "description": "txid, confirmations, required, receipts, items, error (the wallet's recorded reason), expiresBy, cause, stale"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -233,7 +440,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed"
           },
           "problems": {
             "type": "array",
@@ -275,6 +482,13 @@
                 }
               }
             }
+          },
+          "payment": {
+            "enum": [
+              "not_sent",
+              "unknown"
+            ],
+            "description": "Execution problems: not_sent = certain that nothing was broadcast; unknown = money may have moved, check the status route"
           }
         }
       },
