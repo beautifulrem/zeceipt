@@ -490,13 +490,25 @@ if not nfr1 or guard_line not in nfr1.group(0):
 
 # The Trellis tracer task's review line must list every committed review record with its score
 impl_md = repo / ".trellis/tasks/09-22-zkool-tracer/implement.md"
-if impl_md.exists():
+if not impl_md.exists():
+    errors.append("missing .trellis/tasks/09-22-zkool-tracer/implement.md (review-status rule cannot run)")
+else:
     review_line = next((l for l in impl_md.read_text(encoding="utf-8").splitlines() if l.startswith("Review status:")), "")
+    if not review_line:
+        errors.append(".trellis/tasks/09-22-zkool-tracer/implement.md: no 'Review status:' line")
+    recorded = {}
     for p in sorted((repo / "docs/product/reviews").glob("zkool-tracer-round-*.md")):
         n = p.stem.rsplit("-", 1)[1]
         m = re.search(r"Score: (\d+)/100", p.read_text(encoding="utf-8"))
-        if m and f"round {n} {m.group(1)}/100" not in review_line:
+        if not m:
+            errors.append(f"docs/product/reviews/{p.name}: no 'Score: N/100' line")
+            continue
+        recorded[n] = m.group(1)
+        if not re.search(rf"(?i)round {n} {m.group(1)}/100", review_line):
             errors.append(f".trellis/tasks/09-22-zkool-tracer/implement.md: review status is missing round {n} ({m.group(1)}/100)")
+    for n, sc in re.findall(r"(?i)round (\d+) (\d+)/100", review_line):
+        if recorded.get(n) != sc:
+            errors.append(f".trellis/tasks/09-22-zkool-tracer/implement.md: review status claims round {n} {sc}/100 with no matching committed record")
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
