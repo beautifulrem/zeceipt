@@ -21,7 +21,7 @@ Money: integer zatoshi (`bigint`) and integer USD cents. Rates: decimal string +
 | `audit_log` | id, org_id, actor, action, payload_hash, at | append-only |
 | `submissions` (built) | (org_id, nonce) PK, batch_id, batch_digest, state, attempts, txid, intent_height, expires_by, created_at, updated_at, broadcast_at, error | the execution nonce record (`IdempotencyStore`, §2): CHECKs on state, hex digest/txid, attempts ≥ 1, and `broadcast` ⇒ txid; never pruned, because it is the payment-attempt ledger, unlike Stripe's 24 h idempotency keys `[R45]`; REQ-CON-7 |
 | `submission_claims` (built) | (org_id, nonce, attempt, gen) PK, claimed_at_ms | exclusive, recoverable retry claims; FK to `submissions`; REQ-CON-7 |
-| `submission_txids` (built) | txid PK, org_id, nonce, attempt | txid → the attempt that recorded it; never deleted; written in the same transaction as the record; REQ-CON-7 |
+| `submission_txids` (built) | (org_id, txid) PK, nonce, attempt | (org, txid) → the attempt that recorded it; never deleted; written in the same transaction as the record; REQ-CON-7 |
 
 Batch state machine: `draft → awaiting_approvals → approved → submitting → broadcast → confirming(n) → confirmed → receipts_issued`; failure edges: `submitting → failed_retryable`, `broadcast → unknown_outcome` (after timeout, manual reconcile), any → `cancelled` (only before broadcast).
 

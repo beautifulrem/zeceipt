@@ -26,8 +26,8 @@ before(async () => {
   workers = [...Array(WORKERS)].map((_, id) => new Worker(new URL("./helpers/race-worker.ts", import.meta.url), { workerData: { path, id } }));
 });
 after(async () => {
-  for (const w of workers) w.postMessage({ op: "close" });
-  await Promise.all(workers.map((w) => new Promise((r) => w.once("exit", r))));
+  // terminate() resolves even for a worker that already exited (a crashed worker must not hang the run).
+  await Promise.all(workers.map((w) => w.terminate()));
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -35,11 +35,30 @@ after(async () => {
 async function race(op: "create" | "cas" | "claim", nonce: string): Promise<unknown[]> {
   const gate = new SharedArrayBuffer(8);
   const g = new Int32Array(gate);
-  const replies = workers.map((w) => new Promise<{ id: number; result: unknown }>((r) => w.once("message", r)));
+  // Each reply also rejects if its worker errors or exits, so a crashed worker fails the test instead of hanging it.
+  const replies = workers.map(
+    (w, id) =>
+      new Promise<{ id: number; result: unknown }>((resolve, reject) => {
+        const off = () => {
+          w.off("message", onMessage);
+          w.off("error", onError);
+          w.off("exit", onExit);
+        };
+        const onMessage = (m: { id: number; result: unknown }) => (off(), resolve(m));
+        const onError = (e: Error) => (off(), reject(new Error(`worker ${id} failed: ${e.message}`)));
+        const onExit = (code: number) => (off(), reject(new Error(`worker ${id} exited (${code}) before replying`)));
+        w.on("message", onMessage);
+        w.on("error", onError);
+        w.on("exit", onExit);
+      }),
+  );
+  const all = Promise.all(replies);
+  all.catch(() => {}); // observed below; also keeps an early deadline failure from leaving an unhandled rejection
   for (const w of workers) w.postMessage({ op, nonce, gate });
   // Block (briefly) instead of Atomics.waitAsync: a waitAsync woken from another thread sometimes never
   // resolved here (observed ~1 hang in 10 runs, all workers checked in); workers do not need this thread's
-  // event loop to check in, so a synchronous wait is safe.
+  // event loop to check in, so a synchronous wait is safe. (Node allows Atomics.wait on the main thread;
+  // browsers do not, so this test is Node-only.)
   const deadline = Date.now() + 10_000;
   while (Atomics.load(g, 0) < WORKERS) {
     if (Date.now() > deadline) throw new Error(`only ${Atomics.load(g, 0)} of ${WORKERS} workers checked in`);
@@ -47,10 +66,10 @@ async function race(op: "create" | "cas" | "claim", nonce: string): Promise<unkn
   }
   Atomics.store(g, 1, 1);
   Atomics.notify(g, 1);
-  return (await Promise.all(replies)).map((x) => x.result);
+  return (await all).map((x) => x.result);
 }
 
-test(`${WORKERS} connections × ${ROUNDS} rounds: exactly one createIntent, one CAS and one claim winner per round; one index row`, async () => {
+test(`${WORKERS} connections × ${ROUNDS} rounds: exactly one createIntent, one CAS and one claim winner per round; one index row`, { timeout: 60_000 }, async () => {
   for (let round = 0; round < ROUNDS; round++) {
     const nonce = `race-${round}`;
     const created = await race("create", nonce);
@@ -61,6 +80,7 @@ test(`${WORKERS} connections × ${ROUNDS} rounds: exactly one createIntent, one 
     assert.ok(cas.every((x) => typeof x === "boolean"), `round ${round} cas errors: ${JSON.stringify(cas)}`);
     const claims = await race("claim", nonce);
     assert.equal(claims.filter((x) => x === true).length, 1, `round ${round} claim: ${JSON.stringify(claims)}`);
+    assert.ok(claims.every((x) => typeof x === "boolean"), `round ${round} claim errors: ${JSON.stringify(claims)}`);
   }
   const db = openDb({ path });
   try {
