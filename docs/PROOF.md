@@ -309,7 +309,7 @@ Update 2026-09-22 (later): the change-output question is resolved in §5b — ch
 
 ## 5b. regtest — Zkool GraphQL execution backend: 3 recipients, 3 memos, one Ironwood transaction (2026-09-22)
 
-Tracer bullet for the payout console's primary execution backend (REQ-CON-7; WBS 3.3.5.4 / 3.3.4.2; Trellis task `09-22-zkool-tracer`). Same regtest chain as §5 (zebrad 6.3.0 internal miner + Zaino at `http://127.0.0.1:8137`). Zkool GraphQL was built from source (`hhanh00/zkool2` at 8785e5c, `cargo build --release --bin zkool_graphql --no-default-features --features graphql`, toolchain 1.95.0; the clone's regtest network definition was patched so NU6.3 activates at height 1 like our chain instead of 250) and run as `zkool_graphql --coin 2 --lwd-url http://127.0.0.1:8137 --no-mempool --port 9000`. Raw artifacts live under `raw/tools/regtest/` (outside the repository, next to the throwaway mnemonic): `zkool-tracer.txt`, `zkool-tracer-run2.txt`, `zkool-recipient-notes.txt`, `issue-batch2.sh/.out`, `verify-batch2.sh/.out`. Driver: `scripts/zkool_regtest_tracer.py` (the mnemonic is read from a file, posted only to a loopback host through a proxy-less opener, and never echoed).
+Tracer bullet for the payout console's primary execution backend (REQ-CON-7; WBS 3.3.5.4 / 3.3.4.2; Trellis task `09-22-zkool-tracer`). Same regtest chain as §5 (zebrad 6.3.0 internal miner + Zaino at `http://127.0.0.1:8137`). Zkool GraphQL was built from source (`hhanh00/zkool2` at 8785e5c, `cargo build --release --bin zkool_graphql --no-default-features --features graphql`, toolchain 1.95.0; the clone's regtest network definition was patched so NU6.3 activates at height 1 like our chain instead of 250) and run as `zkool_graphql --coin 2 --lwd-url http://127.0.0.1:8137 --no-mempool --port 9000`. The capture scripts are in the repository (`scripts/regtest/issue-batch2.sh`, `verify-batch2.sh`, `recipient-notes.sh`, parameterised by `ZECEIPT_BIN`/`ARTIFACT_DIR`/`ENDPOINT`/`GRAPHQL`; procedure in `docs/REGTEST_RUNBOOK.md`); their outputs and the tracer transcripts live under `raw/tools/regtest/` (outside the repository, next to the throwaway mnemonic and the issuer signing key): `zkool-tracer.txt`, `zkool-tracer-run2.txt`, `zkool-recipient-notes.txt`, `issue-batch2.out`, `verify-batch2.out`. Re-running each script reproduces its recorded output byte-for-byte (checked 2026-09-22). Driver: `scripts/zkool_regtest_tracer.py` (the mnemonic is read from a file, posted only to a loopback host through a proxy-less opener, and never echoed).
 
 Two runs are recorded. **Run 1** (transcript `zkool-tracer.txt`) used `--issuer-id 5`, an account restored by hand with `useInternal: true` after a first restore with `useInternal: false` (account 1) had shown a balance of 0 — zcash-devtool had shielded the coinbase and sent change at the internal scope, so Zkool must scan that scope. Run 1's recipient lines below end in `"outputs": []`: that first script version queried `outputs` (the sender-side view, empty for received shielded notes); the recipient's shielded view is `notes { value pool memo }`, captured separately in `zkool-recipient-notes.txt` and quoted in full further down. **Run 2** (`zkool-tracer-run2.txt`) re-ran the committed script end to end — restore path with `useInternal: true`, new recipients, `notes` query, memo assertion — and exited 0.
 
@@ -355,7 +355,7 @@ Two runs are recorded. **Run 1** (transcript `zkool-tracer.txt`) used `--issuer-
 
 Three fresh Zkool accounts (ids 6–8, Ironwood only) received 1.01 / 1.02 / 1.03 REG with memos `INV-R-002` / `INV-R-003` / `INV-R-004` in **one** v6 transaction `48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2`, mined at height 626, 19 s after `pay` returned (8.5 s to build and prove). Block 626 contains exactly one non-coinbase transaction (checked with `getblock`).
 
-### Recipient views and memo-limit probe (`raw/tools/regtest/recipient-notes.sh` → `zkool-recipient-notes.txt`, verbatim)
+### Recipient views and memo-limit probe (`scripts/regtest/recipient-notes.sh` → `raw/tools/regtest/zkool-recipient-notes.txt`, verbatim)
 
 ```
 $ curl --noproxy '*' -s -X POST http://127.0.0.1:9000/graphql -H 'Content-Type: application/json' -d '{"query":"{ transactionsByAccount(idAccount: 6, height: 0) { txid height value notes { value pool memo } } }"}'
@@ -429,7 +429,7 @@ No padding: 3 recipients + change = exactly 4 Ironwood actions. The raw transact
 
 The first `zeceipt issue` run (external-scope UFVK, change excluded "by default") returned **four** receipts: output 0 was the 217.25048750 REG change, opened by the *external* OVK. Zkool encrypts change with the external OVK; zcash-devtool (§5) encrypts change with a key the UFVK does not expose (still unopened by either scope). So scope is not a change signal. Fixed the same day in `zeceipt-core`: both scopes are always tried, and an output is change when its recovered recipient is an address of the issuer's own full viewing key (either ZIP 32 scope, `IncomingViewingKey::diversifier_index` for Orchard/Ironwood, `decrypt_diversifier` for Sapling). `Recovered.is_change` is reported (`null` from the CLI when a bare `--ovk` cannot recognise change, with a warning). Regression test `zkool_batch_fixture_excludes_change_by_own_address` (3 receipts without `--include-change`, 4 with, change flagged, memos and values asserted). Residual cases are recorded in `docs/THREAT_MODEL.md` and RSK-20.
 
-### Receipts after the fix (`raw/tools/regtest/issue-batch2.sh` → `raw/tools/regtest/issue-batch2.out`; JSON abridged to the recovered fields, receipts written to `raw/tools/regtest/receipts-batch2/`)
+### Receipts after the fix (`scripts/regtest/issue-batch2.sh` → `raw/tools/regtest/issue-batch2.out`; JSON abridged to the recovered fields, receipts written to `raw/tools/regtest/receipts-batch2/`)
 
 ```
 $ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat fixtures/regtest-issuer-ufvk.txt) --txid 48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2 --label 'batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG' --challenge auditor-nonce-12 --key-file issuer.key --key-id 2026-09 --out-dir receipts-batch2
@@ -477,7 +477,7 @@ $ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat fixtures
 exit=0
 ```
 
-### Verification matrix (`raw/tools/regtest/verify-batch2.sh` → `raw/tools/regtest/verify-batch2.out`, verbatim)
+### Verification matrix (`scripts/regtest/verify-batch2.sh` → `raw/tools/regtest/verify-batch2.out`, verbatim)
 
 ```
 $ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 receipts-batch2/48db254a361e9676-ironwood-1.json --challenge auditor-nonce-12 --require-signature

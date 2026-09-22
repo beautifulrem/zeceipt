@@ -303,7 +303,11 @@ fn is_change_is_null_with_bare_ovk_and_boolean_with_ufvk() {
         "warning missing: {err}"
     );
     let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
-    assert!(v["receipts"][0]["recovered"]["is_change"].is_null());
+    // An explicit `null`, not an absent key: "unknown" must be encoded, not omitted.
+    assert_eq!(
+        v["receipts"][0]["recovered"].get("is_change"),
+        Some(&serde_json::Value::Null)
+    );
 
     let ufvk = std::fs::read_to_string(fixture("regtest-issuer-ufvk.txt")).unwrap();
     let tx =

@@ -50,10 +50,12 @@ for path in files:
         if log_re.search(line) and secret_re.search(line):
             hits.append(f"{path.relative_to(repo)}:{i}: log line mentions ock/ovk/memo: {line.strip()}")
 py_scanned = 0
+carve_outs = 0
 for path in py_files:
     text = path.read_text(encoding="utf-8")
     carved = any(ln.strip().startswith(ALLOW_MARK) for ln in text.splitlines()[:3])
     py_scanned += 1
+    carve_outs += 1 if carved else 0
     in_doc = False
     for i, line in enumerate(text.splitlines(), 1):
         stripped = line.strip()
@@ -69,7 +71,7 @@ for path in py_files:
             if carved and "key-material-allowed" in tail:
                 continue
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term in a script line without a per-line `# key-material-allowed` tag: {line.strip()}")
-print(f"source guards: {len(files)} crate files + {py_scanned} scripts scanned (carve-out files: {sum(1 for p in py_files if any(l.strip().startswith(ALLOW_MARK) for l in p.read_text(encoding=chr(117)+chr(116)+chr(102)+chr(45)+chr(56)).splitlines()[:3]))})")
+print(f"source guards: {len(files)} crate files + {py_scanned} scripts scanned (carve-out files: {carve_outs})")
 if hits:
     print("\n".join(hits))
     sys.exit(1)
