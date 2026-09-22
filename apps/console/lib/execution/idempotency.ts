@@ -211,32 +211,44 @@ export class FileIdempotencyStore implements IdempotencyStore {
   }
 
   async update(next: SubmissionRecord, expect: Expect) {
-    return this.withLock(next.nonce, async () => {
+    return this.withLock(next.nonce, async (stillHeld) => {
       if (!matches(await this.get(next.nonce), expect)) return false;
+      // Fence: if this process was suspended past `staleLockMs` its lock may have been broken and taken
+      // by another writer; then it must not write (the lease assumption, design 3.3.5.4.8.2 / RSK-21).
+      await stillHeld();
       // Index first: a txid that is findable but not yet in the record is harmless (the entry carries its
       // attempt, so `status` can tell an interrupted write from a superseded attempt); the reverse would hide it.
       if (next.txid) await this.writeAtomic(join(this.dir, `${next.txid}.txid`), `${next.nonce}\n${next.attempts}`);
+      await stillHeld();
       await this.writeAtomic(this.path(next.nonce), JSON.stringify(next, null, 2));
       return true;
     });
   }
 
   /**
-   * Per-nonce mutex across processes: an O_EXCL lock file (an update holds it for milliseconds). A lock
-   * older than `staleLockMs` belongs to a writer that died mid-update and is broken — but only under a
-   * second exclusive "break" lock and after re-checking that the lock file is still the stale one (same
-   * inode and mtime), so two waiters can never both break it or break a fresh lock. A break lock is
+   * Per-nonce mutex across processes: an O_EXCL lock file (an update holds it for milliseconds). It is a
+   * *lease*: a lock older than `staleLockMs` is presumed to belong to a writer that died mid-update and is
+   * broken — but only under a second exclusive "break" lock and after re-checking that the lock file is
+   * still the stale one (same inode and mtime), so two waiters can never both break it or break a fresh
+   * lock. A holder that is alive but suspended longer than `staleLockMs` (SIGSTOP, sleep, a hung disk)
+   * loses the lease; `fn` gets `stillHeld()`, which throws `StoreBusyError` once the lock file is no
+   * longer the one this holder created, and `update` calls it before each write. The remaining window is
+   * a suspension between that check and the rename itself (RSK-21). A break lock is
    * itself held for microseconds; one older than `staleLockMs` is removed. Waits up to `lockWaitMs`
    * (default `staleLockMs + 5 s`, always longer than it takes a dead writer's lock to go stale), then
    * throws `StoreBusyError` (a lock that keeps being renewed by live writers).
    */
-  private async withLock<T>(nonce: string, fn: () => Promise<T>, staleLockMs = this.staleLockMs): Promise<T> {
+  private async withLock<T>(nonce: string, fn: (stillHeld: () => Promise<void>) => Promise<T>, staleLockMs = this.staleLockMs): Promise<T> {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
     const lock = join(this.dir, `${key(nonce)}.lock`);
     const deadline = Date.now() + this.lockWaitMs;
+    let mine: { ino: number; mtimeMs: number } | undefined;
     for (;;) {
       try {
-        await (await open(lock, "wx", 0o600)).close();
+        const fh = await open(lock, "wx", 0o600);
+        const st = await fh.stat();
+        await fh.close();
+        mine = { ino: st.ino, mtimeMs: st.mtimeMs };
         break;
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
@@ -246,10 +258,22 @@ export class FileIdempotencyStore implements IdempotencyStore {
         else await new Promise((r) => setTimeout(r, 5));
       }
     }
+    const held = mine;
+    const stillHeld = async () => {
+      const st = await stat(lock).catch(() => undefined);
+      if (!st || st.ino !== held.ino || st.mtimeMs !== held.mtimeMs || Date.now() - st.mtimeMs > staleLockMs) {
+        throw new StoreBusyError(`lost the lease on ${lock} (held longer than ${staleLockMs} ms); nothing more was written`);
+      }
+    };
+    let lost = false;
     try {
-      return await fn();
+      return await fn(stillHeld);
+    } catch (e) {
+      lost = e instanceof StoreBusyError;
+      throw e;
     } finally {
-      await unlink(lock).catch(() => {});
+      // Never delete a lock that another writer now holds.
+      if (!lost) await unlink(lock).catch(() => {});
     }
   }
 

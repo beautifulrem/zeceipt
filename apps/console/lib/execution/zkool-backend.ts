@@ -37,10 +37,16 @@ export interface ZkoolBackendOptions {
   maxRecipients?: number;
   /**
    * Blocks between the tip at build time and the transaction's expiry height. Zkool builds with
-   * expiry = tip + 40 (tx 623bfd29… built at tip 1729 expires at 1769; tx 6b615fe0… built at 2072 expires at 2112, PROOF §5c); a transaction
+   * expiry = tip + 40 (e.g. tx 205c81ac… built at tip 2465 expires at 2505, PROOF §5c; four earlier runs agree); a transaction
    * can only be mined at or below its expiry height.
    */
   txExpiryDelta?: number;
+  /**
+   * Blocks added to every expiry bound. The bound uses the node tip observed after the attempt, which is
+   * ≥ Zkool's build tip unless a reorg lowered the tip in between; the margin covers reorgs up to this
+   * depth. Default 10 (≈ 12 min on mainnet before an uncertain nonce may pay again).
+   */
+  expiryMarginBlocks?: number;
   now?: () => Date;
 }
 
@@ -68,6 +74,7 @@ export class ZkoolBackend implements PayoutBackend {
   private readonly pendingTimeoutMs: number;
   private readonly maxRecipients: number;
   private readonly txExpiryDelta: number;
+  private readonly expiryMarginBlocks: number;
   private readonly now: () => Date;
 
   constructor(opts: ZkoolBackendOptions) {
@@ -78,6 +85,7 @@ export class ZkoolBackend implements PayoutBackend {
     this.pendingTimeoutMs = opts.pendingTimeoutMs ?? 30 * 60_000;
     this.maxRecipients = opts.maxRecipients ?? 50;
     this.txExpiryDelta = opts.txExpiryDelta ?? 40;
+    this.expiryMarginBlocks = opts.expiryMarginBlocks ?? 10;
     this.now = opts.now ?? (() => new Date());
     const attemptMs = this.client.payTimeoutMs + 3 * this.client.timeoutMs;
     if (this.inFlightMs <= attemptMs) {
@@ -199,7 +207,7 @@ export class ZkoolBackend implements PayoutBackend {
     if (match.kind !== "none") throw new ExecutionError("not_expired", match.kind === "found" ? `a transaction paying this batch was mined: ${match.txid}` : match.detail);
     if (rec.expiresBy === undefined) {
       // The bound request failed after the broadcast: record node tip + delta now (≥ the tip at build time).
-      const expiresBy = match.tip + this.txExpiryDelta;
+      const expiresBy = match.tip + this.txExpiryDelta + this.expiryMarginBlocks;
       await this.save({ ...rec, expiresBy }, rec, ["broadcast"]);
       throw new ExecutionError("not_expired", `transaction ${rec.txid} can still be mined (expiry bound now recorded as ${expiresBy}, scanned ${match.scanned})`);
     }
@@ -224,14 +232,14 @@ export class ZkoolBackend implements PayoutBackend {
   }
 
   /**
-   * Expiry bound for an attempt that has just returned (or failed): node tip now + expiry delta. Zkool
+   * Expiry bound for an attempt that has just returned (or failed): node tip now + expiry delta + margin. Zkool
    * builds with expiry = its tip at build time + 40, and it built before answering. Assumption: Zkool does
    * not start building after our request was abandoned for longer than it takes the chain to move past
    * this bound (a stall inside Zkool longer than the pay timeout); design.md 3.3.5.4.9.2.
    */
   private async expiryBound(): Promise<number | undefined> {
     try {
-      return (await this.client.currentHeight()) + this.txExpiryDelta;
+      return (await this.client.currentHeight()) + this.txExpiryDelta + this.expiryMarginBlocks;
     } catch {
       return undefined; // resolveUncertain derives a later (still valid) bound from the tip it syncs to
     }
@@ -306,7 +314,7 @@ export class ZkoolBackend implements PayoutBackend {
     }
     // No bound recorded (e.g. a crash mid-attempt): the node tip now is ≥ the tip when Zkool built, so
     // tip + delta is a valid (larger, i.e. safer) upper bound on that attempt's expiry height.
-    const expiresBy = rec.expiresBy ?? match.tip + this.txExpiryDelta;
+    const expiresBy = rec.expiresBy ?? match.tip + this.txExpiryDelta + this.expiryMarginBlocks;
     if (match.kind === "none" && match.scanned > expiresBy) return this.retry(batch, { ...rec, expiresBy });
     const detail = match.kind === "none" ? `${match.detail}; the attempt cannot be mined after height ${expiresBy}, a submit once the account is scanned past it pays again` : match.detail;
     const next: SubmissionRecord = { ...rec, state: "unknown_outcome", error: `${why}; ${detail}`, expiresBy };

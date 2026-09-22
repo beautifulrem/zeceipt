@@ -173,7 +173,7 @@ test("GraphQL error after the tx reached the node → unknown_outcome, never re-
   await assert.rejects(b.submit(batch("gsent"), "nonce-gsent"), UnknownOutcomeError);
   const rec = await store.get("nonce-gsent");
   assert.equal(rec?.state, "unknown_outcome");
-  assert.equal(rec?.expiresBy, fake.height + 40);
+  assert.equal(rec?.expiresBy, fake.height + 50);
   await assert.rejects(b.submit(batch("gsent"), "nonce-gsent"), /cannot be mined after height/);
   assert.equal(fake.payCalls, calls + 1);
   fake.mine();
@@ -189,8 +189,8 @@ for (const mode of ["grpc-error-unsent", "node-rejected"] as const) {
     fake.nextPay = mode;
     await assert.rejects(b.submit(batch(mode), `nonce-${mode}`), UnknownOutcomeError);
     const bound = (await store.get(`nonce-${mode}`))!.expiresBy!;
-    assert.equal(bound, fake.height + 40);
-    fake.advance(40); // tip == bound: a tx built by the attempt could still be mined in this block
+    assert.equal(bound, fake.height + 50);
+    fake.advance(50); // tip == bound (40 expiry + 10 margin): still treated as possibly minable
     await assert.rejects(b.submit(batch(mode), `nonce-${mode}`), UnknownOutcomeError);
     assert.equal(fake.payCalls, calls + 1);
     fake.advance(1); // tip > bound and nothing matching was mined: the attempt can never be mined
@@ -259,7 +259,7 @@ test("status: a broadcast that was never mined is reported expired once the tip 
   const { txid } = await b.submit(batch("exp"), "nonce-exp");
   assert.equal((await b.status(txid)).state, "pending");
   fake.drop();
-  fake.advance(41);
+  fake.advance(51);
   const st = await b.status(txid);
   assert.equal(st.state, "unknown");
   if (st.state === "unknown") assert.match(st.reason, /expired: not mined by height/);
@@ -303,7 +303,7 @@ test("status never calls an unscanned mined tx expired", async () => {
   const { txid } = await b.submit(batch("lagst"), "nonce-lagst");
   fake.syncBusy = true;
   fake.mine();
-  fake.advance(45);
+  fake.advance(55); // node tip past the bound (tip + 50), account not scanned
   const st = await b.status(txid);
   assert.equal(st.state, "pending");
   fake.syncBusy = false;
@@ -317,7 +317,7 @@ test("resubmitExpired: only after the account is scanned past the bound with not
   const first = await b.submit(batch("resend"), "nonce-resend");
   await assert.rejects(b.resubmitExpired(batch("resend"), "nonce-resend"), /can still be mined/);
   fake.drop(); // the node lost it
-  fake.advance(41);
+  fake.advance(51);
   assert.match((await b.status(first.txid) as { reason: string }).reason, /expired/);
   assert.deepEqual(await b.submit(batch("resend"), "nonce-resend"), { txid: first.txid, replayed: true, via: "record" }); // submit alone never re-pays
   const again = await b.resubmitExpired(batch("resend"), "nonce-resend");
@@ -450,10 +450,32 @@ test("resubmitExpired records a fallback bound when the post-pay bound request f
   fake.drop();
   await assert.rejects(b.resubmitExpired(batch("nobound"), "nonce-nobound"), /now recorded as/);
   const bound = (await store.get("nonce-nobound"))!.expiresBy!;
-  assert.equal(bound, fake.height + 40);
-  fake.advance(41);
+  assert.equal(bound, fake.height + 50);
+  fake.advance(51);
   const again = await b.resubmitExpired(batch("nobound"), "nonce-nobound");
   assert.notEqual(again.txid, first.txid);
   assert.equal(fake.payCalls, calls + 2);
   fake.mine();
+});
+
+test("file store lease: a writer suspended past staleLockMs loses the lock and writes nothing over the new holder", async () => {
+  const d = join(dir, "lease");
+  class SlowStore extends FileIdempotencyStore {
+    pauseMs = 0;
+    override async get(nonce: string) {
+      const r = await super.get(nonce);
+      if (this.pauseMs) await new Promise((res) => setTimeout(res, this.pauseMs)); // "suspended" inside update
+      return r;
+    }
+  }
+  const a = new SlowStore(d, { staleLockMs: 100 });
+  const b2 = new FileIdempotencyStore(d, { staleLockMs: 100 });
+  const base = { nonce: "n-lease", batchId: "b", batchDigest: "d", createdAt: "t", state: "submitting" as const, attempts: 1 };
+  await a.createIntent(base);
+  a.pauseMs = 400;
+  const slow = a.update({ ...base, attempts: 2, error: "A" }, { attempts: 1, states: ["submitting"] });
+  await new Promise((res) => setTimeout(res, 200)); // A holds a lock that is now stale
+  assert.equal(await b2.update({ ...base, attempts: 2, error: "B" }, { attempts: 1, states: ["submitting"] }), true);
+  await assert.rejects(slow, StoreBusyError);
+  assert.equal((await b2.get("n-lease"))?.error, "B");
 });
