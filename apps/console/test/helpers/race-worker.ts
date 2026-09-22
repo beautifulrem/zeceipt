@@ -10,12 +10,8 @@ const db = openDb({ path: workerData.path });
 const store = new SqliteIdempotencyStore(db, { orgId: "org-race" });
 const me: number = workerData.id;
 
-parentPort!.on("message", async (m: { op: "create" | "cas" | "claim" | "close"; nonce: string; gate: SharedArrayBuffer }) => {
-  if (m.op === "close") {
-    db.$client.close();
-    parentPort!.close();
-    return;
-  }
+// The main thread ends workers with terminate(); the connection closes with the thread.
+parentPort!.on("message", async (m: { op: "create" | "cas" | "claim"; nonce: string; gate: SharedArrayBuffer }) => {
   const gate = new Int32Array(m.gate);
   Atomics.add(gate, 0, 1);
   Atomics.notify(gate, 0);
