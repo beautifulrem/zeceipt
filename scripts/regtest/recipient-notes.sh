@@ -1,4 +1,5 @@
 #!/bin/bash
+set -u
 # Recipient-side views of the Zkool batch and the memo-limit probe (captured, not hand-typed).
 # Parameters: GRAPHQL (default http://127.0.0.1:9000/graphql). Uses only account ids on the local regtest server; no key material.
 G="${GRAPHQL:-http://127.0.0.1:9000/graphql}"
@@ -13,4 +14,8 @@ for t in json.load(sys.stdin)['data']['transactionsByAccount']: print(json.dumps
 ADDR=$(curl --noproxy '*' -s -X POST $G -H 'Content-Type: application/json' -d '{"query":"{ addressByAccount(idAccount: 6) { ua } }"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['addressByAccount']['ua'])")
 M513=$(python3 -c "print('M'*513)")
 echo "\$ # memo-limit probe, 513 bytes: pay(idAccount: 5, recipients: [{address: <recipient 6 UA>, amount: \"0.001\", memo: \"M\"×513}], srcPools: 8)"
-curl --noproxy '*' -s -X POST $G -H 'Content-Type: application/json' -d "{\"query\":\"mutation(\$id: Int!, \$pay: Payment!) { pay(idAccount: \$id, payment: \$pay) }\",\"variables\":{\"id\":5,\"pay\":{\"recipients\":[{\"address\":\"$ADDR\",\"amount\":\"0.001\",\"memo\":\"$M513\"}],\"srcPools\":8}}}"; echo
+# The probe is expected to be REJECTED before signing. If a txid ever comes back, the memo limit changed and a real
+# 0.001 REG spend was mined — report it loudly and fail, so this capture can never silently alter the chain.
+RESP=$(curl --noproxy '*' -s -X POST $G -H 'Content-Type: application/json' -d "{\"query\":\"mutation(\$id: Int!, \$pay: Payment!) { pay(idAccount: \$id, payment: \$pay) }\",\"variables\":{\"id\":5,\"pay\":{\"recipients\":[{\"address\":\"$ADDR\",\"amount\":\"0.001\",\"memo\":\"$M513\"}],\"srcPools\":8}}}")
+echo "$RESP"
+case "$RESP" in *'"errors"'*) ;; *) echo "UNEXPECTED: the 513-byte memo was accepted and a transaction was broadcast: $RESP" >&2; exit 1;; esac

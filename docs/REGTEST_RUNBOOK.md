@@ -5,7 +5,7 @@ Moved into the repository on 2026-09-22 from `raw/tools/regtest/runbook.md`. Cha
 Components (all built from source under raw/tools):
 - zebrad v6.3.0 (`--features internal-miner`), config `zebrad.toml` (Regtest, all NUs incl. NU6.3 at height 1, internal miner to tm9vhD…, RPC 18232 without cookie auth, indexer gRPC 18230)
 - zainod (Zaino), config `zainod.toml` (fetch backend from Zebra, gRPC 8137)
-- zcash-devtool with `regtest_support`, wallet dir `regtest-wallet`, mnemonic = throwaway testnet wallet's (regtest-mnemonic.txt, mode 600)
+- zcash-devtool with `regtest_support`, wallet dir `regtest-wallet`, mnemonic = throwaway testnet wallet's (regtest-mnemonic.txt, mode 600). Deliberate: the same throwaway seed backs the regtest wallet and the testnet wallet of PROOF §4 (regtest and testnet share ZIP 32 coin type 1, so `fixtures/regtest-issuer-ufvk.txt` and the testnet UFVK in PROOF §4 are two encodings of one account's viewing key); both viewing keys are published on purpose, and neither wallet will ever hold value beyond faucet dust.
 
 Steps
 1. `zebrad -c zebrad.toml start` → wait for "successfully mined a new block"; coinbase matures after 100 blocks.
