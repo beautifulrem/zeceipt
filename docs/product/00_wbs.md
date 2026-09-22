@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -193,10 +193,10 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-09-27.
 - 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27.
 #### 3.3.4 Open technical questions
-- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation.
-- 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured).
-- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances.
-- 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after 2026-10-06.
+- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd timebox, opportunistic (inside the 3.3.4 investigations line of `11_plan.md` §1).
+- 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured). 0.25 pd timebox, with the first funded batch (2026-10-01).
+- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd timebox, opportunistic.
+- 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after 2026-10-06. 0.25 pd, 2026-10-07.
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-01 → 10-03.
 #### 3.3.5 Payout console — payables, batches, execution
 - 3.3.5.1 ⬜ T — Payables + CSV import (Konclave `label,address,value[,memo]`, zecpay columns) with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.5 pd, 2026-09-24.
@@ -235,17 +235,17 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve.
 - 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes.
 #### 4.1.2 Community and design test
-- 4.1.2.1 ⬜ R — Post format v0 to zips #387 (planned 2026-09-27).
-- 4.1.2.2 ⬜ PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan).
+- 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-09-27 → 10-11.
+- 4.1.2.2 ⬜ PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24.
 - 4.1.2.3 👤 ⬜ U — Decide on contacting Konclave's author (default yes).
-- 4.1.2.4 ⬜ PM — ZecHub Discord announcement with demo link.
+- 4.1.2.4 ⬜ PM — ZecHub Discord announcement with demo link. 0.25 pd, 2026-09-28.
 
 ### 4.2 Pilots and traction
 #### 4.2.1 Pilot organisations
-- 4.2.1.1 ⬜ PM — ZecHub DAO weekly bounties (target ≥ 3 receipts).
-- 4.2.1.2 ⬜ PM — Zcash Brazil (Konclave user) receipts for their public ledger.
-- 4.2.1.3 ⬜ PM — One ZCG grantee team.
-- 4.2.1.4 ⬜ PM — OpenZcash "verified" column demo branch.
+- 4.2.1.1 ⬜ PM — ZecHub DAO weekly bounties (target ≥ 3 receipts). 0.5 pd, 2026-09-28 → 10-03.
+- 4.2.1.2 ⬜ PM — Zcash Brazil (Konclave user) receipts for their public ledger. 0.5 pd, 2026-09-29 → 10-03.
+- 4.2.1.3 ⬜ PM — One ZCG grantee team. 0.25 pd, 2026-10-01 → 10-03.
+- 4.2.1.4 ⬜ PM — OpenZcash "verified" column demo branch (uses the export from 3.3.3.2). 0.25 pd, 2026-10-02.
 #### 4.2.2 Countable metrics
 - 4.2.2.1 ⬜ PM — Receipts issued on public chains (target ≥ 15 by 2026-10-12).
 - 4.2.2.2 ⬜ PM — npm/crate downloads (≥ 50).
@@ -258,21 +258,21 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 5.1 Materials
 #### 5.1.1 Videos
-- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5).
-- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline `11_plan.md` §5).
-- 5.1.1.3 ⬜ PM — Weekly update videos ×2.
-- 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links.
+- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-06 → 10-09.
+- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline `11_plan.md` §5). 0.75 pd, 2026-10-06 → 10-09.
+- 5.1.1.3 ⬜ PM — Weekly update videos ×2. 0.25 pd, 2026-09-28 and 10-05.
+- 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-09.
 #### 5.1.2 Written
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
-- 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2.
+- 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04.
 - 5.1.2.3 👤 ⬜ U — Team members with background context; team location; logo.
-- 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale. `09_submission_checklist.md` §1.
+- 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale; forced to Developer Infrastructure if the solo branch activates (RSK-19). `09_submission_checklist.md` §1. 0.25 pd, 2026-10-03.
 
 ### 5.2 Process
 #### 5.2.1 Timeline
-- 5.2.1.1 ⬜ PM — Initial upload on window-open day (assumed 2026-10-05).
-- 5.2.1.2 ⬜ PM — Final videos by 2026-10-09; freeze 2026-10-10.
-- 5.2.1.3 ⬜ PM — Final submission 2026-10-11 (one-day buffer).
+- 5.2.1.1 ⬜ PM — Initial upload on window-open day (assumed 2026-10-05). 0.25 pd.
+- 5.2.1.2 ⬜ PM — Final videos by 2026-10-09; freeze and form re-check 2026-10-10. 0.25 pd.
+- 5.2.1.3 ⬜ PM — Final submission 2026-10-11 (one-day buffer). 0.25 pd.
 - 5.2.1.4 ⬜ PM — Post-submission: keep shipping; interview prep (`11_plan.md` §6).
 #### 5.2.2 Compliance with rules
 - 5.2.2.1 ✅ PM — English-only content. All repo docs English.

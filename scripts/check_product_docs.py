@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; §1 person-days equal WBS leaf sums; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack recomputed; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -164,6 +164,20 @@ for name, wbs_cell, pd_cell in re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]
     if abs(total_pd - float(pd_cell)) > 1e-6:
         errors.append(f"11_plan.md §1: '{name.strip()}' says {pd_cell} pd but WBS leaves {prefixes} sum to {total_pd}")
 
+# slack line: capacity − (Total − Σ pd of ✅ rows) must equal the stated slack; Total must equal Σ rows
+rows_pd = re.findall(r"^\| (?!\*\*Total)([^|]+) \| [^|]* \| (\d+(?:\.\d+)?) \| [^|]* \| ([^|]*) \|$", budget, re.M)
+tot_m = re.search(r"^\| \*\*Total\*\* \| \| \*\*(\d+(?:\.\d+)?)\*\* \| \| .*?\*\*(\d+(?:\.\d+)?)\*\* → open \*\*(\d+(?:\.\d+)?)\*\* vs capacity \*\*(\d+)\*\*.*?slack \*\*(\d+(?:\.\d+)?)\*\*", budget, re.M)
+if not tot_m:
+    errors.append("11_plan.md §1: Total row with done/open/capacity/slack not found")
+else:
+    total_s, done_s, open_s, cap_s, slack_s = (float(x) for x in tot_m.groups())
+    sum_rows = sum(float(v) for _, v, _ in rows_pd)
+    sum_done = sum(float(v) for _, v, st in rows_pd if st.strip().startswith("✅"))
+    if abs(sum_rows - total_s) > 1e-6:
+        errors.append(f"11_plan.md §1: Total says {total_s} but rows sum to {sum_rows}")
+    if abs(sum_done - done_s) > 1e-6 or abs(total_s - done_s - open_s) > 1e-6 or abs(cap_s - open_s - slack_s) > 1e-6:
+        errors.append(f"11_plan.md §1: done/open/slack inconsistent: done rows {sum_done}, stated done {done_s}, open {open_s}, capacity {cap_s}, slack {slack_s}")
+
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
@@ -172,7 +186,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

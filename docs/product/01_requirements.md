@@ -31,7 +31,7 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 | REQ-CLI-3 | M | Failure stage reported in JSON (`parse/tx/txid/signature/challenge/output/recovery/network`). | Each stage asserted. | ✅ same |
 | REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CLI-5 | M | Network context guard: explicit `--testnet`/`--regtest` with a mainnet receipt is rejected at stage `network`. | Test asserts. | ✅ `failure_stages_and_exit_1` |
-| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `no key-material flags` greps `seed|mnemonic|spending` in the CLI/wasm/lwd sources and fails on a hit. | ✅ `.github/workflows/ci.yml` step "no key-material flags" (added 2026-09-22; passes locally) |
+| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `source guards` (`scripts/check_source_guards.py`) fails if the whole words seed/mnemonic/spending appear in any crate's non-test code. | ✅ CI source guards (passes locally) |
 | REQ-CLI-7 | S | Privacy modes: `--block-range` (scan blocks instead of asking for a txid) and `--tor`/custom endpoint. | Verifying via block range works on regtest without a `GetTransaction` call. | ⬜ WBS 3.2.1.4 |
 | REQ-CLI-8 | S | Live integration test behind `--features live`. | CI job optional; local run documented. | ⬜ WBS 3.2.2.4 |
 
@@ -93,12 +93,12 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 
 | ID | Requirement | Acceptance criterion | Status |
 |---|---|---|---|
-| NFR-1 Security | No spending keys, seeds or mnemonics accepted anywhere in the workspace; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. | Reviewer grep + clippy; CLI has no such flags. | ✅ (reviewer round 1 of the product package confirmed the grep; CLI crate attribute added 2026-09-22) |
+| NFR-1 Security | No spending keys, seeds or mnemonics accepted anywhere in the workspace; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. | CI step `source guards` (`scripts/check_source_guards.py`) scans all five crates' non-test code for the whole words seed/mnemonic/spending and fails on a hit; clippy `-D warnings`; attribute present in all five crates. | ✅ CI source guards (passes locally, 6 files) |
 | NFR-2 Privacy | Only per-output OCKs are disclosed; UFVK/OVK never leave the issuer; hosted verifier discloses which txid it fetches. | Spec §9; demo copy. | ✅ |
 | NFR-3 Reliability | Endpoint failover; `pending` distinct from `invalid`; idempotent issuance. | lwd tests; CLI exit 2 path. | ✅ (console idempotency ⬜) |
-| NFR-4 Performance | Browser verify < 1 s after wasm load for a 20 KB tx; CLI issue < 5 s per tx on public nodes. | Chrome 153 on `demo/index.html`: 7.28 ms per verify on the largest fixture (9,166 bytes; no 20 KB fixture exists, so the 20 KB condition is extrapolated at ≈ 2× per-output work, not measured); Node: init 13.9 ms. CLI issue = fetch (1.15 s measured, `inspect` over gRPC) + trial-decrypt/sign (offline `issue --regtest` 0.00 s wall) < 5 s. PROOF §2b. | 🟡 measured on 9 KB in Chrome; 20 KB condition extrapolated |
+| NFR-4 Performance | Browser verify < 1 s after wasm load for a 20 KB tx; CLI issue < 5 s per tx on public nodes. | Chrome 153 on `demo/index.html`: 7.28 ms per verify on the largest fixture (9,166 bytes). No 20 KB fixture exists: verification decrypts exactly one output, so cost is dominated by transaction parsing, linear in bytes — a 20 KB transaction is ≈ 2× parse work, ≈ 15 ms, ~65× inside the 1 s budget (extrapolated, not measured). Node: init 13.9 ms. CLI issue = fetch (1.15 s measured, `inspect` over gRPC) + trial-decrypt/sign (offline `issue --regtest` 0.00 s wall) < 5 s. PROOF §2b. | 🟡 measured on 9 KB in Chrome; 20 KB condition extrapolated |
 | NFR-5 Portability | Pure-Rust core compiles to wasm32; Linux/macOS CI. | wasm-pack build; CI file. | ✅ |
-| NFR-6 Observability | `tracing` levels; secrets never above `trace`. | CI step `no secrets in logs` greps `crates/*/src` for `info!/debug!/warn!/error!/trace!` lines mentioning `ock`, `ovk` or `memo` and fails on a hit. | ✅ `.github/workflows/ci.yml` step "no secrets in logs" (passes locally) |
+| NFR-6 Observability | `tracing` levels; secrets never above `trace`. | CI step `source guards` fails if any `trace!/debug!/info!/warn!/error!` line in any crate mentions the whole words ock/ovk/memo. | ✅ CI source guards (passes locally) |
 | NFR-7 Accessibility & copy | English UI; outcomes have text not only colour; proves/does-not-prove always shown. | Node guard asserts the demo page source contains the words "proves" and "does not prove" and that result rows carry a text label (`packages/verify/test/verify.mjs`, copy check). | ✅ demo page (copy check in node guard, 2026-09-22); console ⬜ |
 | NFR-8 Compliance data | Store FMV source, rate and timestamp per payment; per-recipient annual USD totals. | Console export test. | ⬜ |
 
@@ -123,7 +123,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CLI-3 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` |
 | REQ-CLI-4 | ✅ | 3.2.1.3 | test `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CLI-5 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` (stage `network`) |
-| REQ-CLI-6 | ✅ | 3.4.2.1 | CI step "no key-material flags" |
+| REQ-CLI-6 | ✅ | 3.4.2.1 | CI source guards (`scripts/check_source_guards.py`) |
 | REQ-CLI-7 | ⬜ | 3.2.1.4 | planned: `--block-range`, `--tor` |
 | REQ-CLI-8 | ⬜ | 3.2.2.4 | planned: `--features live` |
 | REQ-WEB-1 | ✅ | 3.2.3.3 | PROOF §2b `[R37]` |
@@ -160,11 +160,11 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-INT-2 | ⬜ | 3.3.3.2 | `[R5]` columns; `05` §3.1 |
 | REQ-INT-3 | ⬜ | 3.3.3.3 | `05` §4 well-known contract |
 | REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 post planned 2026-09-27 |
-| NFR-1 | ✅ | 3.4.2.1 | clippy `-D warnings`; grep; `forbid(unsafe_code)` in all five crates |
+| NFR-1 | ✅ | 3.4.2.1 | CI source guards; clippy `-D warnings`; `forbid(unsafe_code)` in all five crates |
 | NFR-2 | ✅ | 3.2.3.3 | spec §9; demo page node disclosure (PROOF §2b) |
 | NFR-3 | ✅ | 3.2.2.3 | lwd unit tests; exit 2 path; console idempotency with 3.3.6.1 |
 | NFR-4 | 🟡 | 3.4.2.1 | PROOF §2b timing (2026-09-22); 20 KB fixture still to capture |
 | NFR-5 | ✅ | 3.2.3.1 | wasm-pack build; CI wasm job |
-| NFR-6 | ✅ | 3.4.2.1 | CI step "no secrets in logs" |
+| NFR-6 | ✅ | 3.4.2.1 | CI source guards (log-line rule) |
 | NFR-7 | ✅ | 3.2.3.4 | node guard copy check; console with 3.3.6.2 |
 | NFR-8 | ⬜ | 3.3.6.3 | exports test (REQ-CON-14) |
