@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, round 13 = 97/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -200,7 +200,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
 #### 3.3.5 Payout console — payables, batches, execution
 - 3.3.5.1 ⬜ R — Payables + CSV import (Konclave `label,address,value[,memo]`, zecpay columns) with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.5 pd, 2026-09-23 → 09-24.
-- 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10; stores the FMV source/rate/timestamp that NFR-8 requires). 1 pd, 2026-09-25 → 09-26.
+- 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10, NFR-8: stores the FMV source/rate/timestamp). 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
@@ -208,7 +208,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 3.3.6 Payout console — receipts, pages, exports
 - 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
-- 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-8). 1.5 pd, 2026-09-29 → 09-30.
+- 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-9). 1.5 pd, 2026-09-29 → 09-30.
 - 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-08 → 10-09 (only if restored).
 
 ### 3.4 Evidence and quality

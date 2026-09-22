@@ -14,7 +14,7 @@ Likelihood/impact: L/M/H. Owner roles as in the WBS. Trigger = the observable th
 | RSK-8 | Public lightwalletd/gRPC-web endpoints down during demo | L | M | Endpoint failover lists; offline mode with raw tx files; regtest node runbook | endpoint errors | R |
 | RSK-9 | Judges read "receipt" as a ZIP, not a company | M | M | Business section: seats + verification API + licensing; pilots; countable metrics | interview questions | PM |
 | RSK-10 | EU AMLR framing hurts the impact story | L | M | Position selective disclosure as the compliance enabler; cite TRM category | judge asks about regulation | PM |
-| RSK-11 | Receipt over-disclosure (address linkability) criticised | M | L | Spec §9 guidance; console fresh-diversifier warning (REQ-CON-6) | reviewer question | PM |
+| RSK-11 | Receipt over-disclosure (address linkability) criticised | M | L | Spec §9 guidance; console linkability warning (REQ-CON-6); fresh-diversifier derivation is Won't for v0 (REQ-CON-18, roadmap) | reviewer question | PM |
 | RSK-12 | Hosted verifier privacy (node learns txid) criticised | M | L | Disclosure on the page; CLI block-range mode planned (REQ-CLI-7) | reviewer question | R |
 | RSK-13 | Repository not pushed → CI never ran, links dead | H (now) | M | User action; README states it plainly until done | 2026-09-24 | U |
 | RSK-14 | NU7 testnet activation (2026-10-06) changes something we rely on | L | M | v6 format unchanged per ZIP 258; re-run tests on testnet after activation | 2026-10-06 | R |

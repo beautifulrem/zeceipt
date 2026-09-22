@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept leaf; every §3 body row parses as a window; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -41,7 +41,8 @@ ids = re.findall(r"^\| ((?:REQ|NFR)-[A-Z0-9-]+)", req_defs, re.M)
 for d in sorted({i for i in ids if ids.count(i) > 1}):
     errors.append(f"01_requirements.md: duplicate id {d}")
 id_set = set(ids)
-matrix_rows = re.findall(r"^\| ((?:REQ|NFR)-[A-Z0-9-]+) \| (\S+) \| ([\d.]+) \| (.*) \|$", matrix, re.M)
+prio = dict(re.findall(r"^\| (REQ-[A-Z]+-\d+) \| ([MSCW]) \|", req_defs, re.M))  # requirement priorities (NFRs seeded later)
+matrix_rows = re.findall(r"^\| ((?:REQ|NFR)-[A-Z0-9-]+) \| (\S+) \| ([\d.]+|—) \| (.*) \|$", matrix, re.M)
 matrix_ids = [r[0] for r in matrix_rows]
 for i in ids:
     if i not in matrix_ids:
@@ -75,6 +76,10 @@ for m in leaf_re.finditer(wbs):
 
 # matrix leaf numbers and PROOF rule
 for rid, status, leaf, evidence in matrix_rows:
+    if leaf == "—":
+        if prio.get(rid) != "W":
+            errors.append(f"01_requirements.md: {rid} has no WBS leaf in §8 but is not priority W")
+        continue
     if leaf not in leaf_ids:
         errors.append(f"01_requirements.md: {rid} cites WBS leaf {leaf} which does not exist")
     if status == "⬜" and "PROOF" in evidence:
@@ -266,7 +271,6 @@ for num in sorted(pd_of):
         errors.append(f"11_plan.md §1.1: leaf {num} carries person-days but is neither kept nor dropped in the solo branch")
 
 # priorities: leaf → REQ ids → priority; Must leaves never in the last two windows; form deliverables there need a fallback
-prio = dict(re.findall(r"^\| (REQ-[A-Z]+-\d+) \| ([MSCW]) \|", req_defs, re.M))
 solo_col = dict(re.findall(r"^\| (REQ-[A-Z]+-\d+) \| [MSCW] \|.*\| ([a-z]+)[^|]*\|$", req_defs, re.M))
 solo_col.update(dict(re.findall(r"^\| (NFR-\d+) [^|]*\|.*\| ([a-z]+)[^|]*\|$", req_defs, re.M)))
 for n in re.findall(r"^\| (NFR-\d+) ", req_defs, re.M):
@@ -292,6 +296,8 @@ solo_dropped = solo.split("Dropped in the solo branch")[1] if "Dropped in the so
 kept_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_kept_tbl))
 dropped_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_dropped))
 solo_cells = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\|.*\| ((?:kept|reduced|dropped)[^|]*)\|$", req_defs, re.M))
+done_ids = {m.group(1) for m in leaf_re.finditer(wbs) if "✅" in m.group(2)[:12]}
+kept_ids |= done_ids  # delivered work cannot be dropped by a branch
 for rid, val in solo_col.items():
     cell = solo_cells.get(rid, "")
     cited = re.findall(r"\b(\d\.\d\.\d\.\d)\b", cell)
@@ -302,12 +308,19 @@ for rid, val in solo_col.items():
     for n in cited:
         if val == "dropped" and n in kept_ids:
             errors.append(f"01_requirements.md: {rid} is 'dropped' but cites kept leaf {n}")
+    if val == "kept" and re.search(r"\b(only|without|no)\b", cell):
+        errors.append(f"01_requirements.md: {rid} is 'kept' with a qualifier ('{cell.strip()}'); a partial obligation must be 'reduced' or the requirement split")
     leaves_of = [n for n, rs in leaf_reqs.items() if rid in rs]
     # the §8 traceability leaf counts as a leaf of the requirement even if the WBS line does not name the id
     for mrid, _st, mleaf, _ev in matrix_rows:
         if mrid == rid and mleaf not in leaves_of:
             leaves_of.append(mleaf)
+    leaves_of = [n for n in leaves_of if n != "—"]
     if not leaves_of:
+        if prio.get(rid) == "W":
+            if val != "dropped":
+                errors.append(f"01_requirements.md: {rid} is priority W but Solo says '{val}'")
+            continue
         errors.append(f"01_requirements.md: {rid} has no WBS leaf naming it and no §8 leaf; the Solo value cannot be cross-checked")
         continue
     any_kept = any(n in kept_ids for n in leaves_of)

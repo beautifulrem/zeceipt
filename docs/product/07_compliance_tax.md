@@ -8,7 +8,7 @@ Zeceipt is not tax software and does not file anything. It records, per payment,
 - Information reporting: for payments made after 2025-12-31 the Form 1099-NEC/MISC threshold is **$2,000** (previously $600), indexed for inflation from 2027, and the backup-withholding trigger is aligned to $2,000 (P.L. 119-21 §70433, amending IRC §6041(a), §6041A(a)(2), §3406(b)(6)) `[R26]`. Practitioner interpretation, not primary source: aggregate per payee per calendar year; e-file when filing ≥ 10 information returns; IRIS replaces FIRE for the 2027 filing season; some states keep $600 (e.g. Mississippi, Wisconsin) `[R26]`.
 - Payer's own gain/loss on disposing ZEC at payment is a separate event (holding period matters) `[R26]`.
 
-What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with two sources and timestamp, confirmation date/height, recipient reference, receipt link. What it exports: per-recipient calendar-year totals with a `threshold_reached` flag (default $2,000, configurable) (`05_data_model_api.md` §3.4).
+What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with two sources and timestamp, confirmation date/height, recipient reference, receipt link. What it exports (baseline plan; dropped under the solo branch, NFR-9): per-recipient calendar-year totals with a `threshold_reached` flag (default $2,000, configurable) (`05_data_model_api.md` §3.4).
 
 ## 2. Fair-market-value policy
 
