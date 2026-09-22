@@ -69,9 +69,8 @@ This table is the authority for dates visible outside the team (posts, videos, u
 | 2026-09-30 | Konclave author outreach with adapter draft (3.3.3.1 lands 09-30) | `08` §2 |
 | 2026-10-01 | First pilot batch (testnet/mainnet) | `08` §2 |
 | 2026-10-03 | Console + Solana status review; cut decisions | `06` RSK-6/7, `11` §2 |
-| 2026-10-04 | `npm publish @zeceipt/verify` (U) | WBS 4.1.1.3 |
 | 2026-10-05 | Initial upload; weekly update 2 (shift to the actual window-open day) | `11` §3 |
-| 2026-10-09 | Final videos uploaded; tag v0.1.0; `cargo audit` + secrets scan | `11` §3, WBS 4.1.1.4, 3.4.2.3 |
+| 2026-10-09 | Final videos uploaded; v0.1.0 release published; `npm publish @zeceipt/verify` (U, after the release) | `11` §3, WBS 4.1.1.3, 4.1.1.4 |
 | 2026-10-10 | Freeze; form re-check | `11` §3 |
 | 2026-10-11 | Final submission | `11` §3 |
 | 2026-10-12 | Deadline (buffer) | `[R1]` |

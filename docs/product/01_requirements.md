@@ -7,48 +7,48 @@ Priority: M = Must (hackathon MVP), S = Should, C = Could, W = Won't (v0). Statu
 In scope for v0: per-output disclosure receipts on Ironwood (plus Orchard/Sapling), CLI, browser verifier/SDK, payout console that issues receipts, Solana attestation of verified receipts, exports for accounting and public ledgers.
 Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in the app, FROST signing, mobile apps, fiat on/off-ramps, EOR/employment services, ZSA/stablecoin issuance, non-Zcash payouts.
 
-Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3 (reduced to manual entry), REQ-CON-4 (reduced to a single rate source), REQ-CON-6, REQ-CON-7, REQ-CON-10, REQ-CON-11, REQ-CON-12 and REQ-CON-17; every other requirement is dropped for the hackathon and the console/Solana tables below carry a "Solo" column saying so. The checker verifies that column against the solo kept/dropped lists.
+Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3 (reduced to manual entry), REQ-CON-4 (reduced to a single rate source), REQ-CON-6 (reduced), REQ-CON-7, REQ-CON-10, REQ-CON-11, REQ-CON-12 and REQ-CON-17; REQ-CON-6 is reduced to the linkability warning (no fresh-diversifier derivation). Everything already delivered (✅) stays; REQ-WEB-7 (🟡) stays because its leaf is kept; REQ-WEB-8 remains a user action outside the budget; REQ-CORE-9/-10, REQ-CLI-7/-8, REQ-CON-1/-5/-8/-9/-13/-14/-15/-16, REQ-SOL-1..5 and REQ-INT-1..4 are dropped for the hackathon. Every table below carries a "Solo branch" column and the checker verifies it against the solo kept/dropped lists.
 
 ## 1. Receipt core (`zeceipt-core`, `zeceipt-types`)
 
-| ID | Pri | Requirement | Acceptance criterion | Status / evidence |
-|---|---|---|---|---|
-| REQ-CORE-1 | M | Parse Zcash transactions v4, v5, v6 and enumerate Ironwood, Orchard and Sapling outputs with stable (pool, index) references. | A committed mainnet v6 tx parses; `enumerate_outputs` lists 2 Ironwood actions with indexes 0,1. | ✅ `parses_mainnet_v6_fixture_and_enumerates_ironwood_actions` |
-| REQ-CORE-2 | M | Derive the per-output OCK from an outgoing viewing key using the protocol PRF for the correct domain (Ironwood/Orchard/Sapling). | Official Orchard vectors reproduce `ock`; Ironwood and Sapling round trips recover value/recipient/memo. | ✅ `official_orchard_test_vectors_ock_and_recovery`, `ironwood_round_trip_*`, `sapling_round_trip_*` |
-| REQ-CORE-3 | M | Recover exactly one output from a disclosed OCK; a wrong key, wrong index or wrong domain must fail. | Tamper tests return `None`/`RecoveryFailed`; Ironwood domain rejects V2 notes. | ✅ same tests + `verify_rejects_txid_mismatch_and_wrong_index` |
-| REQ-CORE-4 | M | Envelope v0 with canonical signing bytes covering every display-affecting field (network, pool, txid, index, ock, label, challenge, key id). | Flipping any of those fields after signing fails signature verification; committed vectors match. | ✅ `tamper_each_field_breaks_signature`, `committed_test_vectors_match` |
-| REQ-CORE-5 | M | Verification fails closed in a fixed order: txid → signature → challenge → output → recovery; no partial success. | `offline_e2e` asserts each stage; CLI stages mirror it. | ✅ `tests/offline_e2e.rs` |
-| REQ-CORE-6 | M | Issuance emits one receipt per output opened by the issuer's external OVK; change outputs only on request. | Synthetic and regtest issuance produce exactly one receipt for the payment output. | ✅ PROOF §2, §5 |
-| REQ-CORE-7 | M | Audit pack: list of receipts with declared total; verifier recomputes a lower-bound total. | `verify-pack` returns `verified_total_zat` and the lower-bound note. | ✅ `inspect_issue_pack_and_verify_pack_offline` |
-| REQ-CORE-8 | M | Regtest network support for local proofs. | `--regtest` issue/verify on a Zebra regtest tx. | ✅ PROOF §5 |
-| REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4.5 / roadmap |
-| REQ-CORE-10 | S | Issuer key binding file format (`/.well-known/zeceipt.json`) with key ids and validity intervals; verifier upgrade-only semantics. | A receipt with unknown key id renders "issuer binding unknown", never invalid. | ⬜ REQ-INT-3 |
+| ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
+|---|---|---|---|---|---|
+| REQ-CORE-1 | M | Parse Zcash transactions v4, v5, v6 and enumerate Ironwood, Orchard and Sapling outputs with stable (pool, index) references. | A committed mainnet v6 tx parses; `enumerate_outputs` lists 2 Ironwood actions with indexes 0,1. | ✅ `parses_mainnet_v6_fixture_and_enumerates_ironwood_actions` | kept (done) |
+| REQ-CORE-2 | M | Derive the per-output OCK from an outgoing viewing key using the protocol PRF for the correct domain (Ironwood/Orchard/Sapling). | Official Orchard vectors reproduce `ock`; Ironwood and Sapling round trips recover value/recipient/memo. | ✅ `official_orchard_test_vectors_ock_and_recovery`, `ironwood_round_trip_*`, `sapling_round_trip_*` | kept (done) |
+| REQ-CORE-3 | M | Recover exactly one output from a disclosed OCK; a wrong key, wrong index or wrong domain must fail. | Tamper tests return `None`/`RecoveryFailed`; Ironwood domain rejects V2 notes. | ✅ same tests + `verify_rejects_txid_mismatch_and_wrong_index` | kept (done) |
+| REQ-CORE-4 | M | Envelope v0 with canonical signing bytes covering every display-affecting field (network, pool, txid, index, ock, label, challenge, key id). | Flipping any of those fields after signing fails signature verification; committed vectors match. | ✅ `tamper_each_field_breaks_signature`, `committed_test_vectors_match` | kept (done) |
+| REQ-CORE-5 | M | Verification fails closed in a fixed order: txid → signature → challenge → output → recovery; no partial success. | `offline_e2e` asserts each stage; CLI stages mirror it. | ✅ `tests/offline_e2e.rs` | kept (done) |
+| REQ-CORE-6 | M | Issuance emits one receipt per output opened by the issuer's external OVK; change outputs only on request. | Synthetic and regtest issuance produce exactly one receipt for the payment output. | ✅ PROOF §2, §5 | kept (done) |
+| REQ-CORE-7 | M | Audit pack: list of receipts with declared total; verifier recomputes a lower-bound total. | `verify-pack` returns `verified_total_zat` and the lower-bound note. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
+| REQ-CORE-8 | M | Regtest network support for local proofs. | `--regtest` issue/verify on a Zebra regtest tx. | ✅ PROOF §5 | kept (done) |
+| REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4.5 / roadmap | dropped |
+| REQ-CORE-10 | S | Issuer key binding file format (`/.well-known/zeceipt.json`) with key ids and validity intervals; verifier upgrade-only semantics. | A receipt with unknown key id renders "issuer binding unknown", never invalid. | ⬜ REQ-INT-3 | dropped |
 
 ## 2. CLI (`zeceipt`)
 
-| ID | Pri | Requirement | Acceptance criterion | Status / evidence |
-|---|---|---|---|---|
-| REQ-CLI-1 | M | Subcommands: keygen, inspect, issue, verify, pack, verify-pack, find-ironwood. | `--help` lists all; each exercised in tests or PROOF. | ✅ `cli.rs` tests, PROOF |
-| REQ-CLI-2 | M | Exit codes: 0 valid, 1 invalid, 2 pending, 3 usage. | Tests assert 0/1/3; pending path returns 2 on NotFound. | ✅ `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` |
-| REQ-CLI-3 | M | Failure stage reported in JSON (`parse/tx/txid/signature/challenge/output/recovery/network`). | Each stage asserted. | ✅ same |
-| REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` |
-| REQ-CLI-5 | M | Network context guard: explicit `--testnet`/`--regtest` with a mainnet receipt is rejected at stage `network`. | Test asserts. | ✅ `failure_stages_and_exit_1` |
-| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `source guards` (`scripts/check_source_guards.py`) fails if the whole words seed/mnemonic/spending appear in any crate's non-test code. | ✅ CI source guards (passes locally) |
-| REQ-CLI-7 | S | Privacy modes: `--block-range` (scan blocks instead of asking for a txid) and `--tor`/custom endpoint. | Verifying via block range works on regtest without a `GetTransaction` call. | ⬜ WBS 3.2.1.4 |
-| REQ-CLI-8 | S | Live integration test behind `--features live`. | CI job optional; local run documented. | ⬜ WBS 3.2.2.4 |
+| ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
+|---|---|---|---|---|---|
+| REQ-CLI-1 | M | Subcommands: keygen, inspect, issue, verify, pack, verify-pack, find-ironwood. | `--help` lists all; each exercised in tests or PROOF. | ✅ `cli.rs` tests, PROOF | kept (done) |
+| REQ-CLI-2 | M | Exit codes: 0 valid, 1 invalid, 2 pending, 3 usage. | Tests assert 0/1/3; pending path returns 2 on NotFound. | ✅ `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` | kept (done) |
+| REQ-CLI-3 | M | Failure stage reported in JSON (`parse/tx/txid/signature/challenge/output/recovery/network`). | Each stage asserted. | ✅ same | kept (done) |
+| REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
+| REQ-CLI-5 | M | Network context guard: explicit `--testnet`/`--regtest` with a mainnet receipt is rejected at stage `network`. | Test asserts. | ✅ `failure_stages_and_exit_1` | kept (done) |
+| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `source guards` (`scripts/check_source_guards.py`) fails if the whole words seed/mnemonic/spending appear in any crate's non-test code. | ✅ CI source guards (passes locally) | kept (done) |
+| REQ-CLI-7 | S | Privacy modes: `--block-range` (scan blocks instead of asking for a txid) and `--tor`/custom endpoint. | Verifying via block range works on regtest without a `GetTransaction` call. | ⬜ WBS 3.2.1.4 | dropped |
+| REQ-CLI-8 | S | Live integration test behind `--features live`. | CI job optional; local run documented. | ⬜ WBS 3.2.2.4 | dropped |
 
 ## 3. Browser verifier and SDK (`zeceipt-wasm`, `@zeceipt/verify`)
 
-| ID | Pri | Requirement | Acceptance criterion | Status / evidence |
-|---|---|---|---|---|
-| REQ-WEB-1 | M | Verify a receipt entirely in the browser from receipt + raw tx hex. | Chrome run shows VALID with recipient/value/memo. | ✅ PROOF §2b |
-| REQ-WEB-2 | M | Same failure stages as CLI; tamper cases shown with stage. | Chrome run shows challenge/signature/recovery stages. | ✅ PROOF §2b |
-| REQ-WEB-3 | M | No receipt-controlled string is interpolated as HTML. | `<b>` in label renders as text. | ✅ PROOF §2b |
-| REQ-WEB-4 | M | Fetch raw tx over gRPC-web from public nodes with failover; page states that the node learns the txid. | Fetch of a mainnet txid succeeds from `zjs.zec.rocks`. | ✅ PROOF §2b |
-| REQ-WEB-5 | M | Committed package must not drift from the format: node guard verifies committed vectors (all Network×Pool) through the committed wasm. | `node packages/verify/test/verify.mjs` ALL OK in CI. | ✅ CI step |
-| REQ-WEB-6 | M | Signature-only check API for integrators. | `checkSignature()` returns signed/valid/pubkey. | ✅ `check_signature` export |
-| REQ-WEB-7 | S | Receipt page renders the three-part outcome (cryptographic validity, chain inclusion, issuer binding). | Page shows the mined height when fetched from a node and states that confirmation depth must be checked elsewhere; issuer binding rendered as confirmed/unknown. | 🟡 mined height shown + depth disclaimer (PROOF §2b); binding lookup ⬜ (WBS 3.3.3.3) |
-| REQ-WEB-8 | C | Publish `@zeceipt/verify` to npm with working links. | Package resolvable; README links live. | 👤 user action |
+| ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
+|---|---|---|---|---|---|
+| REQ-WEB-1 | M | Verify a receipt entirely in the browser from receipt + raw tx hex. | Chrome run shows VALID with recipient/value/memo. | ✅ PROOF §2b | kept (done) |
+| REQ-WEB-2 | M | Same failure stages as CLI; tamper cases shown with stage. | Chrome run shows challenge/signature/recovery stages. | ✅ PROOF §2b | kept (done) |
+| REQ-WEB-3 | M | No receipt-controlled string is interpolated as HTML. | `<b>` in label renders as text. | ✅ PROOF §2b | kept (done) |
+| REQ-WEB-4 | M | Fetch raw tx over gRPC-web from public nodes with failover; page states that the node learns the txid. | Fetch of a mainnet txid succeeds from `zjs.zec.rocks`. | ✅ PROOF §2b | kept (done) |
+| REQ-WEB-5 | M | Committed package must not drift from the format: node guard verifies committed vectors (all Network×Pool) through the committed wasm. | `node packages/verify/test/verify.mjs` ALL OK in CI. | ✅ CI step | kept (done) |
+| REQ-WEB-6 | M | Signature-only check API for integrators. | `checkSignature()` returns signed/valid/pubkey. | ✅ `check_signature` export | kept (done) |
+| REQ-WEB-7 | S | Receipt page renders the three-part outcome (cryptographic validity, chain inclusion, issuer binding). | Page shows the mined height when fetched from a node and states that confirmation depth must be checked elsewhere; issuer binding rendered as confirmed/unknown. | 🟡 mined height shown + depth disclaimer (PROOF §2b); binding lookup ⬜ (WBS 3.3.3.3) | kept (leaf 3.3.6.2) |
+| REQ-WEB-8 | C | Publish `@zeceipt/verify` to npm with working links. | Package resolvable; README links live. | 👤 user action | kept (user action, outside the budget) |
 
 ## 4. Payout console (`apps/console`)
 
@@ -59,7 +59,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CON-3 | M | Payables: type (milestone/invoice/bounty/salary), USD cents, reference, link to grant/project; CSV import compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ | reduced (manual entry, no CSV import) |
 | REQ-CON-4 | M | Batches: group payables; lock ZEC/USD rate from two sources (Kraken, CoinGecko) recording both and the timestamp. | Rate, sources and timestamp persisted; deviation > 3% blocks until re-quote. | ⬜ | reduced (single rate source) |
 | REQ-CON-5 | M | Two-person approval bound by HMAC over (batch id, recipients, amounts, rate); any edit invalidates approvals. | Editing an approved batch resets approvals; test. | ⬜ | dropped |
-| REQ-CON-6 | M | Fresh diversified address per recipient per batch when the recipient supplied a UFVK-derived address set; otherwise warn about linkability. | UI warning shown; documented in spec §9. | ⬜ | kept (warning copy only) |
+| REQ-CON-6 | M | Fresh diversified address per recipient per batch when the recipient supplied a UFVK-derived address set; otherwise warn about linkability. | UI warning shown; documented in spec §9. | ⬜ | reduced (warning copy only; no fresh-diversifier derivation) |
 | REQ-CON-7 | M | Execution backend A: Zkool GraphQL `pay` with per-recipient memo (`INV-…`); idempotent re-submission guarded by a batch nonce. | Regtest batch of 3 recipients lands in one transaction. | ⬜ | kept |
 | REQ-CON-8 | S | Execution backend B: Zallet `z_sendmany` with duplicate-address splitting and unknown-outcome handling after opid loss. | Regtest run. | ⬜ | dropped |
 | REQ-CON-9 | M | Execution backend C: per-recipient ZIP-321 URIs/QR for non-custodial mode (one recipient per URI; multi-recipient URIs are not used because Zodl rejects them). | URIs scan in YWallet/Zodl. | ⬜ | dropped |
