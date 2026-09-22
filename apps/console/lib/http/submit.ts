@@ -53,10 +53,12 @@ async function batchOr404(ctx: ServerContext, id: string) {
 /** `POST /api/batches/:id/submit` with `{"confirmTotalZat": "<the batch total>"}`: 202 once broadcast. */
 export async function submitResponse(req: Request, id: string): Promise<Response> {
   let reachedBackend = false;
+  let inFlightMs: number | undefined;
   const status = UUID_V7.test(id) ? statusPath(id) : undefined;
   try {
     const ctx = serverContext();
     const backend = backendOrConflict(ctx);
+    inFlightMs = backend.inFlightMs;
     const rec = await batchOr404(ctx, id);
     const parsed = SubmitBody.safeParse(await readJson(req));
     if (!parsed.success) {
@@ -79,7 +81,7 @@ export async function submitResponse(req: Request, id: string): Promise<Response
       },
     });
   } catch (e) {
-    throw submitProblem(e, reachedBackend, status);
+    throw submitProblem(e, reachedBackend, status, inFlightMs);
   }
 }
 
@@ -93,15 +95,12 @@ export async function statusResponse(id: string): Promise<Response> {
   return new Response(JSON.stringify({ batchId: id, ...status }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }
 
-/** How long a submit counts as running (ZkoolBackend's default `inFlightMs`), for the in-flight detail. */
-const IN_FLIGHT_MINUTES = 10;
-
 /**
  * The problem for a failed submit, with `thisRequest` and the status link (design 3.3.1.4.5.3–.4).
  * Before the backend is reached nothing can have been sent. After it, only the backend's pre-pay errors
  * are `sent_nothing`; `UnknownOutcomeError` and anything unrecognised are `may_have_sent`.
  */
-export function submitProblem(e: unknown, reachedBackend: boolean, status: string | undefined): HttpProblem {
+export function submitProblem(e: unknown, reachedBackend: boolean, status: string | undefined, inFlightMs?: number): HttpProblem {
   const nothing = { thisRequest: "sent_nothing", ...(status ? { batchStatus: status } : {}) };
   const maybe = { thisRequest: "may_have_sent", ...(status ? { batchStatus: status } : {}) };
   const check = "the batch's own state is at the status route";
@@ -120,7 +119,7 @@ export function submitProblem(e: unknown, reachedBackend: boolean, status: strin
     return new HttpProblem(409, "payment_rejected", `the wallet refused before building a transaction (for example, not enough funds); this request sent nothing and submitting again is safe; ${check}`, nothing);
   }
   if (e instanceof SubmissionInFlightError) {
-    return new HttpProblem(409, "submission_in_flight", `another submit of this batch is running (an attempt counts as running for up to ${IN_FLIGHT_MINUTES} minutes); this request sent nothing; ${check}`, nothing, { "Retry-After": "5" });
+    return new HttpProblem(409, "submission_in_flight", `another submit of this batch is running (an attempt counts as running for up to ${Math.round((inFlightMs ?? 0) / 60_000)} minutes); this request sent nothing; ${check}`, nothing, { "Retry-After": "5" });
   }
   if (e instanceof NonceConflictError) {
     return new HttpProblem(409, "nonce_conflict", `this batch's nonce is recorded for different content; this request sent nothing; do not retry, investigate; ${check}`, nothing);
