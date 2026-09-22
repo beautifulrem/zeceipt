@@ -241,6 +241,11 @@ async fn run() -> anyhow::Result<ExitCode> {
                 include_change,
                 signer: signer.as_ref(),
             };
+            if !include_change && !keys.can_detect_change() {
+                eprintln!(
+                    "warning: a bare OVK cannot recognise change outputs; every opened output is issued (pass --ufvk to exclude change)"
+                );
+            }
             let receipts = zeceipt_core::issue(&parsed, &keys, &opts)?;
             if receipts.is_empty() {
                 eprintln!(
@@ -531,6 +536,7 @@ fn recovered_json(rec: &zeceipt_core::Recovered) -> serde_json::Value {
         "value_zat": rec.value_zat,
         "value_zec": format_zec(rec.value_zat),
         "memo": memo_json(&rec.memo),
+        "is_change": rec.is_change,
     })
 }
 

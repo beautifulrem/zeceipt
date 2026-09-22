@@ -193,8 +193,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-10-01 → 10-03.
 - 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27 → 09-28.
 #### 3.3.4 Open technical questions
-- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd, 2026-10-10 → 10-11 (timebox; documentation-only during the freeze — any code change defers to post-submission).
-- 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured). 0.25 pd, 2026-10-01 → 10-03 (with the first funded batch).
+- 3.3.4.1 ✅ R — Why the internal-scope OVK did not open the regtest change output: wallets differ — Zkool encrypts change with the *external* OVK (our issuer opened it, PROOF §5b), zcash-devtool with a key the UFVK does not expose (still unopened by either scope). Consequence fixed the same day: change is now recognised by address ownership (issuer FVK, either scope), not by OVK scope; core test `zkool_batch_fixture_excludes_change_by_own_address`. 0.25 pd, 2026-09-22.
+- 3.3.4.2 ✅ R — Zkool `pay` with N recipients and N memos measured on regtest (PROOF §5b): one v6 transaction, 3 recipients + change in 4 Ironwood actions, 8.5 s to build, mined 19 s after `pay`, memo limit 512 bytes enforced client-side, each recipient recovers its memo; issuer must be restored with `useInternal: true` to see notes at the internal scope. Mainnet behaviour remains to be confirmed with the first funded batch (10-01, noted on 3.3.5.4). 0.25 pd, 2026-09-22.
 - 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd, 2026-10-10 → 10-11 (documentation-only during the freeze).
 - 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after the 2026-10-06 activation. 0.25 pd, 2026-10-04 → 10-07 (run on 10-07).
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
@@ -205,7 +205,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.8 ⬜ T — Second rate source and deviation guard (> 3% blocks until re-quote) (REQ-CON-20). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.9 ⬜ T — Lock-vs-execution guard: re-quote at execution, store `rate_at_execution`, block `submitting` on a > 3% move; test with a mocked feed (REQ-CON-21). 0.25 pd, 2026-09-25 → 09-26.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
-- 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-25 → 09-26.
+- 3.3.5.4 🟡 R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). Backend proven on regtest 2026-09-22 with `scripts/zkool_regtest_tracer.py` (PROOF §5b; Trellis task `09-22-zkool-tracer`); the console-side adapter (typed client, nonce, status polling) remains. 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
 - 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-01 → 10-03.
 #### 3.3.6 Payout console — receipts, pages, exports
@@ -308,9 +308,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 27 | 0 | 34 | 2 |
+| 3 Engineering | 63 | 29 | 1 | 31 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 107 | 1 | 67 | 10 |
+| **Total** | 185 | 109 | 2 | 64 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

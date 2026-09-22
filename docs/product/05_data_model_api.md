@@ -33,7 +33,7 @@ trait PayoutBackend {
 
 | Backend | Mechanism | Notes |
 |---|---|---|
-| zkool-graphql (primary) | `mutation pay(idAccount, payment:{recipients:[{address, amount, memo}], srcPools, confirmations})` → txid; poll `transactionById` `[R18]` | seed lives only in the Zkool process; app holds UFVK; Docker image available |
+| zkool-graphql (primary) | `mutation pay(idAccount, payment:{recipients:[{address, amount, memo}], srcPools, confirmations})` → txid; poll `transactionsByAccount(idAccount, height)` for `height > 0` `[R18]`. Measured on regtest 2026-09-22 (PROOF §5b): run `zkool_graphql --coin 2 --lwd-url <zaino> --no-mempool`; pool bits transparent 1 / sapling 2 / orchard 4 / **ironwood 8**; amounts are decimal strings in ZEC; memo > 512 bytes rejected before signing; 3 recipients + change land in one v6 tx; restore the issuer with `useInternal: true` or notes at the internal scope are invisible | seed lives only in the Zkool process; app holds UFVK; built from source on this machine (no Docker), Docker image also available |
 | zallet-rpc | `z_sendmany` with duplicate-address splitting; poll `z_getoperationstatus/result`; treat lost reply after spawn as Unknown `[R19]` | beta; open spend-path bugs |
 | zip321-manual | one ZIP-321 URI per recipient (never multi-recipient: Zodl rejects `[R17]`); operator scans with YWallet/Zodl; txid entered manually or detected via UFVK scan | non-custodial |
 

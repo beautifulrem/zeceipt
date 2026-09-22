@@ -18,7 +18,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CORE-3 | M | Recover exactly one output from a disclosed OCK; a wrong key, wrong index or wrong domain must fail. | Tamper tests return `None`/`RecoveryFailed`; Ironwood domain rejects V2 notes. | ✅ same tests + `verify_rejects_txid_mismatch_and_wrong_index` | kept (done) |
 | REQ-CORE-4 | M | Envelope v0 with canonical signing bytes covering every display-affecting field (network, pool, txid, index, ock, label, challenge, key id). | Flipping any of those fields after signing fails signature verification; committed vectors match. | ✅ `tamper_each_field_breaks_signature`, `committed_test_vectors_match` | kept (done) |
 | REQ-CORE-5 | M | Verification fails closed in a fixed order: txid → signature → challenge → output → recovery; no partial success. | `offline_e2e` asserts each stage; CLI stages mirror it. | ✅ `tests/offline_e2e.rs` | kept (done) |
-| REQ-CORE-6 | M | Issuance emits one receipt per output opened by the issuer's external OVK; change outputs only on request. | Synthetic and regtest issuance produce exactly one receipt for the payment output. | ✅ PROOF §2, §5 | kept (done) |
+| REQ-CORE-6 | M | Issuance emits one receipt per output the issuer's viewing key opens (either ZIP 32 scope); change outputs — recipients that are the issuer's own addresses — only on request. | Synthetic and regtest issuance produce exactly one receipt per payment output; on the Zkool 4-action fixture exactly 3 receipts without `--include-change` and 4 with, the extra flagged `is_change`. | ✅ PROOF §2, §5, §5b; test `zkool_batch_fixture_excludes_change_by_own_address` | kept (done) |
 | REQ-CORE-7 | M | Audit pack: list of receipts with declared total; verifier recomputes a lower-bound total. | `verify-pack` returns `verified_total_zat` and the lower-bound note. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
 | REQ-CORE-8 | M | Regtest network support for local proofs. | `--regtest` issue/verify on a Zebra regtest tx. | ✅ PROOF §5 | kept (done) |
 | REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4.5 / roadmap | dropped |
@@ -60,7 +60,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CON-4 | M | Batches: group payables; lock the ZEC/USD rate from one source recording the source and the timestamp. | Rate, source and timestamp persisted on the batch. | ⬜ | kept (leaf 3.3.5.2) |
 | REQ-CON-5 | M | Two-person approval bound by HMAC over (batch id, recipients, amounts, rate); any edit invalidates approvals. | Editing an approved batch resets approvals; test. | ⬜ | dropped |
 | REQ-CON-6 | M | Warn about linkability whenever a recipient is paid at an address already used in a previous receipt (a receipt reveals that output's diversified address). | UI warning shown on SCR-2 and in the batch validation report; wording matches spec §9. | ⬜ | kept (leaf 3.3.5.1) |
-| REQ-CON-7 | M | Execution backend A: Zkool GraphQL `pay` with per-recipient memo (`INV-…`); idempotent re-submission guarded by a batch nonce. | Regtest batch of 3 recipients lands in one transaction. | ⬜ | kept |
+| REQ-CON-7 | M | Execution backend A: Zkool GraphQL `pay` with per-recipient memo (`INV-…`); idempotent re-submission guarded by a batch nonce. | Regtest batch of 3 recipients lands in one transaction. | 🟡 backend proven on regtest (PROOF §5b, `scripts/zkool_regtest_tracer.py`); console adapter + nonce ⬜ | kept |
 | REQ-CON-8 | S | Execution backend B: Zallet `z_sendmany` with duplicate-address splitting and unknown-outcome handling after opid loss. | Regtest run. | ⬜ | dropped |
 | REQ-CON-9 | M | Execution backend C: per-recipient ZIP-321 URIs/QR for non-custodial mode (one recipient per URI; multi-recipient URIs are not used because Zodl rejects them). | URIs scan in YWallet/Zodl. | ⬜ | dropped |
 | REQ-CON-10 | M | Batch state machine: draft → approved → submitted → broadcast → confirmed(n) → receipts issued; failures stay retryable; no silent duplicates. | State transitions tested; confirmations configurable. | ⬜ | kept |
@@ -120,7 +120,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CORE-3 | ✅ | 3.1.2.2 | same tests + `verify_rejects_txid_mismatch_and_wrong_index` |
 | REQ-CORE-4 | ✅ | 3.1.3.1 | tests `tamper_each_field_breaks_signature`, `committed_test_vectors_match` |
 | REQ-CORE-5 | ✅ | 3.1.2.3 | `crates/zeceipt-core/tests/offline_e2e.rs` |
-| REQ-CORE-6 | ✅ | 3.1.2.3 | PROOF §2, §5 `[R37]` |
+| REQ-CORE-6 | ✅ | 3.1.2.3 | PROOF §2, §5, §5b `[R37]`; test `zkool_batch_fixture_excludes_change_by_own_address` |
 | REQ-CORE-7 | ✅ | 3.1.3.3 | test `audit_pack_round_trip`; CLI test `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CORE-8 | ✅ | 3.1.2.4 | PROOF §5 (regtest) `[R37]` |
 | REQ-CORE-9 | ⬜ | 3.3.4.5 | Should 8 prototype (`11_plan.md` §1); first item in the cut order |

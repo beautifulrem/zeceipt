@@ -8,12 +8,13 @@
 
 #![forbid(unsafe_code)]
 
-use orchard::keys::{OutgoingViewingKey as OrchardOvk, Scope};
+use orchard::keys::{FullViewingKey as OrchardFvk, OutgoingViewingKey as OrchardOvk, Scope};
 use orchard::note_encryption::{
     DomainVersion, IronwoodVersion, NoteEncryptionDomain, OrchardVersion,
 };
 use sapling_crypto::keys::OutgoingViewingKey as SaplingOvk;
 use sapling_crypto::note_encryption::{SaplingDomain, Zip212Enforcement};
+use sapling_crypto::zip32::DiversifiableFullViewingKey as SaplingDfvk;
 use zcash_address::unified::{self, Encoding, Receiver};
 use zcash_keys::keys::UnifiedFullViewingKey;
 use zcash_note_encryption::{
@@ -78,6 +79,10 @@ pub struct Recovered {
     pub recipient: String,
     pub value_zat: u64,
     pub memo: MemoView,
+    /// `true` when the recipient is one of the issuer's own addresses (either
+    /// ZIP 32 scope), i.e. a change output. Only known on the issuing side when
+    /// a full viewing key was supplied; verifiers and bare-OVK issuers see `false`.
+    pub is_change: bool,
 }
 
 /// Human-friendly view of a 512-byte memo.
@@ -124,6 +129,10 @@ pub struct OutgoingKeys {
     orchard_internal: Option<OrchardOvk>,
     sapling_external: Option<SaplingOvk>,
     sapling_internal: Option<SaplingOvk>,
+    /// Full viewing keys, kept only to recognise the issuer's own (change)
+    /// addresses. Absent when built from a bare OVK.
+    orchard_fvk: Option<OrchardFvk>,
+    sapling_dfvk: Option<SaplingDfvk>,
 }
 
 impl OutgoingKeys {
@@ -144,6 +153,8 @@ impl OutgoingKeys {
             orchard_internal: ufvk.orchard().map(|fvk| fvk.to_ovk(Scope::Internal)),
             sapling_external: ufvk.sapling().map(|dfvk| dfvk.to_ovk(Scope::External)),
             sapling_internal: ufvk.sapling().map(|dfvk| dfvk.to_ovk(Scope::Internal)),
+            orchard_fvk: ufvk.orchard().cloned(),
+            sapling_dfvk: ufvk.sapling().cloned(),
         })
     }
 
@@ -155,7 +166,30 @@ impl OutgoingKeys {
             orchard_internal: None,
             sapling_external: None,
             sapling_internal: None,
+            orchard_fvk: None,
+            sapling_dfvk: None,
         }
+    }
+
+    /// Whether change detection is possible (a full viewing key is held).
+    pub fn can_detect_change(&self) -> bool {
+        self.orchard_fvk.is_some() || self.sapling_dfvk.is_some()
+    }
+
+    /// Is this Orchard/Ironwood address one of ours (either scope)?
+    fn owns_orchard(&self, addr: &orchard::Address) -> bool {
+        self.orchard_fvk.as_ref().is_some_and(|fvk| {
+            [Scope::External, Scope::Internal]
+                .iter()
+                .any(|scope| fvk.to_ivk(*scope).diversifier_index(addr).is_some())
+        })
+    }
+
+    /// Is this Sapling address one of ours (either scope)?
+    fn owns_sapling(&self, addr: &sapling_crypto::PaymentAddress) -> bool {
+        self.sapling_dfvk
+            .as_ref()
+            .is_some_and(|dfvk| dfvk.decrypt_diversifier(addr).is_some())
     }
 
     fn orchard(&self, internal: bool) -> Option<&OrchardOvk> {
@@ -271,7 +305,7 @@ trait PoolOps {
         tx: &Transaction,
         index: u32,
         ovk: &Self::Ovk,
-        network: Network,
+        keys: &OutgoingKeys,
     ) -> Result<Option<([u8; 32], Recovered)>, CoreError>;
     fn recover_with_ock(
         tx: &Transaction,
@@ -398,7 +432,7 @@ macro_rules! impl_orchard_family {
                 tx: &Transaction,
                 index: u32,
                 ovk: &OrchardOvk,
-                network: Network,
+                keys: &OutgoingKeys,
             ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
                 let action = family_action::<$pool>(tx, index)?;
                 let domain = NoteEncryptionDomain::<$version>::for_action(action);
@@ -409,9 +443,10 @@ macro_rules! impl_orchard_family {
                         Recovered {
                             pool: Self::POOL,
                             index,
-                            recipient: encode_orchard_address(&addr, network)?,
+                            recipient: encode_orchard_address(&addr, keys.network)?,
                             value_zat: note.value().inner(),
                             memo: MemoView::from_raw(&memo),
+                            is_change: keys.owns_orchard(&addr),
                         },
                     ))),
                 }
@@ -436,6 +471,7 @@ macro_rules! impl_orchard_family {
                     recipient: encode_orchard_address(&addr, network)?,
                     value_zat: note.value().inner(),
                     memo: MemoView::from_raw(&memo),
+                    is_change: false,
                 })
             }
         }
@@ -516,7 +552,7 @@ impl PoolOps for SaplingPool {
         tx: &Transaction,
         index: u32,
         ovk: &SaplingOvk,
-        network: Network,
+        keys: &OutgoingKeys,
     ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
         let od = sapling_output(tx, index)?;
         Ok(
@@ -526,9 +562,10 @@ impl PoolOps for SaplingPool {
                     Recovered {
                         pool: Pool::Sapling,
                         index,
-                        recipient: encode_sapling_address(&addr, network),
+                        recipient: encode_sapling_address(&addr, keys.network),
                         value_zat: note.value().inner(),
                         memo: MemoView::from_raw(&memo),
+                        is_change: keys.owns_sapling(&addr),
                     },
                 )
             }),
@@ -552,6 +589,7 @@ impl PoolOps for SaplingPool {
             recipient: encode_sapling_address(&addr, network),
             value_zat: note.value().inner(),
             memo: MemoView::from_raw(&memo),
+            is_change: false,
         })
     }
 }
@@ -565,7 +603,7 @@ fn derive_with<P: PoolOps>(
     // Validate the output reference once, even if no key is held.
     for &internal in scopes {
         if let Some(ovk) = P::ovk(keys, internal) {
-            if let Some(found) = P::recover_with_ovk(tx, index, ovk, keys.network)? {
+            if let Some(found) = P::recover_with_ovk(tx, index, ovk, keys)? {
                 return Ok(Some(found));
             }
         }
@@ -575,28 +613,33 @@ fn derive_with<P: PoolOps>(
 
 /// Derive the per-output OCK for an output we sent (requires the sender's OVK).
 ///
-/// Returns `None` if none of the held OVKs opens the output (i.e. it is not ours,
-/// or it is a change output and `include_change` is false).
+/// Both ZIP 32 scopes of the OVK are tried: wallets differ in which OVK they
+/// use for change (Zkool encrypts change with the external OVK, zcash-devtool
+/// with a key we cannot open at all), so scope is not a reliable change signal.
+/// A change output is instead one whose recipient is an address of the issuer's
+/// own full viewing key (either scope). Returns `None` if no held key opens the
+/// output, or if it is change and `include_change` is false. With a bare OVK
+/// (no FVK) change cannot be recognised and every opened output is returned.
 pub fn derive_ock(
     tx: &Transaction,
     output: OutputRef,
     keys: &OutgoingKeys,
     include_change: bool,
 ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
-    let scopes: &[bool] = if include_change {
-        &[false, true]
-    } else {
-        &[false]
-    };
-    match output.pool {
+    let scopes: &[bool] = &[false, true];
+    let found = match output.pool {
         Pool::Ironwood => {
-            derive_with::<OrchardFamily<IronwoodVersion>>(tx, output.index, keys, scopes)
+            derive_with::<OrchardFamily<IronwoodVersion>>(tx, output.index, keys, scopes)?
         }
         Pool::Orchard => {
-            derive_with::<OrchardFamily<OrchardVersion>>(tx, output.index, keys, scopes)
+            derive_with::<OrchardFamily<OrchardVersion>>(tx, output.index, keys, scopes)?
         }
-        Pool::Sapling => derive_with::<SaplingPool>(tx, output.index, keys, scopes),
-    }
+        Pool::Sapling => derive_with::<SaplingPool>(tx, output.index, keys, scopes)?,
+    };
+    Ok(match found {
+        Some((_, ref rec)) if rec.is_change && !include_change => None,
+        other => other,
+    })
 }
 
 /// Recover one output with a disclosed OCK. This is what a verifier runs.
@@ -737,6 +780,65 @@ mod tests {
     fn fixture_tx() -> Transaction {
         let bytes = hex::decode(FIXTURE.trim()).unwrap();
         parse_transaction(&bytes).unwrap()
+    }
+
+    /// A 4-action Ironwood transaction built by Zkool GraphQL on the local regtest
+    /// chain (3 recipients + change). Zkool encrypts the change output with the
+    /// external OVK, so change must be recognised by address ownership, not scope.
+    #[test]
+    fn zkool_batch_fixture_excludes_change_by_own_address() {
+        const RAW: &str = include_str!(
+            "../../../fixtures/regtest-48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2.hex"
+        );
+        const UFVK: &str = include_str!("../../../fixtures/regtest-issuer-ufvk.txt");
+        let tx = parse_transaction(&hex::decode(RAW.trim()).unwrap()).unwrap();
+        assert_eq!(enumerate_outputs(&tx).len(), 4);
+        let keys = OutgoingKeys::from_ufvk(Network::Regtest, UFVK.trim()).unwrap();
+        assert!(keys.can_detect_change());
+        let payments = issue(
+            &tx,
+            &keys,
+            &IssueOptions {
+                label: String::new(),
+                challenge: None,
+                key_id: None,
+                include_change: false,
+                signer: None,
+            },
+        )
+        .unwrap();
+        let mut values: Vec<u64> = payments.iter().map(|(_, r)| r.value_zat).collect();
+        values.sort_unstable();
+        assert_eq!(values, vec![101_000_000, 102_000_000, 103_000_000]);
+        assert!(payments.iter().all(|(_, r)| !r.is_change));
+        let memos: Vec<String> = payments
+            .iter()
+            .map(|(_, r)| match &r.memo {
+                MemoView::Text(t) => t.clone(),
+                other => panic!("unexpected memo {other:?}"),
+            })
+            .collect();
+        for m in ["INV-R-002", "INV-R-003", "INV-R-004"] {
+            assert!(memos.contains(&m.to_string()), "missing memo {m}");
+        }
+        let all = issue(
+            &tx,
+            &keys,
+            &IssueOptions {
+                label: String::new(),
+                challenge: None,
+                key_id: None,
+                include_change: true,
+                signer: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(all.len(), 4);
+        let change: Vec<&Recovered> = all.iter().map(|(_, r)| r).filter(|r| r.is_change).collect();
+        assert_eq!(change.len(), 1);
+        assert_eq!(change[0].index, 0);
+        assert_eq!(change[0].value_zat, 21_725_048_750);
+        assert_eq!(change[0].memo, MemoView::Empty);
     }
 
     #[test]

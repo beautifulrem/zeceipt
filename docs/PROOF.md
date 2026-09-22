@@ -116,7 +116,7 @@ The same matrix runs in CI (`.github/workflows/ci.yml`, including `pack` → `ve
 
 ## 2b. synthetic + mainnet-read — browser verifier (WASM) in Chrome (2026-09-22)
 
-`packages/verify/pkg` (committed) built with `wasm-pack build crates/zeceipt-wasm --target web --release` (696 KB `.wasm` = 712,801 bytes at HEAD; see README for the wasm32 clang note). Served `packages/verify/` locally and drove `demo/index.html` in Chrome:
+`packages/verify/pkg` (committed) built with `wasm-pack build crates/zeceipt-wasm --target web --release` (696 KB `.wasm` = 712,803 bytes at HEAD, rebuilt 2026-09-22 after the change-detection fix; see README for the wasm32 clang note). Served `packages/verify/` locally and drove `demo/index.html` in Chrome:
 
 | input | result shown by the page |
 |---|---|
@@ -304,6 +304,231 @@ $ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk $(cat issuer-u
 }
 exit=0
 ```
+
+## 5b. regtest — Zkool GraphQL execution backend: 3 recipients, 3 memos, one Ironwood transaction (2026-09-22)
+
+Tracer bullet for the payout console's primary execution backend (REQ-CON-7; WBS 3.3.5.4 / 3.3.4.2; Trellis task `09-22-zkool-tracer`). Same regtest chain as §5 (zebrad 6.3.0 internal miner + Zaino at `http://127.0.0.1:8137`). Zkool GraphQL was built from source (`hhanh00/zkool2` at 8785e5c, `cargo build --release --bin zkool_graphql --no-default-features --features graphql`, toolchain 1.95.0; the clone's regtest network definition was patched so NU6.3 activates at height 1 like our chain instead of 250) and run as `zkool_graphql --coin 2 --lwd-url http://127.0.0.1:8137 --no-mempool --port 9000`. The issuer account was restored from the throwaway regtest mnemonic (kept outside the repository) with `useInternal: true` — with `false` the balance reads 0 because zcash-devtool had shielded the coinbase and sent change at the internal scope. Driver: `scripts/zkool_regtest_tracer.py` (the mnemonic is read from a file and never echoed).
+
+### Transcript (tracer, abridged to the summary lines)
+
+```
+$ gql { currentHeight }…
+[tracer] node height at start: 620
+$ gql query($id: Int!) { addressByAccount(idAccount: $id) { transparent sapl…
+[tracer] issuer UA: uregtest1xjznnqvkfwhw7nzjwvk4cjsv26v02y8tljxx70qv7t5rnm0tkw36w9zncxrmwex2zl6j7a0huaxjt6cn7u6vytw6q7t9mt05grn0p7lzynk9tk37appgmy4rpddlrjw0yjlncj74uy63t7dutl97lku8038ze26ducr975k4vcp
+$ gql mutation($new: NewAccount!) { createAccount(newAccount: $new) }…
+$ gql query($id: Int!) { addressByAccount(idAccount: $id) { ua ironwood orch…
+$ gql mutation($new: NewAccount!) { createAccount(newAccount: $new) }…
+$ gql query($id: Int!) { addressByAccount(idAccount: $id) { ua ironwood orch…
+$ gql mutation($new: NewAccount!) { createAccount(newAccount: $new) }…
+$ gql query($id: Int!) { addressByAccount(idAccount: $id) { ua ironwood orch…
+$ gql mutation($id: Int!) { synchronizeAccount(idAccount: $id, fast: false) …
+[tracer] issuer sync took 0.1s
+$ gql query($id: Int!) { balanceByAccount(idAccount: $id) { height transpare…
+[tracer] issuer balance: {'height': 620, 'transparent': '0', 'sapling': '0', 'orchard': '0', 'ironwood': '878.74265000', 'total': '878.74265000'}
+$ gql mutation($id: Int!, $pay: Payment!) { pay(idAccount: $id, payment: $pa…
+[tracer] pay returned txid 48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2 in 8.5s
+[tracer] mined at height 626 (19s after pay)
+[tracer] recipient 6 (uregtest1qzj498rks3e…) balance 1.01000000 expected 1.01 memo 'INV-R-002': [{"txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2", "height": 626, "outputs": 
+[tracer] recipient 7 (uregtest1km3xxn9hysa…) balance 1.02000000 expected 1.02 memo 'INV-R-003': [{"txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2", "height": 626, "outputs": 
+[tracer] recipient 8 (uregtest17mjv2tq2m6x…) balance 1.03000000 expected 1.03 memo 'INV-R-004': [{"txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2", "height": 626, "outputs": 
+{
+  "txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2",
+  "mined_height": 626,
+  "issuer": 5,
+  "recipients": [
+    {
+      "id": 6,
+      "address": "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
+      "amount": "1.01",
+      "memo": "INV-R-002"
+    },
+    {
+      "id": 7,
+      "address": "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
+      "amount": "1.02",
+      "memo": "INV-R-003"
+    },
+    {
+      "id": 8,
+      "address": "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5",
+      "amount": "1.03",
+      "memo": "INV-R-004"
+    }
+  ],
+  "elapsed_s": 18.9
+}
+```
+
+Three fresh Zkool accounts (ids 6–8, Ironwood only) received 1.01 / 1.02 / 1.03 REG with memos `INV-R-002` / `INV-R-003` / `INV-R-004` in **one** v6 transaction `48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2`, mined at height 626, 19 s after `pay` returned (8.5 s to build and prove). Each recipient's own view (`transactionsByAccount … notes { value memo }`):
+
+```
+account 6: [{"txid": "48db254a…", "height": 626, "value": "1.01000000", "notes": [{"value": "1.01000000", "pool": 3, "memo": "INV-R-002"}]}]
+account 7: [{"txid": "48db254a…", "height": 626, "value": "1.02000000", "notes": [{"value": "1.02000000", "pool": 3, "memo": "INV-R-003"}]}]
+account 8: [{"txid": "48db254a…", "height": 626, "value": "1.03000000", "notes": [{"value": "1.03000000", "pool": 3, "memo": "INV-R-004"}]}]
+```
+
+Memo limit probe: a 512-byte memo was accepted (tx `1d4c12e77197d794…`), a 513-byte memo was rejected before signing with `Memo length 513 is larger than maximum of 512`.
+
+### Transaction shape
+
+```
+$ zeceipt inspect --regtest --endpoint http://127.0.0.1:8137 --txid 48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2
+{"height": 626, "version": "V6", "outputs": [{"index":0,"pool":"ironwood"},{"index":1,"pool":"ironwood"},{"index":2,"pool":"ironwood"},{"index":3,"pool":"ironwood"}]}
+```
+
+Raw transaction (15,478 bytes, `getrawtransaction` from zebrad) is committed as `fixtures/regtest-48db254a…47b2.hex`, the issuer's UFVK as `fixtures/regtest-issuer-ufvk.txt`.
+
+### Finding: change is not identified by OVK scope
+
+The first `zeceipt issue` run (external-scope UFVK, change excluded "by default") returned **four** receipts: output 0 was the 217.25048750 REG change, opened by the *external* OVK. Zkool encrypts change with the external OVK; zcash-devtool (§5) encrypts change with a key the UFVK does not expose (still unopened by either scope). So scope is not a change signal. Fixed the same day in `zeceipt-core`: both scopes are always tried, and an output is change when its recovered recipient is an address of the issuer's own full viewing key (either ZIP 32 scope, `IncomingViewingKey::diversifier_index` for Orchard/Ironwood, `decrypt_diversifier` for Sapling). `Recovered.is_change` is reported; a bare `--ovk` cannot recognise change and the CLI warns. Regression test `zkool_batch_fixture_excludes_change_by_own_address` (3 receipts without `--include-change`, 4 with, change flagged, memos and values asserted).
+
+### Receipts (after the fix)
+
+```
+$ zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk <issuer UFVK> --txid 48db254a… --label 'batch 2026-09-22 | INV-R-002..004' --challenge auditor-nonce-12 --key-file issuer.key --key-id 2026-09 --out-dir receipts-batch2
+{
+  "height": 626,
+  "receipts": [
+    {
+      "output_index": 1,
+      "recovered": {
+        "value_zec": "1.02000000",
+        "memo": {
+          "kind": "text",
+          "text": "INV-R-003"
+        },
+        "recipient": "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
+        "is_change": false
+      }
+    },
+    {
+      "output_index": 2,
+      "recovered": {
+        "value_zec": "1.01000000",
+        "memo": {
+          "kind": "text",
+          "text": "INV-R-002"
+        },
+        "recipient": "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
+        "is_change": false
+      }
+    },
+    {
+      "output_index": 3,
+      "recovered": {
+        "value_zec": "1.03000000",
+        "memo": {
+          "kind": "text",
+          "text": "INV-R-004"
+        },
+        "recipient": "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5",
+        "is_change": false
+      }
+    }
+  ]
+}
+exit=0
+```
+
+### Verification matrix (verbatim, `raw/tools/regtest/verify-batch2.sh`)
+
+```
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 receipts-batch2/48db254a361e9676-ironwood-1.json --challenge auditor-nonce-12 --require-signature
+{
+  "challenge_checked": true,
+  "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+  "height": 626,
+  "issuer_pubkey": "935d7fd7a564f565a45834d9799336a8a5cbbedbac98519dd68cc0f80c00921b",
+  "label": "batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG",
+  "memo": {
+    "kind": "text",
+    "text": "INV-R-003"
+  },
+  "output_index": 1,
+  "pool": "ironwood",
+  "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
+  "recipient": "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
+  "txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2",
+  "valid": true,
+  "value_zat": 102000000,
+  "value_zec": "1.02000000"
+}
+exit=0
+$ zeceipt verify --regtest --raw-tx-file tx-48db254a.hex receipts-batch2/48db254a361e9676-ironwood-1.json --challenge auditor-nonce-12 --require-signature   (offline)
+{"valid": true, "output_index": 1, "value_zec": "1.02000000", "memo": {"kind": "text", "text": "INV-R-003"}, "recipient": "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj"}
+exit=0
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 receipts-batch2/48db254a361e9676-ironwood-2.json --challenge auditor-nonce-12 --require-signature
+{
+  "challenge_checked": true,
+  "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+  "height": 626,
+  "issuer_pubkey": "935d7fd7a564f565a45834d9799336a8a5cbbedbac98519dd68cc0f80c00921b",
+  "label": "batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG",
+  "memo": {
+    "kind": "text",
+    "text": "INV-R-002"
+  },
+  "output_index": 2,
+  "pool": "ironwood",
+  "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
+  "recipient": "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
+  "txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2",
+  "valid": true,
+  "value_zat": 101000000,
+  "value_zec": "1.01000000"
+}
+exit=0
+$ zeceipt verify --regtest --raw-tx-file tx-48db254a.hex receipts-batch2/48db254a361e9676-ironwood-2.json --challenge auditor-nonce-12 --require-signature   (offline)
+{"valid": true, "output_index": 2, "value_zec": "1.01000000", "memo": {"kind": "text", "text": "INV-R-002"}, "recipient": "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w"}
+exit=0
+$ zeceipt verify --regtest --endpoint http://127.0.0.1:8137 receipts-batch2/48db254a361e9676-ironwood-3.json --challenge auditor-nonce-12 --require-signature
+{
+  "challenge_checked": true,
+  "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+  "height": 626,
+  "issuer_pubkey": "935d7fd7a564f565a45834d9799336a8a5cbbedbac98519dd68cc0f80c00921b",
+  "label": "batch 2026-09-22 | INV-R-002..004 | 1.01/1.02/1.03 REG",
+  "memo": {
+    "kind": "text",
+    "text": "INV-R-004"
+  },
+  "output_index": 3,
+  "pool": "ironwood",
+  "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
+  "recipient": "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5",
+  "txid": "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2",
+  "valid": true,
+  "value_zat": 103000000,
+  "value_zec": "1.03000000"
+}
+exit=0
+$ zeceipt verify --regtest --raw-tx-file tx-48db254a.hex receipts-batch2/48db254a361e9676-ironwood-3.json --challenge auditor-nonce-12 --require-signature   (offline)
+{"valid": true, "output_index": 3, "value_zec": "1.03000000", "memo": {"kind": "text", "text": "INV-R-004"}, "recipient": "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5"}
+exit=0
+$ zeceipt verify --regtest --raw-tx-file tx-48db254a.hex /tmp/tampered-2.json --challenge auditor-nonce-12 --require-signature   (signed receipt, one ock byte flipped)
+{"error":"signature is invalid","stage":"signature","valid":false}
+exit=1
+$ zeceipt verify --regtest --raw-tx-file tx-48db254a.hex /tmp/tampered-2-unsigned.json --challenge auditor-nonce-12   (unsigned copy, ock byte flipped, signature not required)
+{"error":"recovery failed: the ock does not open ironwood output 2","stage":"recovery","valid":false}
+exit=1
+$ zeceipt verify --regtest --raw-tx-file tx-48db254a.hex receipts-batch2/48db254a361e9676-ironwood-1.json --challenge auditor-nonce-13 --require-signature   (wrong challenge)
+{"error":"challenge mismatch","stage":"challenge","valid":false}
+exit=1
+$ zeceipt pack --title 'batch 2026-09-22' receipts-batch2/*.json > pack-batch2.json
+exit=0
+$ zeceipt verify-pack --regtest pack-batch2.json --raw-tx-dir rawdir --challenge auditor-nonce-12 --require-signature
+{
+ "all_valid": true,
+ "declared_total_zat": 0,
+ "note": "verified total is a lower bound: receipts prove these payments exist, not that no others do",
+ "title": "batch 2026-09-22",
+ "verified_total_zat": 306000000
+}
+exit=0
+```
+
+Result: 3 receipts valid online and offline with signature and challenge; a flipped OCK byte fails at `signature` when signed and at `recovery` when unsigned; a wrong challenge fails at `challenge`; the audit pack recomputes 3.06 REG as a lower bound. REQ-CON-7's acceptance criterion ("regtest batch of 3 recipients lands in one transaction") is met at the backend level; the console-side adapter (typed client, batch nonce, status polling) is still to build.
 
 ## 6. testnet — placeholder
 
