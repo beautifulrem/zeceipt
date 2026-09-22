@@ -29,6 +29,13 @@
       "when": 1790113923657,
       "tag": "0003_freeze_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790114286808,
+      "tag": "0004_ledger_keep",
+      "breakpoints": true
     }
   ]
 }

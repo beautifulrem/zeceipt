@@ -2,7 +2,7 @@
 
 ## 1. Console data model (SQLite via better-sqlite3, Drizzle)
 
-Storage is one SQLite file per deployment. Writes are synchronous `BEGIN IMMEDIATE` transactions; the file runs in WAL mode with `synchronous = FULL` and foreign keys on. libSQL's local client was rejected after a reproduced durability defect: after a busy error, later writes are silently not committed `[R47]`. Integrity is enforced by the schema itself (composite keys, CHECKs, conditional updates), never by check-then-insert or in-process locks, which are the competitor mistakes in `[R46]`.
+Storage is one SQLite file per deployment. Writes are synchronous `BEGIN IMMEDIATE` transactions; the file runs in WAL mode with `synchronous = FULL` and foreign keys on. libSQL's local client was rejected after a reproduced durability defect: after a busy error, later writes are silently not committed `[R47]`. Integrity is enforced by the schema itself (composite keys, CHECKs, conditional updates, triggers), never by check-then-insert or in-process locks, which are the competitor mistakes in `[R46]`. The execution ledger is append-only by trigger (REQ-CON-7): a submission is never deleted, its identity never changes, `INSERT OR REPLACE` of an existing ledger row or txid index entry is a no-op, and a batch is frozen once a submission exists for it.
 
 Money: integer zatoshi (`bigint`) and integer USD cents. Rates: decimal string + source + ISO timestamp. All tables carry `org_id`. All tables carry `created_at` and `updated_at` except three: the two append-only ledger tables `submission_claims` (which carries `claimed_at_ms`) and `submission_txids`, and `batch_items`, which inherits its batch's timestamps (items are written once, with the batch).
 

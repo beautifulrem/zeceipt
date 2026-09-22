@@ -94,7 +94,8 @@ export class SqliteIdempotencyStore implements IdempotencyStore {
           if (next.txid) {
             tx.insert(submissionTxids)
               .values({ txid: next.txid, orgId: this.orgId, nonce: next.nonce, attempt: next.attempts })
-              .onConflictDoUpdate({ target: [submissionTxids.orgId, submissionTxids.txid], set: { nonce: next.nonce, attempt: next.attempts } })
+              // First record wins: an index entry never moves (and the `submission_txids_keep` trigger enforces it).
+              .onConflictDoNothing()
               .run();
           }
           return true;

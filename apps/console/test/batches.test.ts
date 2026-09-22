@@ -216,6 +216,24 @@ test("freeze hardening: the submission (payment ledger) cannot be deleted or re-
   assert.equal(await store.update({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: digest, state: "broadcast", txid: "c".repeat(64), createdAt: "t", attempts: 1 }, { attempts: 1, states: ["submitting"] }), true);
   assert.throws(q("DELETE FROM submission_txids WHERE org_id = ? AND txid = ?", ORG, "c".repeat(64)), /never deleted/);
   assert.throws(q("UPDATE batch_items SET zat = 777 WHERE org_id = ? AND batch_id = ?", ORG, rec.id), /frozen/);
+  // On a plain connection (recursive triggers OFF, as the sqlite3 CLI or an admin tool), REPLACE on the ledger
+  // or the index is a no-op: the existing row is kept, nothing is re-pointed, the batch stays frozen.
+  const raw = new Database(join(dir, "console.db"));
+  try {
+    assert.equal(raw.pragma("recursive_triggers", { simple: true }), 0);
+    const r1 = raw.prepare("INSERT OR REPLACE INTO submissions (org_id, nonce, batch_id, batch_digest, state, attempts, created_at, updated_at) VALUES (?, ?, 'elsewhere', ?, 'submitting', 1, 't', 't')").run(ORG, batchNonce(rec), "b".repeat(64));
+    assert.equal(r1.changes, 0);
+    const r2 = raw.prepare("INSERT OR REPLACE INTO submission_txids (org_id, txid, nonce, attempt) VALUES (?, ?, 'someone-else', 9)").run(ORG, "c".repeat(64));
+    assert.equal(r2.changes, 0);
+  } finally {
+    raw.close();
+  }
+  const kept = await store.get(batchNonce(rec));
+  assert.deepEqual([kept?.batchId, kept?.batchDigest, kept?.state, kept?.txid], [rec.id, digest, "broadcast", "c".repeat(64)]);
+  assert.equal((await store.findByTxid("c".repeat(64)))?.record.nonce, batchNonce(rec));
+  assert.throws(q("UPDATE batch_items SET zat = 777 WHERE org_id = ? AND batch_id = ?", ORG, rec.id), /frozen/);
+  // createIntent's ON CONFLICT DO NOTHING still reports "exists" (the IGNORE trigger keeps that path working).
+  assert.equal((await store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: digest, state: "submitting", createdAt: "t", attempts: 1 })).created, false);
 });
 
 test("the freeze needs the store's org and the backend's batch id to match the batch (documented precondition)", async () => {
@@ -240,6 +258,11 @@ test("createBatch refuses text that cannot round-trip (lone surrogates) and cons
     ["long payable id", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], payableId: "p".repeat(201) }] }, ["payable_id_invalid"]],
     ["long label", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], label: "l".repeat(201) }] }, ["label_invalid"]],
     ["surrogate label", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], label: "\udfff" }] }, ["label_invalid"]],
+    ["NUL-led title", { orgId: ORG, network: "regtest", title: "\u0000x", items: ok }, ["title_invalid"]],
+    ["NUL-led payable id", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], payableId: "\u0000p" }] }, ["payable_id_invalid"]],
+    ["control char in label", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], label: "a\u0007b" }] }, ["label_invalid"]],
+    ["NUL in memo", { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], memo: "INV-1\u0000" }] }, ["memo_malformed"]],
+    ["201 emoji title", { orgId: ORG, network: "regtest", title: "🦓".repeat(201), items: ok }, ["title_invalid"]],
   ];
   for (const [what, input, codes] of cases) {
     const e = await createBatch(db, input).catch((x: unknown) => x);
@@ -251,8 +274,10 @@ test("createBatch refuses text that cannot round-trip (lone surrogates) and cons
   const backend = new ZkoolBackend({ client: new ZkoolClient({ url: "http://127.0.0.1:1/graphql" }), account: 9, store: new SqliteIdempotencyStore(db, { orgId: ORG }) });
   assert.deepEqual(backend.staticProblems({ id: "x", network: "regtest", items: [{ payableId: "p\ud800", address: R[0], zat: 1n, memo: "M\udc00" }] }).map((p) => p.code), ["memo_malformed", "payable_malformed"]);
   assert.deepEqual([count("batches"), count("batch_items")], before);
-  // Title and label at exactly 200 characters are fine.
+  // Title and label at exactly 200 characters (code points, as the schema counts) are fine, emoji included.
   await createBatch(db, { orgId: ORG, network: "regtest", title: "t".repeat(200), items: [{ ...items("edge")[0], label: "l".repeat(200), payableId: "p".repeat(200) }] });
+  const emoji = await createBatch(db, { orgId: ORG, network: "regtest", title: "🦓".repeat(200), items: [{ ...items("emoji")[0], label: "🦓".repeat(200) }] });
+  assert.equal((await getBatch(db, ORG, emoji.id))?.title, "🦓".repeat(200));
 });
 
 test("listBatches orders by creation time, not by id, so caller-supplied ids keep the order", async () => {

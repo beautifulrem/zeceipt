@@ -56,8 +56,10 @@ test("migrations apply once (one journal row per committed migration); a second 
     "batches_frozen_delete",
     "batches_frozen_insert",
     "batches_frozen_update",
+    "submission_txids_keep",
     "submission_txids_no_delete",
     "submissions_identity_fixed",
+    "submissions_keep",
     "submissions_no_delete",
   ]);
 });

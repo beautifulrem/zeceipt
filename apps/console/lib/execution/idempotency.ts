@@ -54,8 +54,8 @@ export interface IdempotencyStore {
    * a claim still decides, so even an old claimer that wakes up late cannot move the record.
    */
   claimAttempt(nonce: string, attempt: number, reclaimAfterMs: number): Promise<boolean>;
-  // Within one org, recording a txid already indexed under another nonce moves the index entry to the newer
-  // record in every store; per-org unique memos make that impossible in practice (one txid pays one batch).
+  // Within one org, the first record to index a txid keeps it: an index entry never moves (every store;
+  // SQLite enforces it with a trigger). Per-org unique memos make a second claimant impossible in practice.
   // A record's identity (org, nonce, batchId, batchDigest) never changes after `createIntent`; the backend
   // always writes back the stored identity, and the SQLite schema refuses any change (trigger).
   // Preconditions shared by all stores: `claimAttempt` is only called for a nonce whose record exists
@@ -118,7 +118,7 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
   async update(next: SubmissionRecord, expect: Expect) {
     if (!matches(this.records.get(next.nonce), expect)) return false;
     this.records.set(next.nonce, structuredClone(next));
-    if (next.txid) this.byTxid.set(next.txid, { nonce: next.nonce, attempt: next.attempts });
+    if (next.txid && !this.byTxid.has(next.txid)) this.byTxid.set(next.txid, { nonce: next.nonce, attempt: next.attempts });
     return true;
   }
   async findByTxid(txid: string) {
@@ -226,7 +226,11 @@ export class FileIdempotencyStore implements IdempotencyStore {
       await stillHeld();
       // Index first: a txid that is findable but not yet in the record is harmless (the entry carries its
       // attempt, so `status` can tell an interrupted write from a superseded attempt); the reverse would hide it.
-      if (next.txid) await this.writeAtomic(join(this.dir, `${next.txid}.txid`), `${next.nonce}\n${next.attempts}`);
+      if (next.txid) {
+        const idx = join(this.dir, `${next.txid}.txid`);
+        const exists = await stat(idx).then(() => true, () => false);
+        if (!exists) await this.writeAtomic(idx, `${next.nonce}\n${next.attempts}`); // first record wins; never moves
+      }
       await stillHeld();
       await this.writeAtomic(this.path(next.nonce), JSON.stringify(next, null, 2));
       return true;

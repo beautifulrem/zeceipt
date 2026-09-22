@@ -43,18 +43,25 @@ export interface BatchProblem extends Omit<PreflightProblem, "code"> {
   code: BatchProblemCode;
 }
 
-const LIMIT = 200; // characters: title, payable id, label (the schema's CHECKs)
+const LIMIT = 200; // characters (Unicode code points, as SQLite's length() counts them): title, payable id, label
+
+/**
+ * Plain text for console fields: well-formed (no lone surrogates) and no C0 control characters. NUL in
+ * particular makes SQLite's length() stop early, so the schema CHECK would disagree with this one.
+ */
+function plainText(s: string, min: number, checkWellFormed = true): boolean {
+  const n = [...s].length;
+  return n >= min && n <= LIMIT && (!checkWellFormed || s.isWellFormed()) && !/[\u0000-\u001f\u007f]/.test(s);
+}
 
 /** Console-only field rules, so the repository never surfaces a raw SQLite constraint error. */
 function recordProblems(input: CreateBatchInput): BatchProblem[] {
   const problems: BatchProblem[] = [];
-  if (input.title.length < 1 || input.title.length > LIMIT || !input.title.isWellFormed()) {
-    problems.push({ code: "title_invalid", detail: `title must be 1–${LIMIT} characters of well-formed text` });
-  }
+  if (!plainText(input.title, 1)) problems.push({ code: "title_invalid", detail: `title must be 1–${LIMIT} characters of plain text` });
   input.items.forEach((it, i) => {
-    if (it.payableId.length < 1 || it.payableId.length > LIMIT) problems.push({ code: "payable_id_invalid", itemIndex: i, detail: `payable id must be 1–${LIMIT} characters` });
-    const label = it.label ?? "";
-    if (label.length > LIMIT || !label.isWellFormed()) problems.push({ code: "label_invalid", itemIndex: i, detail: `label must be at most ${LIMIT} characters of well-formed text` });
+    // Well-formedness of payable ids is preflight's rule (`payable_malformed`), so it is not reported twice.
+    if (!plainText(it.payableId, 1, false)) problems.push({ code: "payable_id_invalid", itemIndex: i, detail: `payable id must be 1–${LIMIT} characters of plain text` });
+    if (!plainText(it.label ?? "", 0)) problems.push({ code: "label_invalid", itemIndex: i, detail: `label must be at most ${LIMIT} characters of plain text` });
   });
   return problems;
 }

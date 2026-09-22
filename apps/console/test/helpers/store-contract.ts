@@ -92,6 +92,16 @@ export function storeContract(name: string, make: () => Promise<StoreFixture>) {
     assert.equal(await store.findByTxid("not-a-txid"), undefined);
   });
 
+  withStore("findByTxid: the first record to index a txid keeps it; a second claimant never moves it", async ({ store }) => {
+    const a = base("n-first");
+    const b = base("n-second");
+    await store.createIntent(a);
+    await store.createIntent(b);
+    assert.equal(await store.update({ ...a, state: "broadcast", txid: HEX("f") }, { attempts: 1, states: ["submitting"] }), true);
+    assert.equal(await store.update({ ...b, state: "broadcast", txid: HEX("f") }, { attempts: 1, states: ["submitting"] }), true);
+    assert.equal((await store.findByTxid(HEX("f")))?.record.nonce, "n-first");
+  });
+
   withStore("claimAttempt: a live claim is exclusive; attempts are independent", async ({ store }) => {
     await store.createIntent(base("n-claim"));
     assert.equal(await store.claimAttempt("n-claim", 2, 60_000), true);
