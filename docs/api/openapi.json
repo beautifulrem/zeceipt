@@ -179,7 +179,7 @@
     "/api/batches/{id}/submit": {
       "post": {
         "operationId": "submitBatch",
-        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `payment` (not_sent or unknown). A client disconnect does not abort a payment in progress.",
+        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress.",
         "parameters": [
           {
             "name": "id",
@@ -276,7 +276,19 @@
             "$ref": "#/components/responses/Problem"
           },
           "409": {
-            "$ref": "#/components/responses/Problem"
+            "description": "payment_rejected, submission_in_flight (with Retry-After: 5; an attempt counts as running for up to 10 minutes), nonce_conflict, custody_external",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
             "$ref": "#/components/responses/Problem"
@@ -294,7 +306,19 @@
             "$ref": "#/components/responses/Problem"
           },
           "503": {
-            "$ref": "#/components/responses/Problem"
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -358,7 +382,7 @@
                     },
                     "detail": {
                       "type": "object",
-                      "description": "txid, confirmations, required, receipts, items, error (the wallet's recorded reason), expiresBy, cause, stale"
+                      "description": "txid, confirmations, required, receipts, items, error, expiresBy, cause, stale. `error` is the wallet's own recorded reason (e.g. 'Not enough funds…'): operator data, render it as plain text, never as HTML."
                     }
                   }
                 }
@@ -378,7 +402,19 @@
             "$ref": "#/components/responses/Problem"
           },
           "503": {
-            "$ref": "#/components/responses/Problem"
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -483,12 +519,16 @@
               }
             }
           },
-          "payment": {
+          "thisRequest": {
             "enum": [
-              "not_sent",
-              "unknown"
+              "sent_nothing",
+              "may_have_sent"
             ],
-            "description": "Execution problems: not_sent = certain that nothing was broadcast; unknown = money may have moved, check the status route"
+            "description": "Submit problems: what THIS request did. sent_nothing = this request broadcast nothing; may_have_sent = the outcome of this request's payment is unknown (outcome_unknown, or an unrecognised failure after the wallet backend was reached). Whether the batch was paid, by this or an earlier request, is only at batchStatus."
+          },
+          "batchStatus": {
+            "type": "string",
+            "description": "Submit problems: the batch's status route (RFC 9457's own `status` member is the HTTP status code)"
           }
         }
       },
@@ -648,6 +688,14 @@
             "type": "string",
             "pattern": "^[0-9]+$"
           }
+        }
+      }
+    },
+    "headers": {
+      "RetryAfter": {
+        "description": "Seconds to wait before retrying (RFC 9110 §10.2.3)",
+        "schema": {
+          "type": "integer"
         }
       }
     }

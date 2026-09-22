@@ -1,7 +1,8 @@
 // Submit and status routes (slice D2) through the real route exports, against the fake Zkool and a
 // temporary database: pays once (replay returns the same txid with Idempotent-Replayed), status moves
 // draft → pending → confirming → confirmed, and every failure states whether money may have moved
-// (`payment`), never quotes the wallet, and never reports an uncertain outcome as a failure.
+// (`thisRequest`, checked against the fake wallet's pay counter), links the batch status, never quotes
+// the wallet, and never reports an uncertain outcome as a failure.
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -112,18 +113,18 @@ test("confirmation: missing, malformed or mismatched totals are refused before a
   for (const [body, code] of [[{}, "body_invalid"], [{ confirmTotalZat: 3500 }, "body_invalid"], [{ confirmTotalZat: "3500", extra: 1 }, "body_invalid"], [{ confirmTotalZat: "3499" }, "confirmation_mismatch"]] as const) {
     const r = await read(await submit(b.id!, body));
     assert.equal(r.body.code, code, JSON.stringify(body));
-    assert.equal(r.body.payment, "not_sent");
+    assert.equal(r.body.thisRequest, "sent_nothing");
   }
   assert.equal((await read(await submit(b.id!, "{", {}))).body.code, "malformed_json");
   assert.equal(fake.payCalls, calls, "pay never called");
   assert.equal((await status(b.id!)).body.state, "draft");
 });
 
-test("refused before build: 409 payment_rejected, not_sent, no wallet text; a resubmit pays", async () => {
+test("refused before build: 409 payment_rejected, sent_nothing, no wallet text; a resubmit pays", async () => {
   const b = await createDraft();
   fake.nextPay = "refused";
   const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
-  assert.deepEqual([r.status, r.body.code, r.body.payment], [409, "payment_rejected", "not_sent"]);
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest, r.body.batchStatus], [409, "payment_rejected", "sent_nothing", `/api/batches/${b.id}/status`]);
   noWalletText(r.body);
   const s = await status(b.id!);
   assert.deepEqual([s.body.state, s.body.next], ["retryable", "submit"]);
@@ -132,21 +133,21 @@ test("refused before build: 409 payment_rejected, not_sent, no wallet text; a re
   assert.deepEqual([paid.status, paid.body.replayed], [202, false]);
 });
 
-test("preflight failure: 422 with problems, not_sent", async () => {
+test("preflight failure: 422 with problems, sent_nothing", async () => {
   const b = await createDraft(["2000000000"]); // 20 ZEC > the fake's 10 ZEC
   const calls = fake.payCalls;
   const r = await read(await submit(b.id!, { confirmTotalZat: "2000000000" }));
-  assert.deepEqual([r.status, r.body.code, r.body.payment], [422, "preflight_failed", "not_sent"]);
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [422, "preflight_failed", "sent_nothing"]);
   assert.deepEqual(r.body.problems!.map((p) => p.code), ["insufficient_funds"]);
   assert.equal(fake.payCalls, calls);
 });
 
-test("uncertain outcomes: 502 outcome_unknown with payment unknown; status never shows draft or failure", async () => {
+test("uncertain outcomes: 502 outcome_unknown, may_have_sent; status never shows draft or failure", async () => {
   for (const mode of ["grpc-error-sent", "node-rejected"] as const) {
     const b = await createDraft();
     fake.nextPay = mode;
     const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
-    assert.deepEqual([r.status, r.body.code, r.body.payment], [502, "outcome_unknown", "unknown"], mode);
+    assert.deepEqual([r.status, r.body.code, r.body.thisRequest, r.body.batchStatus], [502, "outcome_unknown", "may_have_sent", `/api/batches/${b.id}/status`], mode);
     noWalletText(r.body);
     const s = await status(b.id!);
     assert.ok(!["draft", "retryable", "pending", "confirmed"].includes(s.body.state!), `${mode}: status ${s.body.state}`);
@@ -160,8 +161,11 @@ test("a second submit while the first is paying: 409 submission_in_flight with R
   try {
     const first = submit(b.id!, { confirmTotalZat: "3500" });
     await new Promise((r) => setTimeout(r, 150));
+    const calls = fake.payCalls;
     const second = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
-    assert.deepEqual([second.status, second.body.code, second.body.payment, second.headers.get("retry-after")], [409, "submission_in_flight", "unknown", "5"]);
+    assert.deepEqual([second.status, second.body.code, second.body.thisRequest, second.headers.get("retry-after")], [409, "submission_in_flight", "sent_nothing", "5"]);
+    assert.equal(fake.payCalls, calls, "the second request paid nothing");
+    assert.match(second.body.detail!, /up to 10 minutes/);
     assert.equal((await read(await first)).status, 202);
   } finally {
     fake.payDelayMs = 0;
@@ -183,28 +187,32 @@ test("a client that disconnects mid-pay does not abort the pay: the broadcast is
   }
 });
 
-test("store busy (another process holds the write lock): 503 store_busy, Retry-After, not_sent", async () => {
+test("store busy (another process holds the write lock): 503 store_busy, Retry-After, sent_nothing", async () => {
   const b = await createDraft();
   const other = new Database(slot[SERVER_CONTEXT_KEY]!.config.dbPath);
   other.exec("BEGIN IMMEDIATE");
   try {
+    const calls = fake.payCalls;
     const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
-    assert.deepEqual([r.status, r.body.code, r.body.payment, r.headers.get("retry-after")], [503, "store_busy", "not_sent", "1"]);
+    assert.deepEqual([r.status, r.body.code, r.body.thisRequest, r.headers.get("retry-after")], [503, "store_busy", "sent_nothing", "1"]);
+    assert.equal(fake.payCalls, calls);
   } finally {
     other.exec("ROLLBACK");
     other.close();
   }
 });
 
-test("nonce conflict: 409 nonce_conflict, not_sent", async () => {
+test("nonce conflict: 409 nonce_conflict, sent_nothing", async () => {
   const b = await createDraft();
   const rec = (await getBatch(slot[SERVER_CONTEXT_KEY]!.db, "demo-org", b.id!))!;
   await slot[SERVER_CONTEXT_KEY]!.store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: "0".repeat(64), state: "submitting", createdAt: new Date().toISOString(), attempts: 1 });
+  const calls = fake.payCalls;
   const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
-  assert.deepEqual([r.status, r.body.code, r.body.payment], [409, "nonce_conflict", "not_sent"]);
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [409, "nonce_conflict", "sent_nothing"]);
+  assert.equal(fake.payCalls, calls);
 });
 
-test("unknown batch: 404 on both routes; the wallet unreachable: 502 wallet_unavailable with payment unknown", async () => {
+test("unknown batch: 404 on both routes; the wallet unreachable before any pay: 502 wallet_unavailable, sent_nothing", async () => {
   for (const r of [await read(await submit("0190a0d6-7e3b-7c61-8d3f-4a2b1c0d9e8f", { confirmTotalZat: "1" })), await status("nope")]) {
     assert.deepEqual([r.status, r.body.code], [404, "batch_not_found"]);
   }
@@ -212,10 +220,57 @@ test("unknown batch: 404 on both routes; the wallet unreachable: 502 wallet_unav
   await fake.stop();
   try {
     const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
-    assert.deepEqual([r.status, r.body.code, r.body.payment], [502, "wallet_unavailable", "unknown"]);
+    assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [502, "wallet_unavailable", "sent_nothing"]);
     noWalletText(r.body);
   } finally {
     fake = await new FakeZkool().start();
+  }
+});
+
+test("review D2 round 1: a resubmit of a PAID batch that meets a busy store says what this request did, and links the batch's status", async () => {
+  boot(); // the wallet-outage test restarted the fake on a new port
+  const b = await createDraft();
+  assert.equal((await read(await submit(b.id!, { confirmTotalZat: "3500" }))).status, 202);
+  const other = new Database(slot[SERVER_CONTEXT_KEY]!.config.dbPath);
+  other.exec("BEGIN IMMEDIATE");
+  let r;
+  try {
+    r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  } finally {
+    other.exec("ROLLBACK");
+    other.close();
+  }
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest, r.body.batchStatus], [503, "store_busy", "sent_nothing", `/api/batches/${b.id}/status`]);
+  assert.doesNotMatch(r.body.detail!, /nothing was sent/, "no claim about the batch");
+  assert.match(r.body.detail!, /this request sent nothing/);
+  assert.equal((await status(b.id!)).body.state, "pending", "the status route says the batch was paid");
+});
+
+test("an unrecognised failure after the backend was reached is indeterminate (500, may_have_sent); before it, sent_nothing", async () => {
+  const b = await createDraft();
+  const backend = slot[SERVER_CONTEXT_KEY]!.backend!;
+  const original = backend.submit;
+  backend.submit = async () => {
+    throw new TypeError("boom inside the backend");
+  };
+  try {
+    const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.deepEqual([r.status, r.body.code, r.body.thisRequest, r.body.batchStatus], [500, "internal", "may_have_sent", `/api/batches/${b.id}/status`]);
+    assert.ok(!JSON.stringify(r.body).includes("boom"));
+  } finally {
+    backend.submit = original;
+  }
+  const ctx = slot[SERVER_CONTEXT_KEY]!;
+  const getBatchFails = ctx.db.$client;
+  const prepare = getBatchFails.prepare.bind(getBatchFails);
+  getBatchFails.prepare = (() => {
+    throw new TypeError("boom before the backend");
+  }) as typeof getBatchFails.prepare;
+  try {
+    const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [500, "internal", "sent_nothing"]);
+  } finally {
+    getBatchFails.prepare = prepare;
   }
 });
 
@@ -224,6 +279,7 @@ test("external custody: no backend; submit and status answer 409 custody_externa
   assert.equal(ctx.backend, undefined);
   const b = await createDraft();
   for (const r of [await read(await submit(b.id!, { confirmTotalZat: "3500" })), await status(b.id!)]) {
-    assert.deepEqual([r.status, r.body.code, r.body.payment], [409, "custody_external", "not_sent"]);
+    assert.equal(r.status, 409);
+    assert.equal(r.body.code, "custody_external");
   }
 });

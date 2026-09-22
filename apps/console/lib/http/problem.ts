@@ -12,8 +12,10 @@ export interface ProblemJson {
   detail: string;
   code: string;
   problems?: { code: string; index?: number; detail: string }[];
-  /** Execution problems (slice D2): whether money may have moved. */
-  payment?: "not_sent" | "unknown";
+  /** Submit problems (slice D2): what this request did (the batch's own state is at `status`). */
+  thisRequest?: "sent_nothing" | "may_have_sent";
+  /** Submit problems: the batch's status route (not RFC 9457's `status`, which is the HTTP status code). */
+  batchStatus?: string;
   issues?: { path: string; message: string }[];
 }
 
@@ -41,10 +43,17 @@ export function problem(status: number, code: string, detail: string, extra: Rec
 /** An error that already knows its HTTP answer (thrown by request parsing, caught by the handlers). */
 export class HttpProblem extends Error {
   readonly response: Response;
-  constructor(status: number, code: string, detail: string, extra: Record<string, unknown> = {}) {
+  readonly #args: [number, string, string, Record<string, unknown>, Record<string, string>];
+  constructor(status: number, code: string, detail: string, extra: Record<string, unknown> = {}, headers: Record<string, string> = {}) {
     super(`${status} ${code}: ${detail}`);
     this.name = "HttpProblem";
-    this.response = problem(status, code, detail, extra);
+    this.#args = [status, code, detail, extra, headers];
+    this.response = problem(status, code, detail, extra, headers);
+  }
+  /** The same problem with more extension members (existing ones win). */
+  withExtra(more: Record<string, unknown>): HttpProblem {
+    const [status, code, detail, extra, headers] = this.#args;
+    return new HttpProblem(status, code, detail, { ...more, ...extra }, headers);
   }
 }
 
