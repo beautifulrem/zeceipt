@@ -225,6 +225,11 @@ test("freeze hardening: the submission (payment ledger) cannot be deleted or re-
     assert.equal(r1.changes, 0);
     const r2 = raw.prepare("INSERT OR REPLACE INTO submission_txids (org_id, txid, nonce, attempt) VALUES (?, ?, 'someone-else', 9)").run(ORG, "c".repeat(64));
     assert.equal(r2.changes, 0);
+    // A plain UPDATE can neither move an index entry nor rename its txid (on either connection).
+    for (const conn of [raw, db.$client]) {
+      assert.throws(() => conn.prepare("UPDATE submission_txids SET nonce = 'someone-else', attempt = 7 WHERE org_id = ? AND txid = ?").run(ORG, "c".repeat(64)), /never changes/);
+      assert.throws(() => conn.prepare("UPDATE submission_txids SET txid = ? WHERE org_id = ? AND txid = ?").run("e".repeat(64), ORG, "c".repeat(64)), /never changes/);
+    }
   } finally {
     raw.close();
   }

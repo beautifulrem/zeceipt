@@ -6,7 +6,7 @@
 // before the payment call. A record that exists therefore means "a payment may have been sent".
 
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { link, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { zatToDecimal } from "./money.ts";
 import { ExecutionError, type Batch } from "./types.ts";
@@ -54,8 +54,8 @@ export interface IdempotencyStore {
    * a claim still decides, so even an old claimer that wakes up late cannot move the record.
    */
   claimAttempt(nonce: string, attempt: number, reclaimAfterMs: number): Promise<boolean>;
-  // Within one org, the first record to index a txid keeps it: an index entry never moves (every store;
-  // SQLite enforces it with a trigger). Per-org unique memos make a second claimant impossible in practice.
+  // Within one org, the first record to index a txid keeps it: an index entry never moves or changes
+  // (every store; SQLite enforces it with triggers). Per-org unique memos make a second claimant impossible in practice.
   // A record's identity (org, nonce, batchId, batchDigest) never changes after `createIntent`; the backend
   // always writes back the stored identity, and the SQLite schema refuses any change (trigger).
   // Preconditions shared by all stores: `claimAttempt` is only called for a nonce whose record exists
@@ -174,6 +174,30 @@ export class FileIdempotencyStore implements IdempotencyStore {
     await this.syncDir();
   }
 
+  /**
+   * First record wins, exactly and atomically: write a fsynced temp file, then hard-link it into place.
+   * `link` fails with EEXIST if an entry exists (two nonces recording one txid hold different nonce locks,
+   * so a stat-then-write check would race), and a reader never sees a half-written entry.
+   */
+  private async writeIndexOnce(path: string, body: string) {
+    const tmp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
+    const fh = await open(tmp, "w", 0o600);
+    try {
+      await fh.writeFile(body);
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+    try {
+      await link(tmp, path);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; // an entry exists: it never moves
+    } finally {
+      await unlink(tmp).catch(() => {});
+    }
+    await this.syncDir();
+  }
+
   /** Persist directory entries (a create or rename is durable only once its directory is synced). */
   private async syncDir() {
     const dh = await open(this.dir, "r");
@@ -226,11 +250,7 @@ export class FileIdempotencyStore implements IdempotencyStore {
       await stillHeld();
       // Index first: a txid that is findable but not yet in the record is harmless (the entry carries its
       // attempt, so `status` can tell an interrupted write from a superseded attempt); the reverse would hide it.
-      if (next.txid) {
-        const idx = join(this.dir, `${next.txid}.txid`);
-        const exists = await stat(idx).then(() => true, () => false);
-        if (!exists) await this.writeAtomic(idx, `${next.nonce}\n${next.attempts}`); // first record wins; never moves
-      }
+      if (next.txid) await this.writeIndexOnce(join(this.dir, `${next.txid}.txid`), `${next.nonce}\n${next.attempts}`);
       await stillHeld();
       await this.writeAtomic(this.path(next.nonce), JSON.stringify(next, null, 2));
       return true;
