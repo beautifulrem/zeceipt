@@ -30,6 +30,8 @@ export class FakeZkool {
   /** Height the issuer account is scanned to; `synchronizeAccount` raises it to `height` unless `syncBusy`. */
   scanned = 100;
   syncBusy = false;
+  /** Make `currentHeight` fail (the expiry-bound request after a pay). */
+  failCurrentHeight = false;
   ironwoodZat = 1_000_000_000n; // 10 ZEC
   payCalls = 0;
   mempool: FakeTx[] = [];
@@ -48,7 +50,10 @@ export class FakeZkool {
           res.end(JSON.stringify(data));
         };
         try {
-          if (query.includes("currentHeight")) return reply({ data: { currentHeight: this.height } });
+          if (query.includes("currentHeight")) {
+            if (this.failCurrentHeight) return reply({ data: null, errors: [{ message: "status: Unavailable, message: \"lwd down\"" }] });
+            return reply({ data: { currentHeight: this.height } });
+          }
           if (query.includes("synchronizeAccount")) {
             if (!this.syncBusy) this.scanned = this.height;
             return reply({ data: { synchronizeAccount: this.height } });

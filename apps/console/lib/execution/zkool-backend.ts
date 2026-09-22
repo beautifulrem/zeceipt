@@ -101,6 +101,14 @@ export class ZkoolBackend implements PayoutBackend {
     return this.store.update(next, expect);
   }
 
+  /**
+   * An outcome write whose failure must not mask the outcome error being thrown. If it fails the record
+   * stays `submitting`; after `inFlightMs` a submit resolves it by reconciliation (never a blind re-pay).
+   */
+  private async saveOutcome(next: SubmissionRecord, from: SubmissionRecord, states: SubmissionState[]): Promise<void> {
+    await this.save(next, from, states).catch(() => false);
+  }
+
   /** Static checks that need no network; also used inside `preflight`. */
   staticProblems(batch: Batch): PreflightProblem[] {
     const problems: PreflightProblem[] = [];
@@ -189,16 +197,26 @@ export class ZkoolBackend implements PayoutBackend {
     if (rec.state !== "broadcast") throw new ExecutionError("not_broadcast", `nonce ${nonce} is ${rec.state}; use submit`);
     const match = await this.reconcile(batch, rec);
     if (match.kind !== "none") throw new ExecutionError("not_expired", match.kind === "found" ? `a transaction paying this batch was mined: ${match.txid}` : match.detail);
-    if (rec.expiresBy === undefined || !(match.scanned > rec.expiresBy)) {
-      throw new ExecutionError("not_expired", `transaction ${rec.txid} can still be mined (expiry bound ${rec.expiresBy ?? "unrecorded"}, scanned ${match.scanned})`);
+    if (rec.expiresBy === undefined) {
+      // The bound request failed after the broadcast: record node tip + delta now (≥ the tip at build time).
+      const expiresBy = match.tip + this.txExpiryDelta;
+      await this.save({ ...rec, expiresBy }, rec, ["broadcast"]);
+      throw new ExecutionError("not_expired", `transaction ${rec.txid} can still be mined (expiry bound now recorded as ${expiresBy}, scanned ${match.scanned})`);
+    }
+    if (!(match.scanned > rec.expiresBy)) {
+      throw new ExecutionError("not_expired", `transaction ${rec.txid} can still be mined (expiry bound ${rec.expiresBy}, scanned ${match.scanned})`);
     }
     return this.retry(batch, rec);
   }
 
-  /** Start attempt `attempts + 1` under the same nonce. Only one caller may claim each attempt number. */
+  /**
+   * Start attempt `attempts + 1` under the same nonce. One caller claims each attempt number; a claim
+   * whose holder never advanced the record within `inFlightMs` (it died or its write failed, so it never
+   * paid) can be claimed again, so a nonce cannot be wedged. The compare-and-set write then decides.
+   */
   private async retry(batch: Batch, rec: SubmissionRecord): Promise<Submitted> {
     const attempt = rec.attempts + 1;
-    if (!(await this.store.claimAttempt(rec.nonce, attempt))) throw new SubmissionInFlightError(rec.nonce, 0);
+    if (!(await this.store.claimAttempt(rec.nonce, attempt, this.inFlightMs))) throw new SubmissionInFlightError(rec.nonce, 0);
     const next: SubmissionRecord = { ...rec, state: "submitting", attempts: attempt, txid: undefined, broadcastAt: undefined, error: undefined, expiresBy: undefined, createdAt: this.now().toISOString() };
     // The claim is exclusive, so this can only fail if the record left `rec`'s attempt — nobody else pays.
     if (!(await this.save(next, rec, [rec.state]))) throw new SubmissionInFlightError(rec.nonce, 0);
@@ -243,27 +261,34 @@ export class ZkoolBackend implements PayoutBackend {
       txid = await this.client.pay(this.account, batch.items.map((i) => ({ address: i.address, zat: i.zat, memo: i.memo })), POOL.ironwood);
     } catch (e) {
       if (e instanceof ZkoolGraphqlError && isPreBuildRefusal(e)) {
-        await this.save({ ...intentRec, state: "failed_retryable", error: e.message }, intentRec, ["submitting"]);
+        await this.saveOutcome({ ...intentRec, state: "failed_retryable", error: e.message }, intentRec, ["submitting"]);
         throw new PaymentRejectedError(e.message);
       }
       const why = e instanceof ZkoolGraphqlError ? `pay failed after it may have broadcast: ${e.message}` : (e as Error).message;
-      await this.save({ ...intentRec, state: "unknown_outcome", error: why, expiresBy: await this.expiryBound() }, intentRec, mine);
+      await this.saveOutcome({ ...intentRec, state: "unknown_outcome", error: why, expiresBy: await this.expiryBound() }, intentRec, mine);
       throw new UnknownOutcomeError(rec.nonce, why);
     }
     if (!/^[0-9a-f]{64}$/.test(txid)) {
       // Zkool returns the node's rejection text in place of a txid; treat it as unknown, it resolves at expiry.
       const why = `pay returned ${JSON.stringify(txid.slice(0, 200))} instead of a txid`;
-      await this.save({ ...intentRec, state: "unknown_outcome", error: why, expiresBy: await this.expiryBound() }, intentRec, mine);
+      await this.saveOutcome({ ...intentRec, state: "unknown_outcome", error: why, expiresBy: await this.expiryBound() }, intentRec, mine);
       throw new UnknownOutcomeError(rec.nonce, why);
     }
     // Record the txid first (a crash right after `pay` must not lose it), then add the expiry bound.
     const done: SubmissionRecord = { ...intentRec, state: "broadcast", txid, broadcastAt: this.now().toISOString(), error: undefined };
-    if (!(await this.save(done, intentRec, mine))) {
+    let recorded: boolean;
+    try {
+      recorded = await this.save(done, intentRec, mine);
+    } catch (e) {
+      // Paid, but the store failed: the caller must not see an untyped error (or success without a record).
+      throw new UnknownOutcomeError(rec.nonce, `pay returned ${txid} but recording it failed (${(e as Error).message}); a submit with the same nonce reconciles it`);
+    }
+    if (!recorded) {
       // Only possible if a resolver already concluded this attempt could never be mined and started the next one.
       throw new UnknownOutcomeError(rec.nonce, `pay returned ${txid} after this attempt was superseded; check the chain before acting`);
     }
     const expiresBy = await this.expiryBound();
-    if (expiresBy !== undefined) await this.save({ ...done, expiresBy }, done, ["broadcast"]);
+    if (expiresBy !== undefined) await this.saveOutcome({ ...done, expiresBy }, done, ["broadcast"]);
     return { txid, replayed: false, via: "fresh" };
   }
 
@@ -307,13 +332,18 @@ export class ZkoolBackend implements PayoutBackend {
   async status(txid: string, opts: StatusOptions = {}): Promise<TxStatus> {
     if (!/^[0-9a-f]{64}$/.test(txid)) return { state: "unknown", reason: "malformed txid" };
     const { tip, scanned } = await this.heights();
-    const indexed = await this.store.findByTxid(txid);
-    // After `resubmitExpired` the nonce's record belongs to a later attempt; the old txid keeps its index entry.
-    const rec = indexed?.txid === txid ? indexed : undefined;
-    const since = indexed?.intentHeight ?? 0;
+    const entry = await this.store.findByTxid(txid);
+    const cur = entry?.record;
+    const rec = cur?.txid === txid ? cur : undefined;
+    // After `resubmitExpired` the nonce's record belongs to a later attempt; the old txid keeps its index
+    // entry, which carries the attempt that wrote it. A later attempt ⇒ superseded; the same attempt ⇒ the
+    // record write after the index write was interrupted.
+    const superseded = cur !== undefined && rec === undefined && entry!.attempt !== undefined && cur.attempts > entry!.attempt;
+    const since = rec?.intentHeight ?? 0;
     const tx = (await this.client.transactions(this.account, since)).find((t) => t.txid === txid);
     if (tx && tx.height > 0) return { state: "mined", height: tx.height, confirmations: tip - tx.height + 1, tip };
-    if (indexed && !rec) return { state: "unknown", reason: `superseded: nonce ${indexed.nonce} was re-sent (attempt ${indexed.attempts}) after this transaction expired` };
+    if (superseded) return { state: "unknown", reason: `superseded: nonce ${cur.nonce} was re-sent (attempt ${cur.attempts}) after this transaction expired` };
+    if (cur && !rec) return { state: "unknown", reason: `nonce ${cur.nonce} does not record this txid yet (an interrupted write); a submit with the same nonce reconciles it` };
     if (!rec?.broadcastAt) return { state: "unknown", reason: "not mined and not broadcast by this console" };
     if (rec.expiresBy !== undefined && scanned > rec.expiresBy) {
       return { state: "unknown", reason: `expired: not mined by height ${rec.expiresBy} (scanned to ${scanned}), it can no longer be mined; resubmitExpired re-sends under the same nonce` };

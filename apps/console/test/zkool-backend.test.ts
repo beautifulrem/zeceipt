@@ -1,6 +1,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
@@ -11,6 +11,7 @@ import {
   NonceConflictError,
   PaymentRejectedError,
   PreflightFailedError,
+  StoreBusyError,
   SubmissionInFlightError,
   UnknownOutcomeError,
   ZkoolBackend,
@@ -348,4 +349,111 @@ test("inFlightMs must exceed the longest attempt (pay timeout + 3 request timeou
   const client = new ZkoolClient({ url: fake.url, timeoutMs: 60_000, payTimeoutMs: 300_000 });
   assert.throws(() => new ZkoolBackend({ client, account: 9, store: new MemoryIdempotencyStore(), inFlightMs: 400_000 }), RangeError);
   assert.doesNotThrow(() => new ZkoolBackend({ client, account: 9, store: new MemoryIdempotencyStore() }));
+});
+
+test("a dead retry claimer cannot wedge a nonce: its stale claim and stale lock are recovered, one payment", async () => {
+  const d = join(dir, "wedge");
+  const store = new FileIdempotencyStore(d, { staleLockMs: 200 });
+  const b = backend({ store, inFlightMs: 10_000 });
+  const calls = fake.payCalls;
+  fake.nextPay = "refused";
+  await assert.rejects(b.submit(batch("wedge"), "nonce-wedge"), PaymentRejectedError);
+  // A retrier claimed attempt 2, then died holding the record lock before it could advance the record.
+  assert.equal(await store.claimAttempt("nonce-wedge", 2, 10_000), true);
+  const { createHash } = await import("node:crypto");
+  const k = createHash("sha256").update("nonce-wedge").digest("hex");
+  const old = new Date(Date.now() - 60_000);
+  await utimes(join(d, `${k}.attempt-2`), old, old);
+  await writeFile(join(d, `${k}.lock`), "");
+  await utimes(join(d, `${k}.lock`), old, old);
+  const got = await b.submit(batch("wedge"), "nonce-wedge");
+  assert.deepEqual([got.via, fake.payCalls], ["fresh", calls + 2]);
+  assert.equal((await store.get("nonce-wedge"))?.attempts, 2);
+  // A live (recent) claim is still respected.
+  assert.equal(await store.claimAttempt("nonce-wedge", 3, 10_000), true);
+  assert.equal(await store.claimAttempt("nonce-wedge", 3, 10_000), false);
+  fake.mine();
+});
+
+test("memory store: a claim is re-takeable only after reclaimAfterMs, one taker per generation", async () => {
+  let t = 0;
+  const store = new MemoryIdempotencyStore({ clock: () => t });
+  assert.equal(await store.claimAttempt("n", 2, 1_000), true);
+  assert.equal(await store.claimAttempt("n", 2, 1_000), false);
+  t = 2_000;
+  const takers = await Promise.all([1, 2, 3].map(() => store.claimAttempt("n", 2, 1_000)));
+  assert.equal(takers.filter(Boolean).length, 1);
+});
+
+test("file store: a lock renewed by a live writer ends in StoreBusyError; a stale lock broken by many waiters admits one CAS winner", async () => {
+  const d = join(dir, "busy");
+  const store = new FileIdempotencyStore(d, { staleLockMs: 300, lockWaitMs: 400 });
+  const base = { nonce: "n-busy", batchId: "b", batchDigest: "d", createdAt: "t", state: "submitting" as const, attempts: 1 };
+  await store.createIntent(base);
+  const { createHash } = await import("node:crypto");
+  const lock = join(d, `${createHash("sha256").update("n-busy").digest("hex")}.lock`);
+  await writeFile(lock, "");
+  const renew = setInterval(() => void utimes(lock, new Date(), new Date()).catch(() => {}), 20);
+  await assert.rejects(store.update({ ...base, state: "broadcast" }, { attempts: 1, states: ["submitting"] }), StoreBusyError);
+  clearInterval(renew);
+  for (let round = 0; round < 10; round++) {
+    const old = new Date(Date.now() - 10_000);
+    await writeFile(lock, "");
+    await utimes(lock, old, old);
+    const cur = (await store.get("n-busy"))!;
+    const wins = await Promise.all([...Array(8)].map((_, i) => store.update({ ...cur, attempts: cur.attempts + 1, error: String(i) }, { attempts: cur.attempts, states: ["submitting"] })));
+    assert.equal(wins.filter(Boolean).length, 1, `round ${round}`);
+  }
+});
+
+test("a store failure right after a successful pay surfaces as UnknownOutcomeError and is reconciled later", async () => {
+  class FlakyStore extends MemoryIdempotencyStore {
+    failBroadcast = true;
+    override async update(next: Parameters<MemoryIdempotencyStore["update"]>[0], expect: Parameters<MemoryIdempotencyStore["update"]>[1]) {
+      if (this.failBroadcast && next.state === "broadcast") throw new StoreBusyError("disk full");
+      return super.update(next, expect);
+    }
+  }
+  let clock = new Date("2026-09-23T12:00:00Z");
+  const store = new FlakyStore();
+  const b = backend({ store, now: () => clock, inFlightMs: 60_000 });
+  const calls = fake.payCalls;
+  await assert.rejects(b.submit(batch("flaky"), "nonce-flaky"), (e: unknown) => e instanceof UnknownOutcomeError && /recording it failed/.test((e as Error).message));
+  store.failBroadcast = false;
+  await assert.rejects(b.submit(batch("flaky"), "nonce-flaky"), SubmissionInFlightError); // record still `submitting`, young
+  fake.mine();
+  clock = new Date(clock.getTime() + 120_000);
+  const got = await b.submit(batch("flaky"), "nonce-flaky");
+  assert.deepEqual([got.via, fake.payCalls], ["reconciled", calls + 1]);
+});
+
+test("status tells an interrupted record write apart from a superseded attempt", async () => {
+  const d = join(dir, "interrupted");
+  const store = new FileIdempotencyStore(d);
+  const b = backend({ store });
+  await store.createIntent({ nonce: "n-int", batchId: "b", batchDigest: "d", createdAt: new Date().toISOString(), state: "submitting", attempts: 1 });
+  const txid = "ef".repeat(32);
+  await writeFile(join(d, `${txid}.txid`), "n-int\n1"); // index written, record write lost
+  const st = await b.status(txid);
+  assert.equal(st.state, "unknown");
+  if (st.state === "unknown") assert.match(st.reason, /interrupted write/);
+});
+
+test("resubmitExpired records a fallback bound when the post-pay bound request failed, instead of refusing forever", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  const calls = fake.payCalls;
+  fake.failCurrentHeight = true;
+  const first = await b.submit(batch("nobound"), "nonce-nobound");
+  fake.failCurrentHeight = false;
+  assert.equal((await store.get("nonce-nobound"))?.expiresBy, undefined);
+  fake.drop();
+  await assert.rejects(b.resubmitExpired(batch("nobound"), "nonce-nobound"), /now recorded as/);
+  const bound = (await store.get("nonce-nobound"))!.expiresBy!;
+  assert.equal(bound, fake.height + 40);
+  fake.advance(41);
+  const again = await b.resubmitExpired(batch("nobound"), "nonce-nobound");
+  assert.notEqual(again.txid, first.txid);
+  assert.equal(fake.payCalls, calls + 2);
+  fake.mine();
 });
