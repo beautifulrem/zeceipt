@@ -20,3 +20,5 @@ export { countReceipts, listReceipts, recordReceipts, ReceiptRecordError, rewrap
 export { deriveBatchStatus, getBatchStatus } from "./data/status.ts";
 export type { BatchFacts, BatchState, BatchStatus, NextAction } from "./data/status.ts";
 export type { RecordResult, StoredReceipt } from "./data/receipts.ts";
+export { ConfigError, configSummary, loadConfig } from "./config/env.ts";
+export type { ConfigProblem, ConsoleConfig, CustodyConfig } from "./config/env.ts";

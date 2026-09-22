@@ -178,7 +178,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 3.3 Product surfaces (open)
 #### 3.3.1 Payout console — foundations (child task `09-21-payout-console`; stack decided: Next.js App Router, TypeScript strict, Tailwind, SQLite via better-sqlite3 + Drizzle (libSQL rejected 2026-09-23 on a durability defect `[R47]`); `.trellis/spec/frontend/index.md`)
-- 3.3.1.1 ⬜ T — Stack scaffold, config validation for custody mode (REQ-CON-17), `.env` schema, deploy target = Fly.io single node (SQLite volume). 0.5 pd, 2026-09-23 → 09-24.
+- 3.3.1.1 🟡 T — Stack scaffold, config validation for custody mode (REQ-CON-17), `.env` schema, deploy target = Fly.io single node (SQLite volume). 0.5 pd, 2026-09-23 → 09-24. Done (slice C1, Trellis `09-23-console-config`): the validated configuration `lib/config/env.ts` with REQ-CON-17's custody rules and `.env.example` `[R55]`; the Next.js scaffold is open (slice C2).
 - 3.3.1.2 ⬜ T — Auth/session (email magic link; SIWZ optional) and role matrix (REQ-CON-1). 0.5 pd, 2026-09-23 → 09-24.
 - 3.3.1.3 🟡 R — Data model + migrations for orgs/members/recipients (REQ-CON-2) per `05_data_model_api.md` §1. 0.5 pd, 2026-09-23 → 09-24. Done so far (Trellis `09-23-store-sqlite`, walking-skeleton slice A): the database layer (`apps/console/db/`, Drizzle migrations) and the execution nonce tables with `SqliteIdempotencyStore`, passing the shared store contract `[R45]` `[R46]` `[R47]`; slice B1 (Trellis `09-23-batches-schema`): `batches` + `batch_items` with a freeze trigger once submitted and a batch repository `[R48]` `[R49]`; slice B2 (Trellis `09-23-receipts-sealed`): `receipts` with the OCK sealed at rest and key rotation `[R50]` `[R51]` `[R52]` `[R53]`; slice B3 (Trellis `09-23-batch-status`): the derived batch status `[R54]`; orgs/members/recipients open.
 - 3.3.1.4 ⬜ R — API surface: route handlers `/api/{recipients,payables,batches,approvals,receipts,exports}` writing `audit_log`; OpenAPI stub. 0.5 pd, 2026-09-23 → 09-24.
@@ -222,7 +222,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 31 Rust tests + 112 TypeScript console tests (and 1 opt-in regtest e2e), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
+- 3.4.2.1 ✅ R — 31 Rust tests + 119 TypeScript console tests (and 1 opt-in regtest e2e), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.
@@ -308,9 +308,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 30 | 2 | 29 | 2 |
+| 3 Engineering | 63 | 30 | 3 | 28 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 110 | 3 | 62 | 10 |
+| **Total** | 185 | 110 | 4 | 61 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

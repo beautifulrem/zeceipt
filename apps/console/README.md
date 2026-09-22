@@ -12,11 +12,21 @@ The payout console's server-side core, written so the Next.js app (next task) ca
 | `lib/execution/validate.ts` | `batchProblems`: the one static rule set shared by preflight and the batch repository |
 | `lib/crypto/seal.ts` | Sealing at rest: `Keyring` (wrap keys by id, per-org HKDF-SHA256), `seal`/`open` (AES-256-GCM, 96-bit random IV, the row identity as AAD), typed `SealError` |
 | `lib/data/receipts.ts` | `recordReceipts` (the batch's own broadcast only, matched to items, idempotent, atomic), `listReceipts` (decrypted), `rewrapReceipts` (key rotation) |
+| `lib/config/env.ts` | `loadConfig` (zod-validated `ZECEIPT_*` environment; custody rules; all problems at once, never values), `configSummary` (safe to log) |
 | `lib/data/status.ts` | `deriveBatchStatus` (pure: the status table from the submission record, chain status and receipt count; fail closed) and `getBatchStatus` (gathers the facts through the backend's own store; never stored); next actions include `record_expiry` (`ZkoolBackend.ensureExpiryBound`) and `investigate` |
 | `lib/data/batches.ts` | Batch repository: `createBatch` (validated, atomic), `getBatch`, `listBatches` (exact totals), `toExecutionBatch`, `batchNonce` (`batch/<id>`), `newBatchId` (UUIDv7) |
 | `lib/execution/zkool-client.ts` | GraphQL client; loopback-only by default; distinguishes a server refusal from a lost answer |
 | `lib/execution/address.ts`, `money.ts`, `fee.ts` | ZIP 316 HRP + Bech32m checks, exact zat ↔ ZEC conversion, ZIP 317 fee estimate |
 | `lib/issuance/auto-issue.ts` | `autoIssue`: confirmation gate, `zeceipt issue --only-to …`, per-item cross-check, verification |
+
+## Configuration and custody modes
+
+The console reads its configuration only from `ZECEIPT_*` environment variables, through `lib/config/env.ts` (`loadConfig`; the one module allowed to read them). Startup fails listing every problem, naming the variable and never echoing the value. `.env.example` documents each variable. Unknown `ZECEIPT_*` variables are refused as likely typos.
+
+- **`hot` (the demo mode, on regtest):** the seed lives only in Zkool, and the console holds the issuer's viewing key (UFVK) and pays through Zkool's GraphQL endpoint. `ZECEIPT_ZKOOL_URL` and `ZECEIPT_ZKOOL_ACCOUNT` are required, and the endpoint stays on loopback unless `ZECEIPT_ZKOOL_ALLOW_REMOTE=true`.
+- **`external`:** an external signer holds the keys, and the console holds the UFVK only. Any Zkool setting is refused (REQ-CON-17).
+
+Wrap keys (`ZECEIPT_WRAP_KEYS`, `kid:base64` of 32 random bytes; the last one seals) never appear in errors, in `configSummary`, or in the JSON form of the config.
 
 Submission states:
 - `submitting` → `broadcast` (txid recorded).
