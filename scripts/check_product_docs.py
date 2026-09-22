@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; every §3 body row parses as a window; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share five consecutive words of obligation text; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -334,6 +334,18 @@ for rid, pr in prio.items():
         errors.append(f"01_requirements.md: requirement {rid} lacks a Solo column value")
     elif solo_col[rid] not in ("kept", "reduced", "dropped"):
         errors.append(f"01_requirements.md: {rid} Solo column value '{solo_col[rid]}' is not kept/reduced/dropped")
+
+# no two requirements may state the same obligation (shared 5-word shingle in the Requirement text)
+req_text_of = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\| (?:[MSCW] \| )?([^|]*)\|", req_defs, re.M))
+stop = {"the","a","an","and","or","of","to","for","with","per","in","on","from","by","is","are","as","at","that","this","its","it"}
+shingles = {}
+for rid, txt in req_text_of.items():
+    words = [w for w in re.findall(r"[a-z0-9]+", txt.lower()) if w not in stop]
+    for k in range(len(words) - 4):
+        sh = " ".join(words[k:k + 5])
+        if sh in shingles and shingles[sh] != rid:
+            errors.append(f"01_requirements.md: {rid} and {shingles[sh]} share the obligation text '{sh}'")
+        shingles.setdefault(sh, rid)
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):

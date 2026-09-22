@@ -5,9 +5,9 @@ Priority: M = Must (hackathon MVP), S = Should, C = Could, W = Won't (v0). Statu
 ## 0. Scope and non-goals
 
 In scope for v0: per-output disclosure receipts on Ironwood (plus Orchard/Sapling), CLI, browser verifier/SDK, payout console that issues receipts, Solana attestation of verified receipts, exports for accounting and public ledgers.
-Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in the app, FROST signing, mobile apps, fiat on/off-ramps, EOR/employment services, ZSA/stablecoin issuance, non-Zcash payouts.
+Non-goals for v0: spend-authority proof (full ZIP 311), fresh-diversifier address derivation (REQ-CON-18), wallet/key custody in the app, FROST signing, mobile apps, fiat on/off-ramps, EOR/employment services, ZSA/stablecoin issuance, non-Zcash payouts.
 
-Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3 (reduced to manual entry), REQ-CON-4 (reduced to a single rate source), REQ-CON-6, REQ-CON-7, REQ-CON-10, REQ-CON-11, REQ-CON-12 and REQ-CON-17. Everything already delivered (✅) stays; REQ-WEB-7 (🟡) stays because its leaf is kept; REQ-WEB-8 remains a user action outside the budget; REQ-CORE-9/-10, REQ-CLI-7/-8, REQ-CON-1/-5/-8/-9/-13/-14/-15/-16, REQ-SOL-1..5, REQ-INT-1..4 and NFR-9 (the annual-totals export, leaf 3.3.6.3) are dropped for the hackathon; NFR-8 (FMV data stored per batch, leaf 3.3.5.2) is kept. REQ-CON-18 (fresh-diversifier derivation) is Won't for v0 under both branches. Every requirement states exactly one obligation so that a single Solo value describes it; the checker verifies each value against the solo kept/dropped lists (✅ leaves count as kept). Every table below carries a "Solo branch" column and the checker verifies it against the solo kept/dropped lists.
+Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3, REQ-CON-4, REQ-CON-6, REQ-CON-7, REQ-CON-10, REQ-CON-11, REQ-CON-12 and REQ-CON-17. Everything already delivered (✅) stays; REQ-WEB-7 (🟡) stays because its leaf is kept; REQ-WEB-8 remains a user action outside the budget; REQ-CORE-9/-10, REQ-CLI-7/-8, REQ-CON-1/-5/-8/-9/-13/-14/-15/-16/-19/-20, REQ-SOL-1..5, REQ-INT-1..4 and NFR-9 (the annual-totals export, leaf 3.3.6.3) are dropped for the hackathon; NFR-8 (FMV data stored per batch, leaf 3.3.5.2) is kept. REQ-CON-18 (fresh-diversifier derivation) is Won't for v0 under both branches. Where a partial obligation would have needed a qualified value it has been split into its own requirement (REQ-CON-18, REQ-CON-19, REQ-CON-20, NFR-9), so every Solo value is a plain kept or dropped; the checker verifies each value against the solo kept/dropped lists (✅ leaves count as kept) and rejects qualified values.
 
 ## 1. Receipt core (`zeceipt-core`, `zeceipt-types`)
 
@@ -30,7 +30,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 |---|---|---|---|---|---|
 | REQ-CLI-1 | M | Subcommands: keygen, inspect, issue, verify, pack, verify-pack, find-ironwood. | `--help` lists all; each exercised in tests or PROOF. | ✅ `cli.rs` tests, PROOF | kept (done) |
 | REQ-CLI-2 | M | Exit codes: 0 valid, 1 invalid, 2 pending, 3 usage. | Tests assert 0/1/3; pending path returns 2 on NotFound. | ✅ `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` | kept (done) |
-| REQ-CLI-3 | M | Failure stage reported in JSON (`parse/tx/txid/signature/challenge/output/recovery/network`). | Each stage asserted. | ✅ same | kept (done) |
+| REQ-CLI-3 | M | Failure stage reported in JSON using the REQ-CORE-5 stage names plus the CLI-only stages `parse`, `tx` and `network`. | Each stage asserted. | ✅ same | kept (done) |
 | REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
 | REQ-CLI-5 | M | Network context guard: explicit `--testnet`/`--regtest` with a mainnet receipt is rejected at stage `network`. | Test asserts. | ✅ `failure_stages_and_exit_1` | kept (done) |
 | REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `source guards` (`scripts/check_source_guards.py`) fails if the whole words seed/mnemonic/spending appear in any crate's non-test code. | ✅ CI source guards (passes locally) | kept (done) |
@@ -56,8 +56,8 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 |---|---|---|---|---|---|
 | REQ-CON-1 | M | Organisations, members, roles (Admin, Approver, Operator, Viewer); email login (SIWZ optional). | Role matrix enforced in route handlers; tests per role. | ⬜ | dropped |
 | REQ-CON-2 | M | Recipients: display name, unified address (validated per network), KYC flag, tax flag (US-1099 / non-US), preferred settlement (ZEC / USDC-Solana). | Invalid UA rejected; duplicate addresses flagged. | ⬜ | kept |
-| REQ-CON-3 | M | Payables: type (milestone/invoice/bounty/salary), USD cents, reference, link to grant/project; CSV import compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ | reduced (manual entry on the kept leaf 3.3.5.1; no CSV import) |
-| REQ-CON-4 | M | Batches: group payables; lock ZEC/USD rate from two sources (Kraken, CoinGecko) recording both and the timestamp. | Rate, sources and timestamp persisted; deviation > 3% blocks until re-quote. | ⬜ | reduced (single rate source on the kept leaf 3.3.5.2) |
+| REQ-CON-3 | M | Payables: type (milestone/invoice/bounty/salary), USD cents, reference, link to grant/project; manual entry with validation. | Creating a payable by hand persists all fields; invalid USD or missing reference is rejected. | ⬜ | kept (leaf 3.3.5.1) |
+| REQ-CON-4 | M | Batches: group payables; lock the ZEC/USD rate from one source recording the source and the timestamp. | Rate, source and timestamp persisted on the batch. | ⬜ | kept (leaf 3.3.5.2) |
 | REQ-CON-5 | M | Two-person approval bound by HMAC over (batch id, recipients, amounts, rate); any edit invalidates approvals. | Editing an approved batch resets approvals; test. | ⬜ | dropped |
 | REQ-CON-6 | M | Warn about linkability whenever a recipient is paid at an address already used in a previous receipt (a receipt reveals that output's diversified address). | UI warning shown on SCR-2 and in the batch validation report; wording matches spec §9. | ⬜ | kept (leaf 3.3.5.1) |
 | REQ-CON-7 | M | Execution backend A: Zkool GraphQL `pay` with per-recipient memo (`INV-…`); idempotent re-submission guarded by a batch nonce. | Regtest batch of 3 recipients lands in one transaction. | ⬜ | kept |
@@ -67,11 +67,13 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CON-11 | M | Auto-issue one receipt per payment output after N confirmations; store receipt JSON, URL and recovered values. | Receipts appear with verify links; issuance is idempotent per (txid, index). | ⬜ | kept |
 | REQ-CON-12 | M | Public receipt page (no login) using the browser verifier; optional challenge input. | Page verifies without server involvement. | ⬜ | kept |
 | REQ-CON-13 | M | Audit pack page and JSON export; lower-bound wording. | Pack verifies in CLI and page. | ⬜ | dropped |
-| REQ-CON-14 | M | Exports: OpenZcash-compatible CSV (+ `receipt_url`), QuickBooks 3-column, Xero single-amount, per-recipient annual USD totals for 1099-NEC. | Sample files validate against the column specs in `05_data_model_api.md` §3. | ⬜ | dropped |
+| REQ-CON-14 | M | Exports: OpenZcash-compatible CSV (+ `receipt_url`), QuickBooks 3-column, Xero single-amount (the 1099 totals export is NFR-9). | Sample files validate against the column specs in `05_data_model_api.md` §3. | ⬜ | dropped |
 | REQ-CON-15 | S | Notifications (Discord webhook / email) for pending approvals and confirmations. | Webhook fires on state changes. | ⬜ | dropped |
 | REQ-CON-16 | S | UFVK-based reconciliation view (upper bound of outgoing payments). | Reconciles regtest batch against payables. | ⬜ | dropped |
-| REQ-CON-18 | W | Derive a fresh diversified address per recipient per batch from a recipient-supplied UFVK (removes the linkability the warning describes). | A batch paying the same recipient twice uses two distinct diversified addresses derived from their UFVK. | ⬜ no leaf; roadmap (post-hackathon) | dropped |
 | REQ-CON-17 | M | Custody modes documented and enforced: hot (seed only in Zkool; app holds UFVK) or external signer (app holds UFVK only). | Config test: `CUSTODY_MODE=external` with a Zkool endpoint set fails startup; `hot` without a Zkool endpoint fails startup; README states the demo mode. | ⬜ | kept |
+| REQ-CON-18 | W | Derive a fresh diversified address per recipient per batch from a recipient-supplied UFVK (removes the linkability the warning describes). | A batch paying the same recipient twice uses two distinct diversified addresses derived from their UFVK. | ⬜ no leaf; roadmap (post-hackathon) | dropped |
+| REQ-CON-19 | S | CSV import of payables compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ | dropped |
+| REQ-CON-20 | S | Second rate source (Kraken + CoinGecko) recorded alongside the first, with a deviation guard: > 3% between sources or between lock and execution blocks until re-quote. | Both sources persisted; deviation test blocks. | ⬜ | dropped |
 
 ## 5. Solana attestation
 
@@ -140,11 +142,10 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-WEB-8 | 👤 | 4.1.1.3 | npm publish after links resolve |
 | REQ-CON-1 | ⬜ | 3.3.1.2 | auth/session + role matrix |
 | REQ-CON-2 | ⬜ | 3.3.1.3 | `05_data_model_api.md` §1 `recipients` |
-| REQ-CON-3 | ⬜ | 3.3.5.1 | `05` §1 `payables`; `[R10]` Konclave CSV, `[R12]` zecpay columns |
+| REQ-CON-3 | ⬜ | 3.3.5.1 | `05` §1 `payables` |
 | REQ-CON-4 | ⬜ | 3.3.5.2 | `05` §1 `batches` rate fields |
 | REQ-CON-5 | ⬜ | 3.3.5.3 | `05` §1 `approvals` HMAC |
 | REQ-CON-6 | ⬜ | 3.3.5.1 | `04_ux_flows.md` SCR-2 linkability warning; spec §9 |
-| REQ-CON-18 | ⬜ | — | no leaf; post-hackathon roadmap (Won't for v0) |
 | REQ-CON-7 | ⬜ | 3.3.5.4 | `05` §2 zkool-graphql adapter `[R18]` |
 | REQ-CON-8 | ⬜ | 3.3.5.5 | `05` §2 zallet-rpc adapter `[R19]` |
 | REQ-CON-9 | ⬜ | 3.3.5.6 | `05` §2 zip321-manual adapter `[R17]` |
@@ -156,6 +157,9 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-15 | ⬜ | 3.3.6.4 | cut order item 2 (`11_plan.md` §2) |
 | REQ-CON-16 | ⬜ | 3.3.6.4 | cut order item 2 |
 | REQ-CON-17 | ⬜ | 3.3.1.1 | `docs/THREAT_MODEL.md` custody modes; `04` SCR-5 notice; config validation |
+| REQ-CON-18 | ⬜ | — | no leaf; post-hackathon roadmap (Won't for v0) |
+| REQ-CON-19 | ⬜ | 3.3.5.7 | `[R10]` Konclave CSV, `[R12]` zecpay columns |
+| REQ-CON-20 | ⬜ | 3.3.5.8 | `05` §1 `batches` `rate_sources_json`; cut item 4 |
 | REQ-SOL-1 | ⬜ | 3.3.2.1 | `05` §4 attestation row |
 | REQ-SOL-2 | ⬜ | 3.3.2.1 | PDA keyed by (txid, index) |
 | REQ-SOL-3 | ⬜ | 3.3.2.2 | client verifies with `@zeceipt/verify` first |

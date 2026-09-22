@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, round 13 = 97/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, round 11 = 96/100, round 12 = 97/100, round 13 = 97/100, round 14 = 97/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -199,8 +199,10 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after the 2026-10-06 activation. 0.25 pd, 2026-10-04 → 10-07 (run on 10-07).
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
 #### 3.3.5 Payout console — payables, batches, execution
-- 3.3.5.1 ⬜ R — Payables + CSV import (Konclave `label,address,value[,memo]`, zecpay columns) with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.5 pd, 2026-09-23 → 09-24.
-- 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10, NFR-8: stores the FMV source/rate/timestamp). 1 pd, 2026-09-25 → 09-26.
+- 3.3.5.1 ⬜ R — Payables model + manual entry with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.25 pd, 2026-09-23 → 09-24.
+- 3.3.5.7 ⬜ R — CSV import (Konclave `label,address,value[,memo]`, zecpay columns) into payables (REQ-CON-19). 0.25 pd, 2026-09-23 → 09-24.
+- 3.3.5.2 ⬜ T — Batches with single-source rate lock and state machine (REQ-CON-4, REQ-CON-10, NFR-8: stores the FMV source/rate/timestamp). 0.5 pd, 2026-09-25 → 09-26.
+- 3.3.5.8 ⬜ T — Second rate source and deviation guard (> 3% blocks until re-quote) (REQ-CON-20). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
@@ -305,9 +307,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 39 | 1 | 2 | 2 |
-| 3 Engineering | 60 | 27 | 0 | 31 | 2 |
+| 3 Engineering | 62 | 27 | 0 | 33 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 182 | 106 | 2 | 64 | 10 |
+| **Total** | 184 | 106 | 2 | 66 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).
