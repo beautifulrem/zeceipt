@@ -178,38 +178,38 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 3.3 Product surfaces (open)
 #### 3.3.1 Payout console — foundations (child task `09-21-payout-console`; stack decided: Next.js 15 App Router, TypeScript strict, Tailwind, libSQL + Drizzle; `.trellis/spec/frontend/index.md`)
-- 3.3.1.1 ⬜ T — Stack scaffold, config validation for custody mode (REQ-CON-17), `.env` schema, deploy target = Fly.io single node (SQLite volume). 0.5 pd, 2026-09-23.
-- 3.3.1.2 ⬜ T — Auth/session (email magic link; SIWZ optional) and role matrix (REQ-CON-1). 0.5 pd, 2026-09-23.
-- 3.3.1.3 ⬜ R — Data model + migrations for orgs/members/recipients (REQ-CON-2) per `05_data_model_api.md` §1. 0.5 pd, 2026-09-23.
-- 3.3.1.4 ⬜ R — API surface: route handlers `/api/{recipients,payables,batches,approvals,receipts,exports}` writing `audit_log`; OpenAPI stub. 0.5 pd, 2026-09-23.
+- 3.3.1.1 ⬜ T — Stack scaffold, config validation for custody mode (REQ-CON-17), `.env` schema, deploy target = Fly.io single node (SQLite volume). 0.5 pd, 2026-09-23 → 09-24.
+- 3.3.1.2 ⬜ T — Auth/session (email magic link; SIWZ optional) and role matrix (REQ-CON-1). 0.5 pd, 2026-09-23 → 09-24.
+- 3.3.1.3 ⬜ R — Data model + migrations for orgs/members/recipients (REQ-CON-2) per `05_data_model_api.md` §1. 0.5 pd, 2026-09-23 → 09-24.
+- 3.3.1.4 ⬜ R — API surface: route handlers `/api/{recipients,payables,batches,approvals,receipts,exports}` writing `audit_log`; OpenAPI stub. 0.5 pd, 2026-09-23 → 09-24.
 #### 3.3.2 Solana attestation (child task `09-21-solana-attestation`)
-- 3.3.2.1 ⬜ R — Anchor program: ed25519 precompile check + PDA row (REQ-SOL-1, REQ-SOL-2). 0.5 pd, 2026-09-29.
-- 3.3.2.2 ⬜ T — Client that verifies then submits (REQ-SOL-3). 0.25 pd, 2026-09-29.
-- 3.3.2.3 ⬜ R — Devnet deployment and PROOF entry (REQ-SOL-4). 0.25 pd, 2026-09-30.
-- 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5). 0.5 pd, 2026-09-30.
+- 3.3.2.1 ⬜ R — Anchor program: ed25519 precompile check + PDA row (REQ-SOL-1, REQ-SOL-2). 0.5 pd, 2026-10-01 → 10-03.
+- 3.3.2.2 ⬜ T — Client that verifies then submits (REQ-SOL-3). 0.25 pd, 2026-09-29 → 09-30.
+- 3.3.2.3 ⬜ R — Devnet deployment and PROOF entry (REQ-SOL-4). 0.25 pd, 2026-10-01 → 10-03.
+- 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5). 0.5 pd, 2026-10-04 → 10-07.
 #### 3.3.3 Integrations
-- 3.3.3.1 ⬜ T — Konclave CSV (`label,address,value[,memo]`) → receipt issuance adapter (REQ-INT-1). 0.75 pd, 2026-10-01.
-- 3.3.3.2 ⬜ T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2). 0.75 pd, 2026-10-02.
-- 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-09-27.
-- 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27.
+- 3.3.3.1 ⬜ T — Konclave CSV (`label,address,value[,memo]`) → receipt issuance adapter (REQ-INT-1). 0.75 pd, 2026-09-29 → 09-30.
+- 3.3.3.2 ⬜ T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2). 0.75 pd, 2026-10-01 → 10-03.
+- 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-10-01 → 10-03.
+- 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27 → 09-28.
 #### 3.3.4 Open technical questions
-- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd timebox, opportunistic (inside the 3.3.4 investigations line of `11_plan.md` §1).
-- 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured). 0.25 pd timebox, with the first funded batch (2026-10-01).
-- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd timebox, opportunistic.
-- 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after 2026-10-06. 0.25 pd, 2026-10-07.
-- 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-01 → 10-03.
+- 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation. 0.25 pd, 2026-10-08 → 10-09 (timebox).
+- 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured). 0.25 pd, 2026-10-01 → 10-03 (with the first funded batch).
+- 3.3.4.3 ⬜ R — Zaino `GetTransaction` completeness on public instances. 0.25 pd, 2026-10-08 → 10-09.
+- 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after the 2026-10-06 activation. 0.25 pd, 2026-10-04 → 10-07 (run on 10-07).
+- 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
 #### 3.3.5 Payout console — payables, batches, execution
-- 3.3.5.1 ⬜ R — Payables + CSV import (Konclave `label,address,value[,memo]`, zecpay columns) with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.5 pd, 2026-09-24.
-- 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10). 1 pd, 2026-09-24.
-- 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25.
-- 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-24.
-- 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-09-30.
-- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-09-25.
+- 3.3.5.1 ⬜ R — Payables + CSV import (Konclave `label,address,value[,memo]`, zecpay columns) with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.5 pd, 2026-09-23 → 09-24.
+- 3.3.5.2 ⬜ T — Batches with two-source rate lock and state machine (REQ-CON-4, REQ-CON-10). 1 pd, 2026-09-25 → 09-26.
+- 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
+- 3.3.5.4 ⬜ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). 1 pd, 2026-09-25 → 09-26.
+- 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-01 → 10-03.
+- 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-09-25 → 09-26.
 #### 3.3.6 Payout console — receipts, pages, exports
-- 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-26.
-- 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-26.
-- 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-8). 1.5 pd, 2026-09-27 → 09-28.
-- 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-02.
+- 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-27 → 09-28.
+- 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
+- 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-8). 1.5 pd, 2026-09-29 → 09-30.
+- 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-08 → 10-09 (only if restored).
 
 ### 3.4 Evidence and quality
 #### 3.4.1 Proof log
@@ -233,19 +233,19 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 4.1.1.1 👤 ⬜ U — Create GitHub org/repo, push, enable CI.
 - 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example.
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve.
-- 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-04.
+- 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-04 → 10-07.
 #### 4.1.2 Community and design test
-- 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-09-27 → 10-11.
+- 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-10-08 → 10-09.
 - 4.1.2.2 ⬜ PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24.
 - 4.1.2.3 👤 ⬜ U — Decide on contacting Konclave's author (default yes).
-- 4.1.2.4 ⬜ PM — ZecHub Discord announcement with demo link. 0.25 pd, 2026-09-28.
+- 4.1.2.4 ⬜ PM — ZecHub Discord announcement with demo link. 0.25 pd, 2026-09-27 → 09-28.
 
 ### 4.2 Pilots and traction
 #### 4.2.1 Pilot organisations
-- 4.2.1.1 ⬜ PM — ZecHub DAO weekly bounties (target ≥ 3 receipts). 0.5 pd, 2026-09-28 → 10-03.
-- 4.2.1.2 ⬜ PM — Zcash Brazil (Konclave user) receipts for their public ledger. 0.5 pd, 2026-09-29 → 10-03.
-- 4.2.1.3 ⬜ PM — One ZCG grantee team. 0.25 pd, 2026-10-01 → 10-03.
-- 4.2.1.4 ⬜ PM — OpenZcash "verified" column demo branch (uses the export from 3.3.3.2). 0.25 pd, 2026-10-02.
+- 4.2.1.1 ⬜ PM — ZecHub DAO weekly bounties (target ≥ 3 receipts). 0.5 pd, 2026-10-01 → 10-03.
+- 4.2.1.2 ⬜ PM — Zcash Brazil (Konclave user) receipts for their public ledger. 0.5 pd, 2026-10-01 → 10-03.
+- 4.2.1.3 ⬜ PM — One ZCG grantee team. 0.25 pd, 2026-10-08 → 10-09.
+- 4.2.1.4 ⬜ PM — OpenZcash "verified" column demo branch (uses the export from 3.3.3.2). 0.25 pd, 2026-10-01 → 10-03.
 #### 4.2.2 Countable metrics
 - 4.2.2.1 ⬜ PM — Receipts issued on public chains (target ≥ 15 by 2026-10-12).
 - 4.2.2.2 ⬜ PM — npm/crate downloads (≥ 50).
@@ -258,21 +258,21 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 5.1 Materials
 #### 5.1.1 Videos
-- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-06 → 10-09.
-- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline `11_plan.md` §5). 0.75 pd, 2026-10-06 → 10-09.
-- 5.1.1.3 ⬜ PM — Weekly update videos ×2. 0.25 pd, 2026-09-28 and 10-05.
-- 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-09.
+- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-04 → 10-07.
+- 5.1.1.2 ⬜ PM — Technical demo 2–3 min (outline `11_plan.md` §5). 0.75 pd, 2026-10-08 → 10-09.
+- 5.1.1.3 ⬜ PM — Weekly update videos ×2 (09-28 and 10-05; budget booked in the first window). 0.25 pd, 2026-09-27 → 09-28.
+- 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-08 → 10-09.
 #### 5.1.2 Written
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
-- 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04.
+- 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04 → 10-07.
 - 5.1.2.3 👤 ⬜ U — Team members with background context; team location; logo.
-- 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale; forced to Developer Infrastructure if the solo branch activates (RSK-19). `09_submission_checklist.md` §1. 0.25 pd, 2026-10-03.
+- 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale; forced to Developer Infrastructure if the solo branch activates (RSK-19). `09_submission_checklist.md` §1. 0.25 pd, 2026-10-04 → 10-07.
 
 ### 5.2 Process
 #### 5.2.1 Timeline
-- 5.2.1.1 ⬜ PM — Initial upload on window-open day (assumed 2026-10-05). 0.25 pd.
-- 5.2.1.2 ⬜ PM — Final videos by 2026-10-09; freeze and form re-check 2026-10-10. 0.25 pd.
-- 5.2.1.3 ⬜ PM — Final submission 2026-10-11 (one-day buffer). 0.25 pd.
+- 5.2.1.1 ⬜ PM — Initial upload on window-open day (assumed 2026-10-05). 0.25 pd, 2026-10-04 → 10-07.
+- 5.2.1.2 ⬜ PM — Final videos by 2026-10-09; freeze and form re-check 2026-10-10. 0.25 pd, 2026-10-10 → 10-11.
+- 5.2.1.3 ⬜ PM — Final submission 2026-10-11 (one-day buffer). 0.25 pd, 2026-10-10 → 10-11.
 - 5.2.1.4 ⬜ PM — Post-submission: keep shipping; interview prep (`11_plan.md` §6).
 #### 5.2.2 Compliance with rules
 - 5.2.2.1 ✅ PM — English-only content. All repo docs English.

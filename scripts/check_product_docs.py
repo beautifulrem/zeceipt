@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -166,7 +166,7 @@ for name, wbs_cell, pd_cell in re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]
 
 # slack line: capacity − (Total − Σ pd of ✅ rows) must equal the stated slack; Total must equal Σ rows
 rows_pd = re.findall(r"^\| (?!\*\*Total)([^|]+) \| [^|]* \| (\d+(?:\.\d+)?) \| [^|]* \| ([^|]*) \|$", budget, re.M)
-tot_m = re.search(r"^\| \*\*Total\*\* \| \| \*\*(\d+(?:\.\d+)?)\*\* \| \| .*?\*\*(\d+(?:\.\d+)?)\*\* → open \*\*(\d+(?:\.\d+)?)\*\* vs capacity \*\*(\d+)\*\*.*?slack \*\*(\d+(?:\.\d+)?)\*\*", budget, re.M)
+tot_m = re.search(r"^\| \*\*Total\*\* \| \| \*\*(\d+(?:\.\d+)?)\*\* \| \| .*?\*\*(\d+(?:\.\d+)?)\*\* → open \*\*(\d+(?:\.\d+)?)\*\* vs capacity \*\*(\d+(?:\.\d+)?)\*\*.*?slack \*\*(\d+(?:\.\d+)?)\*\*", budget, re.M)
 if not tot_m:
     errors.append("11_plan.md §1: Total row with done/open/capacity/slack not found")
 else:
@@ -189,7 +189,9 @@ load = {"R": 0.0, "T": 0.0}
 for name, wbs_cell, pd_cell, owner_cell, status in re.findall(r"^\| (?!\*\*Total)([^|]+) \| ([^|]*) \| (\d+(?:\.\d+)?) \| ([^|]*) \| ([^|]*) \|$", budget, re.M):
     if status.strip().startswith("✅"):
         continue
-    parts = re.findall(r"\b(R|T|PM)\b\s*(\d+(?:\.\d+)?)?", owner_cell)
+    if re.search(r"\b(R|T|PM|U)/(R|T|PM|U)\b", owner_cell) and "PM/U" not in owner_cell:
+        errors.append(f"11_plan.md §1: ambiguous owner cell '{owner_cell.strip()}' in row '{name.strip()}'")
+    parts = re.findall(r"\b(R|T|PM)\b(?:/U)?\s*(\d+(?:\.\d+)?)?", owner_cell)
     if not parts:
         continue
     if all(v == "" for _, v in parts):
@@ -205,6 +207,44 @@ else:
     if abs(load["R"] - r_s) > 1e-6 or abs(load["T"] - t_s) > 1e-6:
         errors.append(f"11_plan.md §1: per-owner load says R {r_s} / T-PM {t_s} but Owner splits sum to R {load['R']} / T-PM {load['T']}")
 
+# calendar levelling: per window, Σ leaf pd per owner ≤ 0.75 × days; leaf WBS dates lie inside the window listing them
+import datetime as _dt
+def _d(md):  # "MM-DD" → date in 2026
+    m, d = md.split("-")
+    return _dt.date(2026, int(m), int(d))
+cut_day_one = {}  # leaf → pd freed on day one (whole leaf or a reduction)
+cut_tbl = plan.split("## 2.")[1].split("## 3.")[0] if "## 2." in plan else ""
+for cut, frees, note in re.findall(r"^\| \d+ \| ([^|]*) \| [^|]* \| (\d+(?:\.\d+)?) \| ([^|]*) \|$", cut_tbl, re.M):
+    if "applied on day one" in note:
+        for n in re.findall(r"\b(\d\.\d\.\d\.\d)\b", cut):
+            cut_day_one[n] = float(frees)
+leaf_dates = {}
+for m in leaf_re.finditer(wbs):
+    num, rest = m.groups()
+    dm = re.search(r"pd, (\d{4}-\d{2}-\d{2})(?: → (\d{2}-\d{2}))?", rest)
+    if dm:
+        a = _dt.date.fromisoformat(dm.group(1))
+        b = _d(dm.group(2)) if dm.group(2) else a
+        leaf_dates[num] = (a, b)
+windows = 0
+for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M):
+    w0 = _d(wm.group(1)); w1 = _d(wm.group(2)) if wm.group(2) else w0
+    days = (w1 - w0).days + 1
+    windows += 1
+    for col, cell in (("R", wm.group(3)), ("T/PM", wm.group(4))):
+        live = re.sub(r"\[[^\]]*\]", "", cell)  # bracketed = cut / restored-only
+        nums = re.findall(r"\b(\d\.\d\.\d\.\d)\b", live)
+        load_w = sum(max(pd_of.get(n, 0.0) - cut_day_one.get(n, 0.0), 0.0) for n in nums)
+        if load_w > 0.75 * days + 1e-6:
+            errors.append(f"11_plan.md §3: window {wm.group(1)}{' → ' + wm.group(2) if wm.group(2) else ''} {col} load {load_w} pd exceeds {0.75 * days} pd")
+        for n in re.findall(r"\b(\d\.\d\.\d\.\d)\b", cell):
+            if n in leaf_dates:
+                a, b = leaf_dates[n]
+                if a < w0 or b > w1:
+                    errors.append(f"00_wbs.md: leaf {n} dated {a} → {b} but listed in window {w0} → {w1}")
+if windows == 0:
+    errors.append("11_plan.md §3: no dated windows found")
+
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
@@ -213,7 +253,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

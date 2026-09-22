@@ -37,6 +37,7 @@ for path in files:
                 code = head + tail.split("*/", 1)[1]
             else:
                 code, in_block = head, True
+        code = re.sub(r'"(?:[^"\\]|\\.)*"', '""', code)  # blank string literals so a // inside a URL is not a comment
         code = code.split("//", 1)[0]  # drop trailing // comments (also skips whole-line //, /// and //!)
         if key_re.search(code):
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term: {line.strip()}")
