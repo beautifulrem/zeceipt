@@ -5,7 +5,7 @@
 | Layer | Definition | Figure | Basis |
 |---|---|---|---|
 | TAM (category) | "Private payments that must remain provable on demand" across privacy chains and confidential stablecoin rails | Category forming in 2026: Aleo+Toku private stablecoin payroll, Tempo Zones, Canton private payroll, Solana confidential balances re-enabled; regulators (TRM) list per-transaction disclosure as a compliance mechanism; EU AMLR makes selective disclosure a survival condition for privacy assets from 2027-07 `[R23]` | qualitative; no reliable dollar figure |
-| Seat TAM (upper bound) | Organisations paying contributors on-chain: ~2,350 DAOs with in-depth treasury data on DeepDAO `[R38]` (mostly transparent stablecoins today); ~200 ecosystem grant programs (assumption: one per major L1/L2 foundation plus sub-programs, not sourced); ~2,000 crypto-native businesses on payroll tools = 5% of Deel's 40,000+ customers `[R39]` (the 5% share is an assumption) → ~4,500 orgs × $1k–3k ACV | **$4.5M–$13.5M / year** | estimate; upper bound, no penetration assumed; arithmetic shown |
+| Seat TAM (upper bound) | Organisations paying contributors on-chain: ~300 DAOs with treasury analytics on DeepDAO `[R38]` (the ~2,350 DAOs with in-depth data are the outer bound, most without a tracked treasury; treasuries are mostly transparent stablecoins/governance tokens today); ~200 ecosystem grant programs (assumption: one per major L1/L2 foundation plus sub-programs, not sourced); ~2,000 crypto-native businesses on payroll tools = 5% of Deel's 40,000+ customers `[R39]` (the 5% share is an assumption) → ~2,500 orgs × $1k–3k ACV | **$2.5M–$7.5M / year** | estimate; upper bound, no penetration assumed; arithmetic shown; outer bound with 2,350 DAOs would be $4.5M–$13.5M |
 | SAM (Zcash first) | Organisations paying in shielded ZEC that must account publicly | ZCG: 1,015 rows, $23.3M paid, 414.7K ZEC `[R5]`; FPF: 62 milestones + 129 bounties per quarter `[R4]`; Zcash Brazil / Shielded Labs / grantee teams | ~$5–10M/yr of disbursements; tens of orgs |
 | SOM (12 months) | Pilots + first paying orgs | 3 paying orgs at the Team tier ($79/mo) ≈ $2.8k/yr plus 1 Organisation tier ($299/mo) ≈ $3.6k/yr → **≈ $6–7k ARR**, 1 public ledger consumer, 2 integrators | targets in `11_plan.md` §4; revenue is not the 12-month goal, adoption is |
 
@@ -41,7 +41,7 @@ Legend: ● has it · ○ partial · — none. Columns are the capabilities a ju
 | Request Finance | EVM stablecoins | ● | ● | ● | ○ tx hash | — | ● QBO/Xero/NetSuite | active | `[R27]` |
 | Toku / Rise / Bitwage | EVM/Solana stablecoins | ● | ● | ● | ○ payslips/tax forms | — | ● | active | `[R28]`–`[R30]` |
 | Monero prove-payment | Monero | — | — | — | ● per-tx key | — | — | shipped | `[R31]` |
-| Solana confidential balances | Solana | — | — | — | ○ auditor key per mint (all-or-nothing) | — | — | re-enabled 2026-06 | `[R41]` |
+| Solana confidential balances | Solana | — | — | — | ○ auditor key per mint (all-or-nothing) | — | — | re-enabled on mainnet 2026-06-04 (proof program) / launch post 2026-06-10 | `[R41]` |
 
 Reading: nobody on Zcash (or elsewhere in the table) combines chain-verifiable per-payment receipts with audit packs and accounting exports; the closest shipped analogue is Monero's per-transaction proof, which has no batch, memo or accounting layer.
 

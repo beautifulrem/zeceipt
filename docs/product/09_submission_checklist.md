@@ -31,7 +31,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 
 **Proof.** Mainnet v6 transactions parsed and fetched over gRPC; a consensus-valid transaction on a Zebra regtest chain issued from the sender's viewing key and verified online and offline; tamper cases fail closed at a named stage; 26 automated tests including the official Orchard note-encryption vectors. [Add: testnet/mainnet receipts and the pilot organisation once funded.]
 
-**Market and impact.** Immediate users are Zcash grant programs and DAOs (FPF/ZCG pay 60+ milestones and 100+ bounties per quarter by hand) and Zcash-native payroll users such as Zcash Brazil on Konclave. The category is wider: Aleo, Tempo, Canton and Solana confidential balances all ship private payments in 2026 and none offers per-payment proof; under EU AMLR (2027) on-demand provability is the survival property for privacy assets. Top-down seat market ≈ $4.5–13.5M/yr; verification API and compliance licensing are the multiplier.
+**Market and impact.** Immediate users are Zcash grant programs and DAOs (FPF/ZCG pay 60+ milestones and 100+ bounties per quarter by hand) and Zcash-native payroll users such as Zcash Brazil on Konclave. The category is wider: Aleo, Tempo, Canton and Solana confidential balances all ship private payments in 2026 and none offers per-payment proof; under EU AMLR (2027) on-demand provability is the survival property for privacy assets. Top-down seat market ≈ $2.5–7.5M/yr (outer bound $4.5–13.5M); verification API and compliance licensing are the multiplier.
 
 **Business.** Open-source core; issuer seats ($79–299/mo), hosted receipt pages and audit packs, verification API and licensing to compliance vendors. Execution tools (Konclave, ZBooks, Zallet) are integrations, not competitors: they plug in by exporting one key column.
 
@@ -55,7 +55,9 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 - [ ] Tag v0.1.0; release notes
 - [ ] Demo page hosted (GitHub Pages or zeceipt.xyz)
 
-## 5. Timeline (single authoritative schedule)
+## 5. Timeline (authoritative for external milestones)
+
+This table is the authority for dates visible outside the team (posts, videos, uploads, user asks). Engineering dates are authoritative in `11_plan.md` §3; the rows below are its fixed points and the two must not disagree.
 
 | Date | Milestone | Source |
 |---|---|---|
@@ -63,10 +65,11 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | 2026-09-24 | Push repo, CI green, forum post, pilot outreach | `08` §2 |
 | 2026-09-25 | Funding checkpoint (RSK-3 trigger) | `06` |
 | 2026-09-27 | zips #387 post | `08` §2 |
-| 2026-09-28 | Weekly update video 1 | `08` §2 |
+| 2026-09-28 | Weekly update video 1; register `zeceipt.xyz` (U) | `08` §2, WBS 4.1.1.2 |
 | 2026-09-29 | Konclave author outreach with adapter draft | `08` §2 |
 | 2026-10-01 | First pilot batch (testnet/mainnet) | `08` §2 |
 | 2026-10-03 | Console + Solana status review; cut decisions | `06` RSK-6/7, `11` §2 |
+| 2026-10-04 | `npm publish @zeceipt/verify` (U); `cargo audit` | WBS 4.1.1.3, 3.4.2.3 |
 | 2026-10-05 | Initial upload; weekly update 2 (shift to the actual window-open day) | `11` §3 |
 | 2026-10-09 | Final videos | `11` §3 |
 | 2026-10-10 | Freeze; form re-check | `11` §3 |

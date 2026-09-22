@@ -19,7 +19,7 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 | REQ-CORE-6 | M | Issuance emits one receipt per output opened by the issuer's external OVK; change outputs only on request. | Synthetic and regtest issuance produce exactly one receipt for the payment output. | ✅ PROOF §2, §5 |
 | REQ-CORE-7 | M | Audit pack: list of receipts with declared total; verifier recomputes a lower-bound total. | `verify-pack` returns `verified_total_zat` and the lower-bound note. | ✅ `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CORE-8 | M | Regtest network support for local proofs. | `--regtest` issue/verify on a Zebra regtest tx. | ✅ PROOF §5 |
-| REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4 / roadmap |
+| REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4.5 / roadmap |
 | REQ-CORE-10 | S | Issuer key binding file format (`/.well-known/zeceipt.json`) with key ids and validity intervals; verifier upgrade-only semantics. | A receipt with unknown key id renders "issuer binding unknown", never invalid. | ⬜ REQ-INT-3 |
 
 ## 2. CLI (`zeceipt`)
@@ -31,7 +31,7 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 | REQ-CLI-3 | M | Failure stage reported in JSON (`parse/tx/txid/signature/challenge/output/recovery/network`). | Each stage asserted. | ✅ same |
 | REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CLI-5 | M | Network context guard: explicit `--testnet`/`--regtest` with a mainnet receipt is rejected at stage `network`. | Test asserts. | ✅ `failure_stages_and_exit_1` |
-| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | No such flag exists; grep guard in review. | ✅ code review (reviewer round 2) |
+| REQ-CLI-6 | M | Never accept seeds or spending keys; inputs are UFVK or bare OVK. | CI step `no key-material flags` greps `seed|mnemonic|spending` in the CLI/wasm/lwd sources and fails on a hit. | ✅ `.github/workflows/ci.yml` step "no key-material flags" (added 2026-09-22; passes locally) |
 | REQ-CLI-7 | S | Privacy modes: `--block-range` (scan blocks instead of asking for a txid) and `--tor`/custom endpoint. | Verifying via block range works on regtest without a `GetTransaction` call. | ⬜ WBS 3.2.1.4 |
 | REQ-CLI-8 | S | Live integration test behind `--features live`. | CI job optional; local run documented. | ⬜ WBS 3.2.2.4 |
 
@@ -68,7 +68,7 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 | REQ-CON-14 | M | Exports: OpenZcash-compatible CSV (+ `receipt_url`), QuickBooks 3-column, Xero single-amount, per-recipient annual USD totals for 1099-NEC. | Sample files validate against the column specs in `05_data_model_api.md` §3. | ⬜ |
 | REQ-CON-15 | S | Notifications (Discord webhook / email) for pending approvals and confirmations. | Webhook fires on state changes. | ⬜ |
 | REQ-CON-16 | S | UFVK-based reconciliation view (upper bound of outgoing payments). | Reconciles regtest batch against payables. | ⬜ |
-| REQ-CON-17 | M | Custody modes documented and enforced: hot (seed only in Zkool; app holds UFVK) or external signer (app holds UFVK only). | README states the demo mode; app config validates. | ⬜ |
+| REQ-CON-17 | M | Custody modes documented and enforced: hot (seed only in Zkool; app holds UFVK) or external signer (app holds UFVK only). | Config test: `CUSTODY_MODE=external` with a Zkool endpoint set fails startup; `hot` without a Zkool endpoint fails startup; README states the demo mode. | ⬜ |
 
 ## 5. Solana attestation
 
@@ -96,10 +96,10 @@ Non-goals for v0: spend-authority proof (full ZIP 311), wallet/key custody in th
 | NFR-1 Security | No spending keys, seeds or mnemonics accepted anywhere in the workspace; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. | Reviewer grep + clippy; CLI has no such flags. | ✅ (reviewer round 1 of the product package confirmed the grep; CLI crate attribute added 2026-09-22) |
 | NFR-2 Privacy | Only per-output OCKs are disclosed; UFVK/OVK never leave the issuer; hosted verifier discloses which txid it fetches. | Spec §9; demo copy. | ✅ |
 | NFR-3 Reliability | Endpoint failover; `pending` distinct from `invalid`; idempotent issuance. | lwd tests; CLI exit 2 path. | ✅ (console idempotency ⬜) |
-| NFR-4 Performance | Browser verify < 1 s after wasm load for a 20 KB tx; CLI fetch+parse < 5 s per tx on public nodes. | Measured 2026-09-22 (PROOF §2b timing): wasm init 13.9 ms, verify 3–4 ms per 9 KB tx (node, 20-run average); CLI `inspect` of a mainnet tx over gRPC 1.15 s wall; offline verify 0.01 s. | ✅ measured |
+| NFR-4 Performance | Browser verify < 1 s after wasm load for a 20 KB tx; CLI issue < 5 s per tx on public nodes. | Chrome 153 on `demo/index.html`: 7.28 ms per verify on the largest fixture (9,166 bytes; no 20 KB fixture exists, so the 20 KB condition is extrapolated at ≈ 2× per-output work, not measured); Node: init 13.9 ms. CLI issue = fetch (1.15 s measured, `inspect` over gRPC) + trial-decrypt/sign (offline `issue --regtest` 0.00 s wall) < 5 s. PROOF §2b. | 🟡 measured on 9 KB in Chrome; 20 KB condition extrapolated |
 | NFR-5 Portability | Pure-Rust core compiles to wasm32; Linux/macOS CI. | wasm-pack build; CI file. | ✅ |
-| NFR-6 Observability | `tracing` levels; secrets never above `trace`. | Logging spec. | ✅ |
-| NFR-7 Accessibility & copy | English UI; outcomes have text not only colour; proves/does-not-prove always shown. | Demo page. | ✅ (console ⬜) |
+| NFR-6 Observability | `tracing` levels; secrets never above `trace`. | CI step `no secrets in logs` greps `crates/*/src` for `info!/debug!/warn!/error!/trace!` lines mentioning `ock`, `ovk` or `memo` and fails on a hit. | ✅ `.github/workflows/ci.yml` step "no secrets in logs" (passes locally) |
+| NFR-7 Accessibility & copy | English UI; outcomes have text not only colour; proves/does-not-prove always shown. | Node guard asserts the demo page source contains the words "proves" and "does not prove" and that result rows carry a text label (`packages/verify/test/verify.mjs`, copy check). | ✅ demo page (copy check in node guard, 2026-09-22); console ⬜ |
 | NFR-8 Compliance data | Store FMV source, rate and timestamp per payment; per-recipient annual USD totals. | Console export test. | ⬜ |
 
 ## 8. Traceability matrix (requirement → WBS leaf → evidence)
@@ -123,10 +123,10 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CLI-3 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` |
 | REQ-CLI-4 | ✅ | 3.2.1.3 | test `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CLI-5 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` (stage `network`) |
-| REQ-CLI-6 | ✅ | 3.2.1.1 | implementation review round 2 (journal); no seed/key flags in `crates/zeceipt-cli/src/main.rs` |
+| REQ-CLI-6 | ✅ | 3.4.2.1 | CI step "no key-material flags" |
 | REQ-CLI-7 | ⬜ | 3.2.1.4 | planned: `--block-range`, `--tor` |
 | REQ-CLI-8 | ⬜ | 3.2.2.4 | planned: `--features live` |
-| REQ-WEB-1 | ✅ | 3.2.3.1 | PROOF §2b `[R37]` |
+| REQ-WEB-1 | ✅ | 3.2.3.3 | PROOF §2b `[R37]` |
 | REQ-WEB-2 | ✅ | 3.2.3.3 | PROOF §2b (stage shown for tamper cases) |
 | REQ-WEB-3 | ✅ | 3.2.3.3 | PROOF §2b (escaping check) |
 | REQ-WEB-4 | ✅ | 3.2.3.2 | PROOF §2b (fetch from `zjs.zec.rocks`); `packages/verify/src/index.js` |
@@ -161,10 +161,10 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-INT-3 | ⬜ | 3.3.3.3 | `05` §4 well-known contract |
 | REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 post planned 2026-09-27 |
 | NFR-1 | ✅ | 3.4.2.1 | clippy `-D warnings`; grep; `forbid(unsafe_code)` in all five crates |
-| NFR-2 | ✅ | 3.1.2.3 | spec §9; demo page node disclosure (PROOF §2b) |
+| NFR-2 | ✅ | 3.2.3.3 | spec §9; demo page node disclosure (PROOF §2b) |
 | NFR-3 | ✅ | 3.2.2.3 | lwd unit tests; exit 2 path; console idempotency with 3.3.6.1 |
-| NFR-4 | ✅ | 3.4.2.1 | PROOF §2b timing (2026-09-22) |
+| NFR-4 | 🟡 | 3.4.2.1 | PROOF §2b timing (2026-09-22); 20 KB fixture still to capture |
 | NFR-5 | ✅ | 3.2.3.1 | wasm-pack build; CI wasm job |
-| NFR-6 | ✅ | 3.1.1.2 | `.trellis/spec/backend` logging rule; `tracing` in lwd/cli |
-| NFR-7 | ✅ | 3.2.3.3 | demo page copy (PROOF §2b); console with 3.3.6.2 |
+| NFR-6 | ✅ | 3.4.2.1 | CI step "no secrets in logs" |
+| NFR-7 | ✅ | 3.2.3.4 | node guard copy check; console with 3.3.6.2 |
 | NFR-8 | ⬜ | 3.3.6.3 | exports test (REQ-CON-14) |

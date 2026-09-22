@@ -49,5 +49,11 @@ for (const v of vectors.vectors) {
 check("vector file declares networks and pools", Array.isArray(vectors.networks) && Array.isArray(vectors.pools) && vectors.networks.length > 0 && vectors.pools.length > 0 && new Set(vectors.networks).size === vectors.networks.length && new Set(vectors.pools).size === vectors.pools.length);
 check("vectors cover every declared network x pool", vectors.networks.every(n => vectors.pools.every(p => vectors.vectors.some(v => v.receipt.network === n && v.receipt.pool === p))));
 
+// NFR-7: the demo copy must always show what a result proves and does not prove, with text labels (not colour only).
+const demoHtml = fs.readFileSync(path.join(here, "../demo/index.html"), "utf8");
+check("demo page states what a valid result proves", /What a valid result proves/i.test(demoHtml));
+check("demo page states what it does not prove", /What it does not prove/i.test(demoHtml));
+check("demo page labels outcomes with text (VALID/INVALID)", /VALID/.test(demoHtml) && /INVALID/.test(demoHtml));
+
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

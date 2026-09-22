@@ -1,59 +1,77 @@
 # Plan: schedule, effort, cut order, metrics, videos, judge answers
 
-This is the executable plan for 2026-09-22 → 2026-10-12. Dates in `09_submission_checklist.md` §5 are the single authoritative timeline; this file adds effort, owners and cut rules. Roles: R (Rust/protocol), T (TypeScript/product), PM (product/pitch), U (user-only actions).
+This is the executable plan for 2026-09-22 → 2026-10-12. External milestones (posts, videos, uploads, user asks) are authoritative in `09_submission_checklist.md` §5; engineering dates are authoritative in §3 below; effort and cut rules live here. Roles: R (Rust/protocol), T (TypeScript/product), PM (product/pitch), U (user-only actions).
 
 ## 1. Effort budget (person-days)
 
-Assumes two people at one person-day each per calendar day; a single-person team scales the R/T columns by 1.6 and applies the cut order earlier.
+Baseline assumes two people (R and T/PM) at one person-day each per calendar day. Person-days in the WBS column are the sums of the estimates written on the WBS leaves (`00_wbs.md`), so the two views cannot drift; `scripts/check_product_docs.py` recomputes the sums. Rows without leaves (Must 1/2/6, videos, buffer) are budget lines.
 
-| Deliverable | Person-days | Owner | Status 2026-09-22 |
+| Deliverable | WBS | Person-days | Owner | Status 2026-09-22 |
+|---|---|---|---|---|
+| Must 1 Receipt core incl. proofs (mainnet-read, synthetic, regtest) | 3.1.2, 3.1.3, 3.4.1 (done) | 4 | R | ✅ done (PROOF §1–§5) |
+| Must 2 Format + vectors + CLI + npm package | 3.2.1, 3.2.3 (done) | 2 | R | ✅ done (publish is U) |
+| Must 3 Payout console: foundations, payables, batches, execution | WBS 3.3.1, 3.3.5 | 6.0 | T 3.0 + R 3.0 | ⬜ |
+| Must 4 Auto-issuance + public receipt page | WBS 3.3.6.1, 3.3.6.2 | 2.0 | R 1.0 + T 1.0 | ⬜ |
+| Must 5 Audit-pack page + exports + well-known keys | WBS 3.3.6.3, 3.3.3.3 | 2.0 | T 1.5 + R 0.5 | 🟡 CLI pack done; rest ⬜ |
+| Must 6 Public-chain evidence + README | 3.4.1.4, 3.4.1.5 (U) | 1 | T | 🟡 regtest done; testnet/mainnet blocked on funding (U) |
+| Must 7 Solana attestation program (minimal) + 1Click fallback | WBS 3.3.2 | 1.5 | R 0.75 + T 0.75 | ⬜ |
+| Should 8 Spend-authority proof prototype (ZIP 311 spends half) | WBS 3.3.4.5 | 2.0 | R | ⬜ (first to cut) |
+| Should 9 Konclave / OpenZcash adapters | WBS 3.3.3.1, 3.3.3.2 | 1.5 | T | ⬜ |
+| Should 10 Format post to zips #387 + forum | WBS 3.3.3.4 | 0.5 | R | ⬜ (2026-09-27) |
+| Should 11 Notifications + reconciliation view | WBS 3.3.6.4 | 1.0 | T | ⬜ (cut order item 2) |
+| Videos ×2 + weekly updates ×2 | 5.1.1 | 2 | PM | ⬜ |
+| Buffer | — | 3 | — | |
+| **Total** | | **28.5** | | Capacity: 2026-09-22 → 10-11 = 20 days × 2 people × 0.75 efficiency = 30 person-days; slack **1.5** |
+
+Open work at 2026-09-22: 28.5 − 6 (Must 1, 2) = **22.5 person-days** for two people, i.e. the plan only closes if the cut order is applied at the 10-03 review or earlier. Slack of 1.5 pd means any Must item slipping more than one day triggers a cut immediately, not at 10-03.
+
+### 1.1 Solo branch (headcount unconfirmed, WBS 2.4.3.3; RSK-19)
+
+Every commit to date has one author. If a second person is not confirmed by 2026-09-24, this branch replaces the baseline from that day. Scaling factor 1.6 on R/T work; capacity 20 days × 1 × 0.75 = **15 person-days**. AI-assisted implementation is the working mode but is not counted as capacity.
+
+| Kept | Leaves | Unscaled pd | Scaled pd |
 |---|---|---|---|
-| Must 1 Receipt core incl. proofs (mainnet-read, synthetic, regtest) | 4 | R | ✅ done (PROOF §1–§5) |
-| Must 2 Format + vectors + CLI + npm package | 2 | R | ✅ done (publish is U) |
-| Must 3 Payout console (thin) | 5 | T | ⬜ |
-| Must 4 Auto-issuance + public receipt page | 2 | T | ⬜ |
-| Must 5 Audit pack page + exports + well-known keys | 2 | R 1 + T 1 | 🟡 CLI pack done; page/exports/well-known ⬜ |
-| Must 6 Public-chain evidence + README | 1 | T | 🟡 regtest done; testnet/mainnet blocked on funding (U) |
-| Must 7 Solana attestation program (minimal) | 1 | R | ⬜ |
-| Should 8 Spend-authority proof prototype (ZIP 311 spends half) | 2 | R | ⬜ (first to cut) |
-| Should 9 Konclave / OpenZcash adapters | 1.5 | T | ⬜ |
-| Should 10 Format post to zips #387 + forum | 0.5 | R | ⬜ (2026-09-27) |
-| Videos ×2 + weekly updates ×2 | 2 | PM | ⬜ |
-| Buffer | 3 | — | |
-| **Total** | **26** | | Calendar: 2026-09-22 → 2026-10-11 = 20 days × 2 people × 0.75 efficiency ≈ 30 person-days; slack ≈ 4 |
+| Console minimal: scaffold, data model, CSV import, batches with single-source rate, Zkool adapter, auto-issuance, receipt page | 3.3.1.1, 3.3.1.3, 3.3.5.1, 3.3.5.2 (single source: 0.75), 3.3.5.4, 3.3.6.1, 3.3.6.2 | 5.25 | 8.4 |
+| Exports: OpenZcash CSV only (part of 3.3.6.3); audit packs stay CLI-only | 3.3.6.3 (part) | 0.5 | 0.8 |
+| Must 6 public-chain evidence + README (blocked on U funding) | 3.4.1.4, 3.4.1.5 | 1.0 | 1.6 |
+| Solana hook: 1Click ZEC→USDC leg only | 3.3.2.4 | 0.5 | 0.8 |
+| Videos ×2 + weekly updates ×2 | 5.1.1 | 2.0 | 3.2 |
+| **Total** | | 9.25 | **14.8** |
 
-Remaining after the first six days of work: about 20 person-days of the 26 are still open; slack is what triggers the cut order.
+Dropped in the solo branch (in this order, all recoverable if slack appears): Should 8, Should 11, Should 9, Should 10 (zips post, 0.8 scaled — first to add back), auth/roles UI (single operator with an env token; 3.3.1.2), API stub (3.3.1.4), approvals UI (single approver; HMAC still recorded; 3.3.5.3), Zallet and ZIP-321 adapters (3.3.5.5, 3.3.5.6), audit-pack page and QBO/Xero/1099 exports (rest of 3.3.6.3), well-known keys (3.3.3.3), Solana program (3.3.2.1–3), buffer. Submission category then moves to Developer Infrastructure (`09_submission_checklist.md` §1).
 
-## 2. Cut order (first cut → last cut)
+## 2. Cut order (two-person baseline; first cut → last cut)
 
-1. Should 8 spend-authority prototype
-2. REQ-CON-15 notifications, REQ-CON-16 reconciliation view (WBS 3.3.6.4)
-3. Should 9 Konclave/OpenZcash adapters (keep the CSV import, cut the demo branch)
-4. Public ledger page (FLOW-5)
-5. Audit-pack page (keep the CLI pack)
-6. Two-source rate lock → single source
-7. Must 7 Solana program → 1Click ZEC→USDC leg as the Solana hook (REQ-SOL-5)
+1. Should 8 spend-authority prototype (3.3.4.5)
+2. Should 11 notifications + reconciliation (3.3.6.4)
+3. Should 9 Konclave/OpenZcash adapters (3.3.3.1, 3.3.3.2; keep the CSV import)
+4. Public ledger page (FLOW-5; no leaf, part of 3.3.6.2 stretch)
+5. Audit-pack page (keep the CLI pack; part of 3.3.6.3)
+6. Two-source rate lock → single source (part of 3.3.5.2)
+7. Must 7 Solana program (3.3.2.1–3) → 1Click leg only (3.3.2.4)
 
-Never cut: Must 1, 2, 4, 6. Decision point: 2026-10-03 status review (RSK-6, RSK-7). Trigger: any Must item more than one day behind the schedule below.
+Never cut: Must 1, 2, 4, 6. Decision point: 2026-10-03 status review (RSK-6, RSK-7), or immediately when any Must item is more than one day behind §3.
 
-## 3. Day-by-day schedule
+## 3. Day-by-day schedule (authoritative for engineering dates)
 
-| Date | R | T / PM | Milestone |
+Columns follow the WBS owner letters: the R column lists only R-owned leaves, the T/PM column only T/PM/U-owned leaves (`scripts/check_product_docs.py` verifies this). Fixed external dates come from `09_submission_checklist.md` §5.
+
+| Date | R | T / PM (U in bold) | Milestone |
 |---|---|---|---|
-| 09-22 | Product docs; review round(s) | Product docs; funding ask to U | Product/research phase closed |
-| 09-23 | Console data model + migrations (3.3.1.3); API routes (3.3.1.4) | Stack scaffold + auth (3.3.1.1–2); forum post draft | Console skeleton runs locally |
-| 09-24 | Zkool adapter on regtest (3.3.5.4) | Payables import + batches + rate lock (3.3.5.1–2); **U: push repo, CI green, forum post** | Repo public; first console batch on regtest |
-| 09-25 | ZIP-321 adapter (3.3.5.6); **funding check (RSK-3 trigger)** | Approvals with HMAC (3.3.5.3) | Testnet or mainnet funds available, or fallback declared |
-| 09-26 | Auto-issuance (3.3.6.1) | Public receipt page (3.3.6.2) | First console-issued receipt on regtest |
-| 09-27 | Well-known keys (3.3.3.3); **post v0 to zips #387** | Audit-pack page (3.3.6.3) | Format posted |
-| 09-28 | Exports (3.3.6.3 cont.) | **Weekly update video 1**; pilot outreach (ZecHub DAO, Zcash Brazil) | Video 1 posted |
-| 09-29 → 09-30 | Solana program + devnet (3.3.2.1–3) | Solana client (3.3.2.2); Konclave outreach | Devnet attestation in PROOF |
-| 10-01 → 10-03 | Should 8 prototype (cuttable) | Konclave/OpenZcash adapters; first pilot batch | **10-03 cut review** |
-| 10-04 | Bug fixes; `cargo audit`; pin check | Video scripts; README pass | — |
-| 10-05 | Security self-review | **Weekly update 2; initial submission upload** (shift if the window opens on another day) | Initial upload |
-| 10-06 → 10-09 | Vectors/doc completion; NU7 testnet re-test after 10-06 | Record pitch + technical videos | Final videos 10-09 |
-| 10-10 | Freeze | Form field re-check | — |
-| 10-11 | — | Final submission | One-day buffer to 10-12 |
+| 09-22 | Product docs; review rounds | Product docs; funding ask to U | Product/research phase closed |
+| 09-23 | Data model + migrations (3.3.1.3); API routes (3.3.1.4) | Stack scaffold + custody config (3.3.1.1); auth/roles (3.3.1.2); forum post draft | Console skeleton runs locally |
+| 09-24 | Zkool adapter on regtest (3.3.5.4) | Payables + CSV import (3.3.5.1); batches + rate lock (3.3.5.2); **U: push repo, CI green, forum post (4.1.1.1, 4.1.2.2)** | Repo public; first console batch on regtest |
+| 09-25 | ZIP-321 adapter (3.3.5.6); **funding check (RSK-3 trigger)** | Approvals with HMAC (3.3.5.3); **U: testnet faucet (3.4.1.4)** | Funds available or fallback declared |
+| 09-26 | Auto-issuance (3.3.6.1) | Public receipt page (3.3.6.2); **U: mainnet funding (3.4.1.5), Konclave decision (4.1.2.3)** | First console-issued receipt on regtest |
+| 09-27 | Well-known keys (3.3.3.3); post v0 to zips #387 + forum (3.3.3.4) | Audit-pack page + exports (3.3.6.3) | Format posted |
+| 09-28 | Bug fixes from the first batches (no leaf; buffer) | Exports cont. (3.3.6.3); weekly update video 1 (5.1.1.3); pilot outreach (4.2.1.1, 4.2.1.2); **U: domain (4.1.1.2)** | Video 1 posted |
+| 09-29 → 09-30 | Solana program (3.3.2.1); devnet deployment (3.3.2.3); Zallet adapter (3.3.5.5) | Solana client (3.3.2.2); 1Click leg (3.3.2.4); Konclave outreach | Devnet attestation in PROOF |
+| 10-01 → 10-03 | Should 8 prototype (3.3.4.5; cuttable) | Konclave/OpenZcash adapters (3.3.3.1, 3.3.3.2); notifications + reconciliation (3.3.6.4); first pilot batch (4.2.1.1) | **10-03 cut review** |
+| 10-04 | `cargo audit`, secrets scan, pin check (3.4.2.3); reproducible wasm note (3.4.2.4) | Video scripts; README pass; **U: npm publish (4.1.1.3)** | — |
+| 10-05 | Security self-review (3.4.2.3 cont.) | Weekly update 2; initial submission upload (5.2.1.1) — shift if the window opens on another day | Initial upload |
+| 10-06 → 10-09 | NU7 testnet re-test after 10-06 (3.3.4.4); vectors/doc completion | Record pitch + technical videos (5.1.1.1, 5.1.1.2, 5.1.1.4) | Final videos 10-09 |
+| 10-10 | Freeze | Form field re-check (5.2.1.2) | — |
+| 10-11 | — | Final submission (5.2.1.3) | One-day buffer to 10-12 |
 
 Stop-loss history: the 2026-09-25 kill criterion ("Ironwood recovery fails → Sapling fallback → withdraw 09-27") was retired on 2026-09-22 when the regtest proof landed (RSK-18).
 

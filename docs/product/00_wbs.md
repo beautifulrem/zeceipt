@@ -15,12 +15,12 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 1.1.1.3 ✅ PM — Submission form fields and video specs captured. `09_submission_checklist.md` §1, `[R1]`.
 - 1.1.1.4 👤 ⬜ U — Submission window open date confirmed on Colosseum Discord/FAQ (assumed 2026-10-05).
 #### 1.1.2 Past winners and current entrants
-- 1.1.2.1 ✅ PM — 337 past winners profiled (180 deep, 157 honourable); win patterns summarised. `[R36]` `[R22]`; `03_market_competition.md` §5 (archive: private KB).
-- 1.1.2.2 ✅ PM — 36 current public repos profiled, 17 deep; overlaps listed. `[R9]` `[R15]` `[R16]`; `03_market_competition.md` §3.
-- 1.1.2.3 ✅ PM — 86 external hackathons / 167 projects reviewed for win patterns. `[R36]` (archive: private KB).
+- 1.1.2.1 ✅ PM — 337 past winners profiled (180 deep, 157 honourable); win patterns summarised. `[R42]` `[R36]` `[R22]`; `03_market_competition.md` §5.
+- 1.1.2.2 ✅ PM — 36 current public repos profiled, 17 deep; overlaps listed. `[R42]` `[R9]` `[R15]` `[R16]`; `03_market_competition.md` §3.
+- 1.1.2.3 ✅ PM — 86 external hackathons / 167 projects reviewed for win patterns. `[R42]` `[R36]`.
 - 1.1.2.4 🟡 PM — Weekly rescan of new Zcash-track repos (done 2026-09-21 only; next 2026-09-28). `03_market_competition.md` §5.
 #### 1.1.3 Judges
-- 1.1.3.1 ✅ PM — 21 judges profiled with X handles and inferred tracks. `[R1]`; answer sheet `11_plan.md` §6 (archive: private KB).
+- 1.1.3.1 ✅ PM — 21 judges profiled with X handles and inferred tracks. `[R42]` `[R1]`; answer sheet `11_plan.md` §6.
 - 1.1.3.2 ✅ PM — Receipt-version Q&A per judge. `11_plan.md` §6.
 - 1.1.3.3 ⬜ PM — Identify the ZODL-appointed Zcash judge once announced (watch forum/Discord).
 - 1.1.3.4 ⬜ PM — Prepare a one-page "why not Arcium / Solana audit keys" comparison for the Arcium judges.
@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, report committed at `docs/product/reviews/round-1.md`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -180,18 +180,18 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 3.3.1 Payout console — foundations (child task `09-21-payout-console`; stack decided: Next.js 15 App Router, TypeScript strict, Tailwind, libSQL + Drizzle; `.trellis/spec/frontend/index.md`)
 - 3.3.1.1 ⬜ T — Stack scaffold, config validation for custody mode (REQ-CON-17), `.env` schema, deploy target = Fly.io single node (SQLite volume). 0.5 pd, 2026-09-23.
 - 3.3.1.2 ⬜ T — Auth/session (email magic link; SIWZ optional) and role matrix (REQ-CON-1). 0.5 pd, 2026-09-23.
-- 3.3.1.3 ⬜ T — Data model + migrations for orgs/members/recipients (REQ-CON-2) per `05_data_model_api.md` §1. 0.5 pd, 2026-09-23.
-- 3.3.1.4 ⬜ T — API surface: route handlers `/api/{recipients,payables,batches,approvals,receipts,exports}` writing `audit_log`; OpenAPI stub. 0.5 pd, 2026-09-23.
+- 3.3.1.3 ⬜ R — Data model + migrations for orgs/members/recipients (REQ-CON-2) per `05_data_model_api.md` §1. 0.5 pd, 2026-09-23.
+- 3.3.1.4 ⬜ R — API surface: route handlers `/api/{recipients,payables,batches,approvals,receipts,exports}` writing `audit_log`; OpenAPI stub. 0.5 pd, 2026-09-23.
 #### 3.3.2 Solana attestation (child task `09-21-solana-attestation`)
-- 3.3.2.1 ⬜ R — Anchor program: ed25519 precompile check + PDA row (REQ-SOL-1..2).
-- 3.3.2.2 ⬜ T — Client that verifies then submits (REQ-SOL-3).
-- 3.3.2.3 ⬜ R — Devnet deployment and PROOF entry (REQ-SOL-4).
-- 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5).
+- 3.3.2.1 ⬜ R — Anchor program: ed25519 precompile check + PDA row (REQ-SOL-1, REQ-SOL-2). 0.5 pd, 2026-09-29.
+- 3.3.2.2 ⬜ T — Client that verifies then submits (REQ-SOL-3). 0.25 pd, 2026-09-29.
+- 3.3.2.3 ⬜ R — Devnet deployment and PROOF entry (REQ-SOL-4). 0.25 pd, 2026-09-30.
+- 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5). 0.5 pd, 2026-09-30.
 #### 3.3.3 Integrations
-- 3.3.3.1 ⬜ T — Konclave CSV (`label,address,value[,memo]`) → receipt issuance adapter (REQ-INT-1).
-- 3.3.3.2 ⬜ T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2).
-- 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3).
-- 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4).
+- 3.3.3.1 ⬜ T — Konclave CSV (`label,address,value[,memo]`) → receipt issuance adapter (REQ-INT-1). 0.75 pd, 2026-10-01.
+- 3.3.3.2 ⬜ T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2). 0.75 pd, 2026-10-02.
+- 3.3.3.3 ⬜ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-09-27.
+- 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27.
 #### 3.3.4 Open technical questions
 - 3.3.4.1 ⬜ R — Why the internal-scope OVK did not open the regtest change output. PROOF §5 observation.
 - 3.3.4.2 ⬜ R — Zkool `pay` behaviour on Ironwood mainnet with N memos (only regtest measured).
@@ -206,7 +206,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-09-30.
 - 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-09-25.
 #### 3.3.6 Payout console — receipts, pages, exports
-- 3.3.6.1 ⬜ T — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-26.
+- 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-26.
 - 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-26.
 - 3.3.6.3 ⬜ T — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-8). 1.5 pd, 2026-09-27 → 09-28.
 - 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-02.
@@ -219,7 +219,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 26 tests, clippy `-D warnings`, fmt. CI file.
+- 3.4.2.1 ✅ R — 26 tests, clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan).
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact.

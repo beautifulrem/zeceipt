@@ -9,6 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; §1 person-days equal WBS leaf sums; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -125,7 +126,53 @@ for name, text in files.items():
         elif not re.search(rf"^## {sec}\.", target, re.M):
             errors.append(f"{name}: {doc} §{sec} does not exist")
 
-print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}")
+# owner letters and person-days per leaf
+owner_of, pd_of = {}, {}
+for m in leaf_re.finditer(wbs):
+    num, rest = m.groups()
+    om = re.search(r"^(?:[✅🟡⬜👤❌]\s*)+([A-Z]{1,2}(?:/[A-Z]{1,2})?) —", rest)
+    if om:
+        owner_of[num] = om.group(1)
+    pm = re.search(r"(\d+(?:\.\d+)?) pd", rest)
+    if pm:
+        pd_of[num] = float(pm.group(1))
+
+# every 👤 leaf appears in the Asks table
+asks = wbs.split("## Asks of the user")[1].split("## Roll-up")[0] if "## Asks of the user" in wbs else ""
+for num, owner in owner_of.items():
+    line = re.search(rf"^- {re.escape(num)} (.*)$", wbs, re.M).group(1)
+    if "👤" in line[:12] and not re.search(rf"\| {re.escape(num)} \|", asks):
+        errors.append(f"00_wbs.md: 👤 leaf {num} missing from the Asks of the user table")
+
+# 11_plan.md §3 columns agree with WBS owner letters
+plan = files.get("11_plan.md", "")
+sched = plan.split("## 3.")[1].split("## 4.")[0] if "## 3." in plan else ""
+for row in re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M):
+    rcell, tcell = row
+    for num in re.findall(r"\b(\d\.\d\.\d\.\d)\b", rcell):
+        if owner_of.get(num) not in ("R",):
+            errors.append(f"11_plan.md §3: leaf {num} in the R column is owned by {owner_of.get(num)}")
+    for num in re.findall(r"\b(\d\.\d\.\d\.\d)\b", tcell):
+        if owner_of.get(num) not in ("T", "PM", "U", "PM/U"):
+            errors.append(f"11_plan.md §3: leaf {num} in the T/PM column is owned by {owner_of.get(num)}")
+
+# 11_plan.md §1 rows that cite "WBS x.y[.z]" must equal the sum of leaf person-days
+budget = plan.split("## 1.")[1].split("### 1.1")[0] if "## 1." in plan else ""
+for name, wbs_cell, pd_cell in re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M):
+    prefixes = [x.strip() for x in wbs_cell.split(",")]
+    total_pd = sum(v for k, v in pd_of.items() if any(k == p or k.startswith(p + ".") for p in prefixes))
+    if abs(total_pd - float(pd_cell)) > 1e-6:
+        errors.append(f"11_plan.md §1: '{name.strip()}' says {pd_cell} pd but WBS leaves {prefixes} sum to {total_pd}")
+
+# status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
+for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
+    if num not in leaf_ids:
+        errors.append(f"01_requirements.md: status cell cites WBS leaf {num} which does not exist")
+
+sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
+budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
+print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

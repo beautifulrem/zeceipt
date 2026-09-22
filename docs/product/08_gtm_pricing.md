@@ -14,7 +14,9 @@ Dates here are a subset of the single timeline in `09_submission_checklist.md` Â
 | Date | Action | Owner |
 |---|---|---|
 | 2026-09-24 | Forum post "Shielded payment receipts: looking for one pilot" with demo + regtest proof | PM |
-| 2026-09-24 | Push repo, enable CI; register domain; publish npm | U |
+| 2026-09-24 | Push repo, enable CI | U |
+| 2026-09-28 | Register `zeceipt.xyz`, host demo page | U |
+| 2026-10-04 | `npm publish @zeceipt/verify` | U |
 | 2026-09-27 | Post format v0 + vectors to zips #387 (design test, public timestamp) | R |
 | 2026-09-28 | Weekly update video 1 (60 s, English) on X, tag @colosseum | PM |
 | 2026-09-29 | Konclave author outreach with adapter PR draft | PM/U |
