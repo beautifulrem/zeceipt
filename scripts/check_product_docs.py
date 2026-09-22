@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a form deliverable names a fallback; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -243,6 +243,9 @@ for wm in re.finditer(r"^\| (\d{2}-\d{2})(?: → (\d{2}-\d{2}))? \| ([^|]*) \| (
                 a, b = leaf_dates[n]
                 if a < w0 or b > w1:
                     errors.append(f"00_wbs.md: leaf {n} dated {a} → {b} but listed in window {w0} → {w1}")
+raw_rows = len(re.findall(r"^\| \d{2}-\d{2}", sched, re.M))
+if windows != raw_rows:
+    errors.append(f"11_plan.md §3: {raw_rows} dated rows but only {windows} parsed as windows (a malformed cell separator hides a row from the checks)")
 if windows == 0:
     errors.append("11_plan.md §3: no dated windows found")
 tok_buffer = sum(float(x) for x in re.findall(r"\{buffer (\d+(?:\.\d+)?)\}", sched))
@@ -264,6 +267,9 @@ for num in sorted(pd_of):
 # priorities: leaf → REQ ids → priority; Must leaves never in the last two windows; form deliverables there need a fallback
 prio = dict(re.findall(r"^\| (REQ-[A-Z]+-\d+) \| ([MSCW]) \|", req_defs, re.M))
 solo_col = dict(re.findall(r"^\| (REQ-[A-Z]+-\d+) \| [MSCW] \|.*\| ([a-z]+)[^|]*\|$", req_defs, re.M))
+solo_col.update(dict(re.findall(r"^\| (NFR-\d+) [^|]*\|.*\| ([a-z]+)[^|]*\|$", req_defs, re.M)))
+for n in re.findall(r"^\| (NFR-\d+) ", req_defs, re.M):
+    prio.setdefault(n, "N")
 leaf_reqs = {}
 for m in leaf_re.finditer(wbs):
     num, rest = m.groups()
@@ -276,7 +282,7 @@ for idx, (w0, w1, rc, tc, ms) in enumerate(win_list):
     for n in re.findall(r"\b(\d\.\d\.\d\.\d)\b", live):
         if idx >= len(win_list) - 2 and any(prio.get(r) == "M" for r in leaf_reqs.get(n, [])):
             errors.append(f"11_plan.md §3: Must-priority leaf {n} sits in one of the last two windows ({w0})")
-        if re.match(r"5\.1\.[12]\.", n) and "fallback" not in ms.lower():
+        if re.match(r"5\.1\.[12]\.|5\.2\.1\.", n) and "fallback" not in ms.lower():
             errors.append(f"11_plan.md §3: submission deliverable {n} in window {w0} without a named fallback in the Milestone cell")
 
 # solo column in 01 §4–§6 agrees with the §1.1 kept/dropped lists

@@ -51,8 +51,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 - [x] `docs/PRE_EVENT_STATE.md`, `docs/PRIOR_ART.md`
 - [x] Commit history inside the window (first commit 2026-09-21 PT; `git log` shows 2026-09-22 00:07 +08:00)
 - [ ] CI green on GitHub (needs push)
-- [ ] `cargo audit` clean; secrets scan
-- [ ] Tag v0.1.0; release notes
+- [ ] In this order (RSK-17; publishing is irreversible): 1. `cargo audit` clean + secrets scan (3.4.2.3, 10-08 → 10-09) → 2. tag v0.1.0 + release notes (4.1.1.4, 10-09) → 3. `npm publish @zeceipt/verify` (4.1.1.3, U, 10-10)
 - [ ] Demo page hosted (GitHub Pages or zeceipt.xyz)
 
 ## 5. Timeline (authoritative for external milestones)
@@ -70,8 +69,8 @@ This table is the authority for dates visible outside the team (posts, videos, u
 | 2026-10-01 | First pilot batch (testnet/mainnet) | `08` §2 |
 | 2026-10-03 | Console + Solana status review; cut decisions | `06` RSK-6/7, `11` §2 |
 | 2026-10-05 | Initial upload; weekly update 2 (shift to the actual window-open day) | `11` §3 |
-| 2026-10-09 | Final videos uploaded; v0.1.0 release published; `npm publish @zeceipt/verify` (U, after the release) | `11` §3, WBS 4.1.1.3, 4.1.1.4 |
-| 2026-10-10 | Freeze; form re-check | `11` §3 |
+| 2026-10-09 | Final videos uploaded; v0.1.0 release published | `11` §3, WBS 4.1.1.4 |
+| 2026-10-10 | Freeze; form re-check; `npm publish @zeceipt/verify` (U; a release action, the day after the audit and tag) | `11` §3, WBS 4.1.1.3 |
 | 2026-10-11 | Final submission | `11` §3 |
 | 2026-10-12 | Deadline (buffer) | `[R1]` |
 

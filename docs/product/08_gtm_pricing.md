@@ -21,7 +21,7 @@ Dates here are a subset of the single timeline in `09_submission_checklist.md` Â
 | 2026-09-30 | Konclave author outreach with adapter PR draft (adapter lands 09-30, WBS 3.3.3.1) | PM/U |
 | 2026-10-01 | First pilot batch (ZecHub bounties or a grantee team) on testnet/mainnet | PM |
 | 2026-10-05 | Weekly update 2; initial submission upload | PM |
-| 2026-10-09 | `npm publish @zeceipt/verify` (after audit, secrets scan and the v0.1.0 tag) | U |
+| 2026-10-10 | `npm publish @zeceipt/verify` (the day after audit, secrets scan and the v0.1.0 tag) | U |
 | 2026-10-11 | Final submission | PM |
 
 ## 3. Pilot candidates (ranked by reachability)

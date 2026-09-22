@@ -102,7 +102,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 2.2.3.1 ✅ PM — Implemented requirements linked to tests/PROOF. `01_requirements.md` columns.
 - 2.2.3.2 ✅ PM — Open requirements linked to WBS items. same.
 - 2.2.3.3 ✅ T — Consistency checker script. `scripts/check_product_docs.py`.
-- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), reports in `docs/product/reviews/`; ✅ when a round reaches 100.
+- 2.2.3.4 🟡 PM — Requirements reviewed by independent agent (this task's AC8): round 1 = 65/100, round 2 = 83/100, round 3 = 87/100, round 4 = 90/100, round 5 = 92/100, round 6 = 94/100, round 7 = 95/100, round 8 = 96/100, round 9 = 95/100 (a schedule regression), round 10 = 96/100, reports in `docs/product/reviews/`; ✅ when a round reaches 100.
 
 ### 2.3 UX and data
 #### 2.3.1 User flows
@@ -296,8 +296,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | 2026-09-26 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | headline metric ≥ 15 public receipts |
 | 2026-09-26 | 4.1.2.3 | Decide whether to contact Konclave's author (default: yes) | adapter PR and pilot |
 | 2026-09-28 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
-| 2026-10-09 | 4.1.1.3 | `npm publish @zeceipt/verify` — only after `cargo audit`, the secrets scan (3.4.2.3) and the v0.1.0 tag (4.1.1.4) on 10-08 → 10-09 | REQ-WEB-8; integrator story; irreversible, so it follows the audit |
 | 2026-10-09 | 5.1.2.3 | Team backgrounds and location for the form | submission form fields |
+| 2026-10-10 | 4.1.1.3 | `npm publish @zeceipt/verify` — the day after `cargo audit`, the secrets scan (3.4.2.3) and the v0.1.0 tag (4.1.1.4) complete on 10-09; a release action, allowed during the freeze | REQ-WEB-8; integrator story; irreversible, so it follows the audit by a full day |
 
 ## Roll-up
 
