@@ -9,7 +9,7 @@ Money: integer zatoshi (`bigint`) and integer USD cents. Rates: decimal string +
 | `orgs` | id, name, network (main/test/regtest), custody_mode (hot/external), issuer_key_id, ufvk_encrypted | one active issuer key; UFVK encrypted at rest with an org wrap key |
 | `members` | id, org_id, email, role (admin/approver/operator/viewer) | an org must have ≥ 2 members with role approver before any batch can leave `draft` |
 | `recipients` | id, org_id, display_name, ua, network, kyc_status, tax_flag (us_1099/non_us/none), settlement_pref (zec/usdc_sol), notes | `ua` validated for `network`; duplicates flagged not blocked |
-| `payables` | id, org_id, recipient_id, kind (milestone/invoice/bounty/salary), usd_cents, reference, source_ref (grant/issue link), status | reference is unique per org (becomes the memo) |
+| `payables` | id, org_id, recipient_id, kind (milestone/invoice/bounty/salary), usd_cents, reference, source_ref (grant/issue link), status | reference is unique per org (becomes the memo); REQ-CON-3 |
 | `batches` | id, org_id, state, rate_zec_usd, rate_sources_json (≥ 1 entry: source name, quote, fetched_at; a second entry only once REQ-CON-20 (Should, cut item 4) is built), rate_locked_at, rate_at_execution, backend (zkool/zallet/zip321), txid, broadcast_at, confirmed_height, nonce | state machine below; `nonce` prevents double submission; preflight rejects `submitting` when `rate_at_execution` differs from `rate_zec_usd` by > 3% (REQ-CON-21) |
 | `batch_items` | batch_id, payable_id, zat, output_index (nullable until confirmed), receipt_id (nullable) | `zat = floor(usd_cents × 10^8 / (100 × rate_zec_usd))` computed in integer/decimal arithmetic (never binary floats), floor so the payer never overpays by rounding; `rounding_dust_zat = exact − zat` stored; `sum(zat) + fee ≤ funded balance` checked at preflight |
 | `approvals` | id, batch_id, member_id, hmac, approved_at | hmac = HMAC-SHA256(org secret, batch id ‖ sorted(recipient ua, zat) ‖ rate ‖ backend); invalid if batch content changes; execution requires 2 valid approvals from distinct approvers |
@@ -37,7 +37,7 @@ trait PayoutBackend {
 | zallet-rpc | `z_sendmany` with duplicate-address splitting; poll `z_getoperationstatus/result`; treat lost reply after spawn as Unknown `[R19]` | beta; open spend-path bugs |
 | zip321-manual | one ZIP-321 URI per recipient (never multi-recipient: Zodl rejects `[R17]`); operator scans with YWallet/Zodl; txid entered manually or detected via UFVK scan | non-custodial |
 
-Receipt issuance is backend-independent: after `Mined{height}` and N confirmations, `zeceipt_core::issue` runs with the org OVK; results stored in `receipts`.
+Receipt issuance is backend-independent (REQ-CON-11): after `Mined{height}` and N confirmations, `zeceipt_core::issue` runs with the org OVK; results stored in `receipts`.
 
 ## 3. Export formats (exact columns)
 

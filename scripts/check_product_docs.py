@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -338,8 +338,8 @@ for rid, pr in prio.items():
 # no two requirements may state the same obligation (shared 5-word shingle in the Requirement text)
 req_text_of = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\| (?:[MSCW] \| )?([^|]*)\|", req_defs, re.M))
 stop = {"the","a","an","and","or","of","to","for","with","per","in","on","from","by","is","are","as","at","that","this","its","it","one","each","all"}
-synonyms = {"annual": "yearly", "calendar-year": "yearly", "calendaryear": "yearly", "year": "yearly", "preparation": "", "export": "exports", "exported": "exports",
-            "recipient": "recipient", "recipients": "recipient", "totals": "total", "usd": "usd"}
+synonyms = {"annual": "yearly", "calendar-year": "yearly", "calendaryear": "yearly", "year": "yearly", "export": "exports", "exported": "exports",
+            "recipients": "recipient", "totals": "total"}
 shingles = {}
 for rid, txt in req_text_of.items():
     words = [synonyms.get(w, w) for w in re.findall(r"[a-z0-9-]+", txt.lower())]
@@ -364,6 +364,28 @@ for name, text in files.items():
             elif name in ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md") and prio.get(rid) in ("S", "C", "W") \
                     and not re.search(r"planned|cut item|dropped|baseline only|roadmap|Should|Could|Won't", ln):
                 errors.append(f"{name}: states {rid} (priority {prio.get(rid)}) as policy without marking it planned/cut: '{ln[:80]}'")
+
+# capability prose in the policy docs must cite a requirement id (so scope changes cannot leave uncited policy behind)
+cap_re = re.compile(r"\b(blocks?|locks?|records?|exports?|warns?|rejects?|derives?|issues?|persists?|stores?)\b", re.I)
+for name in ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md"):
+    policy_text = files.get(name, "").split("## 5. Product-form observations")[0].split("## 5. Open items")[0]
+    for ln in policy_text.splitlines():
+        body = ln.strip()
+        if not body or body.startswith("#") or body.startswith("|---") or body.startswith("| ID") or body.startswith("| Stage") or body.startswith("| Backend"):
+            continue
+        if cap_re.search(body) and not re.search(r"\b(?:REQ-[A-Z]+|NFR)-\d+\b", body) and not re.search(r"\[R\d+\]|spec §|PROOF|Not legal advice|Out of scope|out of scope|Zeceipt is not", body):
+            errors.append(f"{name}: capability statement without a requirement id: '{body[:90]}'")
+
+# §0 Must-set list must be sorted within each prefix
+must_list = re.search(r"the Must set reduces to ([^.]*)\.", req_text)
+if must_list:
+    ids_in = re.findall(r"REQ-([A-Z]+)-(\d+)", must_list.group(1))
+    by_prefix = {}
+    for pre, num in ids_in:
+        by_prefix.setdefault(pre, []).append(int(num))
+    for pre, nums in by_prefix.items():
+        if nums != sorted(nums):
+            errors.append(f"01_requirements.md §0: Must-set list for REQ-{pre} is not in numeric order: {nums}")
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):

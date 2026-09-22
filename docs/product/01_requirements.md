@@ -7,7 +7,7 @@ Priority: M = Must (hackathon MVP), S = Should, C = Could, W = Won't (v0). Statu
 In scope for v0: per-output disclosure receipts on Ironwood (plus Orchard/Sapling), CLI, browser verifier/SDK, payout console that issues receipts, Solana attestation of verified receipts, exports for accounting and public ledgers.
 Non-goals for v0: spend-authority proof (full ZIP 311), fresh-diversifier address derivation (REQ-CON-18), wallet/key custody in the app, FROST signing, mobile apps, fiat on/off-ramps, EOR/employment services, ZSA/stablecoin issuance, non-Zcash payouts.
 
-Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3, REQ-CON-4, REQ-CON-6, REQ-CON-7, REQ-CON-21, REQ-CON-10, REQ-CON-11, REQ-CON-12 and REQ-CON-17. Everything already delivered (✅) stays; REQ-WEB-7 (🟡) stays because its leaf is kept; REQ-WEB-8 remains a user action outside the budget; REQ-CORE-9/-10, REQ-CLI-7/-8, REQ-CON-1/-5/-8/-9/-13/-14/-15/-16/-19/-20, REQ-SOL-1..5, REQ-INT-1..4 and NFR-9 (the annual-totals export, leaf 3.3.6.3) are dropped for the hackathon; NFR-8 (FMV data stored per batch, leaf 3.3.5.2) is kept. REQ-CON-18 (fresh-diversifier derivation) is Won't for v0 under both branches. Where a partial obligation would have needed a qualified value it has been split into its own requirement (REQ-CON-18, REQ-CON-19, REQ-CON-20, NFR-9), so every Solo value is a plain kept or dropped; the checker verifies each value against the solo kept/dropped lists (✅ leaves count as kept) and rejects qualified values.
+Priorities are stated for the two-person baseline plan. Under the solo branch (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) the Must set reduces to REQ-CORE-1..8, REQ-CLI-1..6, REQ-WEB-1..6, REQ-CON-2, REQ-CON-3, REQ-CON-4, REQ-CON-6, REQ-CON-7, REQ-CON-10, REQ-CON-11, REQ-CON-12, REQ-CON-17 and REQ-CON-21. Everything already delivered (✅) stays; REQ-WEB-7 (🟡) stays because its leaf is kept; REQ-WEB-8 remains a user action outside the budget; REQ-CORE-9/-10, REQ-CLI-7/-8, REQ-CON-1/-5/-8/-9/-13/-14/-15/-16/-19/-20, REQ-SOL-1..5, REQ-INT-1..4 and NFR-9 (the annual-totals export, leaf 3.3.6.3) are dropped for the hackathon; NFR-8 (FMV data stored per batch, leaf 3.3.5.2) is kept. REQ-CON-18 (fresh-diversifier derivation) is Won't for v0 under both branches. Where a partial obligation would have needed a qualified value it has been split into its own requirement (REQ-CON-18, REQ-CON-19, REQ-CON-20, NFR-9), so every Solo value is a plain kept or dropped; the checker verifies each value against the solo kept/dropped lists (✅ leaves count as kept) and rejects qualified values.
 
 ## 1. Receipt core (`zeceipt-core`, `zeceipt-types`)
 
@@ -74,7 +74,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CON-18 | W | Derive a fresh diversified address per recipient per batch from a recipient-supplied UFVK (removes the linkability the warning describes). | A batch paying the same recipient twice uses two distinct diversified addresses derived from their UFVK. | ⬜ no leaf; roadmap (post-hackathon) | dropped |
 | REQ-CON-19 | S | CSV import of payables compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ | dropped |
 | REQ-CON-20 | S | Second rate source (CoinGecko alongside Kraken) recorded with the first; > 3% disagreement between the two sources blocks until re-quote. | Both sources persisted; cross-source deviation test blocks. | ⬜ | dropped |
-| REQ-CON-21 | M | Block execution when the rate has moved more than 3% between the approval lock and the execution quote (single source compared with itself over time). | Execution with a moved rate is rejected until re-quoted; test with a mocked rate feed. | ⬜ | kept (leaf 3.3.5.2) |
+| REQ-CON-21 | M | Block execution when the rate has moved more than 3% between the approval lock and the execution quote (single source compared with itself over time). | Execution with a moved rate is rejected until re-quoted; test with a mocked rate feed. | ⬜ | kept (leaf 3.3.5.9) |
 
 ## 5. Solana attestation
 
@@ -161,7 +161,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-18 | ⬜ | — | no leaf; post-hackathon roadmap (Won't for v0) |
 | REQ-CON-19 | ⬜ | 3.3.5.7 | `[R10]` Konclave CSV, `[R12]` zecpay columns |
 | REQ-CON-20 | ⬜ | 3.3.5.8 | `05` §1 `batches` `rate_sources_json`; cut item 4 |
-| REQ-CON-21 | ⬜ | 3.3.5.2 | `05` §1 batch state machine `submitting` preflight; `07` §2 |
+| REQ-CON-21 | ⬜ | 3.3.5.9 | `05` §1 `rate_at_execution` + `submitting` preflight; `07` §2 |
 | REQ-SOL-1 | ⬜ | 3.3.2.1 | `05` §4 attestation row |
 | REQ-SOL-2 | ⬜ | 3.3.2.1 | PDA keyed by (txid, index) |
 | REQ-SOL-3 | ⬜ | 3.3.2.2 | client verifies with `@zeceipt/verify` first |

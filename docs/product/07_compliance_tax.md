@@ -26,7 +26,7 @@ What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with it
 - Only per-output OCKs are ever disclosed; UFVK/OVK stay with the issuer; change outputs excluded by default.
 - Recipients are told that a receipt reveals their diversified address for that payment; fresh addresses per payment are recommended (spec §9).
 - Hosted verification pages state which node they query; CLI offers an offline mode (`--raw-tx-file`/`--raw-tx-dir`) and a custom endpoint override today; block-range and Tor modes are planned (REQ-CLI-7).
-- Data retention in the console: receipts and batch records kept for the organisation's accounting period; OCKs encrypted at rest; audit log append-only.
+- Data retention in the console: receipts and batch records kept for the organisation's accounting period; OCKs encrypted at rest (NFR-2); audit log append-only (REQ-CON-1, baseline only — the solo branch runs single-operator).
 
 ## 5. Open items
 

@@ -16,7 +16,7 @@
 3. Approvals: two approvers each see recipients, totals, rate; approve → HMAC recorded; any edit resets approvals.
 4. Execute: choose backend (Zkool hot-custody · external signer via per-recipient ZIP-321 QR); confirm dialog restates totals.
 5. Track: pending → broadcast → confirmed(n); failure rows retryable, no duplicates.
-6. Receipts issued automatically; links copied or emailed; export CSVs (OpenZcash / QBO / Xero).
+6. Receipts issued automatically (REQ-CON-11); links copied or emailed; export CSVs (OpenZcash / QBO / Xero, REQ-CON-14; 1099 totals NFR-9, baseline only).
 Error states: rate source down (the lock is blocked and the batch stays in draft; falling back to a second source is REQ-CON-20, planned), backend unreachable (batch stays approved), tx not found after 30 min (mark "unknown outcome", require manual reconcile), recipient address on the wrong network (blocked at import).
 
 ### FLOW-2 Recipient verifies (P3)
@@ -30,11 +30,11 @@ Error states: rate source down (the lock is blocked and the batch stays in draft
 1. Receives `pack.json` (and optionally a challenge they issued).
 2. `zeceipt verify-pack pack.json [--raw-tx-dir …] [--challenge …]` or the pack page.
 3. Sees per-row outcome and `verified_total_zat` with the lower-bound sentence.
-4. Exports the verified rows to their accounting format.
+4. Exports the verified rows to their accounting format (REQ-CON-14).
 
 ### FLOW-4 Integrator (P5)
 1. `cargo add zeceipt-core` or `npm i @zeceipt/verify`.
-2. Issue: `issue(tx, keys, opts)` after broadcast → receipts; or `zeceipt issue` in CI.
+2. Issue: `issue(tx, keys, opts)` after broadcast → receipts (REQ-CORE-6); or `zeceipt issue` in CI (REQ-CLI-1).
 3. Verify: `verifyReceipt(json, rawTxHex, {challenge, requireSignature})` → typed result with stage.
 4. Vectors: `spec/test-vectors/receipt-v0.json` to test their own encoder.
 
@@ -54,7 +54,7 @@ Error states: rate source down (the lock is blocked and the batch stays in draft
 | SCR-5 | Execute dialog | backend choice, custody-mode notice, restated totals, confirm |
 | SCR-6 | Receipts | per batch: links, copy, resend; issuance status |
 | SCR-7 | Audit packs | build, download, share link |
-| SCR-8 | Exports | OpenZcash / QuickBooks / Xero / 1099 totals; column preview |
+| SCR-8 | Exports | OpenZcash / QuickBooks / Xero (REQ-CON-14); 1099 totals (NFR-9, baseline only); column preview |
 | SCR-9 | Settings | members & roles, issuer keys (key id, rotation), well-known file, endpoints |
 | SCR-10 | Public receipt page | loading wasm · fetching · valid · invalid(stage) · pending |
 | SCR-11 | Public pack page | per-row results, total, lower-bound note |
