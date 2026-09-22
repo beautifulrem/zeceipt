@@ -3,7 +3,7 @@
 
 1. No key-material vocabulary in non-test library/binary code anywhere in the workspace:
    whole words `seed`, `mnemonic`, `spending` (case-insensitive) in `crates/*/src/**/*.rs`,
-   ignoring comment lines and everything after `#[cfg(test)]`. Integration tests and examples
+   ignoring line comments (whole-line or trailing), `/* */` block comments and everything after `#[cfg(test)]`. Integration tests and examples
    are excluded (they may build keys for fixtures).
 2. No log macro line (`trace!/debug!/info!/warn!/error!`) mentions `ock`, `ovk` or `memo` as a
    whole word, in any crate source (tests included).
@@ -22,10 +22,23 @@ files = sorted((repo / "crates").glob("*/src/**/*.rs"))
 for path in files:
     text = path.read_text(encoding="utf-8")
     non_test = text.split("#[cfg(test)]")[0]
+    in_block = False
     for i, line in enumerate(non_test.splitlines(), 1):
-        if line.lstrip().startswith("//"):
-            continue
-        if key_re.search(line):
+        code = line
+        if in_block:
+            if "*/" in code:
+                code = code.split("*/", 1)[1]
+                in_block = False
+            else:
+                continue
+        while "/*" in code:  # strip /* ... */ spans, possibly unterminated on this line
+            head, _, tail = code.partition("/*")
+            if "*/" in tail:
+                code = head + tail.split("*/", 1)[1]
+            else:
+                code, in_block = head, True
+        code = code.split("//", 1)[0]  # drop trailing // comments (also skips whole-line //, /// and //!)
+        if key_re.search(code):
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term: {line.strip()}")
     for i, line in enumerate(text.splitlines(), 1):
         if log_re.search(line) and secret_re.search(line):

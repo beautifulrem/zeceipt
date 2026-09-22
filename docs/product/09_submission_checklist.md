@@ -8,7 +8,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 |---|---|---|
 | Product name | Zeceipt (confirm) | 👤 |
 | Description | ≤ 500 words; draft in §2 (≈ 450 words) | 🟡 |
-| Blockchains and tools integrated | Zcash (Ironwood, Orchard, Sapling; lightwalletd/Zaino gRPC; Zkool GraphQL); Solana (attestation program, devnet); NEAR Intents 1Click (optional) | ⬜ finalise after REQ-SOL |
+| Blockchains and tools integrated | Zcash (Ironwood, Orchard, Sapling; lightwalletd/Zaino gRPC; Zkool GraphQL); Solana (attestation program, devnet); NEAR Intents 1Click (optional). Solana is dropped entirely if the solo branch activates (`11_plan.md` §1.1, RSK-19), which forfeits accelerator eligibility `[R1]`; re-check this row on 2026-09-24 | ⬜ finalise after REQ-SOL / 2026-09-24 |
 | Track | Zcash | ✅ |
 | Category | **Payments & Remittance** (primary): receipts are a payments artefact and the console pays. Forced to **Developer Infrastructure** if the solo branch activates (`11_plan.md` §1.1, RSK-19, decision 2026-09-24) because that branch ships a minimal console; otherwise decided 2026-10-03 at the cut review (Developer Infrastructure if the console is cut) | ⬜ 2026-09-24 / 2026-10-03 |
 | Team members with background | names, roles, 2-line bios | 👤 |

@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack recomputed; status cells cite existing leaves
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; status cells cite existing leaves
 Exit 1 on any failure.
 """
 import re
@@ -178,6 +178,33 @@ else:
     if abs(sum_done - done_s) > 1e-6 or abs(total_s - done_s - open_s) > 1e-6 or abs(cap_s - open_s - slack_s) > 1e-6:
         errors.append(f"11_plan.md §1: done/open/slack inconsistent: done rows {sum_done}, stated done {done_s}, open {open_s}, capacity {cap_s}, slack {slack_s}")
 
+# every pd-bearing leaf appears in a §3 schedule row
+sched_leaves = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", sched))
+for num in sorted(pd_of):
+    if num not in sched_leaves:
+        errors.append(f"11_plan.md §3: leaf {num} carries person-days but is in no schedule row")
+
+# per-owner load sentence equals the sum of the Owner-column splits over open (non-✅) rows
+load = {"R": 0.0, "T": 0.0}
+for name, wbs_cell, pd_cell, owner_cell, status in re.findall(r"^\| (?!\*\*Total)([^|]+) \| ([^|]*) \| (\d+(?:\.\d+)?) \| ([^|]*) \| ([^|]*) \|$", budget, re.M):
+    if status.strip().startswith("✅"):
+        continue
+    parts = re.findall(r"\b(R|T|PM)\b\s*(\d+(?:\.\d+)?)?", owner_cell)
+    if not parts:
+        continue
+    if all(v == "" for _, v in parts):
+        load["R" if parts[0][0] == "R" else "T"] += float(pd_cell)
+    else:
+        for o, v in parts:
+            load["R" if o == "R" else "T"] += float(v or 0)
+stated = re.search(r"\*\*R = (\d+(?:\.\d+)?)\*\*.*?\*\*T/PM = (\d+(?:\.\d+)?)\*\*", plan, re.S)
+if not stated:
+    errors.append("11_plan.md §1: per-owner load sentence (**R = x** … **T/PM = y**) not found")
+else:
+    r_s, t_s = float(stated.group(1)), float(stated.group(2))
+    if abs(load["R"] - r_s) > 1e-6 or abs(load["T"] - t_s) > 1e-6:
+        errors.append(f"11_plan.md §1: per-owner load says R {r_s} / T-PM {t_s} but Owner splits sum to R {load['R']} / T-PM {load['T']}")
+
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
@@ -186,7 +213,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

@@ -10,9 +10,9 @@ Baseline assumes two people (R and T/PM) at one person-day each per calendar day
 |---|---|---|---|---|
 | Must 1 Receipt core incl. proofs (mainnet-read, synthetic, regtest) | 3.1.2, 3.1.3, 3.4.1 (done) | 4 | R | ✅ done (PROOF §1–§5) |
 | Must 2 Format + vectors + CLI + npm package | 3.2.1, 3.2.3 (done) | 2 | R | ✅ done (publish is U) |
-| Must 3 Payout console: foundations, payables, batches, execution | WBS 3.3.1, 3.3.5 | 6.0 | T 3.0 + R 3.0 | ⬜ |
+| Must 3 Payout console: foundations, payables, batches, execution | WBS 3.3.1, 3.3.5 | 6.0 | R 3.5 + T 2.5 | ⬜ |
 | Must 4 Auto-issuance + public receipt page | WBS 3.3.6.1, 3.3.6.2 | 2.0 | R 1.0 + T 1.0 | ⬜ |
-| Must 5 Audit-pack page + exports + well-known keys | WBS 3.3.6.3, 3.3.3.3 | 2.0 | T 1.5 + R 0.5 | 🟡 CLI pack done; rest ⬜ |
+| Must 5 Audit-pack page + exports + well-known keys | WBS 3.3.6.3, 3.3.3.3 | 2.0 | R 2.0 | 🟡 CLI pack done; rest ⬜ |
 | Must 6 Public-chain evidence + README (T runs issuance and writes PROOF once U has funded the wallet) | 3.4.1.4, 3.4.1.5 are U | 1 | T | 🟡 regtest done; testnet/mainnet blocked on funding (U) |
 | Must 7 Solana attestation program (minimal) + 1Click fallback | WBS 3.3.2 | 1.5 | R 0.75 + T 0.75 | ⬜ |
 | Should 8 Spend-authority proof prototype (ZIP 311 spends half) | WBS 3.3.4.5 | 2.0 | R | ⬜ |
@@ -22,13 +22,15 @@ Baseline assumes two people (R and T/PM) at one person-day each per calendar day
 | Open technical investigations (timeboxed) | WBS 3.3.4.1, 3.3.4.2, 3.3.4.3, 3.3.4.4 | 1.0 | R | ⬜ |
 | Community + pilot outreach (forum, Discord, zips thread, 4 pilot candidates) | WBS 4.1.2, 4.2.1 | 2.5 | PM 2.25 + R 0.25 | ⬜ |
 | Videos ×2 + weekly updates ×2 + upload | WBS 5.1.1 | 2.0 | PM | ⬜ |
-| Submission materials and process (description, category, upload, freeze, final) | WBS 5.1.2, 5.2.1 | 1.5 | PM | ⬜ |
+| Submission materials and process (release tag + notes, description, category, upload, freeze, final) | WBS 4.1.1.4, 5.1.2, 5.2.1 | 1.75 | PM 1.5 + R 0.25 | ⬜ |
 | Buffer | — | 2 | T | reserve (investigations excluded; they have their own line) |
-| **Total** | | **32.5** | | done (✅ rows) **6.0** → open **26.5** vs capacity **30** (2026-09-22 → 10-11 = 20 days × 2 people × 0.75) → slack **3.5** |
+| **Total** | | **32.75** | | done (✅ rows) **6.0** → open **26.75** vs capacity **30** (2026-09-22 → 10-11 = 20 days × 2 people × 0.75) → slack **3.25** |
 
-Per-owner forward load (open work only): **R = 9.0** (Must 3 3.0, Must 4 1.0, Must 5 0.5, Must 7 0.75, Should 8 2.0, Should 10 0.5, investigations 1.0, outreach 0.25) against 15 pd capacity; **T/PM = 17.5** (Must 3 3.0, Must 4 1.0, Must 5 1.5, Must 6 1.0, Must 7 0.75, Should 9 1.5, Should 11 1.0, outreach 2.25, videos 2.0, submission 1.5, buffer 2.0) against 15 pd; 9.0 + 17.5 = 26.5 open. **T/PM is the binding constraint and is over by 2.5 pd on day one**, so cut-order items 1–2 (both T-owned, exactly 2.5 pd) are applied at once, bringing T/PM to 15.0 with the 2 pd buffer intact; R runs at 60% and absorbs any R-leaf overflow from the console (3.3.1.3, 3.3.1.4, 3.3.5.4–.6, 3.3.6.1 are already R). The table's slack of 3.5 is the team total; the T/PM load, not the total, governs the schedule.
+Per-owner forward load (open work only, from the Owner column): **R = 11.25** (Must 3 3.5, Must 4 1.0, Must 5 2.0, Must 7 0.75, Should 8 2.0, Should 10 0.5, investigations 1.0, outreach 0.25, release 0.25) against 15 pd capacity; **T/PM = 15.5** (Must 3 2.5, Must 4 1.0, Must 6 1.0, Must 7 0.75, Should 9 1.5, Should 11 1.0, outreach 2.25, videos 2.0, submission 1.5, buffer 2.0) against 15 pd; 11.25 + 15.5 = 26.75 open. Two server-side console leaves (3.3.5.1 payables/CSV, 3.3.6.3 exports) are R-owned precisely to move load off the binding resource. **T/PM is still the binding constraint, over by 0.5 pd on day one**, so cut-order item 1 (Should 11, T 1.0) is applied at once, bringing T/PM to 14.5 with the 2 pd buffer intact and 0.5 spare; R runs at 75%. The Konclave/OpenZcash adapters (Should 9) therefore stay in scope: they are RSK-1's mitigation, the 09-29 outreach vehicle and the third-party-integration metric.
 
 Cut trigger: cumulative slippage on T/PM work exceeding 2 pd, or the 2026-10-03 review, whichever comes first.
+
+Failure floor (baseline): total T/PM relief available in the cut table is 4.0 pd (items 1–2, 4–6, 9); item 1 spends 1.0 on day one, leaving 3.0 pd of further relief plus the 2 pd buffer and 0.5 spare, so the baseline absorbs ≈ 5.5 pd of T/PM slippage. Beyond that it degrades to the solo scope in §1.1 (one person's work with the other person's days as pure buffer).
 
 ### 1.1 Solo branch (headcount unconfirmed, WBS 2.4.3.3; RSK-19)
 
@@ -56,11 +58,11 @@ Criterion: schedule relief on the binding resource (T/PM) first, product value s
 | # | Cut | Owner | Frees (pd) | Note |
 |---|---|---|---|---|
 | 1 | Should 11 notifications + reconciliation (3.3.6.4) | T | 1.0 | applied on day one (see §1) |
-| 2 | Should 9 Konclave/OpenZcash adapters (3.3.3.1, 3.3.3.2); keep the CSV import | T | 1.5 | applied on day one (see §1) |
-| 3 | Audit-pack page (keep the CLI pack; part of 3.3.6.3) | T | 0.5 | |
-| 4 | Two-source rate lock → single source (part of 3.3.5.2) | T | 0.25 | |
+| 2 | Should 9 Konclave/OpenZcash adapters (3.3.3.1, 3.3.3.2) and the OpenZcash demo branch (4.2.1.4); keep the CSV import | T 1.5 + PM 0.25 | 1.75 | costs RSK-1's mitigation and the third-party-integration metric; update `06`, `08`, `03` §5 and `09` §2 if taken |
+| 3 | Audit-pack page (keep the CLI pack; part of 3.3.6.3) | R | 0.5 | frees R only |
+| 4 | Two-source rate lock → single source (3.3.5.2 1.0 → 0.5, same as the solo branch) | T | 0.5 | |
 | 5 | Public ledger page (FLOW-5; stretch inside 3.3.6.2) | T | 0.25 | |
-| 6 | Pilots 3 and 4 (4.2.1.3, 4.2.1.4) | PM | 0.5 | keep ZecHub DAO and Zcash Brazil |
+| 6 | Pilots 3 and 4 (4.2.1.3, 4.2.1.4) | PM | 0.5 | keep ZecHub DAO and Zcash Brazil; overlaps item 2 on 4.2.1.4 |
 | 7 | Should 8 spend-authority prototype (3.3.4.5) | R | 2.0 | product-value cut; frees R only |
 | 8 | Investigations 3.3.4.1–.3 (keep the NU7 re-test) | R | 0.75 | |
 | 9 | Must 7 Solana program (3.3.2.1–3) → 1Click leg only (3.3.2.4) | R 0.75 + T 0.25 | 1.0 | last: costs accelerator eligibility |
@@ -75,15 +77,15 @@ Columns follow the WBS owner letters: the R column lists only R-owned leaves, th
 |---|---|---|---|
 | 09-22 | Product docs; review rounds | Product docs; funding ask to U | Product/research phase closed |
 | 09-23 | Data model + migrations (3.3.1.3); API routes (3.3.1.4) | Stack scaffold + custody config (3.3.1.1); auth/roles (3.3.1.2); forum post draft (4.1.2.2) | Console skeleton runs locally |
-| 09-24 | Zkool adapter on regtest (3.3.5.4) | Payables + CSV import (3.3.5.1); batches + rate lock (3.3.5.2); **U: push repo, CI green, forum post (4.1.1.1, 4.1.2.2)** | Repo public; first console batch on regtest |
+| 09-24 | Payables + CSV import (3.3.5.1); Zkool adapter on regtest (3.3.5.4) | Batches + rate lock (3.3.5.2); forum post (4.1.2.2); **U: push repo, CI green (4.1.1.1)** | Repo public; first console batch on regtest |
 | 09-25 | ZIP-321 adapter (3.3.5.6); **funding check (RSK-3 trigger)** | Approvals with HMAC (3.3.5.3); **U: testnet faucet (3.4.1.4)** | Funds available or fallback declared |
 | 09-26 | Auto-issuance (3.3.6.1) | Public receipt page (3.3.6.2); **U: mainnet funding (3.4.1.5), Konclave decision (4.1.2.3)** | First console-issued receipt on regtest |
-| 09-27 | Well-known keys (3.3.3.3); post v0 to zips #387 + forum (3.3.3.4); follow the thread from here (4.1.2.1) | Audit-pack page + exports (3.3.6.3) | Format posted |
-| 09-28 | Bug fixes from the first batches (no leaf; R slack) | Exports cont. (3.3.6.3); weekly update video 1 (5.1.1.3); Discord announcement (4.1.2.4); pilot outreach starts (4.2.1.1, 4.2.1.2); **U: domain (4.1.1.2)** | Video 1 posted |
+| 09-27 | Well-known keys (3.3.3.3); post v0 to zips #387 + forum (3.3.3.4); follow the thread from here (4.1.2.1) | Konclave adapter (3.3.3.1) | Format posted |
+| 09-28 | Audit-pack page + exports (3.3.6.3); investigations 3.3.4.1, 3.3.4.3 (opportunistic) | Weekly update video 1 (5.1.1.3); Discord announcement (4.1.2.4); pilot outreach starts (4.2.1.1, 4.2.1.2); **U: domain (4.1.1.2)** | Video 1 posted |
 | 09-29 → 09-30 | Solana program (3.3.2.1); devnet deployment (3.3.2.3); Zallet adapter (3.3.5.5) | Solana client (3.3.2.2); 1Click leg (3.3.2.4); Konclave outreach | Devnet attestation in PROOF |
-| 10-01 → 10-03 | Should 8 prototype (3.3.4.5; cut item 7) | First pilot batch (4.2.1.1, 4.2.1.2); grantee pilot (4.2.1.3); [cut on day one per §1, restored only if T/PM slack appears: adapters 3.3.3.1, 3.3.3.2; notifications 3.3.6.4] | **10-03 cut review** |
-| 10-04 | `cargo audit`, secrets scan, pin check (3.4.2.3); reproducible wasm note (3.4.2.4) | Description + GTM paragraph (5.1.2.2); category decision (5.1.2.4); README pass; **U: npm publish (4.1.1.3)** | — |
-| 10-05 | Security self-review (3.4.2.3 cont.) | Weekly update 2; initial submission upload (5.2.1.1) — shift if the window opens on another day | Initial upload |
+| 10-01 → 10-03 | Should 8 prototype (3.3.4.5; cut item 7); Zkool-on-mainnet check with the first funded batch (3.3.4.2) | OpenZcash export (3.3.3.2) and demo branch (4.2.1.4, 10-02); first pilot batch (4.2.1.1, 4.2.1.2); grantee pilot (4.2.1.3); [cut on day one per §1, restored only if T/PM slack appears: notifications 3.3.6.4] | **10-03 cut review** |
+| 10-04 | `cargo audit`, secrets scan, pin check (3.4.2.3); reproducible wasm note (3.4.2.4); tag v0.1.0 + release notes (4.1.1.4) | Description + GTM paragraph (5.1.2.2); category decision (5.1.2.4); README pass; **U: npm publish (4.1.1.3)** | — |
+| 10-05 | Security self-review (3.4.2.3 cont.) | Weekly update 2 (5.1.1.3); initial submission upload (5.2.1.1) — shift if the window opens on another day | Initial upload |
 | 10-06 → 10-09 | NU7 testnet re-test after 10-06 (3.3.4.4); vectors/doc completion | Record pitch + technical videos (5.1.1.1, 5.1.1.2, 5.1.1.4) | Final videos 10-09 |
 | 10-10 | Freeze | Form field re-check (5.2.1.2) | — |
 | 10-11 | — | Final submission (5.2.1.3) | One-day buffer to 10-12 |
