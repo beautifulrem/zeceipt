@@ -28,9 +28,15 @@ jobs:
         run: python3 scripts/check_product_docs.py
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
+      - name: console library — install type-checker (lockfile), type check, unit tests against the debug zeceipt binary
+        working-directory: apps/console
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit -p .
+          ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts
   wasm:
     runs-on: ubuntu-latest
     steps:

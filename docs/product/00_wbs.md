@@ -205,11 +205,11 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.8 ⬜ T — Second rate source and deviation guard (> 3% blocks until re-quote) (REQ-CON-20). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.9 ⬜ T — Lock-vs-execution guard: re-quote at execution, store `rate_at_execution`, block `submitting` on a > 3% move; test with a mocked feed (REQ-CON-21). 0.25 pd, 2026-09-25 → 09-26.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
-- 3.3.5.4 🟡 R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). Backend proven on regtest 2026-09-22 with `scripts/zkool_regtest_tracer.py` (PROOF §5b; Trellis task `09-22-zkool-tracer`); the console-side adapter (typed client, nonce, status polling) remains. 1 pd, 2026-09-25 → 09-26.
+- 3.3.5.4 ✅ R — Zkool GraphQL adapter incl. nonce idempotency, regtest batch of 3 (REQ-CON-7). Backend proven 2026-09-22 (PROOF §5b); console library `ZkoolBackend` with an exclusive per-nonce intent store, reconciliation and status done 2026-09-23 (PROOF §5c; `apps/console/lib/execution/`; Trellis task `09-23-execution-adapter`). 1 pd, 2026-09-25 → 09-26.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
 - 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-01 → 10-03.
 #### 3.3.6 Payout console — receipts, pages, exports
-- 3.3.6.1 ⬜ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). 1 pd, 2026-09-27 → 09-28.
+- 3.3.6.1 🟡 R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). Library `autoIssue` done 2026-09-23 (confirmation gate, `zeceipt issue --only-to` allow-list, per-item cross-check, verification; PROOF §5c); storing receipts with the unique (txid, pool, index) key comes with the data model (3.3.1.3). 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-9). 1.5 pd, 2026-09-29 → 09-30.
 - 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-08 → 10-09 (only if restored).
@@ -222,7 +222,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 28 tests, clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
+- 3.4.2.1 ✅ R — 30 Rust tests + 22 TypeScript console tests (and 1 opt-in regtest e2e), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.
@@ -308,9 +308,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 29 | 1 | 31 | 2 |
+| 3 Engineering | 63 | 30 | 1 | 30 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 109 | 2 | 64 | 10 |
+| **Total** | 185 | 110 | 2 | 63 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

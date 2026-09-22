@@ -1,0 +1,17 @@
+{
+  "name": "@zeceipt/console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Zeceipt payout console — execution and issuance library (Next.js app to follow)",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "test:regtest": "ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2"
+  }
+}

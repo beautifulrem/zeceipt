@@ -58,6 +58,8 @@ pub enum CoreError {
     KeyDecode(String),
     #[error("network mismatch between receipt and viewing key")]
     NetworkMismatch,
+    #[error("address could not be decoded: {0}")]
+    AddressDecode(String),
     #[error(transparent)]
     Types(#[from] TypesError),
 }
@@ -253,6 +255,67 @@ fn network_type(n: Network) -> NetworkType {
         Network::Test => NetworkType::Test,
         Network::Regtest => NetworkType::Regtest,
     }
+}
+
+/// A shielded receiver extracted from an address: which key family it belongs to
+/// and its 43 raw bytes. Ironwood pays to the Orchard receiver of a unified
+/// address (ZIP 316 defines no separate Ironwood typecode).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShieldedReceiver {
+    Orchard([u8; 43]),
+    Sapling([u8; 43]),
+}
+
+/// Shielded receivers of an encoded address on `network`: every Orchard/Sapling
+/// receiver of a unified address, or the single receiver of a Sapling address.
+/// Transparent-only addresses yield an empty list; a wrong network is an error.
+pub fn shielded_receivers(
+    address: &str,
+    network: Network,
+) -> Result<Vec<ShieldedReceiver>, CoreError> {
+    use zcash_address::unified::Container;
+    if let Ok((net, ua)) = unified::Address::decode(address) {
+        if net != network_type(network) {
+            return Err(CoreError::AddressDecode(format!(
+                "{address}: address is for another network"
+            )));
+        }
+        return Ok(ua
+            .items()
+            .into_iter()
+            .filter_map(|r| match r {
+                Receiver::Orchard(b) => Some(ShieldedReceiver::Orchard(b)),
+                Receiver::Sapling(b) => Some(ShieldedReceiver::Sapling(b)),
+                _ => None,
+            })
+            .collect());
+    }
+    let hrp = {
+        use zcash_protocol::consensus::NetworkConstants;
+        network_type(network).hrp_sapling_payment_address()
+    };
+    match zcash_keys::encoding::decode_payment_address(hrp, address) {
+        Ok(pa) => Ok(vec![ShieldedReceiver::Sapling(pa.to_bytes())]),
+        Err(e) => Err(CoreError::AddressDecode(format!("{address}: {e}"))),
+    }
+}
+
+/// Does the recovered output pay one of the allowed receivers? Used to restrict
+/// issuance to a batch's own recipient list (console allow-list, RSK-20).
+pub fn pays_any(
+    recovered: &Recovered,
+    allowed: &[ShieldedReceiver],
+    network: Network,
+) -> Result<bool, CoreError> {
+    let got = shielded_receivers(&recovered.recipient, network)?;
+    Ok(got.iter().any(|r| {
+        allowed.contains(r)
+            && matches!(
+                (r, recovered.pool),
+                (ShieldedReceiver::Orchard(_), Pool::Ironwood | Pool::Orchard)
+                    | (ShieldedReceiver::Sapling(_), Pool::Sapling)
+            )
+    }))
 }
 
 /// Regtest consensus parameters: every upgrade active from height 1, matching
@@ -780,6 +843,51 @@ mod tests {
     fn fixture_tx() -> Transaction {
         let bytes = hex::decode(FIXTURE.trim()).unwrap();
         parse_transaction(&bytes).unwrap()
+    }
+
+    #[test]
+    fn allow_list_matches_by_receiver_and_rejects_foreign_and_malformed_addresses() {
+        const RAW: &str = include_str!(
+            "../../../fixtures/regtest-48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2.hex"
+        );
+        const UFVK: &str = include_str!("../../../fixtures/regtest-issuer-ufvk.txt");
+        let tx = parse_transaction(&hex::decode(RAW.trim()).unwrap()).unwrap();
+        let keys = OutgoingKeys::from_ufvk(Network::Regtest, UFVK.trim()).unwrap();
+        let all = issue(
+            &tx,
+            &keys,
+            &IssueOptions {
+                label: String::new(),
+                challenge: None,
+                key_id: None,
+                include_change: true,
+                signer: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(all.len(), 4);
+        let r3 = "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj";
+        let allowed = shielded_receivers(r3, Network::Regtest).unwrap();
+        assert!(matches!(allowed.as_slice(), [ShieldedReceiver::Orchard(_)]));
+        let kept: Vec<_> = all
+            .iter()
+            .filter(|(_, r)| pays_any(r, &allowed, Network::Regtest).unwrap())
+            .collect();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].1.value_zat, 102_000_000);
+        // change (index 0) is never in a batch allow-list
+        assert!(all
+            .iter()
+            .filter(|(_, r)| r.is_change)
+            .all(|(_, r)| !pays_any(r, &allowed, Network::Regtest).unwrap()));
+        assert!(matches!(
+            shielded_receivers(r3, Network::Main),
+            Err(CoreError::AddressDecode(_))
+        ));
+        assert!(matches!(
+            shielded_receivers("u1bogus", Network::Regtest),
+            Err(CoreError::AddressDecode(_))
+        ));
     }
 
     /// A 4-action Ironwood transaction built by Zkool GraphQL on the local regtest

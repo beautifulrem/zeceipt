@@ -37,7 +37,9 @@ trait PayoutBackend {
 | zallet-rpc | `z_sendmany` with duplicate-address splitting; poll `z_getoperationstatus/result`; treat lost reply after spawn as Unknown `[R19]` | beta; open spend-path bugs |
 | zip321-manual | one ZIP-321 URI per recipient (never multi-recipient: Zodl rejects `[R17]`); operator scans with YWallet/Zodl; txid entered manually or detected via UFVK scan | non-custodial |
 
-Receipt issuance is backend-independent (REQ-CON-11): after `Mined{height}` and N confirmations, `zeceipt_core::issue` runs with the org OVK; results stored in `receipts`.
+Implemented in TypeScript as `apps/console/lib/execution/` (`PayoutBackend`, `ZkoolBackend`, `FileIdempotencyStore`; PROOF §5c). Idempotency: an intent record is created exclusively per nonce *before* `pay`; a replay returns the recorded txid; a GraphQL refusal leaves the nonce `failed_retryable` (retry claims the next attempt exclusively); a transport failure leaves it `unknown_outcome`, and a later submit reconciles against the issuer's mined transactions by memo + value instead of paying again. The libSQL `batches.nonce` column will implement the same `IdempotencyStore` interface.
+
+Receipt issuance is backend-independent (REQ-CON-11): after `Mined{height}` and N confirmations, `autoIssue` (`apps/console/lib/issuance/auto-issue.ts`) runs `zeceipt issue --only-to <each batch address> --ufvk-file …` (the allow-list is matched by shielded receiver in `zeceipt-core`), cross-checks one receipt per batch item by memo and value (never change), and verifies each before returning; results will be stored in `receipts`.
 
 ## 3. Export formats (exact columns)
 

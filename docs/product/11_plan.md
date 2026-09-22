@@ -92,6 +92,8 @@ Freeze (from 10-10) = no changes to `crates/`, `packages/verify/pkg`, `spec/` or
 
 Per-owner scheduled totals (unchanged by the 10-04/10-08 swap of the technical demo with the release/audit leaves): R leaves 0.5 + 1.5 + 1.0 + 1.5 + 1.5 + 1.75 + 3.0 + 1.5 + 0.25 = 12.5 (= 11.25 + 0.75 video + 0.5 security/wasm), plus buffer 0.5 = 13.0 (matches §1); T/PM leaves after the day-one cuts 1.5 + 1.25 + 1.375 + 1.0 + 2.0 + 2.125 + 1.0 + 0.5 = 10.75 (= 13.0 − 0.75 video moved − 1.0 − 0.5 cut, where 13.0 = T/PM's 14.75 − Must 6 1.0 − buffer 1.5 + the 0.75 video that moved to R), plus Must 6 1.0 and buffer 1.5 (0.25 + 0.125 + 0.375 + 0.75) = 13.25 against 14.25, leaving 1.0 spare (0.25 in 09-25 → 09-26, 0.125 in 09-27 → 09-28, 0.25 in 10-04 → 10-07, 0.125 in 10-08 → 10-09, 0.25 in 10-10 → 10-11).
 
+Progress against this schedule (2026-09-23): executed out of order on purpose (riskiest first) — 3.3.5.4 (Zkool adapter, window 09-25 → 09-26) is done and the library half of 3.3.6.1 (auto-issuance, window 09-27 → 09-28) is done (PROOF §5c). The 09-23 → 09-24 leaves (data model, API routes, payables, CSV import, scaffold, auth) are still open; the R column's 09-25 → 09-26 capacity freed by 3.3.5.4 absorbs the one-day slip.
+
 Stop-loss history: the 2026-09-25 kill criterion ("Ironwood recovery fails → Sapling fallback → withdraw 09-27") was retired on 2026-09-22 when the regtest proof landed (RSK-18).
 
 ## 4. Metrics

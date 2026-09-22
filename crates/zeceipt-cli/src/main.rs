@@ -51,6 +51,8 @@ struct TxSource {
 }
 
 #[derive(Subcommand)]
+// Parsed once per process; boxing the larger `Issue` variant would only add noise.
+#[allow(clippy::large_enum_variant)]
 enum Cmd {
     /// Generate an issuer signing key (ed25519) and print the public key.
     Keygen {
@@ -74,6 +76,9 @@ enum Cmd {
         /// Unified full viewing key (uview1… / uviewtest1…).
         #[arg(long, conflicts_with = "ovk")]
         ufvk: Option<String>,
+        /// Read the unified full viewing key from a file (keeps it off the process list).
+        #[arg(long, conflicts_with_all = ["ufvk", "ovk"])]
+        ufvk_file: Option<PathBuf>,
         /// Bare Orchard/Ironwood outgoing viewing key, 32 bytes hex.
         #[arg(long)]
         ovk: Option<String>,
@@ -92,6 +97,10 @@ enum Cmd {
         /// Also issue receipts for change outputs (outputs paying one of the issuer's own addresses).
         #[arg(long)]
         include_change: bool,
+        /// Only issue for outputs paying one of these addresses (repeatable). Matching is by
+        /// shielded receiver, so any unified address containing the paid receiver matches.
+        #[arg(long = "only-to", value_name = "ADDRESS")]
+        only_to: Vec<String>,
         /// Public host used to build shareable URLs.
         #[arg(long, default_value = "https://zeceipt.xyz")]
         host: String,
@@ -208,16 +217,35 @@ async fn run() -> anyhow::Result<ExitCode> {
             net,
             tx,
             ufvk,
+            ufvk_file,
             ovk,
             label,
             challenge,
             key_file,
             key_id,
             include_change,
+            only_to,
             host,
             out_dir,
         } => {
             let network = network_of(&net);
+            let mut allowed = Vec::new();
+            for a in &only_to {
+                let rs = zeceipt_core::shielded_receivers(a.trim(), network)
+                    .map_err(|e| anyhow!("--only-to {a}: {e}"))?;
+                if rs.is_empty() {
+                    return Err(anyhow!("--only-to {a}: address has no shielded receiver"));
+                }
+                allowed.extend(rs);
+            }
+            let ufvk = match (ufvk, ufvk_file) {
+                (Some(u), _) => Some(u),
+                (None, Some(p)) => Some(
+                    std::fs::read_to_string(&p)
+                        .with_context(|| format!("reading --ufvk-file {}", p.display()))?,
+                ),
+                (None, None) => None,
+            };
             let keys = match (ufvk, ovk) {
                 (Some(u), _) => OutgoingKeys::from_ufvk(network, u.trim())?,
                 (None, Some(o)) => {
@@ -246,7 +274,19 @@ async fn run() -> anyhow::Result<ExitCode> {
                     "warning: a bare OVK cannot recognise change outputs; every opened output is issued (pass --ufvk to exclude change)"
                 );
             }
-            let receipts = zeceipt_core::issue(&parsed, &keys, &opts)?;
+            let mut receipts = zeceipt_core::issue(&parsed, &keys, &opts)?;
+            let mut skipped = 0usize;
+            if !only_to.is_empty() {
+                let before = receipts.len();
+                let mut kept = Vec::with_capacity(before);
+                for (r, rec) in receipts {
+                    if zeceipt_core::pays_any(&rec, &allowed, network)? {
+                        kept.push((r, rec));
+                    }
+                }
+                skipped = before - kept.len();
+                receipts = kept;
+            }
             if receipts.is_empty() {
                 eprintln!(
                     "no outputs of {} are opened by the given viewing key",
@@ -276,7 +316,9 @@ async fn run() -> anyhow::Result<ExitCode> {
             }
             println!(
                 "{}",
-                serde_json::to_string_pretty(&json!({"height": height, "receipts": items}))?
+                serde_json::to_string_pretty(
+                    &json!({"height": height, "receipts": items, "skipped_not_in_allow_list": skipped})
+                )?
             );
             Ok(ExitCode::SUCCESS)
         }

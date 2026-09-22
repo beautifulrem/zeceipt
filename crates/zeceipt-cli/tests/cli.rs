@@ -353,3 +353,55 @@ fn is_change_is_null_with_bare_ovk_and_boolean_with_ufvk() {
     assert_eq!(change.len(), 1);
     assert_eq!(change[0]["recovered"]["value_zec"], "217.25048750");
 }
+
+/// `--only-to` restricts issuance to the given recipients (matched by receiver), reports how many opened
+/// outputs were skipped, and rejects undecodable addresses; `--ufvk-file` reads the key from a file.
+#[test]
+fn only_to_allow_list_and_ufvk_file() {
+    let tx =
+        fixture("regtest-48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2.hex");
+    let ufvk_file = fixture("regtest-issuer-ufvk.txt");
+    let r3 = "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj";
+    let (code, out, err) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &tx,
+        "--ufvk-file",
+        &ufvk_file,
+        "--include-change",
+        "--only-to",
+        r3,
+    ]);
+    assert_eq!(code, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let receipts = v["receipts"].as_array().unwrap();
+    assert_eq!(receipts.len(), 1);
+    assert_eq!(receipts[0]["recovered"]["memo"]["text"], "INV-R-003");
+    assert_eq!(v["skipped_not_in_allow_list"], 3);
+
+    let (code, _, err) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &tx,
+        "--ufvk-file",
+        &ufvk_file,
+        "--only-to",
+        "u1notanaddress",
+    ]);
+    assert_eq!(code, 3, "stderr: {err}");
+    assert!(err.contains("--only-to"), "{err}");
+
+    let (code, _, err) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &tx,
+        "--ufvk-file",
+        &ufvk_file,
+        "--only-to",
+        r3.replace("uregtest", "utest").as_str(),
+    ]);
+    assert_eq!(code, 3, "stderr: {err}");
+}
