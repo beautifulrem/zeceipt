@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row and the reserve total equals buffer + below-the-line cuts; solo kept prices equal WBS prices unless marked reduced (and lower); solo rows, scaling, kept total and Buffer = Capacity − Kept recomputed; baseline and per-owner capacities derived from the stated date range; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves; NFR-1's evidence quotes the source guard's live summary line
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row and the reserve total equals buffer + below-the-line cuts; solo kept prices equal WBS prices unless marked reduced (and lower); solo rows, scaling, kept total and Buffer = Capacity − Kept recomputed; baseline and per-owner capacities derived from the stated date range; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves; NFR-1's evidence quotes the source guard's live summary line; the tracer task's review line lists every committed review record
 Exit 1 on any failure.
 """
 import re
@@ -487,6 +487,16 @@ except Exception as e:  # pragma: no cover
 nfr1 = re.search(r"^\| NFR-1 .*$", req_defs, re.M)
 if not nfr1 or guard_line not in nfr1.group(0):
     errors.append(f"01_requirements.md: NFR-1 evidence must quote the guard's summary line verbatim: '{guard_line}'")
+
+# The Trellis tracer task's review line must list every committed review record with its score
+impl_md = repo / ".trellis/tasks/09-22-zkool-tracer/implement.md"
+if impl_md.exists():
+    review_line = next((l for l in impl_md.read_text(encoding="utf-8").splitlines() if l.startswith("Review status:")), "")
+    for p in sorted((repo / "docs/product/reviews").glob("zkool-tracer-round-*.md")):
+        n = p.stem.rsplit("-", 1)[1]
+        m = re.search(r"Score: (\d+)/100", p.read_text(encoding="utf-8"))
+        if m and f"round {n} {m.group(1)}/100" not in review_line:
+            errors.append(f".trellis/tasks/09-22-zkool-tracer/implement.md: review status is missing round {n} ({m.group(1)}/100)")
 
 # status cells in 01 §1–§7 that cite "WBS x.x.x.x" must cite existing leaves
 for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
