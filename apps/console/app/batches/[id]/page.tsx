@@ -9,6 +9,7 @@ import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
+import { IssueForm, PayForm } from "./action-forms.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,10 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             </div>
             <Lifecycle view={view} />
             <p className="text-sm">{view.explanation}</p>
+            {status.next === "submit" && (
+              <PayForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} again={status.state === "needs_attention"} />
+            )}
+            {status.next === "issue_receipts" && <IssueForm id={rec.id} />}
             {(status.detail.txid || status.detail.error) && (
               <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1 text-sm">
                 {status.detail.txid && (

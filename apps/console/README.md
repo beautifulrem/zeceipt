@@ -1,6 +1,6 @@
 # @zeceipt/console — payout console (Next.js app and its execution and issuance library)
 
-The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentation.ts`) around its server-side library (`lib/`). Pages: `/` lists batches, and `/batches/{id}` shows a batch with its payment mode, its lifecycle, the evidence (txid, confirmations), the items and the receipts. They are read-only for now; the page actions arrive in slice E2. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
+The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentation.ts`) around its server-side library (`lib/`). Pages: `/` lists batches, and `/batches/{id}` shows a batch with its payment mode, its lifecycle, the evidence (txid, confirmations), the items and the receipts. The batch page offers only the actions the status allows. **Pay <total> ZEC** posts the total shown on the page as the confirmation. **Issue receipts** appears once the payment is confirmed. Both call the same handlers as the API, and show its answer in plain words ("This request sent nothing." or "This request may have paid. Check the status before acting."). Creating drafts from the page arrives in slice E2b. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
 
 | Module | What it does |
 |---|---|

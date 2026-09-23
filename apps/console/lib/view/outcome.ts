@@ -1,0 +1,62 @@
+// What the page says after an action (slice E2): the API's own answer (the shared handlers' Response),
+// in plain language. The detail is the problem's fixed text, never the wallet's. `thisRequest` becomes a
+// sentence; an uncertain outcome is headed "Outcome unknown", never shown as a failure (Konclave #280).
+
+import type { Tone } from "./status.ts";
+
+export interface ActionOutcome {
+  tone: Tone;
+  headline: string;
+  detail: string;
+}
+
+interface Body {
+  code?: string;
+  detail?: string;
+  thisRequest?: "sent_nothing" | "may_have_sent";
+  txid?: string;
+  replayed?: boolean;
+  receipts?: unknown[];
+  confirmations?: number;
+  required?: number;
+}
+
+const VERDICT = {
+  sent_nothing: "This request sent nothing.",
+  may_have_sent: "This request may have paid. Check the status before acting.",
+} as const;
+
+/** "detail. Verdict." — the API's details carry no final period. */
+function sentence(detail: string | undefined, verdict: string | undefined): string {
+  const d = (detail ?? "").trim();
+  const head = d && !/[.!?]$/.test(d) ? `${d}.` : d;
+  return [head, verdict].filter(Boolean).join(" ");
+}
+
+function problemOutcome(b: Body): ActionOutcome {
+  const detail = sentence(b.detail, b.thisRequest && VERDICT[b.thisRequest]);
+  if (b.thisRequest === "may_have_sent") return { tone: "danger", headline: "Outcome unknown", detail };
+  return { tone: "warning", headline: "Not done", detail };
+}
+
+export async function submitOutcome(res: Response): Promise<ActionOutcome> {
+  const b = (await res.json()) as Body;
+  if (res.status === 202) {
+    return b.replayed
+      ? { tone: "info", headline: "Already sent", detail: `This batch was already sent as ${b.txid}; nothing new was paid.` }
+      : { tone: "info", headline: "Broadcast", detail: `Sent as ${b.txid}. Waiting for it to be mined.` };
+  }
+  return problemOutcome(b);
+}
+
+export async function receiptsOutcome(res: Response): Promise<ActionOutcome> {
+  const b = (await res.json()) as Body;
+  if (res.status === 200 || res.status === 201) {
+    const n = b.receipts?.length ?? 0;
+    return { tone: "success", headline: "Receipts issued", detail: `${n} receipt${n === 1 ? "" : "s"} issued, one per item.` };
+  }
+  if (res.status === 202) {
+    return { tone: "info", headline: "Waiting", detail: `Receipts are issued after ${b.required} confirmations; the payment has ${b.confirmations}.` };
+  }
+  return problemOutcome(b);
+}

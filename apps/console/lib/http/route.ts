@@ -21,12 +21,21 @@ export function guarded<C = unknown>(handler: (req: Request, ctx: C) => Promise<
   return async (req: Request, ctx: C): Promise<Response> => {
     const refused = requestProblem(req.method, req.headers);
     if (refused) return refused;
-    try {
-      return await handler(req, ctx);
-    } catch (e) {
-      if (e instanceof HttpProblem) return e.response;
-      if (e instanceof ContextNotReadyError) return problem(503, "not_ready", "the console has not finished starting");
-      return map(e) ?? internalError();
-    }
+    return answer(() => handler(req, ctx), map);
   };
+}
+
+/**
+ * Run a handler and map every failure to its problem response: the routes' mapping without the request
+ * guard, for callers that are already guarded (the page's Server Actions pass `proxy.ts` and Next's own
+ * Origin check; slice E2), so a page action answers exactly what the API would.
+ */
+export async function answer(run: () => Promise<Response>, map: ProblemMapper = () => undefined): Promise<Response> {
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof HttpProblem) return e.response;
+    if (e instanceof ContextNotReadyError) return problem(503, "not_ready", "the console has not finished starting");
+    return map(e) ?? internalError();
+  }
 }

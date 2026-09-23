@@ -75,7 +75,7 @@ async function start(env: Record<string, string>) {
 /** A raw HTTP/1.1 request (fetch cannot set Host); a stream body is sent chunked, with no Content-Length. */
 function raw(port: number, method: string, path: string, headers: Record<string, string>, body?: string | Iterable<Buffer>) {
   return new Promise<{ status: number; type: string | undefined; body: string }>((ok, fail) => {
-    const r = httpRequest({ host: "127.0.0.1", port, method, path, headers }, (res) => {
+    const r = httpRequest({ host: "127.0.0.1", port, method, path, headers, timeout: 20_000 }, (res) => {
       let b = "";
       res.setEncoding("utf8");
       res.on("data", (d) => (b += d));
@@ -83,6 +83,7 @@ function raw(port: number, method: string, path: string, headers: Record<string,
       res.on("error", fail);
     });
     r.on("error", fail);
+    r.on("timeout", () => r.destroy(new Error(`no answer within 20 s: ${method} ${path}`)));
     if (typeof body === "string") r.end(body);
     else if (body) {
       void (async () => {
@@ -342,7 +343,90 @@ test("submit and status through next start: pays once against a fake wallet, rep
     assertNoKey(s.output());
   } finally {
     s.child.kill("SIGTERM");
-    await within(s.exited, 10_000, "shutdown");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     if (!fakeStopped) await fake.stop();
+  }
+});
+
+/** The hidden fields of the page's form that contains `marker`, as a browser without JavaScript would post them. */
+function formFields(html: string, marker: string): [string, string][] {
+  const form = [...html.matchAll(/<form[^>]*>([\s\S]*?)<\/form>/g)].map((m) => m[1]).find((f) => f.includes(marker));
+  assert.ok(form, `a form containing ${marker}`);
+  const unescape = (v: string) => v.replaceAll("&quot;", '"').replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+  return [...form.matchAll(/<input type="hidden" name="([^"]+)"(?: value="([^"]*)")?\/?>/g)].map((m) => [unescape(m[1]), unescape(m[2] ?? "")]);
+}
+function multipart(fields: [string, string][]) {
+  const boundary = `----zeceipt${Date.now()}`;
+  const body = fields.map(([k, v]) => `--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`).join("") + `--${boundary}--\r\n`;
+  return { body, type: `multipart/form-data; boundary=${boundary}` };
+}
+
+test("page actions through next start, posted as a browser without JavaScript: pay once, never twice, receipts offered after confirmation", { skip: !RUN }, async () => {
+  const fake = await new FakeZkool().start();
+  const bin = process.env.ZECEIPT_BIN ?? resolve(APP, "../../target/debug/zeceipt");
+  const s = await start(demoEnv("actions", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1" }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const draft = JSON.stringify({ title: "actions", items: [{ payableId: "a1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "2500", memo: "ACT-1" }] });
+    const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, draft)).body) as { id: string }).id;
+    const text = async () => (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body.replaceAll("<!-- -->", "");
+    const state = async () => (JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state;
+
+    // Draft: Pay (naming the amount) is offered, Issue is not.
+    const draftPage = await text();
+    assert.ok(draftPage.includes("Pay 0.000025 ZEC"), "the button names the amount");
+    assert.ok(!draftPage.includes(">Issue receipts</button>"));
+    const pay = multipart(formFields(draftPage, 'name="confirmTotalZat"'));
+
+    // A failing post (a wrong total) keeps the form on the page with its result, and answers promptly: with a
+    // bound action this exact case spun the server at 100% CPU (see actions.ts).
+    const wrong = multipart(formFields(draftPage, 'name="confirmTotalZat"').map(([k, v]) => [k, k === "confirmTotalZat" ? "1" : v] as [string, string]));
+    const t0 = Date.now();
+    const refusedPay = await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": wrong.type }, wrong.body);
+    assert.equal(refusedPay.status, 200);
+    assert.ok(Date.now() - t0 < 5_000, `answered in ${Date.now() - t0} ms`);
+    assert.ok(refusedPay.body.replaceAll("<!-- -->", "").includes("does not equal this batch"), "the failure is shown with its form");
+    assert.equal(fake.payCalls, 0);
+
+    // A cross-site post of the same form is refused before anything runs.
+    const cross = await raw(s.port, "POST", `/batches/${id}`, { host: self, origin: "http://evil.example", "content-type": pay.type }, pay.body);
+    assert.equal(cross.status, 403);
+    assert.equal(fake.payCalls, 0);
+
+    const paid = await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": pay.type }, pay.body);
+    assert.equal(paid.status, 200, paid.body.slice(0, 300));
+    assert.equal(fake.payCalls, 1, "one payment");
+    assert.equal(await state(), "pending");
+    // On success the next action is no longer "submit", so the Pay form (and its result line) leaves the page;
+    // the re-rendered status is the confirmation. The action's result still travels in the response payload.
+    const afterPay = paid.body.replaceAll("<!-- -->", "");
+    assert.ok(afterPay.includes("Broadcast, not in a block yet") && !afterPay.includes("Pay 0.000025 ZEC"), "the page shows the new status");
+    assert.ok(afterPay.includes('"headline":"Broadcast"'), "the action's outcome is in the payload");
+
+    // The same form posted again (a double submit, or a replayed request) pays nothing more.
+    const again = await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": pay.type }, pay.body);
+    assert.equal(again.status, 200);
+    assert.equal(fake.payCalls, 1, "never twice");
+
+    // Pending: no action. Confirmed: Issue is offered, Pay is not.
+    const pendingPage = await text();
+    assert.ok(!pendingPage.includes("Pay 0.000025 ZEC") && !pendingPage.includes(">Issue receipts</button>"));
+    fake.mine(2);
+    const confirmedPage = await text();
+    assert.ok(confirmedPage.includes(">Issue receipts</button>") && !confirmedPage.includes("Pay 0.000025 ZEC"));
+    const issue = multipart(formFields(confirmedPage, "Issue receipts"));
+    const issued = await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": issue.type }, issue.body);
+    assert.equal(issued.status, 200);
+    // No lightwalletd here: the issuer fails, the page says so in the API's words, nothing is recorded.
+    assert.ok(issued.body.includes("zeceipt issue failed or its receipts do not match the batch"), "the failure is shown");
+    assert.deepEqual(JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/receipts`, { host: self })).body), { batchId: id, receipts: [] });
+    assertNoKey(s.output());
+  } finally {
+    s.child.kill("SIGTERM");
+    // A server stuck in a request ignores SIGTERM (Next waits for it): never let cleanup hang the suite.
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+    await fake.stop();
   }
 });

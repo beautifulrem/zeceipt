@@ -51,7 +51,16 @@ async function batchOr404(ctx: ServerContext, id: string) {
 }
 
 /** `POST /api/batches/:id/submit` with `{"confirmTotalZat": "<the batch total>"}`: 202 once broadcast. */
-export async function submitResponse(req: Request, id: string): Promise<Response> {
+export function submitResponse(req: Request, id: string): Promise<Response> {
+  return submitBatch(id, () => readJson(req));
+}
+
+/**
+ * The whole submit, shared by the API route and the page's Server Action (slice E2), so both answer the
+ * same: `readBody` supplies the parsed body (JSON for the route, the form's fields for the page) and is
+ * read inside the `thisRequest` bookkeeping. Throws only `HttpProblem`s (mapped by `guarded`/`answer`).
+ */
+export async function submitBatch(id: string, readBody: () => Promise<unknown>): Promise<Response> {
   let reachedBackend = false;
   let inFlightMs: number | undefined;
   const status = UUID_V7.test(id) ? statusPath(id) : undefined;
@@ -60,7 +69,7 @@ export async function submitResponse(req: Request, id: string): Promise<Response
     const backend = backendOrConflict(ctx);
     inFlightMs = backend.inFlightMs;
     const rec = await batchOr404(ctx, id);
-    const parsed = SubmitBody.safeParse(await readJson(req));
+    const parsed = SubmitBody.safeParse(await readBody());
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => ({ path: i.path.map(String).join("."), message: i.message }));
       throw new HttpProblem(400, "body_invalid", 'send {"confirmTotalZat": "<the batch total in zatoshi>"}; this request sent nothing', { issues });
