@@ -137,6 +137,17 @@ test("a submitted batch is frozen: 409 batch_frozen before the source is asked; 
   assert.equal((await listQuotes(db, config.orgId, id)).length, 0);
 });
 
+test("the pre-check finds a submission by batch, as the freeze triggers do, whatever its nonce (review G1c1)", async () => {
+  const id = await newBatch("othernonce");
+  const { db, config } = slot[SERVER_CONTEXT_KEY]!;
+  const rec = (await getBatch(db, config.orgId, id))!;
+  await serverContext().store.createIntent({ nonce: `tool/${id}`, batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), state: "submitting", createdAt: new Date().toISOString(), attempts: 1 });
+  const before = asked;
+  const r = await lock(id);
+  assert.deepEqual([r.status, r.body.code], [409, "batch_frozen"]);
+  assert.equal(asked, before, "refused before the source was asked");
+});
+
 test("unknown or malformed ids are 404; the guard refuses a cross-site post", async () => {
   for (const id of ["01900000-0000-7000-8000-000000000000", "not-a-uuid"]) assert.equal((await lock(id)).status, 404);
   const r = await lockRoute.POST(new Request(`http://${HOST}/api/batches/x/rate-lock`, { method: "POST", headers: { host: HOST, origin: "https://evil.example" } }), { params: Promise.resolve({ id: "x" }) });

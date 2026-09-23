@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
-import { batchItems, batches } from "../../db/schema.ts";
+import { batchItems, batches, submissions } from "../../db/schema.ts";
 import { ExecutionError, type Batch, type Network, type PreflightProblem, type PreflightProblemCode } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
 
@@ -184,4 +184,14 @@ export function listBatches(db: ConsoleDb, orgId: string): Promise<BatchSummary[
       .all()
       .map((r) => ({ ...r, itemCount: Number(r.itemCount), totalZat: BigInt(r.totalZat) })),
   );
+}
+
+/**
+ * Whether a submission exists for the batch: from then on the batch and its items are frozen (triggers 0002)
+ * and its rate can no longer be locked (0012). It looks the submission up by (org_id, batch_id), exactly as
+ * those triggers do (review G1c1: the nonce lookup agreed for console submissions only). Shared by the
+ * rate-lock API and the page.
+ */
+export function isSubmitted(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id">): Promise<boolean> {
+  return runSync(() => db.select({ n: submissions.nonce }).from(submissions).where(and(eq(submissions.orgId, rec.orgId), eq(submissions.batchId, rec.id))).limit(1).get() !== undefined);
 }

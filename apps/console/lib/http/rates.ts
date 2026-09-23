@@ -5,9 +5,7 @@
 // the trigger's batch_frozen, also 409). Errors are mapped by `code`, not by class: the library loads twice
 // under Next.js (slice E1). The source's own text never reaches a response; its failure reason is a fixed word.
 
-import { and, eq } from "drizzle-orm";
-import { submissions } from "../../db/schema.ts";
-import { batchNonce, getBatch } from "../data/batches.ts";
+import { getBatch, isSubmitted } from "../data/batches.ts";
 import { currentLock, recordQuote, type StoredQuote } from "../data/rates.ts";
 import { serverContext } from "../server/context.ts";
 import { HttpProblem, problem } from "./problem.ts";
@@ -28,8 +26,7 @@ export async function lockRateResponse(id: string): Promise<Response> {
   const { config, db, quote } = serverContext();
   const rec = UUID_V7.test(id) ? await getBatch(db, config.orgId, id) : undefined;
   if (!rec) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
-  const submitted = db.select({ n: submissions.nonce }).from(submissions).where(and(eq(submissions.orgId, config.orgId), eq(submissions.nonce, batchNonce(rec)))).get();
-  if (submitted) throw frozen();
+  if (await isSubmitted(db, rec)) throw frozen();
   const q = await quote();
   const stored = await recordQuote(db, { orgId: config.orgId, batchId: rec.id, purpose: "lock", quote: q });
   return json(201, lockJson(stored));
