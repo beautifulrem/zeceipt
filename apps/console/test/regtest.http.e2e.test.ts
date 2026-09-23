@@ -33,10 +33,11 @@ async function zkool<T>(query: string, variables: Record<string, unknown> = {}):
   if (j.errors) throw new Error(JSON.stringify(j.errors));
   return j.data;
 }
-async function zebraHeight(): Promise<number> {
-  const r = await fetch(ZEBRA_RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getblockcount", params: [] }) });
-  return ((await r.json()) as { result: number }).result;
+async function zebraRpc<T>(method: string, params: unknown[] = []): Promise<T> {
+  const r = await fetch(ZEBRA_RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+  return ((await r.json()) as { result: T }).result;
 }
+const zebraHeight = () => zebraRpc<number>("getblockcount");
 
 before(() => {
   if (!ENABLED) return;
@@ -118,8 +119,9 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     // 2. Pay with the batch page's form; post it again: one payment.
     // The issuer's transactions mined above the pre-pay height (exact, even if other activity came before).
     const heightBeforePay = await zebraHeight();
+    // Unmined entries (height 0) count too, so a second payment still waiting to be mined could not hide (review E3 round 2).
     const issuerTxsSince = async (h: number) =>
-      (await zkool<{ transactionsByAccount: { txid: string; height: number }[] }>("query($id: Int!, $h: Int!) { transactionsByAccount(idAccount: $id, height: $h) { txid height } }", { id: ISSUER, h: h + 1 })).transactionsByAccount.filter((t) => t.height > h);
+      (await zkool<{ transactionsByAccount: { txid: string; height: number }[] }>("query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid height } }", { id: ISSUER })).transactionsByAccount.filter((t) => t.height > h || t.height <= 0);
     const draftPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
     const payFields = formFields(draftPage, 'name="confirmTotalZat"');
     const paid = await post(`/batches/${id}`, payFields);
@@ -144,7 +146,9 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     assert.equal(st.state, "confirmed", `still ${st.state}`);
     const since = await issuerTxsSince(heightBeforePay);
     assert.deepEqual(since.map((t) => t.txid), [txid], "two posts of the pay form made exactly one transaction");
-    step("confirmed", { confirmations: st.detail.confirmations, height: await zebraHeight(), heightBeforePay, issuerTransactionsSince: since.map((t) => ({ txid: t.txid, height: t.height })) });
+    const mempool = await zebraRpc<string[]>("getrawmempool");
+    assert.deepEqual(mempool, [], "and nothing else is waiting to be mined");
+    step("confirmed", { confirmations: st.detail.confirmations, height: await zebraHeight(), heightBeforePay, issuerTransactionsSince: since.map((t) => ({ txid: t.txid, height: t.height })), mempool: mempool.length });
 
     // 4. Issue with the page's form; list through the API.
     const confirmedPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;

@@ -674,6 +674,7 @@ What the log shows:
 - **Three receipts verify online against zainod, with the issuer's signature required.** Each verification recovered exactly the batch item's memo and value (outputs 3, 1, 2 of the transaction). None binds a challenge (`challenge_checked: false`): console receipts are bearer links (slice D3). This check uses the same `zeceipt` codebase that issued the receipts, re-deriving everything from zainod's chain data, so it is independent of the console but not of our code.
 - **Each recipient's own wallet holds its memo and exact amount** (asserted: the note's value equals the item's zatoshi). This is the check independent of our code.
 - **Nothing secret was written.** The test checked that neither the transcript nor the server's output contains any receipt link or raw OCK, or the run's wrap key.
+- **Later strengthening (review round 2).** The one-payment check also counts the issuer's unmined transactions, and requires zebrad's mempool to be empty (`getrawmempool` = `[]`). The run `console-http-e2e-20260923013026.json` passed with it: tx `03cdeae5…`, the only issuer transaction since pre-pay height 2716, and `mempool: 0`.
 
 ## 6. testnet — placeholder
 
