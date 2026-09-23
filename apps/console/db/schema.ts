@@ -240,3 +240,36 @@ export const recipients = sqliteTable(
     check("recipients_notes_len", sql`length(${t.notes}) <= 1000`),
   ],
 );
+
+/**
+ * What the org owes (slice H3; REQ-CON-3; 05 `payables`): an amount in whole US cents owed to a recipient, with a
+ * reference that becomes the payment's memo, so it is unique per org (a receipt binds one reference to one payable;
+ * R78: stricter than Bill.com's invoice number, which is only a label). Immutable once written; its status (unpaid, in
+ * a batch, paid) is derived from the batches that include it (H5), never stored. The source link can only be http(s),
+ * so a page may render it as a link.
+ */
+export const payables = sqliteTable(
+  "payables",
+  {
+    orgId: text("org_id").notNull(),
+    id: text("id").notNull(),
+    recipientId: text("recipient_id").notNull(),
+    kind: text("kind", { enum: ["milestone", "invoice", "bounty", "salary"] }).notNull(),
+    usdCents: integer("usd_cents").notNull(),
+    reference: text("reference").notNull(),
+    sourceUrl: text("source_url"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.id] }),
+    foreignKey({ columns: [t.orgId, t.recipientId], foreignColumns: [recipients.orgId, recipients.id] }),
+    unique("payables_reference_unique").on(t.orgId, t.reference),
+    index("payables_recipient").on(t.orgId, t.recipientId),
+    check("payables_id_uuid", sql`length(${t.id}) = 36 and ${t.id} glob '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'`),
+    check("payables_kind", sql`${t.kind} in ('milestone', 'invoice', 'bounty', 'salary')`),
+    check("payables_usd_cents", sql`typeof(${t.usdCents}) = 'integer' and ${t.usdCents} between 1 and 99999999`),
+    check("payables_reference", sql`typeof(${t.reference}) = 'text' and length(${t.reference}) between 1 and 100 and ${t.reference} = trim(${t.reference})`),
+    check("payables_source_url", sql`${t.sourceUrl} is null or (typeof(${t.sourceUrl}) = 'text' and length(${t.sourceUrl}) <= 2000 and (${t.sourceUrl} glob 'https://?*' or ${t.sourceUrl} glob 'http://?*'))`),
+    check("payables_created_at", isoCheck(t.createdAt)),
+  ],
+);

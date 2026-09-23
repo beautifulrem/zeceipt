@@ -34,4 +34,6 @@ export { DEFAULT_MAX_DRIFT_BPS, movedText, pctFromBps, rateDrift } from "./rates
 export type { Drift } from "./rates/drift.ts";
 export { createRecipient, getRecipient, KYC_STATUSES, listRecipients, recipientProblems, RecipientInvalidError, SETTLEMENT_PREFS, TAX_FLAGS } from "./data/recipients.ts";
 export type { KycStatus, RecipientInput, RecipientProblem, RecipientProblemCode, RecipientRecord, SettlementPref, TaxFlag } from "./data/recipients.ts";
+export { createPayable, getPayable, listPayables, PAYABLE_KINDS, payableProblems, PayableInvalidError, ReferenceTakenError, REFERENCE_MAX, SOURCE_URL_MAX, USD_CENTS_MAX } from "./data/payables.ts";
+export type { PayableInput, PayableKind, PayableProblem, PayableProblemCode, PayableRecord } from "./data/payables.ts";
 export { isPlainText } from "./data/text.ts";

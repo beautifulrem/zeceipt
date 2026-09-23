@@ -863,6 +863,156 @@
           }
         }
       }
+    },
+    "/api/payables": {
+      "get": {
+        "operationId": "listPayables",
+        "summary": "The org's payables, newest first (REQ-CON-3).",
+        "responses": {
+          "200": {
+            "description": "The payables",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "payables"
+                  ],
+                  "properties": {
+                    "payables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payable"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPayable",
+        "summary": "Create a payable (REQ-CON-3): what the org owes one of its recipients, in whole US cents, with a reference that becomes the payment's memo (unique per org).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayable"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payable"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "reference_taken: another payable of the org has this reference; payableId names it; nothing saved",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "description": "payable_invalid, with every problem (code, field, detail): usd_invalid, reference_invalid, recipient_unknown, source_invalid",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/payables/{id}": {
+      "get": {
+        "operationId": "getPayable",
+        "summary": "One payable.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The payable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payable"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -921,11 +1071,11 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken"
           },
           "problems": {
             "type": "array",
-            "description": "batch_invalid: every domain problem",
+            "description": "batch_invalid (with index), recipient_invalid and payable_invalid (with field): every domain problem",
             "items": {
               "type": "object",
               "required": [
@@ -941,6 +1091,10 @@
                 },
                 "detail": {
                   "type": "string"
+                },
+                "field": {
+                  "type": "string",
+                  "description": "recipient_invalid and payable_invalid: the body field the problem is about"
                 }
               }
             }
@@ -1020,6 +1174,10 @@
                 ]
               }
             }
+          },
+          "payableId": {
+            "type": "string",
+            "description": "reference_taken only: the payable that already has this reference"
           }
         }
       },
@@ -1432,6 +1590,92 @@
           },
           "notes": {
             "type": "string"
+          }
+        }
+      },
+      "CreatePayable": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recipientId",
+          "kind",
+          "usdCents",
+          "reference"
+        ],
+        "properties": {
+          "recipientId": {
+            "type": "string",
+            "description": "A recipient of this org (UUIDv7)"
+          },
+          "kind": {
+            "enum": [
+              "milestone",
+              "invoice",
+              "bounty",
+              "salary"
+            ]
+          },
+          "usdCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99999999,
+            "description": "Whole US cents, $0.01 to $999,999.99 (a number, not a string: every allowed value is exact)"
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Becomes the memo exactly as written: plain text, no leading or trailing whitespace, Unicode NFC; unique per org"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Optional link to the grant, issue or invoice: https:// or http://, absolute, no user name or password"
+          }
+        }
+      },
+      "Payable": {
+        "type": "object",
+        "required": [
+          "id",
+          "recipientId",
+          "kind",
+          "usdCents",
+          "reference",
+          "sourceUrl",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "UUIDv7"
+          },
+          "recipientId": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "milestone",
+              "invoice",
+              "bounty",
+              "salary"
+            ]
+          },
+          "usdCents": {
+            "type": "integer"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "sourceUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
