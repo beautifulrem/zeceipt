@@ -31,11 +31,12 @@ jobs:
           node-version: 24
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
-      - name: console library — install dependencies (lockfile; better-sqlite3 prebuilt binary), type check, unit tests against the debug zeceipt binary
+      - name: console library — install dependencies (lockfile; better-sqlite3 prebuilt binary), type check (TypeScript 7), lint (ESLint, zero warnings), unit tests against the debug zeceipt binary
         working-directory: apps/console
         run: |
           npm ci --no-audit --no-fund
           npx tsc --noEmit -p .
+          npm run lint
           ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts
       - name: console app — next build without ZECEIPT_* variables, then next start boots and passes /api/health; bad configuration exits 1 before answering (REQ-CON-17)
         working-directory: apps/console

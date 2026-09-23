@@ -1,6 +1,6 @@
 # @zeceipt/console — payout console (Next.js app and its execution and issuance library)
 
-The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentation.ts`) around its server-side library (`lib/`). No batch pages yet (slice E); the app serves `/` and `/api/health`. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
+The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentation.ts`) around its server-side library (`lib/`). Pages: `/` lists batches, and `/batches/{id}` shows a batch with its payment mode, its lifecycle, the evidence (txid, confirmations), the items and the receipts. They are read-only for now; the page actions arrive in slice E2. Storage: one SQLite file (`db/`, better-sqlite3 + Drizzle) holding the execution nonce store, batches with their items, and receipts (the receipt envelope and URL sealed at rest).
 
 | Module | What it does |
 |---|---|
@@ -20,6 +20,7 @@ The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentat
 | `lib/issuance/auto-issue.ts` | `autoIssue`: confirmation gate, `zeceipt issue --only-to …`, per-item cross-check, verification |
 | `lib/server/context.ts`, `lib/server/register-node.ts` | The per-process server context (`bootServerContext`: config → keyring → database → migrations → wrap keys removed from the environment; published once on `globalThis`), `serverContext()` (throws before boot), `bootFailureLines`; `registerNode` boots or exits the process with code 1 |
 | `lib/server/health.ts`, `app/api/health/route.ts` | `GET /api/health`: `application/health+json`, `{"status":"pass"}` 200 or `{"status":"fail"}` 503, `no-store`, no configuration details |
+| `lib/view/*`, `app/page.tsx`, `app/batches/[id]/page.tsx`, `app/components/*` | Display wording that follows the derived status (never "confirmed" without a confirmed payment), exact ZEC formatting, and the payment mode; server-rendered pages read through the library |
 | `lib/http/receipts.ts`; `app/api/batches/[id]/receipts` | Receipt issuance (the derived status decides; 202 waiting; idempotent) and the receipt list (decrypted; bearer links, `no-store`) |
 | `lib/http/submit.ts`; `app/api/batches/[id]/{submit,status}` | Submit (confirmation of the total, pay once per batch nonce, 202 with the txid, replays marked) and derived status; every execution failure maps to a problem with a `payment` verdict |
 | `lib/http/problem.ts`, `guard.ts`, `route.ts`, `body.ts`, `batches.ts`; `proxy.ts`; `app/api/**` | RFC 9457 problems; the one request-guard rule (loopback `Host`; no cross-site writes), applied to pages and static files by `proxy.ts` and to every API route by `guarded()`; the capped JSON reader; the batch handlers (create, list, get) |
@@ -52,6 +53,7 @@ Run (Node ≥ 24; TypeScript runs natively, `tsc` only type-checks):
 ```sh
 npm ci
 npx tsc --noEmit -p .
+npm run lint                                                               # ESLint (Next core-web-vitals + typescript), zero warnings
 ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts          # unit tests (fake Zkool + real zeceipt on fixtures)
 npm run test:app                                                           # next build, then next start: health passes; bad config exits 1
 ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts                     # live regtest, see docs/REGTEST_RUNBOOK.md and PROOF §5c

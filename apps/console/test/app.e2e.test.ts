@@ -269,6 +269,25 @@ test("submit and status through next start: pays once against a fake wallet, rep
     const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, draft)).body) as { id: string }).id;
     assert.equal((JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state, "draft");
 
+    // Pages (slice E1): the list, and the batch at draft, read through the library on each request.
+    // React separates adjacent text nodes with <!-- --> in server HTML; read the page as its text.
+    const page = async (path: string) => {
+      const r = await raw(s.port, "GET", path, { host: self });
+      return { ...r, body: r.body.replaceAll("<!-- -->", "") };
+    };
+    const list = await page("/");
+    assert.equal(list.status, 200);
+    for (const text of [">pay<", "0.00001 ZEC", "Payment mode", "Loopback only, no sign-in yet"]) assert.ok(list.body.includes(text), `list shows ${text}`);
+    const draftPage = await page(`/batches/${id}`);
+    assert.equal(draftPage.status, 200);
+    for (const text of ["Draft", "Not submitted. Nothing has been paid.", "Submit the batch (with its total)", "Zkool, account 9", "Regtest (local test chain)", "PAY-1", "Total"]) {
+      assert.ok(draftPage.body.includes(text), `draft page shows ${text}`);
+    }
+    assert.ok(!/\bConfirmed \(/.test(draftPage.body) && !draftPage.body.includes("Receipts issued<"), "no confirmed claim on a draft");
+    assert.equal((await page("/batches/0190a0d6-7e3b-7c61-8d3f-4a2b1c0d9e8f")).status, 404);
+    assert.equal((await page("/batches/not-an-id")).status, 404);
+    assert.equal((await raw(s.port, "GET", `/batches/${id}`, { host: "evil.example" })).status, 403);
+
     // A cross-site submit is refused before anything runs.
     assert.equal((await raw(s.port, "POST", `/api/batches/${id}/submit`, { ...same, origin: "http://evil.example" }, '{"confirmTotalZat":"1000"}')).status, 403);
     assert.equal(fake.payCalls, 0);
@@ -282,9 +301,13 @@ test("submit and status through next start: pays once against a fake wallet, rep
     assert.equal(fake.payCalls, 1, "one payment for two submits");
 
     assert.equal((JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state, "pending");
+    const pendingPage = await page(`/batches/${id}`);
+    for (const text of ["Broadcast, not in a block yet", "Not confirmed.", txid]) assert.ok(pendingPage.body.includes(text), `pending page shows ${text}`);
     fake.mine(2);
     const st = JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string; detail: { txid: string } };
     assert.deepEqual([st.state, st.detail.txid], ["confirmed", txid]);
+    const confirmedPage = await page(`/batches/${id}`);
+    for (const text of ["Confirmed", "Paid and confirmed on chain", "3 (3 required)", "Issue receipts", "No receipts yet"]) assert.ok(confirmedPage.body.includes(text), `confirmed page shows ${text}`);
 
     // Receipts: none yet; issuing spawns the CLI, which cannot reach lightwalletd here, so nothing is
     // recorded and the problem quotes nothing (the live path is the regtest e2e, slice E).

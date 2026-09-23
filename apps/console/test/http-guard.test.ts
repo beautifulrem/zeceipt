@@ -3,8 +3,6 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { isAllowedHost, requestProblem } from "../lib/http/guard.ts";
 import { HttpProblem, internalError, problem, PROBLEM_CONTENT_TYPE } from "../lib/http/problem.ts";
 

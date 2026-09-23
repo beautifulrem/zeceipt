@@ -1,0 +1,91 @@
+// What the pages say about money (slice E1): every derived state has a label, tone, step and explanation;
+// "confirmed" is never said without a confirmed payment (Konclave's green "Confirmed" over a mempool
+// transaction, settlement.ts); unknown outcomes always warn against paying by hand; amounts are exact.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
+import { shortAddress, zecText } from "../lib/view/format.ts";
+import { paymentMode } from "../lib/view/mode.ts";
+import { LIFECYCLE_STEPS, NEXT_TEXT, stateView, stepsFor } from "../lib/view/status.ts";
+import { loadConfig } from "../lib/index.ts";
+
+const STATES: BatchState[] = ["draft", "submitting", "retryable", "needs_attention", "pending", "confirming", "confirmed", "receipts_partial", "receipts_issued", "expired"];
+const NEXTS: NextAction[] = ["submit", "wait", "issue_receipts", "resend_expired", "record_expiry", "investigate", "none"];
+const st = (state: BatchState, detail: BatchStatus["detail"] = {}, next: NextAction = "wait"): BatchStatus => ({ state, next, detail });
+
+test("every derived state has a label, a tone, a lifecycle step and an explanation; every next action has text", () => {
+  for (const s of STATES) {
+    const v = stateView(st(s));
+    assert.ok(v.label && v.explanation && v.tone && v.step, s);
+    assert.ok(LIFECYCLE_STEPS.some((x) => x.step === v.step), s);
+  }
+  for (const n of NEXTS) assert.ok(NEXT_TEXT[n], n);
+  assert.equal(stateView(st("draft", {}, "submit")).next, "Submit the batch (with its total)");
+});
+
+test("fail closed: the word 'confirmed' only for confirmed payments; 'not in a block yet' for pending", () => {
+  const confirmedStates = new Set<BatchState>(["confirmed", "receipts_partial", "receipts_issued"]);
+  for (const s of STATES) {
+    const v = stateView(st(s, { confirmations: 1, required: 3, cause: "timeout" }));
+    const says = /\bconfirmed\b/i.test(`${v.label} ${v.explanation}`) && !/\bnot confirmed\b/i.test(`${v.label} ${v.explanation}`);
+    assert.equal(says, confirmedStates.has(s), `${s}: "${v.label}" / "${v.explanation}"`);
+  }
+  assert.match(stateView(st("pending")).label, /not in a block yet/);
+  assert.match(stateView(st("pending")).explanation, /Not confirmed\./);
+  assert.equal(stateView(st("confirming", { confirmations: 1, required: 3 })).label, "In a block, 1 of 3 confirmations");
+});
+
+test("needs_attention: the cause is named, and every cause warns against paying by hand", () => {
+  const causes: [BatchStatus["detail"], RegExp][] = [
+    [{ stale: true }, /never finished/],
+    [{ error: "lost" }, /answer was lost/],
+    [{ cause: "timeout" }, /not mined for a long time/],
+    [{ cause: "superseded" }, /records disagree \(superseded\)/],
+  ];
+  for (const [detail, why] of causes) {
+    const v = stateView(st("needs_attention", detail));
+    assert.match(v.explanation, why);
+    assert.match(v.explanation, /may have been sent\. Do not pay this batch by hand\./);
+    assert.equal(v.blocked, true);
+  }
+});
+
+test("lifecycle marks: done before, current (or blocked) at, ahead after", () => {
+  assert.deepEqual(stepsFor(stateView(st("pending"))).map((s) => s.mark), ["done", "current", "ahead", "ahead", "ahead"]);
+  assert.deepEqual(stepsFor(stateView(st("needs_attention"))).map((s) => s.mark), ["done", "blocked", "ahead", "ahead", "ahead"]);
+  assert.deepEqual(stepsFor(stateView(st("receipts_issued"))).map((s) => s.mark), ["done", "done", "done", "done", "current"]);
+  assert.deepEqual(stepsFor(stateView(st("retryable"))).map((s) => s.mark), ["current", "ahead", "ahead", "ahead", "ahead"]);
+});
+
+test("amounts: exact ZEC from zatoshi, including totals beyond 21M ZEC; short addresses", () => {
+  assert.equal(zecText(101_000_000n), "1.01 ZEC");
+  assert.equal(zecText(1n), "0.00000001 ZEC");
+  assert.equal(zecText(0n), "0 ZEC");
+  assert.equal(zecText(100_000_000n), "1 ZEC");
+  assert.equal(zecText(10_500_000_000_000_000n), "105,000,000 ZEC");
+  assert.equal(zecText(9_007_199_254_740_993n), "90,071,992.54740993 ZEC", "beyond 2^53, exact");
+  assert.throws(() => zecText(-1n));
+  const ua = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+  assert.equal(shortAddress(ua), "uregtest1qzj49…axsu4w");
+  assert.equal(shortAddress("short"), "short");
+});
+
+test("payment mode: custody apart from the lifecycle, in words; nothing secret", () => {
+  const base = {
+    ZECEIPT_DB_PATH: "/var/lib/zeceipt/console.db",
+    ZECEIPT_ORG_ID: "demo-org",
+    ZECEIPT_NETWORK: "regtest",
+    ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 9).toString("base64")}`,
+    ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137",
+    ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt",
+    ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
+    ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+  };
+  const hot = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql", ZECEIPT_ZKOOL_ACCOUNT: "4" }));
+  assert.deepEqual(hot, { custody: "Hot wallet: the seed lives only in Zkool; this console holds a viewing key", wallet: "Zkool, account 4", network: "Regtest (local test chain)", confirmations: "3 confirmations before receipts" });
+  const ext = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "external" }));
+  assert.match(ext.custody, /never pays/);
+  assert.ok(!JSON.stringify([hot, ext]).includes(Buffer.alloc(32, 9).toString("base64")));
+});
