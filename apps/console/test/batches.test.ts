@@ -140,7 +140,7 @@ test("freeze: every change to a batch or its items is aborted once a submission 
   const rec = await createBatch(db, { orgId: ORG, network: "regtest", title: "freeze me", items: items("fz") });
   const run = (sql: string, ...args: unknown[]) => () => db.$client.prepare(sql).run(...args);
   const ops: [string, () => unknown][] = [
-    ["insert item", run("INSERT INTO batch_items VALUES (?, ?, 9, 'fz-p9', '', 'uregtest1abc', 1, 'INV-fz-9')", ORG, rec.id)],
+    ["insert item", run("INSERT INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, 9, 'fz-p9', '', 'uregtest1abc', 1, 'INV-fz-9')", ORG, rec.id)],
     ["update item", run("UPDATE batch_items SET zat = zat + 1 WHERE org_id = ? AND batch_id = ? AND idx = 0", ORG, rec.id)],
     ["move item into the batch", run("UPDATE batch_items SET batch_id = ? WHERE org_id = ? AND batch_id = ? AND idx = 0", rec.id, ORG, "00000000-0000-7000-8000-000000000000")],
     ["delete item", run("DELETE FROM batch_items WHERE org_id = ? AND batch_id = ? AND idx = 2", ORG, rec.id)],

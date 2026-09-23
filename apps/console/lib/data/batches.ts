@@ -26,7 +26,7 @@ export interface BatchRecord {
   network: Network;
   title: string;
   createdAt: string;
-  items: (Required<BatchItemInput> & { idx: number })[];
+  items: (Required<BatchItemInput> & { idx: number; payableRef?: string; usdCents?: number })[];
 }
 
 export interface BatchSummary {
@@ -39,7 +39,16 @@ export interface BatchSummary {
 }
 
 /** Problems the repository adds to preflight's static rules: fields the console stores but the chain never sees. */
-export type BatchProblemCode = PreflightProblemCode | "title_invalid" | "payable_id_invalid" | "label_invalid";
+export type BatchProblemCode =
+  | PreflightProblemCode
+  | "title_invalid"
+  | "payable_id_invalid"
+  | "label_invalid"
+  // A batch made from payables (slice H5a):
+  | "payable_unknown"
+  | "payable_repeated"
+  | "payable_taken"
+  | "amount_out_of_range";
 export interface BatchProblem extends Omit<PreflightProblem, "code"> {
   code: BatchProblemCode;
 }
@@ -99,7 +108,7 @@ export function toExecutionBatch(rec: BatchRecord): Batch {
   return { id: rec.id, network: rec.network, items: rec.items.map((i) => ({ payableId: i.payableId, address: i.address, zat: i.zat, memo: i.memo })) };
 }
 
-function zatToDb(zat: bigint): number {
+export function zatToDb(zat: bigint): number {
   const n = Number(zat);
   if (!Number.isSafeInteger(n) || BigInt(n) !== zat) throw new RangeError(`amount ${zat} is not exactly representable`);
   return n;
@@ -152,7 +161,11 @@ export function getBatch(db: ConsoleDb, orgId: string, id: string): Promise<Batc
       network: b.network,
       title: b.title,
       createdAt: b.createdAt,
-      items: items.map((i) => ({ idx: i.idx, payableId: i.payableId, label: i.label, address: i.address, zat: BigInt(i.zat), memo: i.memo })),
+      items: items.map((i) => ({
+        idx: i.idx, payableId: i.payableId, label: i.label, address: i.address, zat: BigInt(i.zat), memo: i.memo,
+        // A line made from a payable (slice H5a) names it and keeps its cents; a hand-made line has neither.
+        ...(i.payableRef !== null && i.usdCents !== null ? { payableRef: i.payableRef, usdCents: i.usdCents } : {}),
+      })),
     };
   });
 }
@@ -197,6 +210,15 @@ export function isSubmitted(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id"
  */
 export function rateLockFrozen(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id">): Promise<boolean> {
   return runSync(() => db.select({ n: submissions.nonce }).from(submissions).where(and(eq(submissions.orgId, rec.orgId), eq(submissions.batchId, rec.id), ne(submissions.state, "failed_retryable"))).limit(1).get() !== undefined);
+}
+
+/**
+ * Whether the batch's rate is fixed (slice H5a): its lines were converted from payables at its lock, so a re-lock
+ * would change the reported rate without changing the amounts (BTCPay's approved payout). The
+ * `rate_quotes_fixed_for_payables` trigger (0017) is the backstop.
+ */
+export function rateFixed(rec: Pick<BatchRecord, "items">): boolean {
+  return rec.items.some((i) => i.payableRef !== undefined);
 }
 
 /** A UUIDv7 for any console record (recipients too); `newBatchId` is its original name. */

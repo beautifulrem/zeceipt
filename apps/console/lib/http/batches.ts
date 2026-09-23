@@ -6,7 +6,7 @@
 // configuration; a body that names either is refused as an unknown key (design 3.3.1.4.1.7).
 
 import { z } from "zod";
-import { BatchInvalidError, createBatch, getBatch, listBatches, type BatchRecord, type BatchSummary } from "../data/batches.ts";
+import { BatchInvalidError, createBatch, getBatch, listBatches, rateFixed, type BatchRecord, type BatchSummary } from "../data/batches.ts";
 import { serverContext } from "../server/context.ts";
 import { readJson } from "./body.ts";
 import { HttpProblem, problem } from "./problem.ts";
@@ -34,8 +34,10 @@ export function batchJson(rec: BatchRecord, rateLock: LockJson | null = null) {
     title: rec.title,
     createdAt: rec.createdAt,
     totalZat: rec.items.reduce((s, i) => s + i.zat, 0n).toString(),
-    items: rec.items.map((i) => ({ idx: i.idx, payableId: i.payableId, label: i.label, address: i.address, zat: i.zat.toString(), memo: i.memo })),
+    items: rec.items.map((i) => ({ idx: i.idx, payableId: i.payableId, label: i.label, address: i.address, zat: i.zat.toString(), memo: i.memo, usdCents: i.usdCents ?? null })),
     rateLock,
+    // Made from payables (slice H5a): the amounts were converted at `rateLock`, which cannot be re-taken.
+    rateFixed: rateFixed(rec),
   };
 }
 

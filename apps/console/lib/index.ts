@@ -12,7 +12,7 @@ export { SqliteIdempotencyStore } from "./execution/sqlite-store.ts";
 export { openDb, migrateDb, defaultMigrationsDir, type ConsoleDb, type OpenDbOptions } from "../db/client.ts";
 export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./issuance/auto-issue.ts";
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";
-export { BatchInvalidError, batchNonce, createBatch, getBatch, isSubmitted, listBatches, newBatchId, rateLockFrozen, toExecutionBatch } from "./data/batches.ts";
+export { BatchInvalidError, batchNonce, createBatch, getBatch, isSubmitted, listBatches, newBatchId, rateFixed, rateLockFrozen, toExecutionBatch } from "./data/batches.ts";
 export type { BatchItemInput, BatchProblem, BatchProblemCode, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";
 export { Keyring, open as openSealed, seal, SealError, sealedKid } from "./crypto/seal.ts";
 export type { WrapKey } from "./crypto/seal.ts";
@@ -36,4 +36,6 @@ export { createRecipient, getRecipient, KYC_STATUSES, listRecipients, recipientP
 export type { KycStatus, RecipientInput, RecipientProblem, RecipientProblemCode, RecipientRecord, SettlementPref, TaxFlag } from "./data/recipients.ts";
 export { createPayable, getPayable, listPayables, PAYABLE_KINDS, payableProblems, PayableInvalidError, ReferenceTakenError, REFERENCE_MAX, SOURCE_URL_MAX, USD_CENTS_MAX } from "./data/payables.ts";
 export type { PayableInput, PayableKind, PayableProblem, PayableProblemCode, PayableRecord } from "./data/payables.ts";
+export { createBatchFromPayables, MAX_PAYABLES, payableBatchProblems } from "./data/payable-batches.ts";
+export { dustZat, usdCentsToZat } from "./rates/convert.ts";
 export { isPlainText } from "./data/text.ts";

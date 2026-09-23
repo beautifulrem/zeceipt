@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getBatch, isSubmitted, rateLockFrozen } from "../../../lib/data/batches.ts";
+import { getBatch, isSubmitted, rateFixed, rateLockFrozen } from "../../../lib/data/batches.ts";
 import { currentLock } from "../../../lib/data/rates.ts";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
@@ -140,7 +140,12 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         ) : (
           <p className="text-sm">Not locked. Lock the rate to record the ZEC/USD value this batch is based on (source and time kept).</p>
         )}
-        {lockFrozen ? (
+        {rateFixed(rec) ? (
+          // Slice H5a: the lines were converted at this lock (BTCPay's fixed payout rate), so there is no Re-lock.
+          <p className="text-sm text-slate-500">
+            Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate, the draft must be voided and made again (voiding is not built yet).
+          </p>
+        ) : lockFrozen ? (
           <p className="text-sm text-slate-500">A payment attempt may have paid this batch: its rate can no longer be changed.</p>
         ) : (
           <LockRateForm id={rec.id} locked={lock !== undefined} />

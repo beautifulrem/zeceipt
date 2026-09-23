@@ -4,7 +4,7 @@
 // with the orgs slice.
 
 import { sql } from "drizzle-orm";
-import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /** One row per (org, nonce): the payment-attempt ledger of a batch. Never pruned (design 3.3.1.3.1.1.3). */
 export const submissions = sqliteTable(
@@ -98,7 +98,9 @@ export const batches = sqliteTable(
 /**
  * One output of a batch. Label and address are copied from the payee at creation so later payee edits never
  * rewrite what was paid; `payable_id` is the stable reference (PayPal's `sender_item_id`). Amounts are exact
- * integer zatoshi (≤ 2.1e15 < 2^53).
+ * integer zatoshi (≤ 2.1e15 < 2^53). A line made from a payable (slice H5a) also names it (`payable_ref`) and
+ * keeps its USD cents; a payable is in at most one batch (the partial unique index), and triggers (0017) tie the
+ * line's memo and cents to the payable and forbid changing them.
  */
 export const batchItems = sqliteTable(
   "batch_items",
@@ -111,9 +113,14 @@ export const batchItems = sqliteTable(
     address: text("address").notNull(),
     zat: integer("zat").notNull(),
     memo: text("memo").notNull(),
+    payableRef: text("payable_ref"),
+    usdCents: integer("usd_cents"),
   },
   (t) => [
     primaryKey({ columns: [t.orgId, t.batchId, t.idx] }),
+    uniqueIndex("batch_items_payable_once").on(t.orgId, t.payableRef).where(sql`${t.payableRef} is not null`),
+    check("batch_items_payable_ref", sql`(${t.payableRef} is null) = (${t.usdCents} is null)`),
+    check("batch_items_usd_cents", sql`${t.usdCents} is null or (typeof(${t.usdCents}) = 'integer' and ${t.usdCents} between 1 and 99999999)`),
     foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
     unique("batch_items_payable_unique").on(t.orgId, t.batchId, t.payableId),
     unique("batch_items_memo_unique").on(t.orgId, t.batchId, t.memo),

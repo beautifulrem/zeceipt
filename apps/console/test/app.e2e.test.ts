@@ -623,6 +623,38 @@ test("payables page through next start, posted as a browser without JavaScript: 
   }
 });
 
+test("a batch made from payables through next start: USD at lock equals each payable's dollars; the lock is shown and fixed, with no Lock/Re-lock form (slice H5a)", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("from-payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const h = { host: self, origin: `http://${self}`, "content-type": "application/json" };
+    const post = async (path: string, body: unknown) => {
+      const r = await raw(s.port, "POST", path, h, JSON.stringify(body));
+      assert.equal(r.status, 201, `${path}: ${r.body}`);
+      return JSON.parse(r.body) as { id: string; items: { zat: string; usdCents: number }[]; rateLock: { rate: string }; rateFixed: boolean };
+    };
+    const alice = await post("/api/recipients", { displayName: "Alice", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w" });
+    const cents = [123_456, 29, 99_999_999];
+    const ids = [];
+    for (const [i, c] of cents.entries()) ids.push((await post("/api/payables", { recipientId: alice.id, kind: "invoice", usdCents: c, reference: `FP-${i}` })).id);
+    const batch = await post("/api/batches/from-payables", { title: "From payables", payableIds: ids });
+    assert.deepEqual([batch.rateLock.rate, batch.rateFixed], ["1600.00", true]);
+    // At 1600.00 USD/ZEC: $1,234.56 is 0.77160000 ZEC, $0.29 is 0.00018125 ZEC, $999,999.99 is 624.99999375 ZEC.
+    assert.deepEqual(batch.items.map((i) => i.zat), ["77160000", "18125", "62499999375"]);
+    const page = (await raw(s.port, "GET", `/batches/${batch.id}`, { host: self })).body.replaceAll("<!-- -->", "");
+    for (const usd of ["$1,234.56", "$0.29", "$999,999.99"]) assert.ok(page.includes(usd), `USD at lock shows ${usd}`);
+    assert.ok(page.includes("1 ZEC = $1,600.00") && page.includes("Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed."), "the lock, and why it is fixed");
+    assert.ok(!page.includes("Re-lock rate") && !page.includes(">Lock rate<"), "no Lock/Re-lock form");
+    const relock = await raw(s.port, "POST", `/api/batches/${batch.id}/rate-lock`, { host: self, origin: `http://${self}` });
+    assert.equal(relock.status, 409);
+    assert.equal((JSON.parse(relock.body) as { code: string }).code, "rate_fixed");
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
 test("create-draft form through next start, posted as a browser without JavaScript: 303 to the new batch; errors next to their lines with values kept", { skip: !RUN }, async () => {
   const s = await start(demoEnv("draft-form"));
   try {

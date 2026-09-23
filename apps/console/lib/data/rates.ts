@@ -29,7 +29,7 @@ export interface StoredQuote {
 }
 
 export class RateRecordError extends ExecutionError {
-  constructor(code: "batch_unknown" | "batch_frozen" | "quote_invalid", detail: string) {
+  constructor(code: "batch_unknown" | "batch_frozen" | "quote_invalid" | "rate_fixed", detail: string) {
     super(code, detail);
   }
 }
@@ -37,7 +37,7 @@ export class RateRecordError extends ExecutionError {
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 /** The quote must be what G1a produces: positive decimals, bid ≤ ask, rate = bid, an ISO time. */
-function quoteProblem(q: RateQuote): string | undefined {
+export function quoteProblem(q: RateQuote): string | undefined {
   for (const [name, v] of [["bid", q.bid], ["ask", q.ask], ["last", q.last]] as const) {
     if (typeof v !== "string" || !isPositiveDecimal(v)) return `${name} is not a positive decimal`;
   }
@@ -48,6 +48,11 @@ function quoteProblem(q: RateQuote): string | undefined {
 }
 
 const FROZEN = /batch is frozen: a submission exists/;
+const FIXED = /rate is fixed: the batch was made from payables/;
+/** Why a batch made from payables cannot be re-locked (slice H5a; the API's `rate_fixed`). */
+// Honest until H5c: its payables stay in this batch, so "make a new batch" would be refused (payable_taken) until
+// the draft can be voided.
+export const FIXED_DETAIL = "the amounts were converted from the payables at this batch's lock, so the batch cannot be re-locked; to pay at another rate, the draft must be voided and made again from its payables (voiding is not built yet)";
 
 export async function recordQuote(
   db: ConsoleDb,
@@ -78,6 +83,7 @@ export async function recordQuote(
     );
   } catch (e) {
     if (e instanceof Error && FROZEN.test(e.message)) throw new RateRecordError("batch_frozen", "the batch has a payment attempt that may have paid; its rate can no longer be locked");
+    if (e instanceof Error && FIXED.test(e.message)) throw new RateRecordError("rate_fixed", FIXED_DETAIL);
     throw e;
   }
 }
@@ -101,6 +107,6 @@ export function listQuotes(db: ConsoleDb, orgId: string, batchId: string): Promi
   );
 }
 
-function toStored(r: typeof rateQuotes.$inferSelect): StoredQuote {
+export function toStored(r: typeof rateQuotes.$inferSelect): StoredQuote {
   return { seq: r.seq, purpose: r.purpose, source: r.source, pair: r.pair, bid: r.bid, ask: r.ask, last: r.last, rate: r.rate, fetchedAt: r.fetchedAt, recordedAt: r.recordedAt };
 }

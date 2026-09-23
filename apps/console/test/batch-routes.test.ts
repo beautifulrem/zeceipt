@@ -85,9 +85,10 @@ test("create: 201 with Location; zat as strings; org and network from the deploy
   assert.equal(x.body.network, "regtest");
   assert.equal(x.body.totalZat, "150002500");
   assert.deepEqual(x.body.items, [
-    { idx: 0, payableId: "inv-1", label: "Alice", address: R[0], zat: "150000000", memo: "INV-1" },
-    { idx: 1, payableId: "inv-2", label: "", address: R[1], zat: "2500", memo: "INV-2" },
+    { idx: 0, payableId: "inv-1", label: "Alice", address: R[0], zat: "150000000", memo: "INV-1", usdCents: null },
+    { idx: 1, payableId: "inv-2", label: "", address: R[1], zat: "2500", memo: "INV-2", usdCents: null },
   ]);
+  assert.equal(x.body.rateFixed, false, "a hand-made batch can be locked and re-locked (slice H5a)");
   assert.equal(slot[SERVER_CONTEXT_KEY]!.db.$client.prepare("SELECT org_id FROM batches WHERE id = ?").pluck().get(x.body.id!), "demo-org");
 
   const got = await read(await handleGet(x.body.id!));
