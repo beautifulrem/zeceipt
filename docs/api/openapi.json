@@ -179,7 +179,7 @@
     "/api/batches/{id}/submit": {
       "post": {
         "operationId": "submitBatch",
-        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress.",
+        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress. The first submit of a batch requires a rate lock and re-quotes the ZEC/USD rate: a move beyond ZECEIPT_RATE_MAX_DRIFT_BPS (default 300 bp) refuses with 409 rate_moved, no lock gives 409 rate_not_locked, and a failing source gives 502 rate_unavailable. All of these send nothing. A retry after the first submission is never re-judged.",
         "parameters": [
           {
             "name": "id",
@@ -781,7 +781,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved"
           },
           "problems": {
             "type": "array",
@@ -846,6 +846,40 @@
           "reason": {
             "type": "string",
             "description": "rate_unavailable only: why the source's answer was unusable (a fixed word)"
+          },
+          "rate": {
+            "type": "object",
+            "description": "rate_moved only: the lock and the execution quote that were compared (REQ-CON-21)",
+            "properties": {
+              "lock": {
+                "type": "string"
+              },
+              "lockedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "execution": {
+                "type": "string"
+              },
+              "quotedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "driftBps": {
+                "type": "string",
+                "description": "The move in basis points, floored to 0.01 for display"
+              },
+              "maxDriftBps": {
+                "type": "integer"
+              },
+              "direction": {
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              }
+            }
           }
         }
       },

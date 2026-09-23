@@ -7,10 +7,12 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
+import http from "node:http";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, serverContext, type BootState } from "../lib/index.ts";
+import { batchNonce, bootServerContext, defaultMigrationsDir, getBatch, listQuotes, SERVER_CONTEXT_KEY, serverContext, type BootState } from "../lib/index.ts";
+import * as lockRoute from "../app/api/batches/[id]/rate-lock/route.ts";
 import type { BatchJson } from "../lib/http/batches.ts";
 import type { ProblemJson } from "../lib/http/problem.ts";
 import * as collection from "../app/api/batches/route.ts";
@@ -34,12 +36,28 @@ const read = async (r: Response) => ({ status: r.status, headers: r.headers, tex
 const headers = { host: HOST, "content-type": "application/json", origin: `http://${HOST}`, "sec-fetch-site": "same-origin" };
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
-async function createDraft(zat = ["1000", "2500"]) {
+// A fake of Kraken's Ticker (ZECEIPT_RATE_URL). Submit re-quotes it (REQ-CON-21, slice G2b1); tests set `tick`.
+const ticker = (bid: string) => JSON.stringify({ error: [], result: { XZECZUSD: { a: [(Number(bid) + 1).toFixed(2), "1", "1"], b: [bid, "1", "1"], c: [bid, "0.1"] } } });
+let tick = { status: 200, body: ticker("1600.00") };
+let quotes = 0;
+const source = http.createServer((_req, res) => {
+  quotes++;
+  res.writeHead(tick.status, { "content-type": "application/json" }).end(tick.body);
+});
+let sourceUrl = "";
+
+/** A draft; locked at the ticker's current rate unless `lock: false` (submit requires a lock since G2b1). */
+async function createDraft(zat = ["1000", "2500"], opts: { lock?: boolean } = {}) {
   n++;
   const body = { title: `batch ${n}`, items: zat.map((z, i) => ({ payableId: `p${n}-${i}`, address: R[i % 2], zat: z, memo: `M${n}-${i}` })) };
   const r = await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify(body) }), undefined);
   assert.equal(r.status, 201);
-  return (await r.json()) as BatchJson;
+  const b = (await r.json()) as BatchJson;
+  if (opts.lock !== false) {
+    const l = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id));
+    assert.equal(l.status, 201, "locked");
+  }
+  return b;
 }
 const submit = (id: string, body: unknown, init: RequestInit = {}) =>
   submitRoute.POST(new Request(`http://${HOST}/api/batches/${id}/submit`, { method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body), ...init }), params(id));
@@ -66,6 +84,7 @@ function boot(extra: Record<string, string | undefined> = {}) {
     ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
     ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_RATE_URL: sourceUrl,
     ...extra,
   };
   for (const k of Object.keys(env)) if (env[k] === undefined) delete env[k];
@@ -74,12 +93,15 @@ function boot(extra: Record<string, string | undefined> = {}) {
 
 before(async () => {
   fake = await new FakeZkool().start();
+  await new Promise<void>((r) => source.listen(0, "127.0.0.1", r));
+  sourceUrl = `http://127.0.0.1:${(source.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD`;
   boot();
 });
 after(async () => {
   slot[SERVER_CONTEXT_KEY]?.db.$client.close();
   delete slot[SERVER_CONTEXT_KEY];
   await fake.stop();
+  await new Promise((r) => source.close(r));
 });
 
 test("pays once: 202 with a txid, a replay returns the same txid with Idempotent-Replayed; status follows the chain", async () => {
@@ -287,4 +309,89 @@ test("external custody: no backend; submit and status answer 409 custody_externa
     assert.equal(r.status, 409);
     assert.equal(r.body.code, "custody_external");
   }
+});
+
+// REQ-CON-21 in submit (slice G2b1): a lock is required; the first submit re-quotes, records the execution quote,
+// and refuses a move beyond ZECEIPT_RATE_MAX_DRIFT_BPS (300 bp by default). Every refusal happens before the
+// wallet: sent_nothing, no pay call. A retry after a submission is never re-judged.
+test("no lock: 409 rate_not_locked, sent_nothing, the source not asked, no pay call", async () => {
+  boot(); // hot custody (the test before these boots external)
+  const b = await createDraft(["1000"], { lock: false });
+  const calls = fake.payCalls;
+  const asked = quotes;
+  const r = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [409, "rate_not_locked", "sent_nothing"]);
+  assert.equal(quotes, asked, "no quote taken");
+  assert.equal(fake.payCalls, calls);
+});
+
+test("a move beyond the limit: 409 rate_moved with both rates, the execution quote recorded, sent_nothing; re-lock, then it pays", async () => {
+  boot(); // hot custody (the test before these boots external)
+  tick = { status: 200, body: ticker("1600.00") };
+  const b = await createDraft(["1000"]);
+  tick = { status: 200, body: ticker("1680.00") }; // +5.00%
+  const calls = fake.payCalls;
+  const r = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [409, "rate_moved", "sent_nothing"]);
+  const rate = (r.body as { rate?: Record<string, unknown> }).rate!;
+  assert.deepEqual([rate.lock, rate.execution, rate.driftBps, rate.maxDriftBps, rate.direction], ["1600.00", "1680.00", "500.00", 300, "up"]);
+  assert.match(String(r.body.detail), /moved 5\.00% since the lock; at most 3\.00% is allowed; re-lock/);
+  assert.equal(fake.payCalls, calls, "nothing paid");
+  const { db, config } = slot[SERVER_CONTEXT_KEY]!;
+  assert.deepEqual((await listQuotes(db, config.orgId, b.id!)).map((q) => [q.purpose, q.rate]), [["lock", "1600.00"], ["execution", "1680.00"]], "the refusal keeps its evidence");
+  // Re-lock at the new rate: now within the limit, it pays.
+  const relock = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!));
+  assert.equal(relock.status, 201);
+  const paid = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(paid.status, 202);
+  assert.equal(fake.payCalls, calls + 1);
+});
+
+test("within the limit (exactly 3% down) it pays; the move is recorded", async () => {
+  boot(); // hot custody (the test before these boots external)
+  tick = { status: 200, body: ticker("1000.00") };
+  const b = await createDraft(["1000"]);
+  tick = { status: 200, body: ticker("970.00") };
+  const r = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(r.status, 202, JSON.stringify(r.body));
+  const { db, config } = slot[SERVER_CONTEXT_KEY]!;
+  assert.deepEqual((await listQuotes(db, config.orgId, b.id!)).map((q) => [q.purpose, q.rate]), [["lock", "1000.00"], ["execution", "970.00"]]);
+});
+
+test("just past the limit the message says 'more than', never a figure equal to the limit (review G2a)", async () => {
+  boot(); // hot custody (the test before these boots external)
+  tick = { status: 200, body: ticker("1000.00") };
+  const b = await createDraft(["1000"]);
+  tick = { status: 200, body: JSON.stringify({ error: [], result: { XZECZUSD: { a: ["1031", "1", "1"], b: ["1030.00000001", "1", "1"], c: ["1030", "0.1"] } } }) };
+  const r = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(r.body.code, "rate_moved");
+  assert.equal((r.body as { rate?: { driftBps?: string } }).rate!.driftBps, "300.00", "the display figure is floored to the limit");
+  assert.match(String(r.body.detail), /moved more than 3\.00% since the lock/);
+});
+
+test("the source failing at submit: 502 rate_unavailable with a reason, sent_nothing, no pay call", async () => {
+  boot(); // hot custody (the test before these boots external)
+  tick = { status: 200, body: ticker("1600.00") };
+  const b = await createDraft(["1000"]);
+  tick = { status: 503, body: "busy" };
+  const calls = fake.payCalls;
+  const r = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([r.status, r.body.code, r.body.thisRequest, (r.body as { reason?: string }).reason], [502, "rate_unavailable", "sent_nothing", "http"]);
+  assert.equal(fake.payCalls, calls);
+  tick = { status: 200, body: ticker("1600.00") };
+});
+
+test("a retry after the submission is never re-judged: the market moving afterwards still replays the same txid", async () => {
+  boot(); // hot custody (the test before these boots external)
+  tick = { status: 200, body: ticker("1600.00") };
+  const b = await createDraft(["1000"]);
+  const first = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(first.status, 202);
+  tick = { status: 200, body: ticker("2000.00") }; // +25%: would be refused on a first submit
+  const asked = quotes;
+  const replay = await submit(b.id!, { confirmTotalZat: "1000" });
+  const body = (await replay.json()) as { txid?: string };
+  assert.deepEqual([replay.status, replay.headers.get("idempotent-replayed"), body.txid], [202, "true", (first.body as { txid?: string }).txid]);
+  assert.equal(quotes, asked, "no re-quote for a batch that already has a submission");
+  tick = { status: 200, body: ticker("1600.00") };
 });

@@ -20,6 +20,10 @@ const BROWSER = RUN && process.env.ZECEIPT_BROWSER_E2E === "1";
 const KEY = Buffer.alloc(32, 0x5c);
 const KEY_B64 = KEY.toString("base64");
 const dir = mkdtempSync(join(tmpdir(), "zeceipt-app-"));
+// A fake of Kraken's Ticker for every server (ZECEIPT_RATE_URL): submit needs a lock and re-quotes (slice G2b1).
+// It answers a steady 1600.00, so a lock and the execution quote agree; the rate test brings its own source.
+const defaultTicker = http.createServer((_req, res) => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: ["1601.00", "1", "1"], b: ["1600.00", "1", "1"], c: ["1600.00", "0.1"] } } })));
+let defaultTickerUrl = "";
 
 const demoEnv = (name: string, extra: Record<string, string | undefined> = {}) => {
   const e: Record<string, string | undefined> = {
@@ -36,6 +40,7 @@ const demoEnv = (name: string, extra: Record<string, string | undefined> = {}) =
     ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
     ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_RATE_URL: defaultTickerUrl,
     ...extra,
   };
   for (const k of Object.keys(e)) if (e[k] === undefined) delete e[k];
@@ -75,13 +80,16 @@ function stalled(port: number, head: string, first: Buffer | undefined, waitMs: 
 }
 
 
-before(() => {
+before(async () => {
   if (!RUN) return;
+  await new Promise<void>((r) => defaultTicker.listen(0, "127.0.0.1", r));
+  defaultTickerUrl = `http://127.0.0.1:${(defaultTicker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD`;
   const b = spawnSync(process.execPath, [NEXT, "build"], { cwd: APP, env: baseEnv() as NodeJS.ProcessEnv, encoding: "utf8", timeout: 300_000 });
   assert.equal(b.status, 0, `next build failed without ZECEIPT_* variables:\n${b.stdout}\n${b.stderr}`);
 });
 after(() => {
   for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill("SIGKILL");
+  defaultTicker.close();
 });
 
 test("next start boots once and serves a passing health check; / renders", { skip: !RUN }, async () => {
@@ -208,6 +216,8 @@ test("submit and status through next start: pays once against a fake wallet, rep
     const draft = JSON.stringify({ title: "pay", items: [{ payableId: "p1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "PAY-1" }] });
     const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, draft)).body) as { id: string }).id;
     assert.equal((JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state, "draft");
+    // Submit requires a rate lock (REQ-CON-21, slice G2b1): lock through the API, from the default fake ticker.
+    assert.equal((await raw(s.port, "POST", `/api/batches/${id}/rate-lock`, { host: self, origin: `http://${self}` })).status, 201);
 
     // Pages (slice E1): the list, and the batch at draft, read through the library on each request.
     // React separates adjacent text nodes with <!-- --> in server HTML; read the page as its text.
@@ -238,6 +248,12 @@ test("submit and status through next start: pays once against a fake wallet, rep
     // the instrumentation bundle, whose error classes the app's instanceof never matched: this answered 500.
     const refusedDraft = JSON.stringify({ title: "refused", items: [{ payableId: "r1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "REFUSED-1" }] });
     const refusedId = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, refusedDraft)).body) as { id: string }).id;
+    assert.equal((await raw(s.port, "POST", `/api/batches/${refusedId}/rate-lock`, { host: self, origin: `http://${self}` })).status, 201);
+    // An unlocked batch is refused before the wallet, through the bundled server (mapped by code, E1).
+    const unlockedId = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, JSON.stringify({ title: "unlocked", items: [{ payableId: "u1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "UNLOCKED-1" }] }))).body) as { id: string }).id;
+    const unlocked = await raw(s.port, "POST", `/api/batches/${unlockedId}/submit`, same, '{"confirmTotalZat":"1000"}');
+    assert.deepEqual([unlocked.status, (JSON.parse(unlocked.body) as { code: string }).code, (JSON.parse(unlocked.body) as { thisRequest: string }).thisRequest], [409, "rate_not_locked", "sent_nothing"]);
+    assert.equal(fake.payCalls, 0);
     fake.nextPay = "refused";
     const refused = await raw(s.port, "POST", `/api/batches/${refusedId}/submit`, same, '{"confirmTotalZat":"1000"}');
     assert.equal(refused.status, 409, refused.body);
@@ -299,6 +315,7 @@ test("page actions through next start, posted as a browser without JavaScript: p
     const same = { host: self, origin: `http://${self}` };
     const draft = JSON.stringify({ title: "actions", items: [{ payableId: "a1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "2500", memo: "ACT-1" }] });
     const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, draft)).body) as { id: string }).id;
+    assert.equal((await raw(s.port, "POST", `/api/batches/${id}/rate-lock`, same)).status, 201, "locked (submit requires it, slice G2b1)");
     const text = async () => (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body.replaceAll("<!-- -->", "");
     const state = async () => (JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state;
 

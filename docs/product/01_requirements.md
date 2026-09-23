@@ -74,7 +74,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CON-18 | W | Derive a fresh diversified address per recipient per batch from a recipient-supplied UFVK (removes the linkability the warning describes). | A batch paying the same recipient twice uses two distinct diversified addresses derived from their UFVK. | ⬜ no leaf; roadmap (post-hackathon) | dropped |
 | REQ-CON-19 | S | CSV import of payables compatible with Konclave `label,address,value[,memo]` and zecpay columns. | Import of both sample CSVs yields the expected payables. | ⬜ | dropped |
 | REQ-CON-20 | S | Second rate source (CoinGecko alongside Kraken) recorded with the first; > 3% disagreement between the two sources blocks until re-quote. | Both sources persisted; cross-source deviation test blocks. | ⬜ | dropped |
-| REQ-CON-21 | M | Block execution when the rate has moved more than 3% between the approval lock and the execution quote (single source compared with itself over time). | Execution with a moved rate is rejected until re-quoted; test with a mocked rate feed. | 🟡 the exact drift check and its threshold are built (G2a, `lib/rates/drift.ts`); wiring into submit is G2b | kept (leaf 3.3.5.9) |
+| REQ-CON-21 | M | Block execution when the rate has moved more than 3% between the approval lock and the execution quote (single source compared with itself over time). | Execution with a moved rate is rejected until re-quoted; test with a mocked rate feed. | ✅ submit requires a lock, re-quotes, records the execution quote, and refuses a move beyond the threshold (409 `rate_moved`, sent nothing) until re-locked; tested with a fake rate feed (G2a, G2b1) | kept (leaf 3.3.5.9) |
 
 ## 5. Solana attestation
 
@@ -161,7 +161,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-18 | ⬜ | — | no leaf; post-hackathon roadmap (Won't for v0) |
 | REQ-CON-19 | ⬜ | 3.3.5.7 | `[R10]` Konclave CSV, `[R12]` zecpay columns |
 | REQ-CON-20 | ⬜ | 3.3.5.8 | `05` §1 `batches` `rate_sources_json`; cut item 4 |
-| REQ-CON-21 | 🟡 | 3.3.5.9 | `lib/rates/drift.ts` `rateDrift` (exact, inclusive, symmetric; `ZECEIPT_RATE_MAX_DRIFT_BPS`, slice G2a `[R74]`); the submit preflight with the execution quote (`rate_quotes`, G1b's rule) is G2b; `07` §2 |
+| REQ-CON-21 | ✅ | 3.3.5.9 | `lib/rates/drift.ts` `rateDrift` (G2a `[R74]`). `lib/http/submit.ts` `rateGuard` (G2b1) on a batch's first submit: a lock is required (409 `rate_not_locked`); the execution quote is recorded before the submission; a move beyond `ZECEIPT_RATE_MAX_DRIFT_BPS` is refused (409 `rate_moved` with both rates); a retry is never re-judged. `test/submit-routes.test.ts` with a fake ticker; the app e2e through `next start`; `07` §2 |
 | REQ-SOL-1 | ⬜ | 3.3.2.1 | `05` §4 attestation row |
 | REQ-SOL-2 | ⬜ | 3.3.2.1 | PDA keyed by (txid, index) |
 | REQ-SOL-3 | ⬜ | 3.3.2.2 | client verifies with `@zeceipt/verify` first |

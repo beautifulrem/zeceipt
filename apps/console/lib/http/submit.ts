@@ -18,7 +18,9 @@
 // The handler never reads `request.signal`: a client that disconnects mid-pay does not abort the pay.
 
 import { z } from "zod";
-import { batchNonce, getBatch, toExecutionBatch } from "../data/batches.ts";
+import { batchNonce, getBatch, isSubmitted, toExecutionBatch } from "../data/batches.ts";
+import { currentLock, recordQuote } from "../data/rates.ts";
+import { rateDrift } from "../rates/drift.ts";
 import { getBatchStatus } from "../data/status.ts";
 import { StoreBusyError } from "../execution/idempotency.ts";
 import {
@@ -78,6 +80,10 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
     if (BigInt(parsed.data.confirmTotalZat) !== total) {
       throw new HttpProblem(422, "confirmation_mismatch", "confirmTotalZat does not equal this batch's total; this request sent nothing");
     }
+    // REQ-CON-21 (slice G2b1): the first submit of a batch re-quotes the rate and refuses a move beyond the
+    // threshold. Only while no submission exists: a retry replays or reconciles and must never be re-judged
+    // (the rate decision was made when the payment was first attempted).
+    if (!(await isSubmitted(ctx.db, rec))) await rateGuard(ctx, rec.id);
     reachedBackend = true;
     const sent = await backend.submit(toExecutionBatch(rec), batchNonce(rec));
     return new Response(JSON.stringify({ batchId: rec.id, txid: sent.txid, replayed: sent.replayed, via: sent.via, status: statusPath(rec.id) }), {
@@ -91,6 +97,41 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
     });
   } catch (e) {
     throw submitProblem(e, reachedBackend, status, inFlightMs);
+  }
+}
+
+/** "3.00%" from hundredths of a basis point (exact string arithmetic; 1 bp = 0.01%). */
+function pct(hundredthsOfBp: number | bigint): string {
+  const h = BigInt(hundredthsOfBp); // 100 hundredths of a bp = 1 bp = 0.01%, so % = h / 10 000
+  return `${h / 10_000n}.${((h % 10_000n) / 100n).toString().padStart(2, "0")}%`;
+}
+
+/**
+ * The move for the refusal message. `bps` is floored for display (G2a), so a refused move just past the limit
+ * can floor to the limit itself; then say "more than" the limit instead of a figure equal to it (review G2a).
+ */
+export function movedText(bps: string, maxBps: number): string {
+  const [whole, frac] = bps.split(".");
+  const hundredths = BigInt(whole) * 100n + BigInt(frac ?? "0");
+  return hundredths <= BigInt(maxBps) * 100n ? `more than ${pct(BigInt(maxBps) * 100n)}` : pct(hundredths);
+}
+
+/**
+ * The lock-vs-execution guard (REQ-CON-21; slices G2a, G2b1). A current lock is required. A fresh quote is taken
+ * and recorded as the execution quote BEFORE the backend creates the submission (G1b's rule: the batch is not
+ * frozen yet, so a refused move can still be re-locked; a refusal keeps its evidence). A move beyond
+ * `rateMaxDriftBps` refuses. Everything here happens before the backend: every refusal is `sent_nothing`.
+ */
+async function rateGuard(ctx: ServerContext, batchId: string): Promise<void> {
+  const lock = await currentLock(ctx.db, ctx.config.orgId, batchId);
+  if (!lock) throw new HttpProblem(409, "rate_not_locked", "lock the batch's ZEC/USD rate before paying (POST /api/batches/{id}/rate-lock); this request sent nothing");
+  const quote = await ctx.quote();
+  const exec = await recordQuote(ctx.db, { orgId: ctx.config.orgId, batchId, purpose: "execution", quote });
+  const drift = rateDrift(lock.rate, exec.rate, ctx.config.rateMaxDriftBps);
+  if (drift.moved) {
+    throw new HttpProblem(409, "rate_moved", `ZEC/USD moved ${movedText(drift.bps, ctx.config.rateMaxDriftBps)} since the lock; at most ${pct(ctx.config.rateMaxDriftBps * 100)} is allowed; re-lock the rate, then pay; this request sent nothing`, {
+      rate: { lock: lock.rate, lockedAt: lock.fetchedAt, execution: exec.rate, quotedAt: exec.fetchedAt, driftBps: drift.bps, maxDriftBps: ctx.config.rateMaxDriftBps, direction: drift.direction },
+    });
   }
 }
 
@@ -115,6 +156,11 @@ export function submitProblem(e: unknown, reachedBackend: boolean, status: strin
   const check = "the batch's own state is at the status route";
   if (e instanceof HttpProblem) return e.withExtra(reachedBackend ? maybe : nothing);
   if (e instanceof ContextNotReadyError) return new HttpProblem(503, "not_ready", "the console has not finished starting; this request sent nothing", nothing);
+  // The execution quote's source failed (slice G2b1; by code: the library loads twice under Next, E1).
+  if ((e as { code?: unknown } | null)?.code === "rate_unavailable") {
+    const reason = (e as { reason?: unknown }).reason;
+    return new HttpProblem(502, "rate_unavailable", `the ZEC/USD source did not give a usable quote, so the rate could not be checked; this request sent nothing; ${check}`, { ...nothing, reason: typeof reason === "string" ? reason : "unknown" });
+  }
   if (e instanceof UnknownOutcomeError) {
     return new HttpProblem(502, "outcome_unknown", `the wallet's answer was lost or unusable, so this request may have paid; ${check}. Submitting again is safe: it looks for the payment on chain and never pays twice`, maybe);
   }

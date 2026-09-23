@@ -19,6 +19,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
+import http from "node:http";
 import { serveStatic } from "./helpers/static-site.ts";
 import { decimalToZat } from "../lib/index.ts";
 
@@ -80,6 +81,10 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
   const dir = mkdtempSync(join(tmpdir(), "zeceipt-regtest-http-"));
   // The public receipt page, hosted locally; the console's links point at it (slice F3).
   const site = await serveStatic(join(ROOT, "packages/verify"));
+  // A steady fake of Kraken's Ticker: submit needs a lock and re-quotes (REQ-CON-21, slice G2b1). A fake keeps the
+  // run deterministic and offline; the live source is exercised in G1c1's run.
+  const ticker = http.createServer((_req, res) => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: ["1601.00", "1", "1"], b: ["1600.00", "1", "1"], c: ["1600.00", "0.1"] } } })));
+  await new Promise<void>((r) => ticker.listen(0, "127.0.0.1", r));
   const env: Record<string, string> = {
     ...baseEnv(),
     ZECEIPT_CUSTODY_MODE: "hot",
@@ -96,6 +101,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     ZECEIPT_ISSUER_KEY_FILE: join(ARTIFACT_DIR, "issuer.key"),
     ZECEIPT_ISSUER_KEY_ID: "2026-09",
     ZECEIPT_RECEIPT_HOST: site.base,
+    ZECEIPT_RATE_URL: `http://127.0.0.1:${(ticker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD`,
   };
   const s = await start(env);
   const urls: string[] = [];
@@ -129,6 +135,11 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     // Unmined entries (height 0) count too, so a second payment still waiting to be mined could not hide (review E3 round 2).
     const issuerTxsSince = async (h: number) =>
       (await zkool<{ transactionsByAccount: { txid: string; height: number }[] }>("query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid height } }", { id: ISSUER })).transactionsByAccount.filter((t) => t.height > h || t.height <= 0);
+    // Lock the rate with the page's form, as the operator would (REQ-CON-4; submit requires it, REQ-CON-21).
+    const unlockedPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
+    assert.equal((await post(`/batches/${id}`, formFields(unlockedPage, ">Lock rate</button>"))).status, 200);
+    assert.equal((await api<{ rateLock: { rate: string } | null }>(`/api/batches/${id}`)).rateLock?.rate, "1600.00");
+    step("locked", { rate: "1600.00", source: "fake ticker (deterministic)" });
     const draftPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
     const payFields = formFields(draftPage, 'name="confirmTotalZat"');
     const paid = await post(`/batches/${id}`, payFields);
@@ -255,5 +266,6 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     rmSync(dir, { recursive: true, force: true }); // the run's database (sealed receipts) does not outlive it
     await site.close();
+    ticker.close();
   }
 });
