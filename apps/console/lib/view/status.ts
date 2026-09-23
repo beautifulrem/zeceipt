@@ -74,6 +74,21 @@ export function stateView(status: BatchStatus): StateView {
   return { label, tone: v.tone, step: v.step, blocked: v.blocked === true, explanation, next: NEXT_TEXT[status.next] };
 }
 
+/**
+ * The wallet did not answer (review E1 round 1). B3's reader asks the wallet only when the submission
+ * record says broadcast, so the record proves the payment was sent; what is unknown is whether it is in a
+ * block or confirmed. Say exactly that, mark the step reached by the record, and warn against paying twice.
+ */
+export const STATUS_UNAVAILABLE: StateView = {
+  label: "Status unavailable",
+  tone: "warning",
+  step: "sent",
+  blocked: true,
+  explanation:
+    "The payment was broadcast, but the wallet did not answer, so this page cannot say whether it is in a block or confirmed. Do not pay this batch by hand; reload once the wallet is reachable.",
+  next: "Reload once the wallet is reachable",
+};
+
 /** The lifecycle for display: each step done, current (possibly blocked) or ahead. */
 export function stepsFor(view: Pick<StateView, "step" | "blocked">): { label: string; mark: "done" | "current" | "blocked" | "ahead" }[] {
   const at = LIFECYCLE_STEPS.findIndex((s) => s.step === view.step);

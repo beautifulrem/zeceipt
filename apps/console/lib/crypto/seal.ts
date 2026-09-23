@@ -41,7 +41,9 @@ export class Keyring {
       // ≤ 32 characters: a 32-byte key in base64 is ≥ 43, so a key can never pass for (and be shown as) an id.
       if (!/^[A-Za-z0-9_-]{1,32}$/.test(k.kid)) throw new RangeError("key id must be 1–32 characters of [A-Za-z0-9_-]");
       if (this.#keys.has(k.kid)) throw new RangeError(`duplicate key id ${k.kid}`);
-      const bytes = k.key instanceof SecretBytes ? k.key.reveal() : k.key;
+      // Structural, not `instanceof SecretBytes`: the config may come from another bundle's copy of the
+      // library (Next loads it twice; slice E1), and a Uint8Array is always the global class.
+      const bytes = k.key instanceof Uint8Array ? k.key : k.key.reveal();
       if (bytes.length !== 32) throw new RangeError(`wrap key ${k.kid} must be 32 bytes`);
       this.#keys.set(k.kid, Buffer.from(bytes));
     }

@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { getBatch } from "../../../lib/data/batches.ts";
 import { listReceipts } from "../../../lib/data/receipts.ts";
-import { getBatchStatus } from "../../../lib/data/status.ts";
+import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
+import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
 import { serverContext } from "../../../lib/server/context.ts";
 import { shortAddress, zecText } from "../../../lib/view/format.ts";
 import { paymentMode } from "../../../lib/view/mode.ts";
-import { stateView } from "../../../lib/view/status.ts";
+import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
 
@@ -18,8 +19,18 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const ctx = serverContext();
   const rec = UUID_V7.test(id) ? await getBatch(ctx.db, ctx.config.orgId, id) : undefined;
   if (!rec) notFound();
-  const status = ctx.backend ? await getBatchStatus(ctx.db, ctx.backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations }) : undefined;
-  const view = status ? stateView(status) : undefined;
+  // The chain read can fail (wallet down): then claim nothing about the payment, and still show the rest.
+  let status: BatchStatus | undefined;
+  let unavailable = false;
+  if (ctx.backend) {
+    try {
+      status = await getBatchStatus(ctx.db, ctx.backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations });
+    } catch (e) {
+      if (!(e instanceof ZkoolTransportError || e instanceof ZkoolGraphqlError)) throw e;
+      unavailable = true;
+    }
+  }
+  const view = status ? stateView(status) : unavailable ? STATUS_UNAVAILABLE : undefined;
   const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);
   return (
@@ -38,7 +49,18 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         <h2 id="status-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-600">
           Status
         </h2>
-        {view && status ? (
+        {view && unavailable ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusBadge view={view} />
+              <span className="text-sm">
+                <strong>Next:</strong> {view.next}
+              </span>
+            </div>
+            <Lifecycle view={view} />
+            <p className="text-sm">{view.explanation}</p>
+          </>
+        ) : view && status ? (
           <>
             <div className="flex flex-wrap items-center gap-3">
               <StatusBadge view={view} />
@@ -133,7 +155,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           <ul className="space-y-1 text-sm">
             {receipts.map((r) => (
               <li key={r.idx}>
-                {r.payableId}: {r.openError ? <span>could not be opened ({r.openError})</span> : <a href={r.url} className="text-sky-700 underline">receipt link</a>}{" "}
+                {r.payableId}: {r.openError ? <span>could not be opened ({r.openError})</span> : <a href={r.url} rel="noreferrer" className="text-sky-700 underline">receipt link</a>}{" "}
                 <span className="text-slate-500">(anyone with this link can verify the payment)</span>
               </li>
             ))}

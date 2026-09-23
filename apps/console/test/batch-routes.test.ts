@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bootServerContext, defaultMigrationsDir, SERVER_CONTEXT_KEY, type ServerContext } from "../lib/index.ts";
+import { bootServerContext, defaultMigrationsDir, SERVER_CONTEXT_KEY, type BootState } from "../lib/index.ts";
 import type { BatchJson, BatchSummaryJson } from "../lib/http/batches.ts";
 import * as collection from "../app/api/batches/route.ts";
 import * as item from "../app/api/batches/[id]/route.ts";
@@ -18,7 +18,7 @@ const R = [
   "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
 ];
 const HOST = "127.0.0.1:3000";
-const slot = globalThis as { [SERVER_CONTEXT_KEY]?: ServerContext };
+const slot = globalThis as { [SERVER_CONTEXT_KEY]?: BootState };
 const dir = mkdtempSync(join(tmpdir(), "zeceipt-routes-"));
 const post = (body: unknown, headers: Record<string, string> = {}) =>
   new Request(`http://${HOST}/api/batches`, {

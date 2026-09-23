@@ -1,4 +1,5 @@
-// The console's per-process server context: validated config, migrated database, keyring (slice C2).
+// The console's per-process server context: validated config, migrated database, keyring, nonce store and
+// wallet backend (slices C2, D2; boot state vs built context: slice E1).
 //
 // Booted once from `instrumentation.ts` `register()` before Next.js serves requests, and read by route
 // handlers through `serverContext()`. It lives on `globalThis` under a registered symbol: measured on
@@ -27,15 +28,28 @@ export interface ServerContext {
   readonly backend?: ZkoolBackend;
 }
 
+/**
+ * What boot publishes on `globalThis`: plain state only. Measured on Next.js 16.3.6 (slice E1): the
+ * library is loaded twice, once in the instrumentation bundle and once in the app bundle, so a class
+ * instance built at boot throws errors of the boot copy's classes, which `instanceof` in route handlers and
+ * pages never matches (a ZkoolTransportError from a boot-built backend failed `instanceof
+ * ZkoolTransportError` in a page). Objects with classes (keyring, store, backend) are therefore built by
+ * `serverContext()` in the bundle that uses them, once per bundle.
+ */
+export interface BootState {
+  readonly config: ConsoleConfig;
+  readonly db: ConsoleDb;
+}
+
 export interface BootOptions {
   /** The Drizzle migrations folder; the app passes `<cwd>/db/migrations` (bundles have no `import.meta.dirname`). */
   migrationsFolder: string;
 }
 
-/** The `globalThis` key of the booted context (a registered symbol, so it survives dev module reloads). */
+/** The `globalThis` key of the boot state (a registered symbol, so it survives dev module reloads). */
 export const SERVER_CONTEXT_KEY: unique symbol = Symbol.for("zeceipt.console.context") as never;
 
-type Slot = { [SERVER_CONTEXT_KEY]?: ServerContext };
+type Slot = { [SERVER_CONTEXT_KEY]?: BootState };
 
 export class ContextNotReadyError extends ExecutionError {
   constructor() {
@@ -44,17 +58,16 @@ export class ContextNotReadyError extends ExecutionError {
 }
 
 /**
- * Boot the context once per process: load and validate the configuration, build the keyring, open and
- * migrate the database, remove the wrap keys from `env`, then publish. Idempotent: a second call returns
- * the published context untouched (Next.js may call `register()` again after a dev reload).
+ * Boot once per process: load and validate the configuration, check the keyring builds, open and migrate
+ * the database, remove the wrap keys from `env`, then publish the boot state. Idempotent: a second call
+ * returns the context of the published state (Next.js may call `register()` again after a dev reload).
  * The migrations journal must exist before the database is opened (a clear error names the path).
  * On any failure nothing is published, the database handle (if opened) is closed, and the error is
  * rethrown; the caller exits the process (design 3.3.1.1.6.2).
  */
 export function bootServerContext(env: Record<string, string | undefined>, opts: BootOptions): ServerContext {
   const slot = globalThis as Slot;
-  const existing = slot[SERVER_CONTEXT_KEY];
-  if (existing) return existing;
+  if (slot[SERVER_CONTEXT_KEY]) return serverContext();
 
   const config = loadConfig(env);
   // Checked before anything is opened, so a wrong working directory is named instead of surfacing as
@@ -63,7 +76,7 @@ export function bootServerContext(env: Record<string, string | undefined>, opts:
   if (!existsSync(journal)) {
     throw new Error(`migrations journal not found at ${journal}; start the console from apps/console (the folder is <cwd>/db/migrations)`);
   }
-  const keyring = keyringFromConfig(config);
+  keyringFromConfig(config); // fail at startup, not on the first receipt, if the keys cannot form a keyring
   const db = openDb({ path: config.dbPath });
   try {
     migrateDb(db, opts.migrationsFolder);
@@ -72,22 +85,33 @@ export function bootServerContext(env: Record<string, string | undefined>, opts:
     throw e;
   }
   scrubSecretEnv(env);
-  // No network call here: a wallet outage must not stop the console from starting (slice C2's health rule).
-  const store = new SqliteIdempotencyStore(db, { orgId: config.orgId });
-  const custody = config.custody;
-  const backend =
-    custody.mode === "hot"
-      ? new ZkoolBackend({ client: new ZkoolClient({ url: custody.zkool.url, allowRemote: custody.zkool.allowRemote }), account: custody.zkool.account, store })
-      : undefined;
-  const ctx: ServerContext = Object.freeze({ config, db, keyring, store, backend });
-  slot[SERVER_CONTEXT_KEY] = ctx;
-  return ctx;
+  slot[SERVER_CONTEXT_KEY] = Object.freeze({ config, db });
+  return serverContext();
 }
 
-/** The booted context; throws `ContextNotReadyError` before boot. */
+/** One built context per boot state, per bundle (this module-level map is itself per bundle). */
+const built = new WeakMap<BootState, ServerContext>();
+
+/**
+ * The context for the calling bundle; throws `ContextNotReadyError` before boot. The keyring, store and
+ * backend are built here on first use, so their classes are this bundle's (see `BootState`). No network
+ * call: a wallet outage must not stop the console from starting or answering (slice C2's health rule).
+ */
 export function serverContext(): ServerContext {
-  const ctx = (globalThis as Slot)[SERVER_CONTEXT_KEY];
-  if (!ctx) throw new ContextNotReadyError();
+  const boot = (globalThis as Slot)[SERVER_CONTEXT_KEY];
+  if (!boot) throw new ContextNotReadyError();
+  let ctx = built.get(boot);
+  if (!ctx) {
+    const { config, db } = boot;
+    const store = new SqliteIdempotencyStore(db, { orgId: config.orgId });
+    const custody = config.custody;
+    const backend =
+      custody.mode === "hot"
+        ? new ZkoolBackend({ client: new ZkoolClient({ url: custody.zkool.url, allowRemote: custody.zkool.allowRemote }), account: custody.zkool.account, store })
+        : undefined;
+    ctx = Object.freeze({ config, db, keyring: keyringFromConfig(config), store, backend });
+    built.set(boot, ctx);
+  }
   return ctx;
 }
 

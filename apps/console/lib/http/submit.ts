@@ -134,8 +134,11 @@ export function submitProblem(e: unknown, reachedBackend: boolean, status: strin
   return new HttpProblem(500, "internal", reachedBackend ? `the console could not complete this request and it may have paid; ${check}` : "the console could not complete this request; this request sent nothing", reachedBackend ? maybe : nothing);
 }
 
-/** Status reads never pay: a busy store is a plain 503; anything else is the fixed 500 (`guarded`). */
+/** Status reads never pay: a busy store is a plain 503, an unreachable wallet a 502; anything else is the fixed 500 (`guarded`). */
 export function statusProblem(e: unknown): Response | undefined {
   if (e instanceof StoreBusyError) return problem(503, "store_busy", "the database is busy; retry shortly", {}, { "Retry-After": "1" });
+  if (e instanceof ZkoolTransportError || e instanceof ZkoolGraphqlError) {
+    return problem(502, "wallet_unavailable", "the wallet did not answer, so the chain status is unknown; nothing is claimed; retry later");
+  }
   return undefined;
 }

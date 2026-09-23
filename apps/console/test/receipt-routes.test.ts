@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, toExecutionBatch, type ServerContext, type ZeceiptCliOptions } from "../lib/index.ts";
+import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, toExecutionBatch, type BootState, type ZeceiptCliOptions } from "../lib/index.ts";
 import { issueReceiptsResponse, listReceiptsResponse, type ReceiptJson } from "../lib/http/receipts.ts";
 import { HttpProblem, type ProblemJson } from "../lib/http/problem.ts";
 import * as collection from "../app/api/batches/route.ts";
@@ -27,7 +27,7 @@ const PAYEES = [
   { payableId: "p-4", label: "R4", address: "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5", zat: "103000000", memo: "INV-R-004" },
 ];
 const HOST = "127.0.0.1:3000";
-const slot = globalThis as { [SERVER_CONTEXT_KEY]?: ServerContext };
+const slot = globalThis as { [SERVER_CONTEXT_KEY]?: BootState };
 const dir = mkdtempSync(join(tmpdir(), "zeceipt-receipts-"));
 let fake: FakeZkool;
 let cli: ZeceiptCliOptions;

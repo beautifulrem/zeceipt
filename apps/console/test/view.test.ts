@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
 import { shortAddress, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
-import { LIFECYCLE_STEPS, NEXT_TEXT, stateView, stepsFor } from "../lib/view/status.ts";
+import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
 
 const STATES: BatchState[] = ["draft", "submitting", "retryable", "needs_attention", "pending", "confirming", "confirmed", "receipts_partial", "receipts_issued", "expired"];
@@ -34,6 +34,13 @@ test("fail closed: the word 'confirmed' only for confirmed payments; 'not in a b
   assert.match(stateView(st("pending")).label, /not in a block yet/);
   assert.match(stateView(st("pending")).explanation, /Not confirmed\./);
   assert.equal(stateView(st("confirming", { confirmations: 1, required: 3 })).label, "In a block, 1 of 3 confirmations");
+});
+
+test("wallet unreachable: only what the record proves (broadcast), and a warning against paying twice", () => {
+  assert.equal(STATUS_UNAVAILABLE.label, "Status unavailable");
+  assert.match(STATUS_UNAVAILABLE.explanation, /^The payment was broadcast, but the wallet did not answer, so this page cannot say whether it is in a block or confirmed\./);
+  assert.match(STATUS_UNAVAILABLE.explanation, /Do not pay this batch by hand/);
+  assert.deepEqual(stepsFor(STATUS_UNAVAILABLE).map((s) => s.mark), ["done", "blocked", "ahead", "ahead", "ahead"], "nothing beyond Sent is claimed");
 });
 
 test("needs_attention: the cause is named, and every cause warns against paying by hand", () => {

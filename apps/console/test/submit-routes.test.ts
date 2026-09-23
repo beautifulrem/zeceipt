@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, type ServerContext } from "../lib/index.ts";
+import { batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, serverContext, type BootState } from "../lib/index.ts";
 import type { BatchJson } from "../lib/http/batches.ts";
 import type { ProblemJson } from "../lib/http/problem.ts";
 import * as collection from "../app/api/batches/route.ts";
@@ -23,7 +23,7 @@ const R = [
   "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
 ];
 const HOST = "127.0.0.1:3000";
-const slot = globalThis as { [SERVER_CONTEXT_KEY]?: ServerContext };
+const slot = globalThis as { [SERVER_CONTEXT_KEY]?: BootState };
 const dir = mkdtempSync(join(tmpdir(), "zeceipt-submit-"));
 const WALLET_TEXT = ["Not enough funds, 1.5 more ZEC", "tcp connect error", "bad-txns", "Unavailable"];
 let fake: FakeZkool;
@@ -205,7 +205,7 @@ test("store busy (another process holds the write lock): 503 store_busy, Retry-A
 test("nonce conflict: 409 nonce_conflict, sent_nothing", async () => {
   const b = await createDraft();
   const rec = (await getBatch(slot[SERVER_CONTEXT_KEY]!.db, "demo-org", b.id!))!;
-  await slot[SERVER_CONTEXT_KEY]!.store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: "0".repeat(64), state: "submitting", createdAt: new Date().toISOString(), attempts: 1 });
+  await serverContext().store.createIntent({ nonce: batchNonce(rec), batchId: rec.id, batchDigest: "0".repeat(64), state: "submitting", createdAt: new Date().toISOString(), attempts: 1 });
   const calls = fake.payCalls;
   const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
   assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [409, "nonce_conflict", "sent_nothing"]);
@@ -217,8 +217,13 @@ test("unknown batch: 404 on both routes; the wallet unreachable before any pay: 
     assert.deepEqual([r.status, r.body.code], [404, "batch_not_found"]);
   }
   const b = await createDraft();
+  const paid = await createDraft();
+  assert.equal((await submit(paid.id!, { confirmTotalZat: "3500" })).status, 202);
   await fake.stop();
   try {
+    // A status read of a broadcast batch needs the wallet: 502, claiming nothing (no thisRequest: reads never pay).
+    const st = await status(paid.id!);
+    assert.deepEqual([st.status, st.body.code, st.body.thisRequest], [502, "wallet_unavailable", undefined]);
     const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
     assert.deepEqual([r.status, r.body.code, r.body.thisRequest], [502, "wallet_unavailable", "sent_nothing"]);
     noWalletText(r.body);
@@ -248,7 +253,7 @@ test("review D2 round 1: a resubmit of a PAID batch that meets a busy store says
 
 test("an unrecognised failure after the backend was reached is indeterminate (500, may_have_sent); before it, sent_nothing", async () => {
   const b = await createDraft();
-  const backend = slot[SERVER_CONTEXT_KEY]!.backend!;
+  const backend = serverContext().backend!;
   const original = backend.submit;
   backend.submit = async () => {
     throw new TypeError("boom inside the backend");

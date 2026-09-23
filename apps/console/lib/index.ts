@@ -22,6 +22,6 @@ export type { BatchFacts, BatchState, BatchStatus, NextAction } from "./data/sta
 export type { RecordResult, StoredReceipt } from "./data/receipts.ts";
 export { ConfigError, configSummary, keyringFromConfig, loadConfig, scrubSecretEnv } from "./config/env.ts";
 export { bootFailureLines, bootServerContext, ContextNotReadyError, SERVER_CONTEXT_KEY, serverContext } from "./server/context.ts";
-export type { BootOptions, ServerContext } from "./server/context.ts";
+export type { BootOptions, BootState, ServerContext } from "./server/context.ts";
 export { SecretBytes } from "./crypto/secret.ts";
 export type { ConfigProblem, ConsoleConfig, CustodyConfig } from "./config/env.ts";

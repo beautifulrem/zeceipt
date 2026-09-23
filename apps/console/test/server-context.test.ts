@@ -17,6 +17,7 @@ import {
   openDb,
   SERVER_CONTEXT_KEY,
   serverContext,
+  type BootState,
   type ServerContext,
 } from "../lib/index.ts";
 import { HEALTH_CONTENT_TYPE, healthResponse } from "../lib/server/health.ts";
@@ -41,7 +42,7 @@ const env = (name: string, extra: Record<string, string | undefined> = {}): Reco
   ...extra,
 });
 const opts = { migrationsFolder: defaultMigrationsDir() };
-const slot = globalThis as { [SERVER_CONTEXT_KEY]?: ServerContext };
+const slot = globalThis as { [SERVER_CONTEXT_KEY]?: BootState };
 const journalEntries = () =>
   (JSON.parse(readFileSync(join(defaultMigrationsDir(), "meta", "_journal.json"), "utf8")) as { entries: unknown[] }).entries.length;
 const applied = (ctx: ServerContext) => (ctx.db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n;
