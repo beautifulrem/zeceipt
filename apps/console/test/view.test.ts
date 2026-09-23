@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
+import { centsText, rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -103,6 +103,11 @@ test("ZIP 316 (review H2): an abridged address is a prefix of at least 20 charac
   }
   assert.equal(shortAddress("u1" + "q".repeat(26)), "u1" + "q".repeat(26), "one character over: shown whole, not abridged by one");
   assert.equal(shortAddress("u1" + "q".repeat(27)), "u1" + "q".repeat(25) + "…");
+});
+
+test("centsText (slice H4): whole cents as US dollars, exact up to the cap; refuses what is not cents", () => {
+  for (const [c, t] of [[0, "$0.00"], [1, "$0.01"], [50, "$0.50"], [123456, "$1,234.56"], [100_000, "$1,000.00"], [99_999_999, "$999,999.99"], [123_456_789, "$1,234,567.89"]] as const) assert.equal(centsText(c), t);
+  for (const bad of [-1, 1.5, Number.NaN, 2 ** 53]) assert.throws(() => centsText(bad), RangeError, String(bad));
 });
 
 test("payment mode: custody apart from the lifecycle, in words; nothing secret", () => {

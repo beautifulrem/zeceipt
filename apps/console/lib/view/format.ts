@@ -23,6 +23,13 @@ export function zecParts(zat: bigint): { major: string; minor: string } {
   return { major: number.slice(0, -5), minor: number.slice(-5) };
 }
 
+/** "$1,234.56": whole cents as US dollars, by integer arithmetic (slice H4), so every amount up to the cap is exact. */
+export function centsText(cents: number): string {
+  if (!Number.isSafeInteger(cents) || cents < 0) throw new RangeError(`not a whole, non-negative number of cents: ${cents}`);
+  const dollars = Math.floor(cents / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `$${dollars}.${String(cents % 100).padStart(2, "0")}`;
+}
+
 /** Data characters kept after the separator: 25 × 5 bits = 125 bits, Zcash's classical security target (ZIP 316). */
 export const SHORT_ADDRESS_DATA_CHARS = 25;
 

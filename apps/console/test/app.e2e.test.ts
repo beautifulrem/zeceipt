@@ -555,6 +555,65 @@ test("recipients page through next start, posted as a browser without JavaScript
   }
 });
 
+test("payables page through next start, posted as a browser without JavaScript: add in dollars (303), the kind filter, and every error under its field with values kept (slice H4)", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const page = async (q = "") => (await raw(s.port, "GET", `/payables${q}`, { host: self })).body.replaceAll("<!-- -->", "");
+    const add = async (html: string, fields: Record<string, string>, headers: Record<string, string> = same) => {
+      const hidden = formFields(html, "Add payable");
+      const m = multipart([...hidden, ...Object.entries(fields)]);
+      return raw(s.port, "POST", "/payables", { ...headers, "content-type": m.type }, m.body);
+    };
+    const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+
+    assert.ok((await raw(s.port, "GET", "/", { host: self })).body.includes('href="/payables"'), "the header links to the payables page");
+    const none = await page();
+    assert.ok(none.includes("No payables yet.") && none.includes("Add a recipient first") && !none.includes("Add payable"), "no recipients: the prompt, not the form");
+
+    const created = await raw(s.port, "POST", "/api/recipients", { ...same, "content-type": "application/json" }, JSON.stringify({ displayName: "Ops wallet", address: UA }));
+    assert.equal(created.status, 201);
+    const recipientId = (JSON.parse(created.body) as { id: string }).id;
+    const empty = await page();
+    assert.ok(empty.includes(">Ops wallet</option>") && empty.includes('inputMode="decimal"'), "the form: recipients by name; the money input");
+
+    const first = await add(empty, { recipientId, kind: "bounty", amount: "$1,234.56", reference: " BOUNTY-17 ", sourceUrl: "https://github.com/org/repo/issues/17" });
+    assert.equal(first.status, 303, first.body.slice(0, 300));
+    assert.equal(first.location, "/payables");
+    const second = await add(await page(), { recipientId, kind: "salary", amount: "2500", reference: "SALARY-SEP", sourceUrl: "" });
+    assert.equal(second.status, 303);
+    const listed = await page();
+    assert.ok(listed.includes("<code>BOUNTY-17</code>") && listed.includes("$1,234.56") && listed.includes("$2,500.00"), "exact dollars; the reference trimmed by the form");
+    assert.ok(/href="https:\/\/github.com\/org\/repo\/issues\/17" rel="noopener noreferrer"[^>]*>github.com</.test(listed), "the source link, its host as the text");
+    const bounties = await page("?kind=bounty");
+    assert.ok(bounties.includes("BOUNTY-17") && !bounties.includes("SALARY-SEP") && bounties.includes('aria-current="page"'), "the kind filter");
+    assert.ok((await page("?kind=milestone")).includes("No milestone payables."));
+    assert.ok((await page("?kind=nonsense")).includes("SALARY-SEP"), "an unknown kind shows all");
+
+    const count = async () => ((await (await fetch(`http://${self}/api/payables`)).json()) as { payables: unknown[] }).payables.length;
+    const before = await count();
+    const shown = (r: { body: string }) => r.body.replaceAll("<!-- -->", "");
+    const field = (html: string, name: string) => new RegExp(`name="${name}"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*name="${name}"`).test(html);
+
+    const cents = shown(await add(listed, { recipientId, kind: "invoice", amount: "12.345", reference: "INV-KEEP", sourceUrl: "" }));
+    assert.ok(cents.includes("at most 2 decimal places") && field(cents, "amount") && cents.includes('value="12.345"') && cents.includes('value="INV-KEEP"'), "the amount error under the amount; values kept");
+    const taken = shown(await add(listed, { recipientId, kind: "invoice", amount: "5", reference: "BOUNTY-17", sourceUrl: "" }));
+    assert.ok(taken.includes("Already used by another payable") && field(taken, "reference"), "a taken reference under the reference");
+    const script = shown(await add(listed, { recipientId, kind: "invoice", amount: "5", reference: "INV-JS", sourceUrl: "javascript:alert(1)" }));
+    assert.ok(script.includes("source link must be an absolute https://") && field(script, "sourceUrl"), "a script link under the source");
+    const zero = shown(await add(listed, { recipientId, kind: "invoice", amount: "0", reference: "INV-ZERO", sourceUrl: "" }));
+    assert.ok(zero.includes("whole US cents from 1") && field(zero, "amount"), "the API's usd_invalid shown on the amount");
+    assert.equal(await count(), before, "nothing saved");
+
+    assert.equal((await add(listed, { recipientId, kind: "invoice", amount: "5", reference: "EVIL", sourceUrl: "" }, { host: self, origin: "http://evil.example" })).status, 403);
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
 test("create-draft form through next start, posted as a browser without JavaScript: 303 to the new batch; errors next to their lines with values kept", { skip: !RUN }, async () => {
   const s = await start(demoEnv("draft-form"));
   try {

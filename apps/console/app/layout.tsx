@@ -20,6 +20,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <Link href="/recipients" className="text-sky-700 underline">
                 Recipients
               </Link>
+              <Link href="/payables" className="text-sky-700 underline">
+                Payables
+              </Link>
             </nav>
           </div>
         </header>
