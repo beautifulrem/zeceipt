@@ -381,7 +381,7 @@ test("the source failing at submit: 502 rate_unavailable with a reason, sent_not
   tick = { status: 200, body: ticker("1600.00") };
 });
 
-test("a retry after the submission is never re-judged: the market moving afterwards still replays the same txid", async () => {
+test("a replay of a broadcast payment is never re-judged: the market moving afterwards still replays the same txid", async () => {
   boot(); // hot custody (the test before these boots external)
   tick = { status: 200, body: ticker("1600.00") };
   const b = await createDraft(["1000"]);
@@ -393,5 +393,54 @@ test("a retry after the submission is never re-judged: the market moving afterwa
   const body = (await replay.json()) as { txid?: string };
   assert.deepEqual([replay.status, replay.headers.get("idempotent-replayed"), body.txid], [202, "true", (first.body as { txid?: string }).txid]);
   assert.equal(quotes, asked, "no re-quote for a batch that already has a submission");
+  tick = { status: 200, body: ticker("1600.00") };
+});
+
+// Review G2b1 round 1: the guard also runs on retries that will pay. A refused first attempt, then the market
+// +25%: the resubmit is refused (sent_nothing, a fresh execution quote), the batch can be re-locked, then it pays.
+test("a wallet refusal, then the market moves: the retry is re-judged (409 rate_moved), re-lock works, then it pays once", async () => {
+  boot();
+  tick = { status: 200, body: ticker("1600.00") };
+  const b = await createDraft(["1000"]);
+  fake.nextPay = "refused";
+  const first = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([first.status, first.body.code, first.body.thisRequest], [409, "payment_rejected", "sent_nothing"]);
+  tick = { status: 200, body: ticker("2000.00") }; // +25%
+  const pays = fake.payCalls;
+  const retry = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([retry.status, retry.body.code, retry.body.thisRequest], [409, "rate_moved", "sent_nothing"], "re-judged, and nothing was sent");
+  assert.equal(fake.payCalls, pays);
+  const { db, config } = slot[SERVER_CONTEXT_KEY]!;
+  assert.deepEqual((await listQuotes(db, config.orgId, b.id!)).map((q) => [q.purpose, q.rate]), [["lock", "1600.00"], ["execution", "1600.00"], ["execution", "2000.00"]], "a fresh execution quote for the retry");
+  const relock = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!));
+  assert.equal(relock.status, 201, "a refused batch can be re-locked (its submission is failed_retryable)");
+  const paid = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(paid.status, 202);
+  assert.equal(fake.payCalls, pays + 1, "exactly one more pay");
+  // Once paid (broadcast), the lock is frozen again.
+  const late = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!));
+  assert.equal(late.status, 409);
+  tick = { status: 200, body: ticker("1600.00") };
+});
+
+test("an attempt proven unminable, then the market moves: the re-send is re-judged, re-lock works, then it pays once", async () => {
+  boot();
+  tick = { status: 200, body: ticker("1600.00") };
+  const b = await createDraft(["1000"]);
+  fake.nextPay = "node-rejected";
+  const first = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([first.status, first.body.code], [502, "outcome_unknown"]);
+  fake.advance(51); // the attempt's expiry bound passed and nothing was mined: it can never be mined
+  tick = { status: 200, body: ticker("2000.00") };
+  const pays = fake.payCalls;
+  const resend = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([resend.status, resend.body.code, resend.body.thisRequest], [409, "rate_moved", "sent_nothing"]);
+  assert.equal(fake.payCalls, pays);
+  assert.equal((await status(b.id!)).body.state, "retryable", "the record says what is true: nothing was paid");
+  assert.equal((await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!))).status, 201);
+  const paid = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(paid.status, 202);
+  assert.equal(fake.payCalls, pays + 1);
+  fake.mine();
   tick = { status: 200, body: ticker("1600.00") };
 });

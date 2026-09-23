@@ -5,7 +5,7 @@
 // the trigger's batch_frozen, also 409). Errors are mapped by `code`, not by class: the library loads twice
 // under Next.js (slice E1). The source's own text never reaches a response; its failure reason is a fixed word.
 
-import { getBatch, isSubmitted } from "../data/batches.ts";
+import { getBatch, rateLockFrozen } from "../data/batches.ts";
 import { currentLock, recordQuote, type StoredQuote } from "../data/rates.ts";
 import { serverContext } from "../server/context.ts";
 import { HttpProblem, problem } from "./problem.ts";
@@ -19,14 +19,14 @@ export function lockJson(q: StoredQuote) {
 }
 export type LockJson = ReturnType<typeof lockJson>;
 
-const frozen = () => new HttpProblem(409, "batch_frozen", "the batch has a submission; its rate can no longer be locked");
+const frozen = () => new HttpProblem(409, "batch_frozen", "the batch has a payment attempt that may have paid; its rate can no longer be locked");
 
 /** `POST /api/batches/:id/rate-lock`: 201 with the new current lock. */
 export async function lockRateResponse(id: string): Promise<Response> {
   const { config, db, quote } = serverContext();
   const rec = UUID_V7.test(id) ? await getBatch(db, config.orgId, id) : undefined;
   if (!rec) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
-  if (await isSubmitted(db, rec)) throw frozen();
+  if (await rateLockFrozen(db, rec)) throw frozen();
   const q = await quote();
   const stored = await recordQuote(db, { orgId: config.orgId, batchId: rec.id, purpose: "lock", quote: q });
   return json(201, lockJson(stored));

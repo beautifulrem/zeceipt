@@ -3,7 +3,7 @@
 // the batch's nonce. A batch is immutable once created here, and frozen by triggers once submitted.
 
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
 import { batchItems, batches, submissions } from "../../db/schema.ts";
@@ -194,4 +194,12 @@ export function listBatches(db: ConsoleDb, orgId: string): Promise<BatchSummary[
  */
 export function isSubmitted(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id">): Promise<boolean> {
   return runSync(() => db.select({ n: submissions.nonce }).from(submissions).where(and(eq(submissions.orgId, rec.orgId), eq(submissions.batchId, rec.id))).limit(1).get() !== undefined);
+}
+
+/**
+ * Whether the batch's rate can no longer be locked: a submission exists that is not `failed_retryable` (the one
+ * state proving nothing was paid). Mirrors the `rate_quotes_lock_frozen` trigger (migration 0014; review G2b1).
+ */
+export function rateLockFrozen(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id">): Promise<boolean> {
+  return runSync(() => db.select({ n: submissions.nonce }).from(submissions).where(and(eq(submissions.orgId, rec.orgId), eq(submissions.batchId, rec.id), ne(submissions.state, "failed_retryable"))).limit(1).get() !== undefined);
 }

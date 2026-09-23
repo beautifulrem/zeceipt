@@ -18,7 +18,7 @@
 // The handler never reads `request.signal`: a client that disconnects mid-pay does not abort the pay.
 
 import { z } from "zod";
-import { batchNonce, getBatch, isSubmitted, toExecutionBatch } from "../data/batches.ts";
+import { batchNonce, getBatch, toExecutionBatch } from "../data/batches.ts";
 import { currentLock, recordQuote } from "../data/rates.ts";
 import { rateDrift } from "../rates/drift.ts";
 import { getBatchStatus } from "../data/status.ts";
@@ -64,6 +64,7 @@ export function submitResponse(req: Request, id: string): Promise<Response> {
  */
 export async function submitBatch(id: string, readBody: () => Promise<unknown>): Promise<Response> {
   let reachedBackend = false;
+  let refusedBeforePay = false;
   let inFlightMs: number | undefined;
   const status = UUID_V7.test(id) ? statusPath(id) : undefined;
   try {
@@ -80,12 +81,21 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
     if (BigInt(parsed.data.confirmTotalZat) !== total) {
       throw new HttpProblem(422, "confirmation_mismatch", "confirmTotalZat does not equal this batch's total; this request sent nothing");
     }
-    // REQ-CON-21 (slice G2b1): the first submit of a batch re-quotes the rate and refuses a move beyond the
-    // threshold. Only while no submission exists: a retry replays or reconciles and must never be re-judged
-    // (the rate decision was made when the payment was first attempted).
-    if (!(await isSubmitted(ctx.db, rec))) await rateGuard(ctx, rec.id);
+    // REQ-CON-21 (slice G2b1, review round 1): the rate guard runs before EVERY attempt that will pay (a fresh
+    // batch, a retry after a refusal, a re-send of an attempt proven unminable) and never on a path that may
+    // already have paid (a replay, or a reconciliation that finds the payment). The backend decides which is
+    // which (`beforePay`). A guard refusal happens before any pay, so it is `sent_nothing` even though the
+    // backend was reached.
     reachedBackend = true;
-    const sent = await backend.submit(toExecutionBatch(rec), batchNonce(rec));
+    const beforePay = async () => {
+      try {
+        await rateGuard(ctx, rec.id);
+      } catch (e) {
+        refusedBeforePay = true;
+        throw e;
+      }
+    };
+    const sent = await backend.submit(toExecutionBatch(rec), batchNonce(rec), { beforePay });
     return new Response(JSON.stringify({ batchId: rec.id, txid: sent.txid, replayed: sent.replayed, via: sent.via, status: statusPath(rec.id) }), {
       status: 202,
       headers: {
@@ -96,7 +106,7 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
       },
     });
   } catch (e) {
-    throw submitProblem(e, reachedBackend, status, inFlightMs);
+    throw submitProblem(e, reachedBackend && !refusedBeforePay, status, inFlightMs);
   }
 }
 
@@ -118,9 +128,9 @@ export function movedText(bps: string, maxBps: number): string {
 
 /**
  * The lock-vs-execution guard (REQ-CON-21; slices G2a, G2b1). A current lock is required. A fresh quote is taken
- * and recorded as the execution quote BEFORE the backend creates the submission (G1b's rule: the batch is not
- * frozen yet, so a refused move can still be re-locked; a refusal keeps its evidence). A move beyond
- * `rateMaxDriftBps` refuses. Everything here happens before the backend: every refusal is `sent_nothing`.
+ * and recorded as the execution quote before the attempt pays (a fresh batch: before its submission exists;
+ * a retry: while its record is `failed_retryable`, which can be re-locked). A move beyond `rateMaxDriftBps`
+ * refuses. It runs before any pay, so every refusal is `sent_nothing`.
  */
 async function rateGuard(ctx: ServerContext, batchId: string): Promise<void> {
   const lock = await currentLock(ctx.db, ctx.config.orgId, batchId);

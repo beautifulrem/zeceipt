@@ -179,7 +179,7 @@
     "/api/batches/{id}/submit": {
       "post": {
         "operationId": "submitBatch",
-        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress. The first submit of a batch requires a rate lock and re-quotes the ZEC/USD rate: a move beyond ZECEIPT_RATE_MAX_DRIFT_BPS (default 300 bp) refuses with 409 rate_moved, no lock gives 409 rate_not_locked, and a failing source gives 502 rate_unavailable. All of these send nothing. A retry after the first submission is never re-judged.",
+        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress. Every attempt that will pay requires a rate lock and re-quotes the ZEC/USD rate: a fresh batch, a retry after a refusal, and a re-send of an attempt proven unminable. A move beyond ZECEIPT_RATE_MAX_DRIFT_BPS (default 300 bp) refuses with 409 rate_moved, no lock gives 409 rate_not_locked, and a failing source gives 502 rate_unavailable. All of these send nothing, and after a refusal the batch can be re-locked. A retry that may already have paid (a replay of a broadcast, or a reconciliation that finds the payment) is never re-judged.",
         "parameters": [
           {
             "name": "id",
@@ -654,7 +654,7 @@
     "/api/batches/{id}/rate-lock": {
       "post": {
         "operationId": "lockRate",
-        "summary": "Lock the draft batch's ZEC/USD rate from the configured source (Kraken's Ticker by default, ZECEIPT_RATE_URL). No body. A re-lock appends a new lock, which becomes current. Refused once the batch has a submission. On any source failure nothing is locked.",
+        "summary": "Lock the draft batch's ZEC/USD rate from the configured source (Kraken's Ticker by default, ZECEIPT_RATE_URL). No body. A re-lock appends a new lock, which becomes current. Refused once the batch has a payment attempt that may have paid; allowed again while its submission is failed_retryable, which proves nothing was paid. On any source failure nothing is locked.",
         "parameters": [
           {
             "name": "id",

@@ -511,3 +511,79 @@ test("file store lease: a holder suspended after its write does not delete the n
   const { readFile } = await import("node:fs/promises");
   assert.equal(await readFile(lock, "utf8"), "B", "the other holder's lock must survive");
 });
+
+// Slice G2b1, review round 1: `beforePay` runs before EVERY attempt that will pay, never on a path that may
+// already have paid. A refusal pays nothing and leaves a truthful, re-lockable record.
+const refuse = () => {
+  let calls = 0;
+  const fn = async () => {
+    calls++;
+    throw new Error("guard refused");
+  };
+  return { fn, calls: () => calls };
+};
+
+test("beforePay, fresh batch: runs before the intent exists; a refusal leaves no record and pays nothing", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  const g = refuse();
+  const pays = fake.payCalls;
+  await assert.rejects(b.submit(batch("bp-fresh"), "nonce-bp-fresh", { beforePay: g.fn }), /guard refused/);
+  assert.equal(g.calls(), 1);
+  assert.equal(await store.get("nonce-bp-fresh"), undefined, "no record: nothing is in flight");
+  assert.equal(fake.payCalls, pays);
+});
+
+test("beforePay, retry after a refusal: runs again; a refusal keeps failed_retryable and pays nothing; allowed, it pays once", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  fake.nextPay = "refused";
+  await assert.rejects(b.submit(batch("bp-retry"), "nonce-bp-retry", { beforePay: async () => {} }), PaymentRejectedError);
+  const failed = (await store.get("nonce-bp-retry"))!;
+  assert.equal(failed.state, "failed_retryable");
+  const g = refuse();
+  const pays = fake.payCalls;
+  await assert.rejects(b.submit(batch("bp-retry"), "nonce-bp-retry", { beforePay: g.fn }), /guard refused/);
+  assert.equal(g.calls(), 1, "the retry is judged again");
+  const after = (await store.get("nonce-bp-retry"))!;
+  assert.deepEqual([after.state, after.attempts], ["failed_retryable", failed.attempts], "unchanged: no attempt claimed");
+  assert.equal(fake.payCalls, pays);
+  let ok = 0;
+  const got = await b.submit(batch("bp-retry"), "nonce-bp-retry", { beforePay: async () => void ok++ });
+  assert.deepEqual([ok, got.via, fake.payCalls], [1, "fresh", pays + 1]);
+  fake.mine();
+});
+
+test("beforePay is never called on a path that may already have paid: a replay of a broadcast, a reconciled adoption", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  const sent = await b.submit(batch("bp-replay"), "nonce-bp-replay", { beforePay: async () => {} });
+  const g = refuse();
+  assert.deepEqual(await b.submit(batch("bp-replay"), "nonce-bp-replay", { beforePay: g.fn }), { txid: sent.txid, replayed: true, via: "record" });
+  fake.mine();
+  // A lost answer whose payment is found on chain is adopted without a check.
+  fake.nextPay = "drop-after-broadcast";
+  await assert.rejects(b.submit(batch("bp-adopt"), "nonce-bp-adopt", { beforePay: async () => {} }), UnknownOutcomeError);
+  fake.mine();
+  const adopted = await b.submit(batch("bp-adopt"), "nonce-bp-adopt", { beforePay: g.fn });
+  assert.equal(adopted.via, "reconciled");
+  assert.equal(g.calls(), 0, "never called");
+});
+
+test("beforePay, an attempt proven unminable: recorded as failed_retryable (txid cleared) before the check; a refusal pays nothing; allowed, it pays once more", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  fake.nextPay = "node-rejected";
+  await assert.rejects(b.submit(batch("bp-exp"), "nonce-bp-exp", { beforePay: async () => {} }), UnknownOutcomeError);
+  fake.advance(51); // past the attempt's bound, nothing mined: it can never be mined
+  const g = refuse();
+  const pays = fake.payCalls;
+  await assert.rejects(b.submit(batch("bp-exp"), "nonce-bp-exp", { beforePay: g.fn }), /guard refused/);
+  assert.equal(g.calls(), 1);
+  const rec = (await store.get("nonce-bp-exp"))!;
+  assert.deepEqual([rec.state, rec.txid, fake.payCalls], ["failed_retryable", undefined, pays], "truthful: nothing paid, re-lockable");
+  assert.match(rec.error ?? "", /nothing was paid/);
+  const got = await b.submit(batch("bp-exp"), "nonce-bp-exp", { beforePay: async () => {} });
+  assert.deepEqual([got.via, fake.payCalls], ["fresh", pays + 1]);
+  fake.mine();
+});

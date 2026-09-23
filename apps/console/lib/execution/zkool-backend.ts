@@ -64,6 +64,12 @@ export function isPreBuildRefusal(e: ZkoolGraphqlError): boolean {
   return e.messages.length > 0 && e.messages.every((m) => PRE_BUILD_REFUSALS.some((re) => re.test(m)));
 }
 
+/** Options for an attempt that may pay (slice G2b1). */
+export interface PayOptions {
+  /** Runs before every attempt that will call pay; throwing prevents the payment. */
+  beforePay?: () => Promise<void>;
+}
+
 export class ZkoolBackend implements PayoutBackend {
   readonly name = "zkool-graphql" as const;
   private readonly client: ZkoolClient;
@@ -139,7 +145,13 @@ export class ZkoolBackend implements PayoutBackend {
     return { ok: problems.length === 0, problems, totalZat, feeEstimateZat, spendableZat, height };
   }
 
-  async submit(batch: Batch, nonce: string): Promise<Submitted> {
+  /**
+   * `opts.beforePay` (slice G2b1, review round 1): a check run before EVERY attempt that will call pay, and
+   * never on a path that may already have paid (a replay, a reconciliation that adopts a found txid). The
+   * console passes the rate guard (REQ-CON-21). If it throws, nothing is paid and the record states what is
+   * true: no record for a fresh batch; `failed_retryable` for a retry (see `retry`).
+   */
+  async submit(batch: Batch, nonce: string, opts: PayOptions = {}): Promise<Submitted> {
     if (!nonce || nonce.length > 200) throw new RangeError("nonce must be 1..200 characters");
     const digest = batchDigest(batch);
     const intent: SubmissionRecord = {
@@ -150,6 +162,8 @@ export class ZkoolBackend implements PayoutBackend {
       createdAt: this.now().toISOString(),
       attempts: 1,
     };
+    // A fresh batch: check before the intent exists, so a refusal leaves no record (not an "in flight" one).
+    if (opts.beforePay && !(await this.store.get(nonce))) await opts.beforePay();
     const created = await this.store.createIntent(intent);
     if (!created.created) {
       const existing = created.existing;
@@ -160,13 +174,13 @@ export class ZkoolBackend implements PayoutBackend {
         case "submitting": {
           const age = this.now().getTime() - Date.parse(existing.createdAt);
           if (age < this.inFlightMs) throw new SubmissionInFlightError(nonce, age);
-          return this.resolveUncertain(batch, existing, "a previous submit did not finish");
+          return this.resolveUncertain(batch, existing, "a previous submit did not finish", opts);
         }
         case "unknown_outcome":
-          return this.resolveUncertain(batch, existing, existing.error ?? "transport failure during pay");
+          return this.resolveUncertain(batch, existing, existing.error ?? "transport failure during pay", opts);
         case "failed_retryable":
           // Preflight failed or the backend refused before building: nothing was broadcast.
-          return this.retry(batch, existing);
+          return this.retry(batch, existing, opts);
       }
     }
     return this.pay(batch, intent);
@@ -198,7 +212,7 @@ export class ZkoolBackend implements PayoutBackend {
    * txid). Refused unless the account is scanned past the recorded expiry bound and no transaction
    * paying the batch was mined.
    */
-  async resubmitExpired(batch: Batch, nonce: string): Promise<Submitted> {
+  async resubmitExpired(batch: Batch, nonce: string, opts: PayOptions = {}): Promise<Submitted> {
     const rec = await this.store.get(nonce);
     if (!rec) throw new ExecutionError("unknown_nonce", `nonce ${nonce} was never submitted`);
     if (rec.batchDigest !== batchDigest(batch)) throw new NonceConflictError(nonce);
@@ -214,7 +228,7 @@ export class ZkoolBackend implements PayoutBackend {
     if (!(match.scanned > rec.expiresBy)) {
       throw new ExecutionError("not_expired", `transaction ${rec.txid} can still be mined (expiry bound ${rec.expiresBy}, scanned ${match.scanned})`);
     }
-    return this.retry(batch, rec);
+    return this.retry(batch, rec, opts);
   }
 
   /**
@@ -222,7 +236,18 @@ export class ZkoolBackend implements PayoutBackend {
    * whose holder never advanced the record within `inFlightMs` (it died or its write failed, so it never
    * paid) can be claimed again, so a nonce cannot be wedged. The compare-and-set write then decides.
    */
-  private async retry(batch: Batch, rec: SubmissionRecord): Promise<Submitted> {
+  private async retry(batch: Batch, rec: SubmissionRecord, opts: PayOptions = {}): Promise<Submitted> {
+    if (opts.beforePay) {
+      // Every path here has proven that nothing is paid (refused before building, or an attempt that can no
+      // longer be mined and was not found). Record that first, so that if the check refuses, the record says so
+      // truthfully and the batch can be re-locked (review G2b1: `failed_retryable` is the lockable state).
+      if (rec.state !== "failed_retryable") {
+        const unpaid: SubmissionRecord = { ...rec, state: "failed_retryable", txid: undefined, broadcastAt: undefined, error: "the earlier attempt can no longer be mined and was not found on chain; nothing was paid" };
+        if (!(await this.save(unpaid, rec, [rec.state]))) throw new SubmissionInFlightError(rec.nonce, 0);
+        rec = unpaid;
+      }
+      await opts.beforePay();
+    }
     const attempt = rec.attempts + 1;
     if (!(await this.store.claimAttempt(rec.nonce, attempt, this.inFlightMs))) throw new SubmissionInFlightError(rec.nonce, 0);
     const next: SubmissionRecord = { ...rec, state: "submitting", attempts: attempt, txid: undefined, broadcastAt: undefined, error: undefined, expiresBy: undefined, createdAt: this.now().toISOString() };
@@ -305,7 +330,7 @@ export class ZkoolBackend implements PayoutBackend {
    * found → adopt its txid; not found and the account is *scanned* past the attempt's expiry bound → it can
    * never be mined, so pay again under the same nonce (a new attempt); otherwise → still unknown, say until when.
    */
-  private async resolveUncertain(batch: Batch, rec: SubmissionRecord, why: string): Promise<Submitted> {
+  private async resolveUncertain(batch: Batch, rec: SubmissionRecord, why: string, opts: PayOptions = {}): Promise<Submitted> {
     const match = await this.reconcile(batch, rec);
     if (match.kind === "found") {
       const adopted: SubmissionRecord = { ...rec, state: "broadcast", txid: match.txid, broadcastAt: rec.broadcastAt ?? this.now().toISOString(), error: undefined };
@@ -315,7 +340,7 @@ export class ZkoolBackend implements PayoutBackend {
     // No bound recorded (e.g. a crash mid-attempt): the node tip now is ≥ the tip when Zkool built, so
     // tip + delta is a valid (larger, i.e. safer) upper bound on that attempt's expiry height.
     const expiresBy = rec.expiresBy ?? match.tip + this.txExpiryDelta + this.expiryMarginBlocks;
-    if (match.kind === "none" && match.scanned > expiresBy) return this.retry(batch, { ...rec, expiresBy });
+    if (match.kind === "none" && match.scanned > expiresBy) return this.retry(batch, { ...rec, expiresBy }, opts);
     const detail = match.kind === "none" ? `${match.detail}; the attempt cannot be mined after height ${expiresBy}, a submit once the account is scanned past it pays again` : match.detail;
     const next: SubmissionRecord = { ...rec, state: "unknown_outcome", error: `${why}; ${detail}`, expiresBy };
     if (!(await this.save(next, rec, [rec.state]))) throw new SubmissionInFlightError(rec.nonce, 0);

@@ -144,3 +144,21 @@ test("concurrent writers on separate connections get distinct, consecutive seqs"
     await Promise.all(workers.map((w) => w.terminate()));
   }
 });
+
+test("a lock is allowed again while the only submission is failed_retryable (nothing paid; migration 0014), and refused in every other state", async () => {
+  const b = await draft("refused");
+  await recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: Q });
+  const store = new SqliteIdempotencyStore(db, { orgId: ORG });
+  const base = { nonce: batchNonce(b), batchId: b.id, batchDigest: batchDigest(toExecutionBatch(b)), createdAt: "t", attempts: 1 };
+  await store.createIntent({ ...base, state: "submitting" });
+  await assert.rejects(recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: Q }), (e: unknown) => e instanceof RateRecordError && e.code === "batch_frozen", "submitting: may pay");
+  assert.equal(await store.update({ ...base, state: "failed_retryable", error: "refused before building" }, { attempts: 1, states: ["submitting"] }), true);
+  const relock = await recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, bid: "1700", ask: "1701", rate: "1700" } });
+  assert.equal(relock.rate, "1700", "failed_retryable: nothing was paid, the batch can be re-locked");
+  for (const state of ["unknown_outcome", "broadcast"] as const) {
+    const cur = (await store.get(base.nonce))!;
+    const next = state === "broadcast" ? { ...cur, state, txid: "ab".repeat(32), broadcastAt: "t" } : { ...cur, state, error: "x" };
+    assert.equal(await store.update(next, { attempts: cur.attempts, states: [cur.state] }), true);
+    await assert.rejects(recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: Q }), (e: unknown) => e instanceof RateRecordError && e.code === "batch_frozen", state);
+  }
+});

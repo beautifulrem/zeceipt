@@ -12,7 +12,7 @@ export { SqliteIdempotencyStore } from "./execution/sqlite-store.ts";
 export { openDb, migrateDb, defaultMigrationsDir, type ConsoleDb, type OpenDbOptions } from "../db/client.ts";
 export { autoIssue, IssuanceMismatchError, ReceiptVerificationError } from "./issuance/auto-issue.ts";
 export type { AutoIssueResult, IssuedReceipt, ZeceiptCliOptions } from "./issuance/auto-issue.ts";
-export { BatchInvalidError, batchNonce, createBatch, getBatch, listBatches, newBatchId, toExecutionBatch } from "./data/batches.ts";
+export { BatchInvalidError, batchNonce, createBatch, getBatch, isSubmitted, listBatches, newBatchId, rateLockFrozen, toExecutionBatch } from "./data/batches.ts";
 export type { BatchItemInput, BatchProblem, BatchProblemCode, BatchRecord, BatchSummary, CreateBatchInput } from "./data/batches.ts";
 export { Keyring, open as openSealed, seal, SealError, sealedKid } from "./crypto/seal.ts";
 export type { WrapKey } from "./crypto/seal.ts";

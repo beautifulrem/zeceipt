@@ -1,7 +1,8 @@
 // Rate quote repository (slice G1b; REQ-CON-4, NFR-8): an append-only history of ZEC/USD quotes per batch.
 // A `lock` converts and may be re-taken while the batch is a draft (the latest lock is current); an
 // `execution` quote is taken at submit (slice G2). The schema enforces the rest: no update, delete or
-// replace, and no lock once a submission froze the batch (migrations 0011, 0012).
+// replace, and no lock once a submission that may have paid exists (migrations 0011, 0012, 0014: a
+// `failed_retryable` submission, which proves nothing was paid, still allows a re-lock).
 
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
@@ -76,7 +77,7 @@ export async function recordQuote(
       ),
     );
   } catch (e) {
-    if (e instanceof Error && FROZEN.test(e.message)) throw new RateRecordError("batch_frozen", "the batch has a submission; its rate can no longer be locked");
+    if (e instanceof Error && FROZEN.test(e.message)) throw new RateRecordError("batch_frozen", "the batch has a payment attempt that may have paid; its rate can no longer be locked");
     throw e;
   }
 }
