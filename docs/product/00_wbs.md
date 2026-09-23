@@ -199,9 +199,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.4.4 ⬜ R — NU7 (25 s blocks, v6 unchanged) re-test on testnet after the 2026-10-06 activation. 0.25 pd, 2026-10-04 → 10-07 (run on 10-07).
 - 3.3.4.5 ⬜ R — Spend-authority proof prototype (REQ-CORE-9, Should 8): rerandomized spend-auth signature over the receipt bytes via a wallet-side signer; first item in the cut order. 2 pd, 2026-10-04 → 10-07.
 #### 3.3.5 Payout console — payables, batches, execution
-- 3.3.5.1 ⬜ R — Payables model + manual entry with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.25 pd, 2026-09-23 → 09-24.
+- 3.3.5.1 🟡 R — Payables model + manual entry with validation report and linkability warning (REQ-CON-3, REQ-CON-6). 0.25 pd, 2026-09-23 → 09-24. Done so far (slice E2b, Trellis `09-23-console-draft-form`): manual entry of a batch's lines at `/batches/new` (a line table that works without JavaScript; amounts in ZEC converted exactly; every validation problem next to its line; values kept after an error) through the same handler as `POST /api/batches` `[R64]`. Open: the payables model (REQ-CON-3) and the linkability warning (REQ-CON-6).
 - 3.3.5.7 ⬜ R — CSV import (Konclave `label,address,value[,memo]`, zecpay columns) into payables (REQ-CON-19). 0.25 pd, 2026-09-23 → 09-24.
-- 3.3.5.2 ⬜ T — Batches with single-source rate lock and state machine (REQ-CON-4, REQ-CON-10, NFR-8: stores the FMV source/rate/timestamp). Includes the console's Tailwind setup with this first styled page (slice E; moved from 3.3.1.1). Done so far (slice E1, Trellis `09-23-console-batch-pages`): Tailwind v4 and ESLint (CI), and the read-only pages `/` and `/batches/{id}`, whose wording follows the derived status and never says confirmed without a confirmed payment (Konclave `settlement.ts`), with the payment mode shown apart from the lifecycle `[R62]`; slice E2 (Trellis `09-23-console-batch-actions`): the page actions, Pay (the button names the total, which is posted as the confirmation) and Issue receipts, as Server Actions that call the same handlers as the API and show the API's answer in plain words `[R63]`. Open: the rate lock, and the create-draft form (E2b). 0.5 pd, 2026-09-25 → 09-26.
+- 3.3.5.2 🟡 T — Batches with single-source rate lock and state machine (REQ-CON-4, REQ-CON-10, NFR-8: stores the FMV source/rate/timestamp). Includes the console's Tailwind setup with this first styled page (slice E; moved from 3.3.1.1). Done so far (slice E1, Trellis `09-23-console-batch-pages`): Tailwind v4 and ESLint (CI), and the read-only pages `/` and `/batches/{id}`, whose wording follows the derived status and never says confirmed without a confirmed payment (Konclave `settlement.ts`), with the payment mode shown apart from the lifecycle `[R62]`; slice E2 (Trellis `09-23-console-batch-actions`): the page actions, Pay (the button names the total, which is posted as the confirmation) and Issue receipts, as Server Actions that call the same handlers as the API and show the API's answer in plain words `[R63]`. Open: the rate lock, and the create-draft form (E2b). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.8 ⬜ T — Second rate source and deviation guard (> 3% blocks until re-quote) (REQ-CON-20). 0.5 pd, 2026-09-25 → 09-26.
 - 3.3.5.9 ⬜ T — Lock-vs-execution guard: re-quote at execution, store `rate_at_execution`, block `submitting` on a > 3% move; test with a mocked feed (REQ-CON-21). 0.25 pd, 2026-09-25 → 09-26.
 - 3.3.5.3 ⬜ T — Two-person approval bound by HMAC; edits reset approvals (REQ-CON-5). 0.5 pd, 2026-09-25 → 09-26.
@@ -222,7 +222,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 31 Rust tests + 174 TypeScript console tests (and 1 opt-in regtest e2e; the 8 build-and-serve tests run in CI with `ZECEIPT_APP_E2E=1`), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
+- 3.4.2.1 ✅ R — 31 Rust tests + 177 TypeScript console tests (and 1 opt-in regtest e2e; the 9 build-and-serve tests run in CI with `ZECEIPT_APP_E2E=1`), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.
@@ -308,9 +308,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 31 | 3 | 27 | 2 |
+| 3 Engineering | 63 | 31 | 5 | 25 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 111 | 4 | 60 | 10 |
+| **Total** | 185 | 111 | 6 | 58 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

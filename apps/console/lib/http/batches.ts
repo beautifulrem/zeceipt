@@ -57,7 +57,12 @@ export function batchProblem(e: unknown): Response | undefined {
 
 /** `POST /api/batches`: 201 with the draft and its Location. */
 export async function createBatchResponse(req: Request): Promise<Response> {
-  const parsed = CreateBatchBody.safeParse(await readJson(req));
+  return createBatchFrom(await readJson(req));
+}
+
+/** The whole create, shared by the API route and the page's form (slice E2b): the parsed body in, the API's answer out. */
+export async function createBatchFrom(body: unknown): Promise<Response> {
+  const parsed = CreateBatchBody.safeParse(body);
   if (!parsed.success) {
     // Paths and zod's own messages only (they state types and patterns; an unknown key's name is echoed).
     const issues = parsed.error.issues.map((i) => ({ path: i.path.map(String).join("."), message: i.message }));

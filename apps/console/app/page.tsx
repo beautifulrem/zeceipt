@@ -14,10 +14,15 @@ export default async function Home() {
   return (
     <>
       <AccessNotice />
-      <h1 className="text-2xl font-semibold">Batches</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Batches</h1>
+        <Link href="/batches/new" className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white">
+          New batch
+        </Link>
+      </div>
       <ModePanel mode={paymentMode(config)} />
       {batches.length === 0 ? (
-        <p className="text-slate-600">No batches yet. Create one through the API (POST /api/batches); the form arrives next.</p>
+        <p className="text-slate-600">No batches yet. Create one with New batch.</p>
       ) : (
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Batches, newest first</caption>

@@ -74,12 +74,12 @@ async function start(env: Record<string, string>) {
 }
 /** A raw HTTP/1.1 request (fetch cannot set Host); a stream body is sent chunked, with no Content-Length. */
 function raw(port: number, method: string, path: string, headers: Record<string, string>, body?: string | Iterable<Buffer>) {
-  return new Promise<{ status: number; type: string | undefined; body: string }>((ok, fail) => {
+  return new Promise<{ status: number; type: string | undefined; location?: string; body: string }>((ok, fail) => {
     const r = httpRequest({ host: "127.0.0.1", port, method, path, headers, timeout: 20_000 }, (res) => {
       let b = "";
       res.setEncoding("utf8");
       res.on("data", (d) => (b += d));
-      res.on("end", () => ok({ status: res.statusCode ?? 0, type: res.headers["content-type"], body: b }));
+      res.on("end", () => ok({ status: res.statusCode ?? 0, type: res.headers["content-type"], location: res.headers.location, body: b }));
       res.on("error", fail);
     });
     r.on("error", fail);
@@ -428,5 +428,48 @@ test("page actions through next start, posted as a browser without JavaScript: p
     // A server stuck in a request ignores SIGTERM (Next waits for it): never let cleanup hang the suite.
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     await fake.stop();
+  }
+});
+
+test("create-draft form through next start, posted as a browser without JavaScript: 303 to the new batch; errors next to their lines with values kept", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("draft-form"));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const page = (await raw(s.port, "GET", "/batches/new", { host: self })).body;
+    assert.ok(page.includes("uregtest1… (unified address)") && page.includes('name="lines.2.memo"'), "three blank lines and the network's address hint");
+    const hidden = formFields(page, 'name="title"');
+    const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    const lineFields = (n: number, l: Record<string, string>) => ["payableId", "label", "address", "amount", "memo"].map((k) => [`lines.${n}.${k}`, l[k] ?? ""] as [string, string]);
+    const count = async () => (JSON.parse((await raw(s.port, "GET", "/api/batches", { host: self })).body) as { batches: unknown[] }).batches.length;
+
+    // Invalid: a bad address on line 1, a duplicate memo on line 3 (line 2 blank): 200, errors by line, values kept.
+    const bad = multipart([...hidden, ["title", "Bad batch"], ...lineFields(0, { payableId: "p1", address: "not-an-address", amount: "0.5", memo: "M" }), ...lineFields(1, {}), ...lineFields(2, { payableId: "p2", address: UA, amount: "0.25", memo: "M" })]);
+    const refused = await raw(s.port, "POST", "/batches/new", { ...same, "content-type": bad.type }, bad.body);
+    assert.equal(refused.status, 200);
+    const text = refused.body.replaceAll("<!-- -->", "");
+    assert.ok(/Line 1: [^<]*/.test(text), "line 1 has its error");
+    assert.ok(/Line 3: [^<]*appears twice/.test(text), "the duplicate memo is on line 3 (after the blank line 2)");
+    assert.ok(text.includes('value="not-an-address"') && text.includes('value="Bad batch"'), "the entered values are kept");
+    assert.equal(await count(), 0, "nothing was created");
+
+    // A cross-site post is refused before anything runs.
+    const ok = multipart([...hidden, ["title", "October"], ...lineFields(0, { payableId: "p1", label: "Alice", address: UA, amount: "0.25", memo: "OCT-1" }), ...lineFields(1, {}), ...lineFields(2, { payableId: "p2", address: UA, amount: "1.00000001", memo: "OCT-2" })]);
+    assert.equal((await raw(s.port, "POST", "/batches/new", { host: self, origin: "http://evil.example", "content-type": ok.type }, ok.body)).status, 403);
+    assert.equal(await count(), 0);
+
+    // Valid: 303 to the new batch; the API confirms the items and exact zatoshi.
+    const created = await raw(s.port, "POST", "/batches/new", { ...same, "content-type": ok.type }, ok.body);
+    assert.equal(created.status, 303, created.body.slice(0, 200));
+    const id = /^\/batches\/([0-9a-f-]{36})$/.exec(created.location ?? "")?.[1];
+    assert.ok(id, `redirected to ${created.location}`);
+    const batch = JSON.parse((await raw(s.port, "GET", `/api/batches/${id}`, { host: self })).body) as { title: string; items: { payableId: string; label: string; zat: string; memo: string }[] };
+    assert.equal(batch.title, "October");
+    assert.deepEqual(batch.items.map((i) => [i.payableId, i.label, i.zat, i.memo]), [["p1", "Alice", "25000000", "OCT-1"], ["p2", "", "100000001", "OCT-2"]]);
+    assertNoKey(s.output());
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   }
 });
