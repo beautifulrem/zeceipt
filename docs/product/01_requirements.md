@@ -64,7 +64,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CON-8 | S | Execution backend B: Zallet `z_sendmany` with duplicate-address splitting and unknown-outcome handling after opid loss. | Regtest run. | ⬜ | dropped |
 | REQ-CON-9 | M | Execution backend C: per-recipient ZIP-321 URIs/QR for non-custodial mode (one recipient per URI; multi-recipient URIs are not used because Zodl rejects them). | URIs scan in YWallet/Zodl. | ⬜ | dropped |
 | REQ-CON-10 | M | Batch state machine: draft → approved → submitted → broadcast → confirmed(n) → receipts issued; failures stay retryable; no silent duplicates. | State transitions tested; confirmations configurable. | ⬜ | kept |
-| REQ-CON-11 | M | Auto-issue one receipt per payment output after N confirmations; store receipt JSON, URL and recovered values. | Receipts appear with verify links; issuance is idempotent per (txid, index). | 🟡 issuance (`autoIssue`: N-confirmation gate, batch allow-list, per-item cross-check, verification; PROOF §5c, `apps/console/test/auto-issue.test.ts`), storage sealed at rest with the unique (org, txid, pool, index) key (slice B2, `test/receipts.test.ts`), and HTTP (slice D3: `POST /api/batches/{id}/receipts` idempotent, below the threshold 202 waiting; `GET` lists receipts with their links; `test/receipt-routes.test.ts`) done; receipts appearing on the batch page is slice E | kept |
+| REQ-CON-11 | M | Auto-issue one receipt per payment output after N confirmations; store receipt JSON, URL and recovered values. | Receipts appear with verify links; issuance is idempotent per (txid, index). | 🟡 issuance (`autoIssue`: N-confirmation gate, batch allow-list, per-item cross-check, verification; PROOF §5c), storage sealed at rest with the unique (org, txid, pool, index) key (slice B2), HTTP (slice D3: idempotent, 202 waiting below the threshold) and the batch page (slices E1/E2: receipts listed with their links, an Issue receipts action once confirmed) done; on the live chain through the app: PROOF §5d (three receipts verified online). Open: issuance without a click (a worker that issues on confirmation) | kept |
 | REQ-CON-12 | M | Public receipt page (no login) using the browser verifier; optional challenge input. | Page verifies without server involvement. | ⬜ | kept |
 | REQ-CON-13 | M | Audit pack page and JSON export; lower-bound wording. | Pack verifies in CLI and page. | ⬜ | dropped |
 | REQ-CON-14 | M | Exports: OpenZcash-compatible CSV (+ `receipt_url`), QuickBooks 3-column, Xero single-amount (the 1099 totals export is NFR-9). | Sample files validate against the column specs in `05_data_model_api.md` §3. | ⬜ | dropped |
@@ -147,11 +147,11 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-4 | ⬜ | 3.3.5.2 | `05` §1 `batches` rate fields |
 | REQ-CON-5 | ⬜ | 3.3.5.3 | `05` §1 `approvals` HMAC |
 | REQ-CON-6 | ⬜ | 3.3.5.1 | `04_ux_flows.md` SCR-2 linkability warning; spec §9 |
-| REQ-CON-7 | ✅ | 3.3.5.4 | PROOF §5b, §5c; `apps/console/lib/execution/zkool-backend.ts`; `apps/console/test/zkool-backend.test.ts`; over HTTP: `apps/console/test/submit-routes.test.ts` and the `next start` submit test in `test/app.e2e.test.ts` `[R18]` `[R61]` |
+| REQ-CON-7 | ✅ | 3.3.5.4 | PROOF §5b, §5c, §5d (the console app on the live chain: the pay form posted twice, one transaction); `apps/console/lib/execution/zkool-backend.ts`; `apps/console/test/zkool-backend.test.ts`; over HTTP: `apps/console/test/submit-routes.test.ts`, the `next start` submit test in `test/app.e2e.test.ts`, and `test/regtest.http.e2e.test.ts` `[R18]` `[R61]` |
 | REQ-CON-8 | ⬜ | 3.3.5.5 | `05` §2 zallet-rpc adapter `[R19]` |
 | REQ-CON-9 | ⬜ | 3.3.5.6 | `05` §2 zip321-manual adapter `[R17]` |
 | REQ-CON-10 | ⬜ | 3.3.5.2 | `05` §1 batch state machine |
-| REQ-CON-11 | 🟡 | 3.3.6.1 | PROOF §5c; `apps/console/lib/issuance/auto-issue.ts`; `lib/data/receipts.ts` (B2); `lib/http/receipts.ts` (D3); the page is slice E |
+| REQ-CON-11 | 🟡 | 3.3.6.1 | PROOF §5c, §5d (three receipts issued from the page on the live chain, each verified online); `apps/console/lib/issuance/auto-issue.ts`; `lib/data/receipts.ts` (B2); `lib/http/receipts.ts` (D3); the batch page lists them with their links (E1); open: automatic issuance on confirmation (a worker) |
 | REQ-CON-12 | ⬜ | 3.3.6.2 | `04` SCR-10, FLOW-2 |
 | REQ-CON-13 | ⬜ | 3.3.6.3 | `04` SCR-11, FLOW-3 |
 | REQ-CON-14 | ⬜ | 3.3.6.3 | `05` §3 export columns `[R5]` `[R32]` |

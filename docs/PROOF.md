@@ -639,6 +639,42 @@ Failure paths that a live chain cannot produce on demand are covered by unit tes
 
 `autoIssue`'s fail-closed cases (value, memo or payee mismatch, a duplicate claim of one output, and no files written on failure) run against the real `zeceipt` binary on the committed Zkool fixture (`apps/console/test/auto-issue.test.ts`). Both suites run in CI.
 
+
+## 5d. regtest — the console app, driven through its pages like a user without JavaScript (2026-09-23)
+
+§5c exercised the console's library; this section drives the **built console** (`next build`, then `next start`, Trellis task `09-23-console-regtest-http`, slice E3) on the same local chain, through HTTP only, and checks the results independently of it. The stack is the one of `docs/REGTEST_RUNBOOK.md`: zebrad (internal miner), zainod on 8137, zkool_graphql on 9000 with the issuer restored as account 9.
+
+The console runs in hot custody (Zkool account 9), on regtest, with 2 confirmations. It uses zainod as its lightwalletd, the committed issuer UFVK fixture, `issuer.key` from the artifact directory outside the repository, a temporary SQLite database and fresh wrap keys.
+
+The steps:
+1. Three fresh recipient accounts are created in Zkool, Ironwood only.
+2. The draft is created with the `/batches/new` form: a multipart post, as a browser without JavaScript sends it.
+3. The batch page's Pay form is posted, then posted again.
+4. The console's status API is polled until `confirmed`.
+5. The page's Issue receipts form is posted.
+6. The receipts are listed through the API and each is verified with `zeceipt verify - --regtest --endpoint http://127.0.0.1:8137 --require-signature`, on stdin.
+7. Each recipient's own Zkool account is read.
+
+Command: `ZECEIPT_REGTEST=1 NO_PROXY='*' node --test test/regtest.http.e2e.test.ts` (from `apps/console`). Transcript: `raw/tools/regtest/console-http-e2e-20260923012322.json` (outside the repository; public facts only):
+
+```
+{"step": "recipients", "at_ms": 53, "accounts": [28, 29, 30], "birth": 2610}
+{"step": "created", "at_ms": 415, "batchId": "01a0cbdc-38c6-78cf-bd90-a8be1d41c24d", "totalZat": "66000001", "memos": ["INV-H-20260923012322-1", "INV-H-20260923012322-2", "INV-H-20260923012322-3"]}
+{"step": "paid", "at_ms": 5137, "txid": "6e5411de17dae192ff99b642273907e5547b88fb2789f7472acc67bf2abc651e", "state": "pending", "height": 2611}
+{"step": "confirmed", "at_ms": 23332, "confirmations": 3, "height": 2614, "issuerTransactionsAdded": 1}
+{"step": "receipts", "at_ms": 23439, "verdicts": [{"payableId": "P-1", "outputIndex": 2, "valueZat": "21000000", "memo": "INV-H-20260923012322-1", "valid": true, "recoveredValue": 21000000, "recoveredMemo": "INV-H-20260923012322-1"}, {"payableId": "P-2", "outputIndex": 0, "valueZat": "22000000", "memo": "INV-H-20260923012322-2", "valid": true, "recoveredValue": 22000000, "recoveredMemo": "INV-H-20260923012322-2"}, {"payableId": "P-3", "outputIndex": 3, "valueZat": "23000001", "memo": "INV-H-20260923012322-3", "valid": true, "recoveredValue": 23000001, "recoveredMemo": "INV-H-20260923012322-3"}]}
+{"step": "recipients_received", "at_ms": 23596, "received": [{"account": 28, "value": "0.21000000", "memo": "INV-H-20260923012322-1"}, {"account": 29, "value": "0.22000000", "memo": "INV-H-20260923012322-2"}, {"account": 30, "value": "0.23000001", "memo": "INV-H-20260923012322-3"}]}
+```
+
+What the log shows:
+
+- **The form creates exact amounts.** "0.23000001" ZEC typed into the form became 23000001 zatoshi; the total is 66000001.
+- **Paid once for two posts of the pay form.** The status kept txid `6e5411de…` after the repost, and the issuer's Zkool account gained exactly one transaction (`issuerTransactionsAdded: 1`).
+- **The derived status follows the chain.** The status went from `pending` at height 2611 to `confirmed` with 3 confirmations at height 2614, read by the console itself (B3; it syncs Zkool on each read). It then became `receipts_issued` after the Issue form.
+- **Three receipts verify online against zainod, with the issuer's signature required.** Each verification recovered exactly the batch item's memo and value (outputs 2, 0 and 3 of the transaction). None binds a challenge (`challenge_checked: false`): console receipts are bearer links (slice D3).
+- **Each recipient's own wallet holds its memo and amount** (accounts 28–30: 0.21, 0.22 and 0.23000001 ZEC with `INV-H-…-1..3`). This is delivery seen from the payee's side, not just the payer's.
+- **Nothing secret was written.** The test checked that neither the transcript nor the server's output contains any receipt link (each holds an OCK) or the wrap key.
+
 ## 6. testnet — placeholder
 
 To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.

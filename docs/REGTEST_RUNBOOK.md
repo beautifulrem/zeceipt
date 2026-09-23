@@ -38,3 +38,9 @@ Notes: Zeceipt's `Network` enum has main/test only; regtest addresses use testne
 - With zebrad (internal miner on), zainod and zkool_graphql running and the issuer restored in Zkool (account 9 here), from `apps/console`: `ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts`. Environment: `ZKOOL_URL`, `ENDPOINT`, `ZEBRA_RPC`, `ZKOOL_ISSUER` (default 9), `CONFIRMATIONS` (default 2), `ARTIFACT_DIR` (default `../raw/tools/regtest` relative to the repository root, i.e. outside it; it must hold `issuer.key`), `ZECEIPT_BIN` (default `target/release/zeceipt`).
 - The test creates three recipient accounts in Zkool per run and sends 0.66 REG + fee from the issuer; it also sends one deliberately unaffordable `pay` that Zkool refuses (nothing is built).
 - Outputs in `ARTIFACT_DIR`: `console-e2e-<stamp>.json` (transcript), `console-receipts-<stamp>/` (receipts), `console-nonces/` (the file idempotency store). Re-verify with `STAMP=<stamp> TXID=<txid> HEIGHT=<mined height> scripts/regtest/console-verify.sh > $ARTIFACT_DIR/console-verify-<stamp>.out`.
+
+## Console app through HTTP (2026-09-23, PROOF §5d)
+- Start the services: `zebrad -c zebrad.toml start`; `zainod start --config zainod.toml` (zainod 0.9 needs the `start` subcommand: plain `zainod --config …` fails with "unexpected argument"); and zkool_graphql as above.
+- Note: zkool_graphql listens on `0.0.0.0:9000` (all interfaces, unauthenticated) and has no bind-address option. Run it only on a machine or network you trust, and stop it after the run.
+- From `apps/console`: `ZECEIPT_REGTEST=1 NO_PROXY='*' node --test test/regtest.http.e2e.test.ts`. It builds the app, starts `next start` against the live stack, drives the pages' forms without JavaScript, verifies the receipts with the CLI, and writes `console-http-e2e-<stamp>.json` to `ARTIFACT_DIR`. Environment as for §5c, plus `ZECEIPT_BIN` (default `target/release/zeceipt`).
+
