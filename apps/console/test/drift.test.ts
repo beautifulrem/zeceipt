@@ -34,3 +34,19 @@ test("bad input is refused, never guessed", () => {
   for (const [l, e] of [["0", "1"], ["1", "0"], ["-1", "1"], ["1e3", "1000"], ["", "1"]]) assert.throws(() => rateDrift(l, e, 300), RangeError, `${l} → ${e}`);
   for (const bps of [0, -1, 2001, 1.5, Number.NaN]) assert.throws(() => rateDrift("1", "1", bps), RangeError, String(bps));
 });
+
+test("the refusal's wording never shows a figure equal to the limit, at the resolution it prints (review G2b2)", async () => {
+  const { movedText, pctFromBps } = await import("../lib/index.ts");
+  assert.equal(pctFromBps("312.5"), "3.12%");
+  assert.equal(pctFromBps(300), "3.00%");
+  assert.equal(pctFromBps("0.99"), "0.00%");
+  for (const bps of ["300.00", "300.50", "300.62", "300.99"]) assert.equal(movedText(bps, 300), "more than 3.00%", bps);
+  assert.equal(movedText("301.00", 300), "3.01%");
+  assert.equal(movedText("500.00", 300), "5.00%");
+  // Real quotes: 1000.00 → 1030.05 and 1600.00 → 1648.10 / 1551.90 are refused and must not read "moved 3.00%".
+  for (const [l, e] of [["1000.00", "1030.05"], ["1600.00", "1648.10"], ["1600.00", "1551.90"]]) {
+    const d = rateDrift(l, e, 300);
+    assert.equal(d.moved, true, `${l} → ${e}`);
+    assert.equal(movedText(d.bps, 300), "more than 3.00%", `${l} → ${e} (${d.bps} bp)`);
+  }
+});

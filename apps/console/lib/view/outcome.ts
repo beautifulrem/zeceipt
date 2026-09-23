@@ -59,7 +59,8 @@ export async function submitOutcome(res: Response): Promise<ActionOutcome> {
   }
   // The rate guard (REQ-CON-21, slice G2b2): the API's own numbers, never the source's text.
   const moved = b.code === "rate_moved" ? ((b as { rate?: RateMoved }).rate ?? {}) : undefined;
-  if (moved?.lock && moved.execution && moved.driftBps && moved.maxDriftBps) {
+  // Our own API's numbers; still checked, so a malformed value falls back to the generic sentence (review G2b2).
+  if (moved?.lock && moved.execution && moved.driftBps && /^\d+(\.\d+)?$/.test(moved.driftBps) && typeof moved.maxDriftBps === "number" && Number.isInteger(moved.maxDriftBps) && moved.maxDriftBps > 0) {
     return {
       tone: "warning",
       headline: "Rate moved",

@@ -56,6 +56,10 @@ test("the rate guard in words (slice G2b2): a moved rate names both rates and th
   assert.deepEqual(await submitOutcome(moved), { tone: "warning", headline: "Rate moved", detail: "ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, then pay. This request sent nothing." });
   const edge = problem(409, "rate_moved", "x", { thisRequest: "sent_nothing", rate: { lock: "1000", execution: "1030.00000001", driftBps: "300.00", maxDriftBps: 300 } });
   assert.match((await submitOutcome(edge)).detail, /moved more than 3\.00% since the lock/, "never a figure equal to the limit");
+  const justPast = problem(409, "rate_moved", "x", { thisRequest: "sent_nothing", rate: { lock: "1000.00", execution: "1030.05", driftBps: "300.50", maxDriftBps: 300 } });
+  assert.match((await submitOutcome(justPast)).detail, /moved more than 3\.00% since the lock/, "300.50 bp prints as 3.00%, so it must say 'more than'");
+  const malformed = problem(409, "rate_moved", "the rate moved; re-lock", { thisRequest: "sent_nothing", rate: { lock: "1", execution: "2", driftBps: "1e3", maxDriftBps: 300 } });
+  assert.equal((await submitOutcome(malformed)).headline, "Not done", "a malformed figure falls back to the generic sentence");
   assert.deepEqual(await submitOutcome(problem(409, "rate_not_locked", "lock the batch's ZEC/USD rate before paying; this request sent nothing", { thisRequest: "sent_nothing" })), { tone: "warning", headline: "Not paid", detail: "Lock the ZEC/USD rate first. This request sent nothing." });
   assert.deepEqual(await submitOutcome(problem(502, "rate_unavailable", "the ZEC/USD source did not give a usable quote", { thisRequest: "sent_nothing", reason: "network" })), { tone: "warning", headline: "Not paid", detail: "The rate source's answer was unusable (network), so the rate could not be checked. Try again shortly. This request sent nothing." });
 });

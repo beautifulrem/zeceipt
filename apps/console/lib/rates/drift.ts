@@ -53,7 +53,9 @@ export function pctFromBps(bps: string | number): string {
  * the limit rather than a figure equal to it (review G2a).
  */
 export function movedText(bps: string, maxBps: number): string {
-  const [whole, frac = ""] = bps.split(".");
-  const hundredths = BigInt(whole) * 100n + BigInt((frac + "00").slice(0, 2));
-  return hundredths <= BigInt(maxBps) * 100n ? `more than ${pctFromBps(maxBps)}` : pctFromBps(bps);
+  // Compare at the resolution the text shows (review G2b2): `pctFromBps` prints whole basis points (0.01%), so
+  // any refused move whose whole basis points do not exceed the limit (300.50 bp → "3.00%") would read as equal
+  // to the limit; say "more than" the limit instead.
+  const shownBp = BigInt(bps.split(".")[0]);
+  return shownBp <= BigInt(maxBps) ? `more than ${pctFromBps(maxBps)}` : pctFromBps(bps);
 }

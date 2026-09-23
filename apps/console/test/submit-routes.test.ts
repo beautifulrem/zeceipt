@@ -369,6 +369,18 @@ test("just past the limit the message says 'more than', never a figure equal to 
   assert.match(String(r.body.detail), /moved more than 3\.00% since the lock/);
 });
 
+test("a real quote just past the limit (1000.00 → 1030.05, 300.50 bp) says 'more than 3.00%' (review G2b2)", async () => {
+  boot(); // hot custody (the test before these boots external)
+  tick = { status: 200, body: ticker("1000.00") };
+  const b = await createDraft(["1000"]);
+  tick = { status: 200, body: ticker("1030.05") };
+  const r = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.equal(r.body.code, "rate_moved");
+  assert.equal((r.body as { rate?: { driftBps?: string } }).rate!.driftBps, "300.50");
+  assert.match(String(r.body.detail), /moved more than 3\.00% since the lock; at most 3\.00% is allowed/);
+  tick = { status: 200, body: ticker("1600.00") };
+});
+
 test("the source failing at submit: 502 rate_unavailable with a reason, sent_nothing, no pay call", async () => {
   boot(); // hot custody (the test before these boots external)
   tick = { status: 200, body: ticker("1600.00") };

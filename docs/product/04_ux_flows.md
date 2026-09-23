@@ -14,7 +14,10 @@
 
 ### FLOW-1 Issuer runs a batch (P1/P2)
 1. Add payables by hand, or import CSV (Konclave `label,address,value[,memo]` or zecpay `name,wallet,amount,currency,payout_currency`; REQ-CON-19, baseline only — the solo branch is manual entry only) → validation report (bad UA, duplicate address, missing W-9/TIN for a `tax_flag = us_1099` recipient whose calendar-year aggregate reaches $2,000 `[R26]`; KYC status is shown but does not block).
-2. Create batch → lock rate from one source with its timestamp (REQ-CON-4); at execution a > 3% move since the lock blocks until re-quote (REQ-CON-21). A second source with a cross-source disagreement check is REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch).
+2. Create batch → lock rate from one source with its timestamp (REQ-CON-4); at execution a > 3% move since the lock blocks until re-quote (REQ-CON-21). A second source with a cross-source disagreement check is REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch). Built (slices G1c2, G2b1, G2b2; REQ-CON-4, REQ-CON-21):
+   - the batch page locks the rate (with its source and time) and offers Pay only once locked (REQ-CON-4);
+   - every attempt that will pay is checked, and a move beyond the limit is refused with both rates, the limit and a re-lock prompt, while nothing is sent (REQ-CON-21);
+   - a batch the wallet refused keeps its Re-lock form (REQ-CON-21).
 3. Approvals: two approvers each see recipients, totals, rate; approve → HMAC recorded; any edit resets approvals.
 4. Execute: choose backend (Zkool hot-custody · external signer via per-recipient ZIP-321 QR); confirm dialog restates totals.
 5. Track: pending → broadcast → confirmed(n); failure rows retryable, no duplicates.
@@ -52,7 +55,7 @@ Error states: rate source down (the lock is blocked and the batch stays in draft
 | SCR-1 | Org dashboard | empty, batches by state, receipts issued count |
 | SCR-2 | Recipients | list, add/edit, validation errors, KYC/tax flags, linkability warning |
 | SCR-3 | Payables | import (report with row errors), list, filters by type/status |
-| SCR-4 | Batch detail | draft / awaiting approvals / approved / executing / confirmed / failed rows; rate panel; approval log |
+| SCR-4 | Batch detail | draft / awaiting approvals / approved / executing / confirmed / failed rows; rate panel; approval log. Built so far (E1, E2, G1c2, G1d, G2b2; REQ-CON-4, REQ-CON-21): status and lifecycle; items with ZEC (8 decimals) and USD at the lock; the rate panel (rate, exact bid, source, time, Lock/Re-lock while no attempt may have paid); Pay only once locked; outcomes in plain words ("Rate moved" with both rates and the limit); receipts. Approvals are not built (REQ-CON-5 dropped in the solo branch) |
 | SCR-5 | Execute dialog | backend choice, custody-mode notice, restated totals, confirm |
 | SCR-6 | Receipts | per batch: links, copy, resend; issuance status |
 | SCR-7 | Audit packs | build, download, share link |
