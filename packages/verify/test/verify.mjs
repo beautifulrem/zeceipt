@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import init, { verify_receipt, check_signature, version } from "../pkg/zeceipt_wasm.js";
+import init, { verify_receipt, check_signature, parse_receipt, version } from "../pkg/zeceipt_wasm.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const wasm = fs.readFileSync(path.join(here, "../pkg/zeceipt_wasm_bg.wasm"));
@@ -48,6 +48,21 @@ for (const v of vectors.vectors) {
 // The grid comes from the vector file (emitted from Network::ALL / Pool::ALL in Rust), not from a literal here.
 check("vector file declares networks and pools", Array.isArray(vectors.networks) && Array.isArray(vectors.pools) && vectors.networks.length > 0 && vectors.pools.length > 0 && new Set(vectors.networks).size === vectors.networks.length && new Set(vectors.pools).size === vectors.pools.length);
 check("vectors cover every declared network x pool", vectors.networks.every(n => vectors.pools.every(p => vectors.vectors.some(v => v.receipt.network === n && v.receipt.pool === p))));
+
+// Shareable links (spec §2): the committed build parses the fragment form issuers emit and the
+// v0 path form, from the vector file, to the named vector's signed receipt.
+const forms = vectors.url_forms;
+const named = vectors.vectors.find((v) => v.name === forms.vector);
+const sorted = (o) => JSON.stringify(o, Object.keys(o).sort()); // the vector file's keys are sorted
+check("url_forms fragment link has the payload after /r#", typeof forms.fragment === "string" && forms.fragment.startsWith(forms.host + "/r#"), forms.fragment);
+for (const [kind, link] of [["fragment", forms.fragment], ["path", forms.path], ["location.hash", forms.fragment.slice(forms.fragment.indexOf("#"))]]) {
+  let parsed;
+  try { parsed = parse_receipt(link); } catch (e) { parsed = { error: String(e) }; }
+  check(`${kind} link parses to the vector`, sorted(parsed) === sorted(named.signed_receipt), JSON.stringify(parsed));
+}
+let emptyRejected = false;
+try { parse_receipt(forms.host + "/r#"); } catch { emptyRejected = true; }
+check("a link with an empty fragment and no path payload is rejected", emptyRejected);
 
 // NFR-7: the demo copy must always show what a result proves and does not prove, with text labels (not colour only).
 const demoHtml = fs.readFileSync(path.join(here, "../demo/index.html"), "utf8");

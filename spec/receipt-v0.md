@@ -27,7 +27,22 @@ JSON object. Unknown fields must be ignored by verifiers.
 | `signature` | hex (128 chars) | no | ed25519 signature over the canonical bytes (§5). |
 | `zip311_profile` | string | no | Informational; `"outputs-only"` in v0. |
 
-Shareable URL form: `https://<host>/r/<base64url(json)>`. Verifiers accept the URL, the bare base64url payload, or raw JSON.
+### 2.1 Shareable URL
+
+Form: `https://<host>/r#<payload>`, where `<payload>` is the base64url (no padding) encoding of the receipt JSON. A trailing `/` on the host is dropped.
+
+The payload is in the **fragment** because it contains the OCK: whoever holds the link can read that output. A browser never sends the fragment to the host ("the fragment identifier is separated from the rest of the URI prior to a dereference", RFC 3986 §3.5), and never puts it in a `Referer` (Referrer Policy, "strip url for use as a referrer", step 5). So the host serving the receipt page, its CDN and its access logs never see the OCK. ZIP 324 carries its payment key in the fragment for the same reason. The link is still a bearer capability: anyone it is forwarded to can verify the payment.
+
+The fragment is the bare payload, not `key=value` pairs: the receipt is one self-describing document with its own `version`. Nothing else belongs in the link. In particular the verifier types the challenge they sent (§6); it is never taken from the link, because a link carrying it would prove nothing about who presents it.
+
+Verifiers accept a URL, a bare payload, or raw JSON. Rule, in order:
+
+1. After trimming whitespace, input starting with `{` is raw JSON.
+2. If the input contains `#` and the text after the first `#` is not empty, that text is the payload. This covers the URL form under any host or path prefix, and `#<payload>` (what a browser's `location.hash` returns).
+3. Otherwise, in the text before any `#`: if it contains `/r/`, the payload is the text after the last `/r/`, up to any `?`. This is the path form `https://<host>/r/<payload>` that v0 issuers emitted before 2026-09-23; it is accepted, not emitted, because its payload reaches the host.
+4. Otherwise the text before any `#` is the bare payload.
+
+An empty payload, or one that is not base64url of a receipt JSON, is an error ("URL does not contain a receipt payload"). `spec/test-vectors/receipt-v0.json` → `url_forms` gives one vector's link in both forms.
 
 ## 3. Issuance
 

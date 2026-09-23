@@ -85,6 +85,17 @@ fn main() {
         "signed_receipt": flipped,
         "verifies": false,
     }));
+    // Shareable URL forms (spec §2) for the first vector's signed receipt: the fragment
+    // form issuers emit, and the v0 path form verifiers still accept.
+    let first = base.clone().sign(&key).unwrap();
+    let host = "https://zeceipt.xyz";
+    let fragment_url = first.to_url(host).unwrap();
+    let url_forms = json!({
+        "vector": cases[0].0,
+        "host": host,
+        "fragment": fragment_url,
+        "path": fragment_url.replacen("/r#", "/r/", 1),
+    });
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -95,6 +106,7 @@ fn main() {
             "pools": Pool::ALL.iter().map(|p| p.as_str()).collect::<Vec<_>>(),
             "canonical_bytes": "b\"zeceipt-v0\" || network(1) || pool(1) || txid(32) || output_index u32 LE || ock(32) || len(label) u32 LE || label || len(challenge) u32 LE || challenge || len(issuer_key_id) u32 LE || issuer_key_id",
             "vectors": vectors,
+            "url_forms": url_forms,
         }))
         .unwrap()
     );

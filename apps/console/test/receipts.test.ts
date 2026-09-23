@@ -113,7 +113,10 @@ test("record → list: three real receipts, decrypted back intact, still verifyi
     const text = JSON.stringify(row);
     const ock = listed[i].receipt!.ock as string;
     assert.ok(ock && !text.includes(ock), "OCK must not be stored in plaintext");
-    assert.ok(!text.includes(listed[i].url!.split("/r/")[1].slice(0, 40)), "URL payload must not be stored in plaintext");
+    const link = new URL(listed[i].url!);
+    const payload = link.hash.slice(1); // the receipt payload rides in the fragment (spec §2)
+    assert.ok(link.pathname.endsWith("/r") && payload.length > 40, `a fragment link: ${link.origin}${link.pathname}`);
+    assert.ok(!text.includes(payload.slice(0, 40)), "URL payload must not be stored in plaintext");
   }
 });
 

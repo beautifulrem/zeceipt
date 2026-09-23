@@ -71,7 +71,7 @@ Array of receipt envelopes (spec §2). Public feed for ledgers (FLOW-5).
 
 ## 4. Contracts
 
-- Receipt envelope v0: `spec/receipt-v0.md` §2 (JSON), §5 (signing), URL form `/r/<base64url(json)>`.
+- Receipt envelope v0: `spec/receipt-v0.md` §2 (JSON), §5 (signing), URL form `/r#<base64url(json)>` (§2.1; payload in the fragment, the v0 path form `/r/…` still parsed; `[R66]`).
 - Audit pack: `{"version":"zeceipt-v0","title","declared_total_zat","receipts":[…]}` (spec §8).
 - Well-known issuer keys (`/.well-known/zeceipt.json`, REQ-INT-3 — Should, planned for leaf 3.3.3.3, dropped in the solo branch):
 ```json

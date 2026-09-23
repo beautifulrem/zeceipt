@@ -283,27 +283,41 @@ impl Receipt {
         Ok(r)
     }
 
-    /// Shareable URL: `<host>/r/<base64url(json)>`.
+    /// Shareable URL: `<host>/r#<base64url(json)>`.
+    ///
+    /// The payload holds the OCK, so it goes in the fragment, which a browser never
+    /// sends to the host (RFC 3986 §3.5) nor in a `Referer` (spec §2).
     pub fn to_url(&self, host: &str) -> Result<String, TypesError> {
         let json = self.to_json()?;
         Ok(format!(
-            "{}/r/{}",
+            "{}/r#{}",
             host.trim_end_matches('/'),
             URL_SAFE_NO_PAD.encode(json.as_bytes())
         ))
     }
 
-    /// Parse a receipt from a URL, a bare base64url payload, or raw JSON.
+    /// Parse a receipt from a URL (`…/r#<payload>`, or the v0 path form `…/r/<payload>`),
+    /// a bare base64url payload (with or without a leading `#`), or raw JSON (spec §2).
     pub fn parse(input: &str) -> Result<Self, TypesError> {
         let s = input.trim();
         if s.starts_with('{') {
             return Self::from_json(s);
         }
-        let payload = match s.rfind("/r/") {
-            Some(i) => &s[i + 3..],
-            None => s,
+        let (before, fragment) = match s.split_once('#') {
+            Some((b, f)) => (b, f),
+            None => (s, ""),
         };
-        let payload = payload.split(['?', '#']).next().unwrap_or(payload);
+        let payload = if !fragment.is_empty() {
+            fragment
+        } else {
+            match before.rfind("/r/") {
+                Some(i) => before[i + 3..].split('?').next().unwrap_or(""),
+                None => before,
+            }
+        };
+        if payload.is_empty() {
+            return Err(TypesError::Url);
+        }
         let bytes = URL_SAFE_NO_PAD
             .decode(payload)
             .map_err(|_| TypesError::Url)?;
@@ -391,12 +405,51 @@ mod tests {
     #[test]
     fn url_round_trip_and_bare_payload() {
         let r = sample();
+        let payload = URL_SAFE_NO_PAD.encode(r.to_json().unwrap().as_bytes());
+        // The payload is in the fragment (spec §2); the host's trailing slash is trimmed.
         let url = r.to_url("https://zeceipt.xyz/").unwrap();
-        assert!(url.starts_with("https://zeceipt.xyz/r/"));
+        assert_eq!(url, format!("https://zeceipt.xyz/r#{payload}"));
+        assert_eq!(r.to_url("https://zeceipt.xyz").unwrap(), url);
         assert_eq!(Receipt::parse(&url).unwrap(), r);
-        let payload = url.rsplit("/r/").next().unwrap();
-        assert_eq!(Receipt::parse(payload).unwrap(), r);
+        // A page mounted under a path prefix, `location.hash`, and the bare payload.
+        assert_eq!(
+            Receipt::parse(&format!("https://example.github.io/zeceipt/r#{payload}")).unwrap(),
+            r
+        );
+        assert_eq!(Receipt::parse(&format!("#{payload}")).unwrap(), r);
+        assert_eq!(Receipt::parse(&payload).unwrap(), r);
         assert_eq!(Receipt::parse(&r.to_json().unwrap()).unwrap(), r);
+    }
+
+    #[test]
+    fn v0_path_links_still_parse() {
+        let r = sample();
+        let payload = URL_SAFE_NO_PAD.encode(r.to_json().unwrap().as_bytes());
+        let path = format!("https://zeceipt.xyz/r/{payload}");
+        assert_eq!(Receipt::parse(&path).unwrap(), r);
+        assert_eq!(Receipt::parse(&format!("{path}?utm=x")).unwrap(), r);
+        // An empty fragment leaves the path payload in charge.
+        assert_eq!(Receipt::parse(&format!("{path}#")).unwrap(), r);
+    }
+
+    #[test]
+    fn links_without_a_payload_are_rejected() {
+        for input in [
+            "https://zeceipt.xyz/r#",
+            "https://zeceipt.xyz/r/",
+            "#",
+            "https://zeceipt.xyz/r/?x=1",
+        ] {
+            assert!(
+                matches!(Receipt::parse(input), Err(TypesError::Url)),
+                "{input}"
+            );
+        }
+        // Text that is not a receipt payload fails at decoding, also as `Url`.
+        assert!(matches!(
+            Receipt::parse("https://zeceipt.xyz/r#not a payload"),
+            Err(TypesError::Url)
+        ));
     }
 
     #[test]
@@ -490,6 +543,27 @@ mod tests {
             let given: Receipt = serde_json::from_str(&v["signed_receipt"].to_string()).unwrap();
             assert_eq!(given.verify_signature().is_ok(), expect_ok, "{}", v["name"]);
         }
+        // URL forms: `to_url` emits the committed fragment URL, and both forms parse to the
+        // named vector's signed receipt.
+        let forms = &vectors["url_forms"];
+        let named = vectors["vectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["name"] == forms["vector"])
+            .unwrap();
+        let signed: Receipt = serde_json::from_str(&named["signed_receipt"].to_string()).unwrap();
+        let fragment = forms["fragment"].as_str().unwrap();
+        assert_eq!(
+            signed.to_url(forms["host"].as_str().unwrap()).unwrap(),
+            fragment
+        );
+        assert!(fragment.contains("/r#"));
+        assert_eq!(Receipt::parse(fragment).unwrap(), signed);
+        assert_eq!(
+            Receipt::parse(forms["path"].as_str().unwrap()).unwrap(),
+            signed
+        );
     }
 
     #[test]

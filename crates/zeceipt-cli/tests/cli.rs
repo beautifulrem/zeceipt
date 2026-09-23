@@ -237,6 +237,35 @@ fn inspect_issue_pack_and_verify_pack_offline() {
     assert_eq!(v["verified_total_zat"], 250_000_000);
 }
 
+/// `issue` prints links with the payload in the fragment (spec §2), and `verify` takes
+/// that link as well as the v0 path form.
+#[test]
+fn issue_prints_fragment_links_and_verify_takes_both_forms() {
+    let raw = fixture("synthetic-ironwood.hex");
+    let ovk = std::fs::read_to_string(fixture("synthetic-ovk.hex")).unwrap();
+    let (c, o, err) = run(&[
+        "issue",
+        "--raw-tx-file",
+        &raw,
+        "--ovk",
+        ovk.trim(),
+        "--label",
+        "link-test",
+    ]);
+    assert_eq!(c, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    let url = v["receipts"][0]["url"].as_str().unwrap().to_string();
+    assert!(url.starts_with("https://zeceipt.xyz/r#ey"), "{url}");
+    let path_form = url.replacen("/r#", "/r/", 1);
+    for link in [&url, &path_form] {
+        let (c, o, err) = run(&["verify", link, "--raw-tx-file", &raw]);
+        assert_eq!(c, 0, "{link}: {o} {err}");
+        let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+        assert_eq!(v["valid"], true);
+        assert_eq!(v["value_zat"], 250_000_000);
+    }
+}
+
 /// A consensus-valid regtest transaction (mined by Zebra) with a receipt issued
 /// from the sender's UFVK: the strongest offline evidence in the repository.
 #[test]

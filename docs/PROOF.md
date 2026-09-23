@@ -127,6 +127,16 @@ The same matrix runs in CI (`.github/workflows/ci.yml`, including `pack` → `ve
 
 All verification ran inside the page (`zeceipt-wasm 0.1.0 (zeceipt-v0) ready`). The gRPC-web call is a hand-encoded `GetTransaction` (`packages/verify/src/index.js`, `fetchRawTx`), no proxy.
 
+Rebuilt 2026-09-23 for slice F1 (links carry the payload in the fragment, spec §2.1): 704,343 bytes. The size changed with the toolchain (rustc 1.96.0, wasm-pack 0.15.0, Homebrew LLVM 23 clang for `secp256k1-sys`), and the JavaScript glue is byte-identical. `node packages/verify/test/verify.mjs`: ALL OK, including the new `url_forms` checks. With the 2026-09-22 build the fragment and `#<payload>` checks fail ("URL does not contain a receipt payload"), which is the negative control. Driven again in Chrome (playwright-core, `channel: "chrome"`) with the synthetic receipt, the raw tx, challenge `auditor-nonce-7` and signature required:
+
+| receipt input | result shown by the page |
+|---|---|
+| `https://zeceipt.xyz/r#<payload>` | **VALID**, txid `4f3cc1ae…1b7f` |
+| `https://zeceipt.xyz/r/<payload>` (v0 path form) | **VALID**, the same |
+| `https://zeceipt.xyz/r#` | **INVALID**, failed at `parse`: URL does not contain a receipt payload |
+
+The timings below were measured on the 2026-09-22 build. Since then, the crates changed only in `Receipt::parse`/`to_url` (this slice) and the allow-list helpers `shielded_receivers`/`pays_any` in `zeceipt-core`, which no WASM export calls. Verification itself is unchanged.
+
 Timing (2026-09-22, NFR-4). Chrome 153 on `demo/index.html` served locally, `performance.now()` around `verifyReceipt` from `src/index.js`, 20-run averages, signed and challenge-bound receipts: **7.28 ms** on the synthetic fixture (9,166-byte tx) and **6.05 ms** on the Zkool batch fixture `regtest-48db254a…` (15,478 bytes, 4 Ironwood actions, receipt for output 1). 69 % more bytes cost no more time: verification decrypts exactly one output, so the cost is dominated by that single trial decryption and is roughly flat in transaction size across 9–15 KB. At 6–7 ms the measurement is **more than 130× inside the 1 s budget**; the remaining 23 % to the NFR's 20 KB bound is not measured but cannot plausibly change that order of magnitude. Node 26 on the committed wasm: init 13.9 ms; `verify_receipt` 4.11 ms (regtest fixture) / 3.19 ms (synthetic). CLI (release build, `/usr/bin/time`): `zeceipt inspect --txid 0e85513c…da69` fetching the mainnet tx from `zec.rocks` over gRPC/TLS 1.15 s wall; `zeceipt issue --regtest --raw-tx-file … --ufvk …` (trial-decrypt of both outputs + signing, offline) 0.00 s wall; `zeceipt verify --regtest --raw-tx-file …` offline 0.01 s. So a public-node `issue` is fetch-bound at ≈ 1–2 s. The page shows the mined height for fetched transactions and tells the user to confirm depth on an explorer or their own node; it does not compute confirmations itself.
 
 ## 3. unit — protocol-level round trip
@@ -652,7 +662,7 @@ The steps:
 3. The batch page's Pay form is posted, then posted again.
 4. The console's status API is polled until `confirmed`.
 5. The page's Issue receipts form is posted.
-6. The receipts are listed through the API and each is verified with `zeceipt verify - --regtest --endpoint http://127.0.0.1:8137 --require-signature`, on stdin.
+6. The receipts are listed through the API and each is verified with `zeceipt verify - --regtest --endpoint http://127.0.0.1:8137 --require-signature`, on stdin. Since slice F1 (2026-09-23) the input is the receipt's shareable link, which must be a fragment link (`/r#<payload>`, spec §2.1); before that it was the receipt JSON.
 7. Each recipient's own Zkool account is read.
 
 Command: `ZECEIPT_REGTEST=1 NO_PROXY='*' node --test test/regtest.http.e2e.test.ts` (from `apps/console`). Transcript of the run below: `raw/tools/regtest/console-http-e2e-20260923012757.json` (outside the repository; public facts only). Earlier runs gave the same results: `…-20260923012322.json` (tx `6e5411de…`), and the reviewer's own run `…-20260923012624.json` (tx `f910eebe…`).
@@ -675,6 +685,7 @@ What the log shows:
 - **Each recipient's own wallet holds its memo and exact amount** (asserted: the note's value equals the item's zatoshi). This is the check independent of our code.
 - **Nothing secret was written.** The test checked that neither the transcript nor the server's output contains any receipt link or raw OCK, or the run's wrap key.
 - **Later strengthening (review round 2).** The one-payment check also counts the issuer's unmined transactions, and requires zebrad's mempool to be empty (`getrawmempool` = `[]`). The run `console-http-e2e-20260923013026.json` passed with it: tx `03cdeae5…`, the only issuer transaction since pre-pay height 2716, and `mempool: 0`.
+- **Fragment links (slice F1).** Re-run with the rebuilt CLI: `console-http-e2e-20260923014326.json`, tx `953b2718…` at 2875, confirmed at 2878. Each console link is `https://zeceipt.xyz/r#…` (asserted without printing it), and each link verifies online as given (outputs 2, 0, 3).
 
 ## 6. testnet — placeholder
 

@@ -20,7 +20,7 @@
 Error states: rate source down (the lock is blocked and the batch stays in draft; falling back to a second source is REQ-CON-20, planned), backend unreachable (batch stays approved), tx not found after 30 min (mark "unknown outcome", require manual reconcile), recipient address on the wrong network (blocked at import).
 
 ### FLOW-2 Recipient verifies (P3)
-1. Opens `https://<host>/r/<payload>` (or pastes a receipt into the demo page).
+1. Opens `https://<host>/r#<payload>` (or pastes a receipt into the demo page). The payload is in the fragment, so the page's host never receives it (spec §2.1).
 2. Page loads wasm, shows "what this proves" before fetching anything.
 3. Fetch raw tx from a public node (button; explains the txid is revealed to that node) or load a file.
 4. Result: VALID with recipient/value/memo/label/issuer/challenge state; INVALID with the failing stage in plain words.

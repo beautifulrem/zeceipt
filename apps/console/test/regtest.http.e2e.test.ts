@@ -158,11 +158,14 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     assert.equal(receipts.length, 3);
     assert.equal((await api<{ state: string }>(`/api/batches/${id}/status`)).state, "receipts_issued");
 
-    // 5. Verify each receipt with the CLI against the live chain (stdin; never a file).
+    // 5. Verify each receipt's shareable link with the CLI against the live chain (stdin; never a file).
+    //    The link carries the payload in its fragment (spec §2.1); only its origin and path are ever printed.
     const verdicts = receipts.map((r) => {
       urls.push(r.url!);
       if (typeof r.receipt?.ock === "string") urls.push(r.receipt.ock); // the raw OCK too, not only the link
-      const v = spawnSync(BIN, ["verify", "--regtest", "--endpoint", ZAINO, "-", "--require-signature"], { input: JSON.stringify(r.receipt), encoding: "utf8", timeout: 120_000 });
+      const link = new URL(r.url!);
+      assert.ok(link.pathname === "/r" && link.hash.length > 1, `a fragment link: ${link.origin}${link.pathname}`);
+      const v = spawnSync(BIN, ["verify", "--regtest", "--endpoint", ZAINO, "-", "--require-signature"], { input: r.url, encoding: "utf8", timeout: 120_000 });
       const out = JSON.parse(v.stdout) as { valid: boolean; challenge_checked: boolean; value_zat: number; memo: { text?: string } };
       assert.equal(v.status, 0, v.stderr);
       assert.equal(out.valid, true);
