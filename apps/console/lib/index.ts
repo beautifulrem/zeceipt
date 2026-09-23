@@ -26,5 +26,5 @@ export type { BootOptions, BootState, ServerContext } from "./server/context.ts"
 export { SecretBytes } from "./crypto/secret.ts";
 export type { ConfigProblem, ConsoleConfig, CustodyConfig } from "./config/env.ts";
 export { compareDecimal, isPositiveDecimal, DECIMAL } from "./rates/decimal.ts";
-export { fetchZecUsdQuote, KRAKEN_TICKER_URL, KRAKEN_ZEC_USD_PAIR, RateUnavailableError } from "./rates/kraken.ts";
+export { fetchZecUsdQuote, KRAKEN_TICKER_URL, KRAKEN_ZEC_USD_PAIR, MAX_QUOTE_BYTES, RateUnavailableError } from "./rates/kraken.ts";
 export type { QuoteOptions, RateFailure, RateQuote } from "./rates/kraken.ts";

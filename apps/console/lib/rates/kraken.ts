@@ -8,6 +8,7 @@
 // It fails closed: any network, HTTP, format or market problem throws RateUnavailableError. There is no cache
 // and no default rate. zecpay's silent fallback to its last value or 35.0 (R46) is exactly what this refuses.
 
+import { ExecutionError } from "../execution/types.ts";
 import { compareDecimal, isPositiveDecimal } from "./decimal.ts";
 
 export const KRAKEN_TICKER_URL = "https://api.kraken.com/0/public/Ticker?pair=ZECUSD";
@@ -27,15 +28,48 @@ export interface RateQuote {
   fetchedAt: string;
 }
 
-export type RateFailure = "network" | "http" | "json" | "source_error" | "pair_missing" | "bad_price" | "crossed_book";
+export type RateFailure = "network" | "http" | "too_large" | "json" | "source_error" | "pair_missing" | "bad_price" | "crossed_book";
 
-export class RateUnavailableError extends Error {
-  readonly code = "rate_unavailable";
+/** A ticker answer is well under 1 KiB; anything past this cap is not a ticker (review G1a round 1). */
+export const MAX_QUOTE_BYTES = 64 * 1024;
+
+/** Code `rate_unavailable`, like the console's other domain errors (ExecutionError), so HTTP mapping stays uniform. */
+export class RateUnavailableError extends ExecutionError {
   readonly reason: RateFailure;
   constructor(reason: RateFailure, message: string, options?: { cause?: unknown }) {
-    super(`ZEC/USD rate unavailable (${reason}): ${message}`, options);
-    this.name = "RateUnavailableError";
+    super("rate_unavailable", `ZEC/USD rate unavailable (${reason}): ${message}`);
     this.reason = reason;
+    if (options?.cause !== undefined) Object.defineProperty(this, "cause", { value: options.cause, enumerable: false });
+  }
+}
+
+/** Read at most MAX_QUOTE_BYTES of the body, then parse it as JSON. */
+async function boundedJson(res: Response): Promise<unknown> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  if (res.body) {
+    const reader = res.body.getReader();
+    for (;;) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read(); // a dropped connection or the timeout firing mid-body lands here
+      } catch (e) {
+        throw new RateUnavailableError("network", `reading the answer failed: ${(e as Error).message}`, { cause: e });
+      }
+      const { done, value } = chunk;
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_QUOTE_BYTES) {
+        await reader.cancel();
+        throw new RateUnavailableError("too_large", `the answer exceeds ${MAX_QUOTE_BYTES} bytes`);
+      }
+      chunks.push(value);
+    }
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (e) {
+    throw new RateUnavailableError("json", "the answer is not JSON", { cause: e });
   }
 }
 
@@ -58,12 +92,8 @@ export async function fetchZecUsdQuote(opts: QuoteOptions = {}): Promise<RateQuo
     throw new RateUnavailableError("network", `request to ${new URL(url).host} failed: ${(e as Error).message}`, { cause: e });
   }
   if (!res.ok) throw new RateUnavailableError("http", `HTTP ${res.status} from ${new URL(url).host}`);
-  let body: { error?: unknown; result?: Record<string, Record<string, unknown>> };
-  try {
-    body = await res.json();
-  } catch (e) {
-    throw new RateUnavailableError("json", "the answer is not JSON", { cause: e });
-  }
+  const body = (await boundedJson(res)) as { error?: unknown; result?: Record<string, Record<string, unknown>> } | null;
+  if (body === null || typeof body !== "object") throw new RateUnavailableError("json", "the answer is not a JSON object");
   if (Array.isArray(body.error) && body.error.length > 0) throw new RateUnavailableError("source_error", body.error.map(String).join("; "));
   const t = body.result?.[KRAKEN_ZEC_USD_PAIR];
   if (!t || typeof t !== "object") throw new RateUnavailableError("pair_missing", `no ${KRAKEN_ZEC_USD_PAIR} in the answer`);

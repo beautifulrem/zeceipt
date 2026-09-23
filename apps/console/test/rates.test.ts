@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareDecimal, fetchZecUsdQuote, isPositiveDecimal, KRAKEN_TICKER_URL, RateUnavailableError, type RateFailure } from "../lib/index.ts";
+import { compareDecimal, ExecutionError, fetchZecUsdQuote, isPositiveDecimal, KRAKEN_TICKER_URL, MAX_QUOTE_BYTES, RateUnavailableError, type RateFailure } from "../lib/index.ts";
 
 // The live answer's shape (2026-09-23), trimmed to the fields that matter.
 const SAMPLE = { error: [], result: { XZECZUSD: { a: ["1616.97000", "2", "2.000"], b: ["1616.24000", "1", "1.000"], c: ["1616.34000", "0.15125300"], p: ["1610.99488", "1539.27982"] } } };
@@ -13,7 +13,7 @@ const answering = (body: unknown, init: ResponseInit = { status: 200 }): typeof 
 const quote = (f: typeof fetch, timeoutMs?: number) => fetchZecUsdQuote({ fetch: f, now: () => NOW, timeoutMs });
 async function fails(f: typeof fetch, reason: RateFailure, timeoutMs?: number) {
   await assert.rejects(quote(f, timeoutMs), (e: unknown) => {
-    assert.ok(e instanceof RateUnavailableError, String(e));
+    assert.ok(e instanceof RateUnavailableError && e instanceof ExecutionError, String(e));
     assert.equal(e.code, "rate_unavailable");
     assert.equal(e.reason, reason);
     return true;
@@ -38,6 +38,14 @@ test("every failure is RateUnavailableError with its reason; never a number", as
   await fails(async () => { throw new TypeError("fetch failed"); }, "network");
   await fails(answering({ error: [] }, { status: 503 }), "http");
   await fails(answering("<html>busy</html>"), "json");
+  await fails(answering("null"), "json");
+  await fails(answering("x".repeat(MAX_QUOTE_BYTES + 1)), "too_large");
+  // A body that never ends is cut at the cap, not read to exhaustion.
+  const endless: typeof fetch = async () => new Response(new ReadableStream({ pull(c) { c.enqueue(new Uint8Array(16 * 1024).fill(32)); } }), { status: 200 });
+  await fails(endless, "too_large");
+  // A connection that drops mid-body is a network failure, not a stray exception.
+  const dropped: typeof fetch = async () => new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('{"error":[')); c.error(new TypeError("terminated")); } }), { status: 200 });
+  await fails(dropped, "network");
   await fails(answering({ error: ["EQuery:Unknown asset pair"] }), "source_error");
   await fails(answering({ error: [], result: { XXBTZUSD: SAMPLE.result.XZECZUSD } }), "pair_missing");
   await fails(answering({ error: [], result: {} }), "pair_missing");
