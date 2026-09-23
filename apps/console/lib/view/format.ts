@@ -23,9 +23,19 @@ export function zecParts(zat: bigint): { major: string; minor: string } {
   return { major: number.slice(0, -5), minor: number.slice(-5) };
 }
 
-/** "uregtest1qzj4…u4w": enough to recognise an address; the full one goes in `title`. */
+/** Data characters kept after the separator: 25 × 5 bits = 125 bits, Zcash's classical security target (ZIP 316). */
+export const SHORT_ADDRESS_DATA_CHARS = 25;
+
+/**
+ * An address abridged for a table: a prefix only, "u1qzj498rks3e6gfazv0fxns3d0v4…". ZIP 316: an abridged UA "MUST"
+ * show at least its first 20 characters (an "absolute minimum" against lookalike addresses), and a prefix is
+ * preferred, since only initial characters are comparable across wallets. We keep the prefix, the "1" separator and
+ * 25 data characters, which reaches the 2^125 target the rationale names (review H2: `slice(0, 14)` showed only 5
+ * data characters of a regtest UA). Bech32's data part cannot contain "1", so the last "1" is the separator.
+ */
 export function shortAddress(address: string): string {
-  return address.length <= 24 ? address : `${address.slice(0, 14)}…${address.slice(-6)}`;
+  const keep = address.lastIndexOf("1") + 1 + SHORT_ADDRESS_DATA_CHARS;
+  return address.length <= keep + 1 ? address : `${address.slice(0, keep)}…`;
 }
 
 /**

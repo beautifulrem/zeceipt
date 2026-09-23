@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { rateText, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
+import { rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -82,8 +82,27 @@ test("amounts: exact ZEC from zatoshi with a fixed 8 decimals (slice G1d), inclu
   }
   assert.throws(() => zecText(-1n));
   const ua = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
-  assert.equal(shortAddress(ua), "uregtest1qzj49…axsu4w");
+  assert.equal(shortAddress(ua), "uregtest1qzj498rks3e6gfazv0fxns3d0…");
   assert.equal(shortAddress("short"), "short");
+});
+
+test("ZIP 316 (review H2): an abridged address is a prefix of at least 20 characters, the separator plus 25 data characters", () => {
+  const cases = {
+    main: "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel",
+    test: "utest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
+    regtest: "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
+  };
+  for (const [net, a] of Object.entries(cases)) {
+    const s = shortAddress(a);
+    const hrp = a.slice(0, a.lastIndexOf("1") + 1);
+    assert.ok(s.endsWith("…"), net);
+    const shown = s.slice(0, -1);
+    assert.ok(a.startsWith(shown), `${net}: a prefix, not a middle cut`);
+    assert.ok(shown.length >= 20, `${net}: ZIP 316's minimum`);
+    assert.equal(shown.length, hrp.length + SHORT_ADDRESS_DATA_CHARS, `${net}: 25 data characters (125 bits)`);
+  }
+  assert.equal(shortAddress("u1" + "q".repeat(26)), "u1" + "q".repeat(26), "one character over: shown whole, not abridged by one");
+  assert.equal(shortAddress("u1" + "q".repeat(27)), "u1" + "q".repeat(25) + "…");
 });
 
 test("payment mode: custody apart from the lifecycle, in words; nothing secret", () => {

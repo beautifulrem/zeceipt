@@ -535,6 +535,9 @@ test("recipients page through next start, posted as a browser without JavaScript
     const listed = await page();
     assert.ok(listed.includes("Pays the same Orchard receiver as Grants wallet") && listed.includes("Pays the same Orchard receiver as Ops wallet"), "flagged on both rows");
     assert.ok(listed.includes("Verified") && listed.includes("Non-US"), "KYC and tax shown");
+    // ZIP 316 (review H2): abridged to a prefix of the separator plus 25 data characters; the whole address in <details>.
+    assert.ok(listed.includes(`<code>${UA.slice(0, "uregtest1".length + 25)}…</code>`), "the ZIP 316 prefix");
+    assert.ok(/<details><summary[^>]*><code>uregtest1[^<]*…<\/code><\/summary><code[^>]*>uregtest1qzj498rks3e6gfazv0fx[a-z0-9]*<\/code><\/details>/.test(listed), "the whole address one click away");
 
     const bad = await add(listed, { displayName: "Wrong network", address: MAINNET, kycStatus: "unknown", taxFlag: "none", settlementPref: "zec", notes: "keep me" });
     assert.equal(bad.status, 200);

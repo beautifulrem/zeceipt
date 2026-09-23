@@ -1,7 +1,7 @@
 import { listRecipients } from "../../lib/data/recipients.ts";
 import { UA_HRP } from "../../lib/execution/address.ts";
 import { serverContext } from "../../lib/server/context.ts";
-import { shortAddress } from "../../lib/view/format.ts";
+import { Address } from "../components/address.tsx";
 import { AccessNotice } from "../components/panels.tsx";
 import { RecipientForm } from "./recipient-form.tsx";
 
@@ -46,8 +46,8 @@ export default async function RecipientsPage() {
                     <p className="text-xs text-amber-800">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
                   )}
                 </td>
-                <td className="py-2" title={r.address}>
-                  <code>{shortAddress(r.address)}</code>
+                <td className="py-2">
+                  <Address value={r.address} />
                 </td>
                 <td className="py-2">{KYC[r.kycStatus]}</td>
                 <td className="py-2">{TAX[r.taxFlag]}</td>

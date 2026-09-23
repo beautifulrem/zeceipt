@@ -5,7 +5,8 @@ import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
 import { serverContext } from "../../../lib/server/context.ts";
-import { rateText, shortAddress, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
+import { rateText, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
+import { Address } from "../../components/address.tsx";
 import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { ZecAmount } from "../../components/amount.tsx";
@@ -167,8 +168,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               <tr key={i.idx} className="border-b border-slate-100">
                 <td className="py-2">{i.payableId}</td>
                 <td>{i.label || "—"}</td>
-                <td title={i.address}>
-                  <code>{shortAddress(i.address)}</code>
+                <td>
+                  <Address value={i.address} />
                 </td>
                 <td>{i.memo}</td>
                 <td className="text-right">
