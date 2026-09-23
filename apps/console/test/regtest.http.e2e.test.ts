@@ -11,10 +11,12 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
+import { decimalToZat } from "../lib/index.ts";
 
 const ENABLED = process.env.ZECEIPT_REGTEST === "1";
 const ROOT = resolve(APP, "../..");
@@ -24,7 +26,6 @@ const ZAINO = process.env.ENDPOINT ?? "http://127.0.0.1:8137";
 const ZEBRA_RPC = process.env.ZEBRA_RPC ?? "http://127.0.0.1:18232/";
 const ISSUER = Number(process.env.ZKOOL_ISSUER ?? 9);
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/release/zeceipt");
-const WRAP = Buffer.from(Array.from({ length: 32 }, (_, i) => (i * 37 + 11) & 0xff));
 
 async function zkool<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const r = await fetch(ZKOOL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query, variables }) });
@@ -68,6 +69,9 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
   }
   step("recipients", { accounts: recipients.map((r) => r.id), birth });
 
+  // A wrap key made for this run, and a database removed afterwards: the run's receipts (bearer OCKs) never
+  // outlive it, sealed or not (review E3 round 1).
+  const WRAP = randomBytes(32);
   const dir = mkdtempSync(join(tmpdir(), "zeceipt-regtest-http-"));
   const env: Record<string, string> = {
     ...baseEnv(),
@@ -112,8 +116,10 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     step("created", { batchId: id, totalZat: batch.totalZat, memos: batch.items.map((i) => i.memo) });
 
     // 2. Pay with the batch page's form; post it again: one payment.
-    const issuerTxs = async () => (await zkool<{ transactionsByAccount: { txid: string }[] }>("query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid } }", { id: ISSUER })).transactionsByAccount.length;
-    const txsBefore = await issuerTxs();
+    // The issuer's transactions mined above the pre-pay height (exact, even if other activity came before).
+    const heightBeforePay = await zebraHeight();
+    const issuerTxsSince = async (h: number) =>
+      (await zkool<{ transactionsByAccount: { txid: string; height: number }[] }>("query($id: Int!, $h: Int!) { transactionsByAccount(idAccount: $id, height: $h) { txid height } }", { id: ISSUER, h: h + 1 })).transactionsByAccount.filter((t) => t.height > h);
     const draftPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
     const payFields = formFields(draftPage, 'name="confirmTotalZat"');
     const paid = await post(`/batches/${id}`, payFields);
@@ -136,8 +142,9 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
       await new Promise((r) => setTimeout(r, 3_000));
     }
     assert.equal(st.state, "confirmed", `still ${st.state}`);
-    assert.equal(await issuerTxs(), txsBefore + 1, "two posts of the pay form made exactly one transaction");
-    step("confirmed", { confirmations: st.detail.confirmations, height: await zebraHeight(), issuerTransactionsAdded: 1 });
+    const since = await issuerTxsSince(heightBeforePay);
+    assert.deepEqual(since.map((t) => t.txid), [txid], "two posts of the pay form made exactly one transaction");
+    step("confirmed", { confirmations: st.detail.confirmations, height: await zebraHeight(), heightBeforePay, issuerTransactionsSince: since.map((t) => ({ txid: t.txid, height: t.height })) });
 
     // 4. Issue with the page's form; list through the API.
     const confirmedPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
@@ -150,6 +157,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     // 5. Verify each receipt with the CLI against the live chain (stdin; never a file).
     const verdicts = receipts.map((r) => {
       urls.push(r.url!);
+      if (typeof r.receipt?.ock === "string") urls.push(r.receipt.ock); // the raw OCK too, not only the link
       const v = spawnSync(BIN, ["verify", "--regtest", "--endpoint", ZAINO, "-", "--require-signature"], { input: JSON.stringify(r.receipt), encoding: "utf8", timeout: 120_000 });
       const out = JSON.parse(v.stdout) as { valid: boolean; challenge_checked: boolean; value_zat: number; memo: { text?: string } };
       assert.equal(v.status, 0, v.stderr);
@@ -174,6 +182,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
       );
       const note = transactionsByAccount.find((t) => t.txid === txid)?.notes[0];
       assert.equal(note?.memo, items[i].memo, `recipient ${r.id} holds its memo`);
+      assert.equal(decimalToZat(note!.value), BigInt(batch.items[i].zat), `recipient ${r.id} holds its exact amount`);
       received.push({ account: r.id, value: note?.value, memo: note?.memo });
     }
     step("recipients_received", { received });
@@ -189,5 +198,6 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
   } finally {
     s.child.kill("SIGTERM");
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+    rmSync(dir, { recursive: true, force: true }); // the run's database (sealed receipts) does not outlive it
   }
 });
