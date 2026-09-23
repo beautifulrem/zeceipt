@@ -470,7 +470,19 @@
             "$ref": "#/components/responses/Problem"
           },
           "503": {
-            "$ref": "#/components/responses/Problem"
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       },
@@ -490,7 +502,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Already issued: the stored receipts",
+            "description": "Already issued, or this request lost a concurrent race and recorded nothing (inserted: []): the stored receipts",
             "content": {
               "application/json": {
                 "schema": {
@@ -512,6 +524,18 @@
                       "items": {
                         "$ref": "#/components/schemas/Receipt"
                       }
+                    },
+                    "inserted": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "existing": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
                     }
                   }
                 }
@@ -519,7 +543,7 @@
             }
           },
           "201": {
-            "description": "Issued now",
+            "description": "Issued now: this request recorded at least one receipt",
             "content": {
               "application/json": {
                 "schema": {

@@ -125,6 +125,17 @@ test("confirmed: 201 with one verified bearer receipt per item (no challenge); a
   assert.deepEqual([listed.status, listed.body.receipts], [200, r.body.receipts]);
 });
 
+test("concurrent issues: exactly one receipt per item; only the request that recorded them answers 201", async () => {
+  const id = await scenario("org-race", { broadcast: "broadcast" });
+  onChain(3);
+  const answers = await Promise.all([1, 2, 3].map(async () => read(await issue(id, cli))));
+  assert.deepEqual(answers.map((a) => a.status).sort(), [200, 200, 201]);
+  const winner = answers.find((a) => a.status === 201)!;
+  assert.deepEqual(winner.body.inserted, [0, 1, 2]);
+  for (const a of answers.filter((x) => x.status === 200)) assert.deepEqual([a.body.inserted, a.body.existing, a.body.receipts], [[], [0, 1, 2], winner.body.receipts]);
+  assert.equal(count(), 3);
+});
+
 test("not ready: a draft or an uncertain batch is refused with its state and next action; nothing recorded", async () => {
   const draft = await scenario("org-draft", { broadcast: null });
   const d = await read(await issue(draft, cli));

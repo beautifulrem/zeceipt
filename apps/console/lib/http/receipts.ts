@@ -82,7 +82,8 @@ export async function issueReceiptsResponse(id: string, cli: ZeceiptCliOptions):
     return json(202, { batchId: rec.id, state: "waiting", confirmations: issued.confirmations, required: issued.required });
   }
   const recorded = await recordReceipts(ctx.db, ctx.keyring, { orgId: ctx.config.orgId, batchId: rec.id, issued });
-  return json(201, { batchId: rec.id, txid, inserted: recorded.inserted, existing: recorded.existing, receipts: await list() });
+  // 201 only when this request recorded something; a request that lost a concurrent race created nothing (200).
+  return json(recorded.inserted.length ? 201 : 200, { batchId: rec.id, txid, inserted: recorded.inserted, existing: recorded.existing, receipts: await list() });
 }
 
 /** `GET /api/batches/:id/receipts`: the stored receipts, decrypted (a row that does not open carries `openError`). */
