@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { rateText, shortAddress, usdText, zecText } from "../lib/view/format.ts";
+import { rateText, shortAddress, sourceName, usdText, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -111,4 +111,9 @@ test("USD beside an amount: exact to the cent at the locked rate, rounded half u
   assert.equal(rateText("1610.95000"), "1 ZEC = $1,610.95");
   assert.throws(() => usdText(1n, "1e3"), RangeError);
   assert.throws(() => usdText(-1n, "1"), RangeError);
+});
+
+test("a rate source is named from its recorded id; an unknown id shows as itself (review G1c2)", () => {
+  assert.equal(sourceName("kraken"), "Kraken");
+  assert.equal(sourceName("coingecko"), "coingecko");
 });

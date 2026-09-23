@@ -5,7 +5,7 @@ import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
 import { serverContext } from "../../../lib/server/context.ts";
-import { rateText, shortAddress, usdText, zecText } from "../../../lib/view/format.ts";
+import { rateText, shortAddress, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
 import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
@@ -122,7 +122,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             </dd>
             <dt className="text-slate-500">Source</dt>
             <dd>
-              Kraken {lock.pair} · ask {lock.ask} · last trade {lock.last}
+              {sourceName(lock.source)} {lock.pair} · ask {lock.ask} · last trade {lock.last}
             </dd>
             <dt className="text-slate-500">Fetched</dt>
             <dd>{lock.fetchedAt.replace("T", " ").slice(0, 19)} UTC</dd>

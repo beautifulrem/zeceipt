@@ -39,3 +39,8 @@ export function usdText(zat: bigint, rate: string): string {
 export function rateText(rate: string): string {
   return `1 ZEC = ${usdText(ZAT_PER_ZEC, rate)}`;
 }
+
+/** A rate source as people name it: the recorded `source` id, never a hard-coded name (review G1c2). */
+export function sourceName(source: string): string {
+  return ({ kraken: "Kraken" } as Record<string, string>)[source] ?? source;
+}
