@@ -67,11 +67,28 @@ function decodeRawTransaction(msg) {
   return { data, height };
 }
 
+const U64_MAX = 0xffffffffffffffffn;
+/**
+ * Chain status from lightwalletd's `RawTransaction.height` (walletrpc/service.proto):
+ * 0 or absent = in the mempool; 0xffffffffffffffff = mined on a fork that is not the
+ * main chain; anything else = the main-chain height.
+ */
+export function chainStatus(height) {
+  if (height === null || height === 0n) return { status: "mempool" };
+  if (height === U64_MAX) return { status: "fork" };
+  return { status: "mined", height: Number(height) };
+}
+
 /**
  * Fetch a raw transaction over gRPC-web from a public lightwalletd. Note: the
- * node learns which txid you asked for. Returns { hex, height, endpoint }.
+ * node learns which txid you asked for. Returns { hex, height, chain, endpoint }:
+ * `chain` is the node's view (mined at a height, in the mempool, or on a fork);
+ * `height` is the mined height, or null when not mined in the main chain.
  */
 export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = GRPC_WEB_ENDPOINTS[network]) {
+  if (!Array.isArray(endpoints) || endpoints.length === 0) {
+    throw new Error(`no public gRPC-web endpoint for ${network}; pass endpoints or load the raw transaction from a file`);
+  }
   let lastErr = null;
   for (const ep of endpoints) {
     try {
@@ -94,8 +111,9 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
       if (!message) throw new Error("empty gRPC-web response");
       const { data, height } = decodeRawTransaction(message);
       if (!data || data.length === 0) throw new Error("transaction not found");
-      return { hex: bytesToHex(data), height: height === null ? null : Number(height), endpoint: ep };
+      const chain = chainStatus(height);
+      return { hex: bytesToHex(data), height: chain.status === "mined" ? chain.height : null, chain, endpoint: ep };
     } catch (e) { lastErr = e; }
   }
-  throw lastErr ?? new Error("no endpoints");
+  throw lastErr;
 }

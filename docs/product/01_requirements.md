@@ -139,7 +139,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-WEB-4 | ✅ | 3.2.3.2 | PROOF §2b (fetch from `zjs.zec.rocks`); `packages/verify/src/index.js` |
 | REQ-WEB-5 | ✅ | 3.2.3.4 | `packages/verify/test/verify.mjs`; CI node guard |
 | REQ-WEB-6 | ✅ | 3.2.3.1 | `check_signature` export in `crates/zeceipt-wasm/src/lib.rs` |
-| REQ-WEB-7 | 🟡 | 3.3.6.2 | mined height shown (PROOF §2b); binding lookup with 3.3.3.3 |
+| REQ-WEB-7 | 🟡 | 3.3.6.2 | mined height shown (PROOF §2b); chain status mined/mempool/fork from the node (F2a, `[R67]`); binding lookup with 3.3.3.3 |
 | REQ-WEB-8 | 👤 | 4.1.1.3 | npm publish after links resolve |
 | REQ-CON-1 | ⬜ | 3.3.1.2 | auth/session + role matrix |
 | REQ-CON-2 | ⬜ | 3.3.1.3 | `05_data_model_api.md` §1 `recipients` |

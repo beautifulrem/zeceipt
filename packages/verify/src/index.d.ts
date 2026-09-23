@@ -1,6 +1,7 @@
+export type Network = "main" | "test" | "regtest";
 export interface Receipt {
   version: "zeceipt-v0";
-  network: "main" | "test";
+  network: Network;
   pool: "ironwood" | "orchard" | "sapling";
   txid: string;
   output_index: number;
@@ -35,4 +36,8 @@ export function parseReceipt(input: string): Receipt;
 export function checkSignature(receipt: string): { signed: boolean; valid: boolean; issuer_pubkey?: string; error?: string };
 export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean }): VerifyResult;
 export const GRPC_WEB_ENDPOINTS: { main: string[]; test: string[] };
-export function fetchRawTx(txidDisplayHex: string, network?: "main" | "test", endpoints?: string[]): Promise<{ hex: string; height: number | null; endpoint: string }>;
+/** The node's view of the transaction, from lightwalletd's `RawTransaction.height` sentinels. */
+export type ChainStatus = { status: "mined"; height: number } | { status: "mempool" } | { status: "fork" };
+export function chainStatus(height: bigint | null): ChainStatus;
+/** Throws when `network` has no public endpoint (regtest) and none are passed. */
+export function fetchRawTx(txidDisplayHex: string, network?: Network, endpoints?: string[]): Promise<{ hex: string; height: number | null; chain: ChainStatus; endpoint: string }>;

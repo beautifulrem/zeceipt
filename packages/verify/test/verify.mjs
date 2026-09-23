@@ -64,6 +64,66 @@ let emptyRejected = false;
 try { parse_receipt(forms.host + "/r#"); } catch { emptyRejected = true; }
 check("a link with an empty fragment and no path payload is rejected", emptyRejected);
 
+// fetchRawTx over hand-built gRPC-web responses (no network): lightwalletd's height sentinels
+// (walletrpc/service.proto: 0 or absent = mempool, 0xffffffffffffffff = fork, else mined),
+// failover, the regtest refusal, and what the request carries (the txid filter only).
+const { fetchRawTx, chainStatus } = await import("../src/index.js");
+const varint = (n) => { const out = []; let v = BigInt(n); do { let b = Number(v & 0x7fn); v >>= 7n; if (v) b |= 0x80; out.push(b); } while (v); return out; };
+const frame = (flag, bytes) => { const f = new Uint8Array(5 + bytes.length); f[0] = flag; new DataView(f.buffer).setUint32(1, bytes.length, false); f.set(bytes, 5); return f; };
+const rawTxMessage = (dataHex, height) => {
+  const data = Buffer.from(dataHex, "hex");
+  const msg = [0x0a, ...varint(data.length), ...data];
+  if (height !== undefined) msg.push(0x10, ...varint(height));
+  return new Uint8Array(msg);
+};
+const grpcBody = (message, status = 0) => {
+  const trailer = new TextEncoder().encode(`grpc-status:${status}\r\ngrpc-message:${status ? "not found" : ""}\r\n`);
+  const parts = [...(message ? [frame(0, message)] : []), frame(0x80, trailer)];
+  return Buffer.concat(parts.map((p) => Buffer.from(p)));
+};
+const TXID = "4f3cc1aea0e589bd77865d33a2476963ff94909a3f1bdc8cb9bb380360e91b7f";
+const seen = [];
+const withFetch = async (responder, fn) => {
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { seen.push({ url, init }); return responder(url, init); };
+  try { return await fn(); } finally { globalThis.fetch = real; }
+};
+const ok200 = (body) => new Response(body, { status: 200, headers: { "content-type": "application/grpc-web+proto" } });
+const fetched = async (height) => withFetch(() => ok200(grpcBody(rawTxMessage(rawTx, height))), () => fetchRawTx(TXID, "main", ["https://node.test"]));
+const view = (r) => JSON.stringify({ chain: r.chain, height: r.height });
+const rejects = async (p) => { try { await p; return null; } catch (e) { return String(e); } };
+
+const mined = await fetched(3491284n);
+check("fetch: mined height is reported as mined", mined.chain?.status === "mined" && mined.chain?.height === 3491284 && mined.height === 3491284, view(mined));
+check("fetch: the transaction bytes come back as hex", mined.hex === rawTx.toLowerCase() && mined.endpoint === "https://node.test");
+const absent = await fetched(undefined);
+check("fetch: an absent height is the mempool (pending), height null", absent.chain?.status === "mempool" && absent.height === null, view(absent));
+const zero = await fetched(0n);
+check("fetch: height 0 is the mempool (pending), height null", zero.chain?.status === "mempool" && zero.height === null, view(zero));
+const fork = await fetched(0xffffffffffffffffn);
+check("fetch: height 0xffffffffffffffff is a fork, not a height", fork.chain?.status === "fork" && fork.height === null, view(fork));
+check("chainStatus maps the three cases", typeof chainStatus === "function" && chainStatus(7n).status === "mined" && chainStatus(null).status === "mempool" && chainStatus(0xffffffffffffffffn).status === "fork");
+const notFound = await rejects(withFetch(() => ok200(grpcBody(rawTxMessage("", undefined))), () => fetchRawTx(TXID, "main", ["https://node.test"])));
+check("fetch: empty transaction data is 'transaction not found'", /transaction not found/.test(notFound ?? ""), notFound);
+const trailer = await rejects(withFetch(() => ok200(grpcBody(null, 5)), () => fetchRawTx(TXID, "main", ["https://node.test"])));
+check("fetch: a non-zero grpc-status trailer is an error", /grpc trailer/.test(trailer ?? ""), trailer);
+seen.length = 0;
+const failover = await withFetch((url) => url.startsWith("https://down.test") ? new Response("", { status: 503 }) : ok200(grpcBody(rawTxMessage(rawTx, 12n))), () => fetchRawTx(TXID, "main", ["https://down.test", "https://up.test"]));
+check("fetch: fails over to the next endpoint", failover.endpoint === "https://up.test" && seen.length === 2, JSON.stringify(seen.map((x) => x.url)));
+const req = seen[1];
+const body = Buffer.from(req.init.body);
+check("fetch: the request is GetTransaction carrying only the txid filter", req.url === "https://up.test/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTransaction" && body.length === 5 + 2 + 32 && body.subarray(7).equals(Buffer.from(TXID, "hex").reverse()), req.url);
+const regtestErr = await rejects(fetchRawTx(TXID, "regtest"));
+check("fetch: regtest without endpoints is refused clearly", /no public gRPC-web endpoint for regtest; pass endpoints or load the raw transaction from a file/.test(regtestErr ?? ""), regtestErr);
+const regtestOk = await withFetch(() => ok200(grpcBody(rawTxMessage(rawTx, 2875n))), () => fetchRawTx(TXID, "regtest", ["http://127.0.0.1:9"]));
+check("fetch: regtest with endpoints passed works", regtestOk.chain?.status === "mined" && regtestOk.chain?.height === 2875);
+
+// The typings follow the format: every network union in index.d.ts equals the vector file's networks.
+const dts = fs.readFileSync(path.join(here, "../src/index.d.ts"), "utf8");
+const union = /export type Network = ([^;]+);/.exec(dts)?.[1].split("|").map((x) => x.trim().replace(/"/g, "")) ?? [];
+check("index.d.ts Network matches the format's networks", JSON.stringify([...union].sort()) === JSON.stringify([...vectors.networks].sort()), union.join(","));
+check("index.d.ts types every network with Network (no stale literal unions)", !/"main" \| "test"(?! \| "regtest")/.test(dts.replace(/export type Network = [^;]+;/, "")), "a network union outside Network");
+
 // NFR-7: the demo copy must always show what a result proves and does not prove, with text labels (not colour only).
 const demoHtml = fs.readFileSync(path.join(here, "../demo/index.html"), "utf8");
 check("demo page states what a valid result proves", /What a valid result proves/i.test(demoHtml));

@@ -60,7 +60,8 @@ $("fetch").addEventListener("click", async () => {
     status.textContent = "fetching " + r.txid.slice(0, 16) + "… from a public node";
     const got = await fetchRawTx(r.txid, r.network);
     $("rawtx").value = got.hex;
-    status.textContent = `fetched from ${got.endpoint}` + (got.height ? ` (mined at height ${got.height})` : " (unconfirmed)");
+    const where = { mined: `mined at height ${got.chain.height}`, mempool: "in the mempool, not mined yet", fork: "on a fork, not the main chain" }[got.chain.status];
+    status.textContent = `fetched from ${got.endpoint} (${where})`;
   } catch (e) { status.textContent = "fetch failed: " + e; }
 });
 
