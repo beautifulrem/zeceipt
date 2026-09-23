@@ -30,3 +30,5 @@ export { fetchZecUsdQuote, KRAKEN_TICKER_URL, KRAKEN_ZEC_USD_PAIR, MAX_QUOTE_BYT
 export type { QuoteOptions, RateFailure, RateQuote } from "./rates/kraken.ts";
 export { currentLock, listQuotes, RateRecordError, recordQuote } from "./data/rates.ts";
 export type { QuotePurpose, StoredQuote } from "./data/rates.ts";
+export { DEFAULT_MAX_DRIFT_BPS, rateDrift } from "./rates/drift.ts";
+export type { Drift } from "./rates/drift.ts";

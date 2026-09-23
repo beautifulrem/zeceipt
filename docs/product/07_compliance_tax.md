@@ -18,7 +18,7 @@ What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with it
   - **Fair market value for tax.** The IRS values crypto received for services "when received" (FAQ 12). Outside an exchange, that is "as of the date and time the transaction is recorded on the distributed ledger" (FAQ 27). So the FMV belongs to the **confirmation time**, not to the lock; recording it per payment is a later slice (NFR-8).
 
   All three appear in exports, so an accountant can choose the method and apply it consistently (the "reasonable, consistently applied" standard in practitioner guidance `[R26]`). A second source (CoinGecko) with a cross-source disagreement check is planned as REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch).
-- Deviation > 3% between the approval lock and the execution quote blocks execution until re-quoted (REQ-CON-21, Must under both branches).
+- Deviation > 3% between the approval lock and the execution quote blocks execution until re-quoted (REQ-CON-21, Must under both branches). The check is exact and inclusive at the threshold, in both directions (down, the payer overpays in USD; up, the payee is underpaid). The threshold is configurable (`ZECEIPT_RATE_MAX_DRIFT_BPS`, default 300 bp). Locks do not expire by age: the drift check measures the moved market directly (slice G2a `[R74]`; Stripe's contrasting design is in R72).
 
 ## 3. European Union
 

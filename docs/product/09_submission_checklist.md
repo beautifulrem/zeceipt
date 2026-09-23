@@ -29,7 +29,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 
 **What Zeceipt does.** Every output an organisation pays becomes a receipt: a small signed envelope holding that output's Outgoing Cipher Key. Anyone with the receipt, the recipient, an auditor or a public ledger, recovers exactly that payment (recipient, amount, memo) from the chain in their browser, without receiving a viewing key and without learning anything else about the payer. It is the outputs half of ZIP 311, implemented for the live Ironwood pool (activated July 2026, where no receipt tool existed), with a published format, deterministic test vectors, a Rust crate, a CLI, an npm verifier and a browser page. Receipts compose into audit packs whose totals are explicitly lower bounds. A thin payout console turns USD-denominated payables into two-person-approved shielded batches (via Zkool), issues receipts automatically after confirmation, and exports OpenZcash-, QuickBooks- and Xero-compatible CSVs plus per-recipient annual USD totals for 1099-NEC preparation. Verified receipts can be attested on Solana through a small program that checks the issuer's signature on-chain.
 
-**Proof.** Mainnet v6 transactions parsed and fetched over gRPC; a consensus-valid transaction on a Zebra regtest chain issued from the sender's viewing key and verified online and offline; tamper cases fail closed at a named stage; 236 automated tests (34 Rust, 202 TypeScript) including the official Orchard note-encryption vectors. [Add: testnet/mainnet receipts and the pilot organisation once funded.]
+**Proof.** Mainnet v6 transactions parsed and fetched over gRPC; a consensus-valid transaction on a Zebra regtest chain issued from the sender's viewing key and verified online and offline; tamper cases fail closed at a named stage; 241 automated tests (34 Rust, 207 TypeScript) including the official Orchard note-encryption vectors. [Add: testnet/mainnet receipts and the pilot organisation once funded.]
 
 **Market and impact.** Immediate users are Zcash grant programs and DAOs (FPF/ZCG pay 60+ milestones and 100+ bounties per quarter by hand) and Zcash-native payroll users such as Zcash Brazil on Konclave. The category is wider: Aleo, Tempo, Canton and Solana confidential balances all ship private payments in 2026 and none offers per-payment proof; under EU AMLR (2027) on-demand provability is the survival property for privacy assets. Top-down seat market ≈ $2.4–7.2M/yr (outer bound $4.7–14.0M); verification API and compliance licensing are the multiplier.
 
@@ -80,7 +80,7 @@ Six criteria (rules §8) `[R1]`:
 
 | Criterion | Where it is answered |
 |---|---|
-| Functionality — how well it works, code quality | 236 tests (34 Rust, 202 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow, implementation review 100/100 (journal) |
+| Functionality — how well it works, code quality | 241 tests (34 Rust, 207 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow, implementation review 100/100 (journal) |
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
 | Novelty | first per-output receipts on Ironwood; format + vectors; `docs/PRIOR_ART.md` states exactly what is new vs Glasspane/ZIP 311 |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4) |

@@ -155,6 +155,13 @@ test("rate source: Kraken's Ticker by default; https, or http on loopback; a que
   assert.equal(configSummary(loadConfig(hot)).rateUrl, "https://api.kraken.com/0/public/Ticker?pair=ZECUSD");
 });
 
+test("rate drift threshold: 300 basis points (3%, REQ-CON-21) by default; an integer from 1 to 2000 (slice G2a)", () => {
+  assert.equal(loadConfig(hot).rateMaxDriftBps, 300);
+  assert.equal(loadConfig({ ...hot, ZECEIPT_RATE_MAX_DRIFT_BPS: "100" }).rateMaxDriftBps, 100);
+  for (const bad of ["0", "2001", "3%", "1.5", "-1", "300 "]) assert.deepEqual(problems({ ...hot, ZECEIPT_RATE_MAX_DRIFT_BPS: bad }), ["ZECEIPT_RATE_MAX_DRIFT_BPS"], bad);
+  assert.equal(configSummary(loadConfig(hot)).rateMaxDriftBps, 300);
+});
+
 test("wrap keys: 32 bytes each, strict base64, unique well-formed ids; the last one seals", () => {
   const w = (v: string) => problems({ ...hot, ZECEIPT_WRAP_KEYS: v });
   assert.deepEqual(w(`k1:${Buffer.alloc(31).toString("base64")}`), ["ZECEIPT_WRAP_KEYS"], "31 bytes");

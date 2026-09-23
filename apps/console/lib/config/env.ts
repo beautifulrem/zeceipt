@@ -9,6 +9,7 @@ import { Keyring } from "../crypto/seal.ts";
 import { SecretBytes } from "../crypto/secret.ts";
 import { LOOPBACK_HOSTS } from "../execution/zkool-client.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
+import { DEFAULT_MAX_DRIFT_BPS } from "../rates/drift.ts";
 import { KRAKEN_TICKER_URL } from "../rates/kraken.ts";
 
 export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean } } | { mode: "external" };
@@ -27,6 +28,8 @@ export interface ConsoleConfig {
   receiptHost: string;
   /** A Kraken-format Ticker URL for ZEC/USD quotes (slice G1c1); default Kraken's own. */
   rateUrl: string;
+  /** REQ-CON-21: the largest allowed move between the lock and the execution quote, in basis points (slice G2a). */
+  rateMaxDriftBps: number;
 }
 
 export interface ConfigProblem {
@@ -61,6 +64,7 @@ const KNOWN = [
   "ISSUER_KEY_ID",
   "RECEIPT_HOST",
   "RATE_URL",
+  "RATE_MAX_DRIFT_BPS",
 ].map((k) => P + k);
 
 // http(s) only, and no user:password@ part: neither Zkool nor lightwalletd uses URL credentials, and a URL is
@@ -157,6 +161,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const keyFile = field("ISSUER_KEY_FILE", absPath, "must be the absolute path of the issuer signing key file");
   const keyId = field("ISSUER_KEY_ID", z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), "must be 1–64 characters of A-Z, a-z, 0-9, ., _ and -");
   const rateUrl = field("RATE_URL", rateUrlSchema, "must be the https URL of a Kraken-format ZEC/USD ticker (http only on a loopback host), without credentials or fragment", { fallback: KRAKEN_TICKER_URL });
+  const rateMaxDriftBps = field("RATE_MAX_DRIFT_BPS", intIn(1, 2000), "must be an integer number of basis points from 1 to 2000 (300 = 3%)", { fallback: DEFAULT_MAX_DRIFT_BPS });
   const receiptHost = field("RECEIPT_HOST", receiptHostUrl, "must be the https URL of the public receipt page's site (http only on a loopback host), without credentials, query or fragment", { fallback: DEFAULT_RECEIPT_HOST });
 
   if (problems.length) throw new ConfigError(problems);
@@ -171,6 +176,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     issuer: { bin: bin!, ufvkFile: ufvkFile!, keyFile: keyFile!, keyId: keyId! },
     receiptHost: receiptHost!,
     rateUrl: rateUrl!,
+    rateMaxDriftBps: rateMaxDriftBps!,
   };
   return deepFreeze(config);
 }
@@ -232,6 +238,7 @@ export function configSummary(c: ConsoleConfig): Record<string, unknown> {
     issuer: { ...c.issuer },
     receiptHost: c.receiptHost,
     rateUrl: c.rateUrl,
+    rateMaxDriftBps: c.rateMaxDriftBps,
   };
 }
 
