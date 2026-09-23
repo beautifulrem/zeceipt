@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { rateText, shortAddress, sourceName, usdText, zecText } from "../lib/view/format.ts";
+import { rateText, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -65,13 +65,21 @@ test("lifecycle marks: done before, current (or blocked) at, ahead after", () =>
   assert.deepEqual(stepsFor(stateView(st("retryable"))).map((s) => s.mark), ["current", "ahead", "ahead", "ahead", "ahead"]);
 });
 
-test("amounts: exact ZEC from zatoshi, including totals beyond 21M ZEC; short addresses", () => {
-  assert.equal(zecText(101_000_000n), "1.01 ZEC");
+test("amounts: exact ZEC from zatoshi with a fixed 8 decimals (slice G1d), including totals beyond 21M ZEC; short addresses", () => {
+  assert.equal(zecText(101_000_000n), "1.01000000 ZEC");
   assert.equal(zecText(1n), "0.00000001 ZEC");
-  assert.equal(zecText(0n), "0 ZEC");
-  assert.equal(zecText(100_000_000n), "1 ZEC");
-  assert.equal(zecText(10_500_000_000_000_000n), "105,000,000 ZEC");
+  assert.equal(zecText(0n), "0.00000000 ZEC");
+  assert.equal(zecText(100_000_000n), "1.00000000 ZEC");
+  assert.equal(zecText(50_000n), "0.00050000 ZEC");
+  assert.equal(zecText(10_500_000_000_000_000n), "105,000,000.00000000 ZEC");
   assert.equal(zecText(9_007_199_254_740_993n), "90,071,992.54740993 ZEC", "beyond 2^53, exact");
+  // Split like Zkool's zatToText: the last five decimals are the minor part; the parts rebuild the text.
+  assert.deepEqual(zecParts(101_000_000n), { major: "1.010", minor: "00000" });
+  assert.deepEqual(zecParts(9_007_199_254_740_993n), { major: "90,071,992.547", minor: "40993" });
+  for (const z of [0n, 1n, 50_000n, 101_000_000n, 10_500_000_000_000_000n]) {
+    const p = zecParts(z);
+    assert.equal(`${p.major}${p.minor} ZEC`, zecText(z));
+  }
   assert.throws(() => zecText(-1n));
   const ua = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
   assert.equal(shortAddress(ua), "uregtest1qzj49…axsu4w");

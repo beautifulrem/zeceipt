@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { listBatches } from "../lib/data/batches.ts";
 import { serverContext } from "../lib/server/context.ts";
-import { zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
+import { ZecAmount } from "./components/amount.tsx";
 import { AccessNotice, ModePanel } from "./components/panels.tsx";
 
 // Read per request through the library (Next's data-access-layer guidance; never fetch our own API).
@@ -44,8 +44,8 @@ export default async function Home() {
                 </td>
                 <td>{b.createdAt.replace("T", " ").slice(0, 16)} UTC</td>
                 <td className="text-right">{b.itemCount}</td>
-                <td className="text-right" title={`${b.totalZat} zatoshi`}>
-                  {zecText(b.totalZat)}
+                <td className="text-right">
+                  <ZecAmount zat={b.totalZat} />
                 </td>
               </tr>
             ))}

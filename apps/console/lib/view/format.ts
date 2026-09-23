@@ -3,14 +3,24 @@
 const ZAT_PER_ZEC = 100_000_000n;
 
 /**
- * "1.01 ZEC" from zatoshi, exact and without a range cap: a 50-item batch total can reach 1.05e17 zat,
- * beyond `zatToDecimal`'s 21M-ZEC guard (which is right for a single payment, not for a display sum).
+ * "1.01000000 ZEC" from zatoshi: always 8 decimals (04 principle 4; slice G1d), as Zkool, the wallet this
+ * console pays through, shows every amount (R73). Exact, and without a range cap: a 50-item batch total can
+ * reach 1.05e17 zat, beyond `zatToDecimal`'s 21M-ZEC guard (right for one payment, not for a display sum).
  */
 export function zecText(zat: bigint): string {
   if (zat < 0n) throw new RangeError("negative amount");
   const whole = zat / ZAT_PER_ZEC;
-  const frac = (zat % ZAT_PER_ZEC).toString().padStart(8, "0").replace(/0+$/, "");
-  return `${whole.toLocaleString("en-US")}${frac ? `.${frac}` : ""} ZEC`;
+  const frac = (zat % ZAT_PER_ZEC).toString().padStart(8, "0");
+  return `${whole.toLocaleString("en-US")}.${frac} ZEC`;
+}
+
+/**
+ * `zecText` split for display, as Zkool's `zatToText` does: `major` runs to the third decimal, `minor` holds the
+ * last five decimals, which the page shows lighter. `major + minor + " ZEC"` is always `zecText(zat)`.
+ */
+export function zecParts(zat: bigint): { major: string; minor: string } {
+  const number = zecText(zat).slice(0, -" ZEC".length);
+  return { major: number.slice(0, -5), minor: number.slice(-5) };
 }
 
 /** "uregtest1qzj4…u4w": enough to recognise an address; the full one goes in `title`. */

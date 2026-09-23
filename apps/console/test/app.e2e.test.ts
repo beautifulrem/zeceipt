@@ -217,7 +217,9 @@ test("submit and status through next start: pays once against a fake wallet, rep
     };
     const list = await page("/");
     assert.equal(list.status, 200);
-    for (const text of [">pay<", "0.00001 ZEC", "Payment mode", "Loopback only, no sign-in yet"]) assert.ok(list.body.includes(text), `list shows ${text}`);
+    for (const text of [">pay<", "Payment mode", "Loopback only, no sign-in yet"]) assert.ok(list.body.includes(text), `list shows ${text}`);
+    // The amount is one visible string over two spans (the last five decimals lighter, slice G1d).
+    assert.ok(list.body.replace(/<[^>]+>/g, "").includes("0.00001000 ZEC"), "list shows the total with 8 decimals");
     const draftPage = await page(`/batches/${id}`);
     assert.equal(draftPage.status, 200);
     for (const text of ["Draft", "Not submitted. Nothing has been paid.", "Submit the batch (with its total)", "Zkool, account 9", "Regtest (local test chain)", "PAY-1", "Total"]) {
@@ -302,7 +304,7 @@ test("page actions through next start, posted as a browser without JavaScript: p
 
     // Draft: Pay (naming the amount) is offered, Issue is not.
     const draftPage = await text();
-    assert.ok(draftPage.includes("Pay 0.000025 ZEC"), "the button names the amount");
+    assert.ok(draftPage.includes("Pay 0.00002500 ZEC"), "the button names the amount");
     assert.ok(!draftPage.includes(">Issue receipts</button>"));
     const pay = multipart(formFields(draftPage, 'name="confirmTotalZat"'));
 
@@ -328,7 +330,7 @@ test("page actions through next start, posted as a browser without JavaScript: p
     // On success the next action is no longer "submit", so the Pay form (and its result line) leaves the page;
     // the re-rendered status is the confirmation. The action's result still travels in the response payload.
     const afterPay = paid.body.replaceAll("<!-- -->", "");
-    assert.ok(afterPay.includes("Broadcast, not in a block yet") && !afterPay.includes("Pay 0.000025 ZEC"), "the page shows the new status");
+    assert.ok(afterPay.includes("Broadcast, not in a block yet") && !afterPay.includes("Pay 0.00002500 ZEC"), "the page shows the new status");
     assert.ok(afterPay.includes('"headline":"Broadcast"'), "the action's outcome is in the payload");
 
     // The same form posted again (a double submit, or a replayed request) pays nothing more.
@@ -338,10 +340,10 @@ test("page actions through next start, posted as a browser without JavaScript: p
 
     // Pending: no action. Confirmed: Issue is offered, Pay is not.
     const pendingPage = await text();
-    assert.ok(!pendingPage.includes("Pay 0.000025 ZEC") && !pendingPage.includes(">Issue receipts</button>"));
+    assert.ok(!pendingPage.includes("Pay 0.00002500 ZEC") && !pendingPage.includes(">Issue receipts</button>"));
     fake.mine(2);
     const confirmedPage = await text();
-    assert.ok(confirmedPage.includes(">Issue receipts</button>") && !confirmedPage.includes("Pay 0.000025 ZEC"));
+    assert.ok(confirmedPage.includes(">Issue receipts</button>") && !confirmedPage.includes("Pay 0.00002500 ZEC"));
     const issue = multipart(formFields(confirmedPage, "Issue receipts"));
     const issued = await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": issue.type }, issue.body);
     assert.equal(issued.status, 200);

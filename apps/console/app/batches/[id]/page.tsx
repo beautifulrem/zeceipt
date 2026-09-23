@@ -8,6 +8,7 @@ import { serverContext } from "../../../lib/server/context.ts";
 import { rateText, shortAddress, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
 import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
+import { ZecAmount } from "../../components/amount.tsx";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
 import { IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
@@ -162,8 +163,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                   <code>{shortAddress(i.address)}</code>
                 </td>
                 <td>{i.memo}</td>
-                <td className="text-right" title={`${i.zat} zatoshi`}>
-                  {zecText(i.zat)}
+                <td className="text-right">
+                  <ZecAmount zat={i.zat} />
                 </td>
                 {lock && <td className="text-right">{usdText(i.zat, lock.rate)}</td>}
               </tr>
@@ -174,8 +175,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               <td colSpan={4} className="py-2 text-right font-semibold">
                 Total
               </td>
-              <td className="text-right font-semibold" title={`${total} zatoshi`}>
-                {zecText(total)}
+              <td className="text-right font-semibold">
+                <ZecAmount zat={total} />
               </td>
               {lock && <td className="text-right font-semibold">{usdText(total, lock.rate)}</td>}
             </tr>
