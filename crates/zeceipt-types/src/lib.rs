@@ -445,6 +445,15 @@ mod tests {
                 "{input}"
             );
         }
+        // The fragment must be exactly the payload (spec §2.1): trailing text is refused.
+        let payload = URL_SAFE_NO_PAD.encode(sample().to_json().unwrap().as_bytes());
+        for suffix in ["&k=v", "?x", "#extra"] {
+            let input = format!("https://zeceipt.xyz/r#{payload}{suffix}");
+            assert!(
+                matches!(Receipt::parse(&input), Err(TypesError::Url)),
+                "{suffix}"
+            );
+        }
         // Text that is not a receipt payload fails at decoding, also as `Url`.
         assert!(matches!(
             Receipt::parse("https://zeceipt.xyz/r#not a payload"),

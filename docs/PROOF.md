@@ -21,6 +21,8 @@ $ zeceipt find-ironwood --blocks 3
 ```
 `GetBlockRange` streaming, filtering `CompactTx.ironwoodActions`.
 
+> Links in the transcripts of §2–§5c were recorded before slice F1 (2026-09-23) and use the v0 path form `…/r/<payload>`. Issuers now emit `…/r#<payload>` (spec §2.1); verifiers still accept both. Don't copy the path form.
+
 ## 2. synthetic — issue → verify → tamper (2026-09-22, verbatim transcript)
 
 Fixture: `fixtures/synthetic-ironwood.hex`, produced by `cargo run -p zeceipt-core --features synthetic --example make_synthetic`, which replaces Ironwood action 0 of the mainnet transaction above with an output of 2.5 ZEC and memo `INV-2026-0142` encrypted to a fresh key (so the txid below differs from the template's). The issuer OVK is `fixtures/synthetic-ovk.hex`; the resulting signed, challenge-bound receipt is committed as `fixtures/synthetic-receipt.json`. Everything below is unedited stdout/stderr of `target/debug/zeceipt` (the `receipts/` and `issuer.key` paths were `/tmp/...` when captured).

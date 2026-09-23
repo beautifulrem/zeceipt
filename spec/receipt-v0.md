@@ -42,7 +42,7 @@ Verifiers accept a URL, a bare payload, or raw JSON. Rule, in order:
 3. Otherwise, in the text before any `#`: if it contains `/r/`, the payload is the text after the last `/r/`, up to any `?`. This is the path form `https://<host>/r/<payload>` that v0 issuers emitted before 2026-09-23; it is accepted, not emitted, because its payload reaches the host.
 4. Otherwise the text before any `#` is the bare payload.
 
-An empty payload, or one that is not base64url of a receipt JSON, is an error ("URL does not contain a receipt payload"). `spec/test-vectors/receipt-v0.json` → `url_forms` gives one vector's link in both forms.
+Text after the payload in the fragment (`#<payload>&k=v`, `#<payload>?x`, a second `#`) is not stripped: the fragment must be exactly the payload, and anything else is refused. An empty payload, or one that is not base64url of a receipt JSON, is an error ("URL does not contain a receipt payload"). `spec/test-vectors/receipt-v0.json` → `url_forms` gives one vector's link in both forms.
 
 ## 3. Issuance
 
