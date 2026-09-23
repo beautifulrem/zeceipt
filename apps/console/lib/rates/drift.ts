@@ -39,3 +39,21 @@ export function rateDrift(lock: string, execution: string, maxBps: number): Drif
     direction: e > l ? "up" : e < l ? "down" : "flat",
   };
 }
+
+/** "3.00%" from basis points given as a decimal string or a number ("312.50" → "3.12%"; floored to 0.01%). */
+export function pctFromBps(bps: string | number): string {
+  const [whole, frac = ""] = String(bps).split(".");
+  const hundredths = BigInt(whole) * 100n + BigInt((frac + "00").slice(0, 2)); // hundredths of a bp
+  return `${hundredths / 10_000n}.${((hundredths % 10_000n) / 100n).toString().padStart(2, "0")}%`;
+}
+
+/**
+ * The move for a rate_moved refusal, shared by the API and the page (slices G2b1, G2b2; here beside the drift, so http and view import the same words). The drift is floored
+ * for display (G2a), so a refused move just past the limit can floor to the limit itself: then say "more than"
+ * the limit rather than a figure equal to it (review G2a).
+ */
+export function movedText(bps: string, maxBps: number): string {
+  const [whole, frac = ""] = bps.split(".");
+  const hundredths = BigInt(whole) * 100n + BigInt((frac + "00").slice(0, 2));
+  return hundredths <= BigInt(maxBps) * 100n ? `more than ${pctFromBps(maxBps)}` : pctFromBps(bps);
+}

@@ -456,6 +456,57 @@ test("rate lock from the batch page, posted as a browser without JavaScript: loc
   }
 });
 
+test("pay follows the rate guard on the page, posted without JavaScript: no Pay before a lock; after a wallet refusal the rate can be re-locked; a moved market is explained and pays nothing; re-lock, then it pays (slice G2b2)", { skip: !RUN }, async () => {
+  let bid = "1600.00";
+  const source = http.createServer((_req, res) => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: [(Number(bid) + 1).toFixed(2), "1", "1"], b: [bid, "1", "1"], c: [bid, "0.1"] } } })));
+  await new Promise<void>((r) => source.listen(0, "127.0.0.1", r));
+  const fake = await new FakeZkool().start();
+  const s = await start(demoEnv("guard", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/t` }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const draft = JSON.stringify({ title: "guard", items: [{ payableId: "g1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "3000", memo: "GUARD-1" }] });
+    const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, draft)).body) as { id: string }).id;
+    const page = async () => (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body.replaceAll("<!-- -->", "");
+    const post = async (html: string, marker: string) => {
+      const f = multipart(formFields(html, marker));
+      return (await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": f.type }, f.body)).body.replaceAll("<!-- -->", "");
+    };
+
+    const unlocked = await page();
+    assert.ok(!unlocked.includes('name="confirmTotalZat"') && unlocked.includes("Lock the ZEC/USD rate below before paying."), "no Pay before a lock; the page says what to do");
+
+    await post(unlocked, ">Lock rate</button>");
+    const locked = await page();
+    assert.ok(locked.includes("Pay 0.00003000 ZEC"), "Pay appears once locked");
+
+    // The wallet refuses the first attempt (nothing paid): the batch can still be re-locked (review G2b1).
+    fake.nextPay = "refused";
+    const walletRefused = await post(locked, 'name="confirmTotalZat"');
+    assert.ok(walletRefused.includes("Not done:") && walletRefused.includes("This request sent nothing."));
+    const afterRefusal = await page();
+    assert.ok(afterRefusal.includes(">Re-lock rate</button>") && !afterRefusal.includes("its rate can no longer be changed"), "a refused batch keeps its Re-lock form");
+
+    bid = "1680.00"; // +5.00%
+    const refused = await post(afterRefusal, 'name="confirmTotalZat"');
+    assert.ok(refused.includes("Rate moved:") && refused.includes("ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, then pay. This request sent nothing."), "the refusal in plain words with both rates");
+    assert.equal(fake.payCalls, 1, "only the refused attempt reached the wallet; the moved retry paid nothing");
+
+    await post(await page(), ">Re-lock rate</button>");
+    const relocked = await page();
+    assert.ok(relocked.includes("1 ZEC = $1,680.00"));
+    const paid = await post(relocked, 'name="confirmTotalZat"');
+    assert.equal(fake.payCalls, 2, "paid once after the re-lock (the refused call counted, paid nothing)");
+    assert.ok(paid.includes("Broadcast, not in a block yet"), "the page shows the new status");
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+    await fake.stop();
+    await new Promise((r) => source.close(r));
+  }
+});
+
 test("create-draft form through next start, posted as a browser without JavaScript: 303 to the new batch; errors next to their lines with values kept", { skip: !RUN }, async () => {
   const s = await start(demoEnv("draft-form"));
   try {

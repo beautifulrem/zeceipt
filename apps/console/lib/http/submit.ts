@@ -20,7 +20,7 @@
 import { z } from "zod";
 import { batchNonce, getBatch, toExecutionBatch } from "../data/batches.ts";
 import { currentLock, recordQuote } from "../data/rates.ts";
-import { rateDrift } from "../rates/drift.ts";
+import { movedText, pctFromBps, rateDrift } from "../rates/drift.ts";
 import { getBatchStatus } from "../data/status.ts";
 import { StoreBusyError } from "../execution/idempotency.ts";
 import {
@@ -110,22 +110,6 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
   }
 }
 
-/** "3.00%" from hundredths of a basis point (exact string arithmetic; 1 bp = 0.01%). */
-function pct(hundredthsOfBp: number | bigint): string {
-  const h = BigInt(hundredthsOfBp); // 100 hundredths of a bp = 1 bp = 0.01%, so % = h / 10 000
-  return `${h / 10_000n}.${((h % 10_000n) / 100n).toString().padStart(2, "0")}%`;
-}
-
-/**
- * The move for the refusal message. `bps` is floored for display (G2a), so a refused move just past the limit
- * can floor to the limit itself; then say "more than" the limit instead of a figure equal to it (review G2a).
- */
-export function movedText(bps: string, maxBps: number): string {
-  const [whole, frac] = bps.split(".");
-  const hundredths = BigInt(whole) * 100n + BigInt(frac ?? "0");
-  return hundredths <= BigInt(maxBps) * 100n ? `more than ${pct(BigInt(maxBps) * 100n)}` : pct(hundredths);
-}
-
 /**
  * The lock-vs-execution guard (REQ-CON-21; slices G2a, G2b1). A current lock is required. A fresh quote is taken
  * and recorded as the execution quote before the attempt pays (a fresh batch: before its submission exists;
@@ -139,7 +123,7 @@ async function rateGuard(ctx: ServerContext, batchId: string): Promise<void> {
   const exec = await recordQuote(ctx.db, { orgId: ctx.config.orgId, batchId, purpose: "execution", quote });
   const drift = rateDrift(lock.rate, exec.rate, ctx.config.rateMaxDriftBps);
   if (drift.moved) {
-    throw new HttpProblem(409, "rate_moved", `ZEC/USD moved ${movedText(drift.bps, ctx.config.rateMaxDriftBps)} since the lock; at most ${pct(ctx.config.rateMaxDriftBps * 100)} is allowed; re-lock the rate, then pay; this request sent nothing`, {
+    throw new HttpProblem(409, "rate_moved", `ZEC/USD moved ${movedText(drift.bps, ctx.config.rateMaxDriftBps)} since the lock; at most ${pctFromBps(ctx.config.rateMaxDriftBps)} is allowed; re-lock the rate, then pay; this request sent nothing`, {
       rate: { lock: lock.rate, lockedAt: lock.fetchedAt, execution: exec.rate, quotedAt: exec.fetchedAt, driftBps: drift.bps, maxDriftBps: ctx.config.rateMaxDriftBps, direction: drift.direction },
     });
   }

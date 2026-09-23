@@ -48,3 +48,14 @@ test("rate lock: the new rate with its source and time; an unusable source says 
   );
   assert.deepEqual(await lockOutcome(problem(409, "batch_frozen", "the batch has a submission; its rate can no longer be locked")), { tone: "warning", headline: "Not done", detail: "the batch has a submission; its rate can no longer be locked." });
 });
+
+test("the rate guard in words (slice G2b2): a moved rate names both rates and the limit; nothing was sent", async () => {
+  const moved = problem(409, "rate_moved", "ZEC/USD moved 5.00% since the lock; at most 3.00% is allowed; re-lock the rate, then pay; this request sent nothing", {
+    thisRequest: "sent_nothing", rate: { lock: "1600.00", lockedAt: "2026-09-23T04:00:00.000Z", execution: "1680.00", quotedAt: "2026-09-23T04:05:00.000Z", driftBps: "500.00", maxDriftBps: 300, direction: "up" },
+  });
+  assert.deepEqual(await submitOutcome(moved), { tone: "warning", headline: "Rate moved", detail: "ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, then pay. This request sent nothing." });
+  const edge = problem(409, "rate_moved", "x", { thisRequest: "sent_nothing", rate: { lock: "1000", execution: "1030.00000001", driftBps: "300.00", maxDriftBps: 300 } });
+  assert.match((await submitOutcome(edge)).detail, /moved more than 3\.00% since the lock/, "never a figure equal to the limit");
+  assert.deepEqual(await submitOutcome(problem(409, "rate_not_locked", "lock the batch's ZEC/USD rate before paying; this request sent nothing", { thisRequest: "sent_nothing" })), { tone: "warning", headline: "Not paid", detail: "Lock the ZEC/USD rate first. This request sent nothing." });
+  assert.deepEqual(await submitOutcome(problem(502, "rate_unavailable", "the ZEC/USD source did not give a usable quote", { thisRequest: "sent_nothing", reason: "network" })), { tone: "warning", headline: "Not paid", detail: "The rate source's answer was unusable (network), so the rate could not be checked. Try again shortly. This request sent nothing." });
+});

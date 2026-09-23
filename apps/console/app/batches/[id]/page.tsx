@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getBatch, rateLockFrozen } from "../../../lib/data/batches.ts";
+import { getBatch, isSubmitted, rateLockFrozen } from "../../../lib/data/batches.ts";
 import { currentLock } from "../../../lib/data/rates.ts";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
@@ -37,6 +37,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);
   const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
+  const submitted = await isSubmitted(ctx.db, rec);
   // A lock is allowed until an attempt may have paid: also after a refusal (failed_retryable), migration 0014.
   const lockFrozen = await rateLockFrozen(ctx.db, rec);
   return (
@@ -76,9 +77,15 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             </div>
             <Lifecycle view={view} />
             <p className="text-sm">{view.explanation}</p>
-            {status.next === "submit" && (
-              <PayForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} again={status.state === "needs_attention"} />
-            )}
+            {status.next === "submit" &&
+              (lock || submitted ? (
+                <PayForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} again={status.state === "needs_attention"} />
+              ) : (
+                // REQ-CON-21 (slice G2b2): the first payment needs a rate lock, so Pay is not offered before one.
+                <p className="text-sm">
+                  <strong>Lock the ZEC/USD rate below before paying.</strong> The payment is checked against it.
+                </p>
+              ))}
             {status.next === "issue_receipts" && <IssueForm id={rec.id} />}
             {(status.detail.txid || status.detail.error) && (
               <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1 text-sm">

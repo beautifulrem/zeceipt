@@ -2,6 +2,7 @@
 // in plain language. The detail is the problem's fixed text, never the wallet's. `thisRequest` becomes a
 // sentence; an uncertain outcome is headed "Outcome unknown", never shown as a failure (Konclave #280).
 
+import { movedText, pctFromBps } from "../rates/drift.ts";
 import { rateText, sourceName } from "./format.ts";
 import type { Tone } from "./status.ts";
 
@@ -28,6 +29,9 @@ interface Body {
   reason?: string;
 }
 
+/** A rate_moved problem's `rate` extension (its `rate` is an object; a lock's `rate` is a string). */
+type RateMoved = { lock?: string; execution?: string; driftBps?: string; maxDriftBps?: number };
+
 const VERDICT = {
   sent_nothing: "This request sent nothing.",
   may_have_sent: "This request may have paid. Check the status before acting.",
@@ -52,6 +56,19 @@ export async function submitOutcome(res: Response): Promise<ActionOutcome> {
     return b.replayed
       ? { tone: "info", headline: "Already sent", detail: `This batch was already sent as ${b.txid}; nothing new was paid.` }
       : { tone: "info", headline: "Broadcast", detail: `Sent as ${b.txid}. Waiting for it to be mined.` };
+  }
+  // The rate guard (REQ-CON-21, slice G2b2): the API's own numbers, never the source's text.
+  const moved = b.code === "rate_moved" ? ((b as { rate?: RateMoved }).rate ?? {}) : undefined;
+  if (moved?.lock && moved.execution && moved.driftBps && moved.maxDriftBps) {
+    return {
+      tone: "warning",
+      headline: "Rate moved",
+      detail: `ZEC/USD moved ${movedText(moved.driftBps, moved.maxDriftBps)} since the lock (${moved.lock} → ${moved.execution} USD per ZEC); at most ${pctFromBps(moved.maxDriftBps)} is allowed. Re-lock the rate, then pay. ${VERDICT.sent_nothing}`,
+    };
+  }
+  if (b.code === "rate_not_locked") return { tone: "warning", headline: "Not paid", detail: `Lock the ZEC/USD rate first. ${VERDICT.sent_nothing}` };
+  if (b.code === "rate_unavailable") {
+    return { tone: "warning", headline: "Not paid", detail: `The rate source's answer was unusable (${b.reason ?? "unknown"}), so the rate could not be checked. Try again shortly. ${VERDICT.sent_nothing}` };
   }
   return problemOutcome(b);
 }
