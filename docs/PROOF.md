@@ -731,6 +731,21 @@ What the log shows:
 - **Each recipient's own wallet holds its memo and exact amount** (asserted: the note's value equals the item's zatoshi). This is the check independent of our code.
 - **Nothing secret was written.** The test checked that neither the transcript nor the server's output contains any receipt link or raw OCK, or the run's wrap key.
 - **Later strengthening (review round 2).** The one-payment check also counts the issuer's unmined transactions, and requires zebrad's mempool to be empty (`getrawmempool` = `[]`). The run `console-http-e2e-20260923013026.json` passed with it: tx `03cdeae5…`, the only issuer transaction since pre-pay height 2716, and `mempool: 0`.
+- **The full loop: console → link → public page (slice F3).** The run `console-http-e2e-20260923032333.json`:
+  - tx `550dd74f…59b0`, paid at 4573 and confirmed (2) at 4575;
+  - the only issuer transaction since the pre-pay height, with the mempool empty;
+  - three receipts verified by the CLI, and each recipient holding its memo and exact amount.
+
+  The console ran with `ZECEIPT_RECEIPT_HOST` set to a local static host serving `packages/verify/`. Every console link was `<that host>/r#…` (asserted without printing it). Each link was opened on the public receipt page in Chrome, with the raw transaction from zebrad loaded as a file. From the `page` step:
+
+  ```
+  {"step": "page", "host": "http://127.0.0.1:58496", "requestsToHost": 22, "pages": [{"payableId": "P-1", "headline": "VALID", "memoShown": "INV-H-20260923032333-1", "valueZatShown": "21000000", "inclusion": "unknown (file)"}, {"payableId": "P-2", "headline": "VALID", "memoShown": "INV-H-20260923032333-2", "valueZatShown": "22000000", "inclusion": "unknown (file)"}, {"payableId": "P-3", "headline": "VALID", "memoShown": "INV-H-20260923032333-3", "valueZatShown": "23000001", "inclusion": "unknown (file)"}]}
+  ```
+
+  - **What each page showed:** VALID, that item's memo and exact zatoshi, and the issuer's signature with key id 2026-09.
+  - **No outside requests:** none were made (a file load).
+  - **No leaks:** no request the page made, and none of the 22 the host received, carried any receipt payload or OCK.
+
 - **Fragment links (slice F1).** Re-run with the rebuilt CLI: `console-http-e2e-20260923014326.json`, tx `953b2718…` at 2875, confirmed at 2878. Each console link is `https://zeceipt.xyz/r#…` (asserted without printing it), and each link verifies online as given (outputs 2, 0, 3).
 
 ## 6. testnet — placeholder

@@ -116,6 +116,28 @@ test("every rule, and all problems reported together", () => {
   assert.ok(missing.includes("ZECEIPT_CUSTODY_MODE") && missing.includes("ZECEIPT_WRAP_KEYS") && missing.includes("ZECEIPT_DB_PATH"));
 });
 
+test("receipt host: https (http only on loopback), no credentials, query or fragment; a path prefix kept, the trailing slash dropped; default the CLI's", () => {
+  const host = (v: string | undefined) => loadConfig({ ...hot, ZECEIPT_RECEIPT_HOST: v }).receiptHost;
+  assert.equal(host(undefined), "https://zeceipt.xyz", "unset: the CLI's default");
+  assert.equal(host(""), "https://zeceipt.xyz", "empty counts as unset");
+  assert.equal(host("https://receipts.example.org"), "https://receipts.example.org");
+  assert.equal(host("https://Receipts.Example.org/"), "https://receipts.example.org", "normalised; trailing / dropped");
+  assert.equal(host("https://user.github.io/zeceipt/"), "https://user.github.io/zeceipt", "a path prefix (a project site) is kept");
+  for (const local of ["http://127.0.0.1:8787", "http://localhost:8787", "http://[::1]:8787"]) assert.equal(host(local), local, local);
+  for (const bad of ["http://receipts.example.org", "ftp://receipts.example.org", "https://u:p@receipts.example.org", "https://receipts.example.org/?x=1", "https://receipts.example.org/?", "https://receipts.example.org/#x", "https://receipts.example.org#", "receipts.example.org", "not a url"]) {
+    assert.deepEqual(problems({ ...hot, ZECEIPT_RECEIPT_HOST: bad }), ["ZECEIPT_RECEIPT_HOST"], bad);
+  }
+  // The message is ours: it never echoes the value (C1).
+  try {
+    loadConfig({ ...hot, ZECEIPT_RECEIPT_HOST: "https://secret-user:secret-pass@x.example" });
+    assert.fail("should refuse");
+  } catch (e) {
+    assert.ok(e instanceof ConfigError);
+    assert.ok(!e.message.includes("secret-user") && !e.message.includes("secret-pass"), e.message);
+  }
+  assert.equal(configSummary(loadConfig({ ...hot, ZECEIPT_RECEIPT_HOST: "http://127.0.0.1:8787" })).receiptHost, "http://127.0.0.1:8787");
+});
+
 test("wrap keys: 32 bytes each, strict base64, unique well-formed ids; the last one seals", () => {
   const w = (v: string) => problems({ ...hot, ZECEIPT_WRAP_KEYS: v });
   assert.deepEqual(w(`k1:${Buffer.alloc(31).toString("base64")}`), ["ZECEIPT_WRAP_KEYS"], "31 bytes");

@@ -21,9 +21,12 @@ import { HttpProblem, problem } from "./problem.ts";
 
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-/** The issuer's CLI options from the deployment's config: live lightwalletd, no challenge (bearer receipts). */
+/**
+ * The issuer's CLI options from the deployment's config: live lightwalletd, no challenge (bearer receipts),
+ * and links on the configured receipt page (slice F3). A link is fixed at issuance, like any link once shared.
+ */
 export function issuerCli(config: ConsoleConfig): ZeceiptCliOptions {
-  return { bin: config.issuer.bin, endpoint: config.lightwalletdUrl, ufvkFile: config.issuer.ufvkFile, keyFile: config.issuer.keyFile, keyId: config.issuer.keyId };
+  return { bin: config.issuer.bin, endpoint: config.lightwalletdUrl, ufvkFile: config.issuer.ufvkFile, keyFile: config.issuer.keyFile, keyId: config.issuer.keyId, host: config.receiptHost };
 }
 
 export function receiptJson(r: StoredReceipt) {

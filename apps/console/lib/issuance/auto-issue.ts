@@ -30,6 +30,8 @@ export interface ZeceiptCliOptions {
    * (slice D3). Without one, `issue` binds none and `verify` requires the receipt to carry none.
    */
   challenge?: string;
+  /** The public receipt page's site: links are `<host>/r#<payload>` (`zeceipt issue --host`). Absent: the CLI's default. */
+  host?: string;
   timeoutMs?: number;
 }
 
@@ -169,6 +171,7 @@ export async function autoIssue(args: {
     "--key-id", cli.keyId,
     ...(cli.challenge === undefined ? [] : ["--challenge", cli.challenge]),
     "--label", `batch ${batch.id}`,
+    ...(cli.host === undefined ? [] : ["--host", cli.host]),
     ...batch.items.flatMap((i) => ["--only-to", i.address]),
   ];
   const issued = await zeceipt(cli, issueArgs);

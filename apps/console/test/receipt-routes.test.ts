@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, toExecutionBatch, type BootState, type ZeceiptCliOptions } from "../lib/index.ts";
-import { issueReceiptsResponse, listReceiptsResponse, type ReceiptJson } from "../lib/http/receipts.ts";
+import { issueReceiptsResponse, issuerCli, listReceiptsResponse, type ReceiptJson } from "../lib/http/receipts.ts";
 import { HttpProblem, type ProblemJson } from "../lib/http/problem.ts";
 import * as collection from "../app/api/batches/route.ts";
 import * as receiptsRoute from "../app/api/batches/[id]/receipts/route.ts";
@@ -96,6 +96,14 @@ test("below the threshold: 202 waiting (pending, not invalid); nothing recorded"
   const r = await read(await issue(id, cli));
   assert.deepEqual([r.status, r.body.state, r.body.confirmations, r.body.required], [202, "waiting", 1, 3]);
   assert.equal(count(), 0);
+});
+
+test("the route and the page issue with the deployment's CLI options: its receipt host, its lightwalletd, no challenge (slice F3)", async () => {
+  await scenario("org-cli");
+  const config = slot[SERVER_CONTEXT_KEY]!.config;
+  assert.equal(config.receiptHost, "https://zeceipt.xyz", "unset: the CLI's default");
+  assert.deepEqual(issuerCli(config), { bin: BIN, endpoint: "http://127.0.0.1:1/", ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09", host: "https://zeceipt.xyz" });
+  assert.equal(issuerCli({ ...config, receiptHost: "http://127.0.0.1:8787" }).host, "http://127.0.0.1:8787");
 });
 
 test("confirmed: 201 with one verified bearer receipt per item (no challenge); a second issue returns them without the CLI; GET lists them", async () => {

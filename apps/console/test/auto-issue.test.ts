@@ -62,6 +62,18 @@ test("issues exactly one verified receipt per batch item; change and non-batch o
   assert.equal((await readdir(outDir)).length, 3);
 });
 
+test("links are <host>/r#<payload> on the configured receipt page (slice F3); without a host, the CLI's default", async () => {
+  const one: Batch = { ...batch, items: [batch.items[0]] };
+  const withHost = await autoIssue({ batch: one, txid: TXID, status: mined(1), requiredConfirmations: 1, cli: { ...cli, host: "https://user.github.io/zeceipt" } });
+  assert.equal(withHost.state, "issued");
+  if (withHost.state !== "issued") return;
+  const link = new URL(withHost.receipts[0].url);
+  assert.equal(`${link.origin}${link.pathname}`, "https://user.github.io/zeceipt/r");
+  assert.deepEqual(JSON.parse(Buffer.from(link.hash.slice(1), "base64url").toString("utf8")), withHost.receipts[0].receipt, "the fragment is the receipt");
+  const byDefault = await autoIssue({ batch: one, txid: TXID, status: mined(1), requiredConfirmations: 1, cli });
+  assert.equal(byDefault.state === "issued" && new URL(byDefault.receipts[0].url).origin, "https://zeceipt.xyz");
+});
+
 test("a batch naming only some recipients gets receipts for those only (allow-list)", async () => {
   const partial: Batch = { ...batch, items: [batch.items[1]] };
   const r = await autoIssue({ batch: partial, txid: TXID, status: mined(1), requiredConfirmations: 1, cli });

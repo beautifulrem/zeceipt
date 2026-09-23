@@ -6,7 +6,10 @@
 // Like a user without JavaScript: create the draft with the /batches/new form, pay with the batch page's
 // form (twice: one payment), watch the derived status reach confirmed, issue with the page's form, list
 // the receipts through the API, verify each with the zeceipt CLI against the live chain, and check each
-// recipient's own wallet. The transcript holds public facts only (no OCK, receipt URL or receipt body).
+// recipient's own wallet. Then open each receipt link as its recipient would: on the public receipt page
+// (packages/verify/r, served by a local static host set as ZECEIPT_RECEIPT_HOST, slice F3) in Chrome, with
+// the raw transaction loaded from a file (no public node serves regtest). The transcript holds public facts
+// only (no OCK, receipt URL or receipt body).
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,6 +19,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
+import { serveStatic } from "./helpers/static-site.ts";
 import { decimalToZat } from "../lib/index.ts";
 
 const ENABLED = process.env.ZECEIPT_REGTEST === "1";
@@ -74,6 +78,8 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
   // outlive it, sealed or not (review E3 round 1).
   const WRAP = randomBytes(32);
   const dir = mkdtempSync(join(tmpdir(), "zeceipt-regtest-http-"));
+  // The public receipt page, hosted locally; the console's links point at it (slice F3).
+  const site = await serveStatic(join(ROOT, "packages/verify"));
   const env: Record<string, string> = {
     ...baseEnv(),
     ZECEIPT_CUSTODY_MODE: "hot",
@@ -89,6 +95,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     ZECEIPT_UFVK_FILE: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"),
     ZECEIPT_ISSUER_KEY_FILE: join(ARTIFACT_DIR, "issuer.key"),
     ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_RECEIPT_HOST: site.base,
   };
   const s = await start(env);
   const urls: string[] = [];
@@ -164,7 +171,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
       urls.push(r.url!);
       if (typeof r.receipt?.ock === "string") urls.push(r.receipt.ock); // the raw OCK too, not only the link
       const link = new URL(r.url!);
-      assert.ok(link.pathname === "/r" && link.hash.length > 1, `a fragment link: ${link.origin}${link.pathname}`);
+      assert.ok(link.origin === site.base && link.pathname === "/r" && link.hash.length > 1, `a fragment link on the configured page: ${link.origin}${link.pathname}`);
       const v = spawnSync(BIN, ["verify", "--regtest", "--endpoint", ZAINO, "-", "--require-signature"], { input: r.url, encoding: "utf8", timeout: 120_000 });
       const out = JSON.parse(v.stdout) as { valid: boolean; challenge_checked: boolean; value_zat: number; memo: { text?: string } };
       assert.equal(v.status, 0, v.stderr);
@@ -194,6 +201,46 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     }
     step("recipients_received", { received });
 
+    // 7. Each link, opened as its recipient would: the public page in Chrome, the transaction from a file.
+    const rawHex = await zebraRpc<string>("getrawtransaction", [txid, 0]);
+    const rawFile = join(dir, `${txid}.hex`);
+    writeFileSync(rawFile, `${rawHex}\n`);
+    // What must never leave the browser: each receipt's payload (the link's fragment) and its raw OCK.
+    const needles = urls.map((x) => (x.includes("#") ? x.slice(x.indexOf("#") + 1) : x));
+    const { chromium } = await import("playwright-core");
+    const browser = await chromium.launch({ channel: "chrome", headless: true });
+    const pages = [];
+    try {
+      for (const r of receipts) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        const sent: string[] = [];
+        page.on("request", (req) => sent.push(`${req.url()} ${JSON.stringify(req.headers())} ${req.postData() ?? ""}`));
+        await page.goto(r.url!.replace("/r#", "/r/#")); // the host would redirect /r → /r/ anyway (F2b); skip the hop
+        await page.waitForFunction(() => /verification runs in this page/.test(document.getElementById("status")!.textContent ?? ""));
+        await page.setInputFiles("#rawfile", rawFile);
+        await page.waitForSelector("#outcome:not([hidden])");
+        const shown = async (sel: string) => ((await page.textContent(sel)) ?? "").replace(/\s+/g, " ").trim();
+        const headline = await shown("#headline");
+        const payment = await shown("#payment");
+        const inclusion = await shown("#inclusion");
+        const it = items.find((i) => i.payableId === r.payableId)!;
+        assert.equal(headline, "VALID", `the page verifies ${r.payableId}`);
+        assert.ok(payment.includes(it.memo), `memo of ${r.payableId} on the page`);
+        assert.ok(payment.includes(`(${r.valueZat} zat)`), `value of ${r.payableId} on the page`);
+        assert.match(inclusion, /^Unknown: the transaction was loaded from a file/);
+        assert.match(await shown("#issuer"), /^Signed by key [0-9a-f]{64} \(key id 2026-09\)/);
+        assert.ok(sent.every((x) => x.startsWith(site.base)), "a file load makes no outside request");
+        assert.ok(!sent.some((x) => needles.some((n) => x.includes(n))), "no request carries a receipt");
+        pages.push({ payableId: r.payableId, headline, memoShown: it.memo, valueZatShown: r.valueZat, inclusion: "unknown (file)" });
+        await context.close();
+      }
+    } finally {
+      await browser.close();
+    }
+    assert.ok(!site.seen.some((x) => needles.some((n) => x.url.includes(n) || x.headers.includes(n))), "the page's host never saw a receipt");
+    step("page", { host: site.base, requestsToHost: site.seen.length, pages });
+
     // Nothing secret was written: not the receipt links, not the wrap key.
     const transcript = JSON.stringify({ version: 1, stamp, zkool: ZKOOL, endpoint: ZAINO, issuerAccount: ISSUER, log }, null, 2);
     for (const secret of [...urls, WRAP.toString("base64")]) {
@@ -206,5 +253,6 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     s.child.kill("SIGTERM");
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     rmSync(dir, { recursive: true, force: true }); // the run's database (sealed receipts) does not outlive it
+    await site.close();
   }
 });

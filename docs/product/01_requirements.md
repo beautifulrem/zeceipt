@@ -152,7 +152,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CON-9 | ⬜ | 3.3.5.6 | `05` §2 zip321-manual adapter `[R17]` |
 | REQ-CON-10 | ⬜ | 3.3.5.2 | `05` §1 batch state machine |
 | REQ-CON-11 | 🟡 | 3.3.6.1 | PROOF §5c, §5d (three receipts issued from the page on the live chain, each verified online); `apps/console/lib/issuance/auto-issue.ts`; `lib/data/receipts.ts` (B2); `lib/http/receipts.ts` (D3); the batch page lists them with their links (E1); open: automatic issuance on confirmation (a worker) |
-| REQ-CON-12 | ✅ | 3.3.6.2 | PROOF §2c: `packages/verify/r/` reads the fragment, and the Chrome e2e shows no request, header or storage carries the receipt `[R68]`; `04` SCR-10, FLOW-2 |
+| REQ-CON-12 | ✅ | 3.3.6.2 | PROOF §5d (F3: console links opened on the page, live regtest, VALID) and PROOF §2c: `packages/verify/r/` reads the fragment, and the Chrome e2e shows no request, header or storage carries the receipt `[R68]`; `04` SCR-10, FLOW-2 |
 | REQ-CON-13 | ⬜ | 3.3.6.3 | `04` SCR-11, FLOW-3 |
 | REQ-CON-14 | ⬜ | 3.3.6.3 | `05` §3 export columns `[R5]` `[R32]` |
 | REQ-CON-15 | ⬜ | 3.3.6.4 | cut order item 2 (`11_plan.md` §2) |

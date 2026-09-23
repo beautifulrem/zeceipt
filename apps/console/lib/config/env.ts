@@ -22,6 +22,8 @@ export interface ConsoleConfig {
   wrapKeys: { kid: string; key: SecretBytes }[];
   lightwalletdUrl: string;
   issuer: { bin: string; ufvkFile: string; keyFile: string; keyId: string };
+  /** Where the public receipt page is served; receipt links are `<receiptHost>/r#<payload>` (spec §2.1). */
+  receiptHost: string;
 }
 
 export interface ConfigProblem {
@@ -54,6 +56,7 @@ const KNOWN = [
   "UFVK_FILE",
   "ISSUER_KEY_FILE",
   "ISSUER_KEY_ID",
+  "RECEIPT_HOST",
 ].map((k) => P + k);
 
 // http(s) only, and no user:password@ part: neither Zkool nor lightwalletd uses URL credentials, and a URL is
@@ -67,6 +70,20 @@ const httpUrl = z.url({ protocol: /^https?$/ }).refine((s) => {
     return false;
   }
 }).transform((s) => new URL(s).href); // stored normalised (scheme case, trailing whitespace, default path)
+// The public receipt page's base URL (GitLab's `external_url` pattern: the console is reached on loopback,
+// the page lives elsewhere). https, or http only on loopback (a local demo): the fragment never travels, but
+// the page's scripts do. No credentials (links are shared); no query or fragment (`/r#…` is appended). A path
+// prefix is allowed; the trailing "/" is dropped, as the CLI's to_url does.
+export const DEFAULT_RECEIPT_HOST = "https://zeceipt.xyz";
+const receiptHostUrl = z.string().refine((s) => {
+  try {
+    const u = new URL(s);
+    const loopback = LOOPBACK_HOSTS.has(u.hostname);
+    return (u.protocol === "https:" || (u.protocol === "http:" && loopback)) && u.username === "" && u.password === "" && u.search === "" && u.hash === "" && !s.includes("?") && !s.includes("#");
+  } catch {
+    return false;
+  }
+}).transform((s) => new URL(s).href.replace(/\/+$/, ""));
 const absPath = z.string().refine((s) => isAbsolute(s) && !s.startsWith("file:") && s !== ":memory:" && !/[\u0000-\u001f\u007f]/.test(s));
 const intIn = (min: number, max: number) => z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min).max(max));
 
@@ -125,6 +142,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const ufvkFile = field("UFVK_FILE", absPath, "must be the absolute path of the issuer's UFVK file");
   const keyFile = field("ISSUER_KEY_FILE", absPath, "must be the absolute path of the issuer signing key file");
   const keyId = field("ISSUER_KEY_ID", z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), "must be 1–64 characters of A-Z, a-z, 0-9, ., _ and -");
+  const receiptHost = field("RECEIPT_HOST", receiptHostUrl, "must be the https URL of the public receipt page's site (http only on a loopback host), without credentials, query or fragment", { fallback: DEFAULT_RECEIPT_HOST });
 
   if (problems.length) throw new ConfigError(problems);
   const config: ConsoleConfig = {
@@ -136,6 +154,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     wrapKeys: wrapKeys!,
     lightwalletdUrl: lightwalletdUrl!,
     issuer: { bin: bin!, ufvkFile: ufvkFile!, keyFile: keyFile!, keyId: keyId! },
+    receiptHost: receiptHost!,
   };
   return deepFreeze(config);
 }
@@ -195,6 +214,7 @@ export function configSummary(c: ConsoleConfig): Record<string, unknown> {
     sealingKeyId: c.wrapKeys[c.wrapKeys.length - 1]?.kid,
     lightwalletdUrl: c.lightwalletdUrl,
     issuer: { ...c.issuer },
+    receiptHost: c.receiptHost,
   };
 }
 
