@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getBatch, isSubmitted } from "../../../lib/data/batches.ts";
+import { getBatch, rateLockFrozen } from "../../../lib/data/batches.ts";
 import { currentLock } from "../../../lib/data/rates.ts";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
@@ -37,7 +37,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);
   const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
-  const submitted = await isSubmitted(ctx.db, rec);
+  // A lock is allowed until an attempt may have paid: also after a refusal (failed_retryable), migration 0014.
+  const lockFrozen = await rateLockFrozen(ctx.db, rec);
   return (
     <>
       <AccessNotice />
@@ -131,8 +132,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         ) : (
           <p className="text-sm">Not locked. Lock the rate to record the ZEC/USD value this batch is based on (source and time kept).</p>
         )}
-        {submitted ? (
-          <p className="text-sm text-slate-500">The batch has been submitted: its rate can no longer be changed.</p>
+        {lockFrozen ? (
+          <p className="text-sm text-slate-500">A payment attempt may have paid this batch: its rate can no longer be changed.</p>
         ) : (
           <LockRateForm id={rec.id} locked={lock !== undefined} />
         )}

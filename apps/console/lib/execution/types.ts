@@ -83,7 +83,11 @@ export interface StatusOptions {
 export interface PayoutBackend {
   readonly name: "zkool-graphql" | "zallet-rpc" | "zip321-manual";
   preflight(batch: Batch): Promise<Preflight>;
-  submit(batch: Batch, nonce: string): Promise<Submitted>;
+  /**
+   * `opts.beforePay` must run before every attempt that will pay, and never on a path that may already have paid
+   * (slice G2b1): the console's rate guard depends on it, so every backend must honour it.
+   */
+  submit(batch: Batch, nonce: string, opts?: { beforePay?: () => Promise<void> }): Promise<Submitted>;
   status(txid: string, opts?: StatusOptions): Promise<TxStatus>;
 }
 

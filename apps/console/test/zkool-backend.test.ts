@@ -587,3 +587,21 @@ test("beforePay, an attempt proven unminable: recorded as failed_retryable (txid
   assert.deepEqual([got.via, fake.payCalls], ["fresh", pays + 1]);
   fake.mine();
 });
+
+test("beforePay, resubmitExpired: the explicit re-send is judged too; a refusal records failed_retryable (nothing paid) and pays nothing (review G2b1 round 2)", async () => {
+  const store = new MemoryIdempotencyStore();
+  const b = backend({ store });
+  const first = await b.submit(batch("bp-resend"), "nonce-bp-resend");
+  fake.drop(); // the node lost it
+  fake.advance(51); // expired: it can never be mined
+  const g = refuse();
+  const pays = fake.payCalls;
+  await assert.rejects(b.resubmitExpired(batch("bp-resend"), "nonce-bp-resend", { beforePay: g.fn }), /guard refused/);
+  assert.equal(g.calls(), 1);
+  const rec = (await store.get("nonce-bp-resend"))!;
+  assert.deepEqual([rec.state, rec.txid, fake.payCalls], ["failed_retryable", undefined, pays]);
+  const again = await b.submit(batch("bp-resend"), "nonce-bp-resend", { beforePay: async () => {} });
+  assert.notEqual(again.txid, first.txid);
+  assert.equal(fake.payCalls, pays + 1);
+  fake.mine();
+});

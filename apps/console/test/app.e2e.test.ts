@@ -431,10 +431,18 @@ test("rate lock from the batch page, posted as a browser without JavaScript: loc
     await post(await page(), ">Re-lock rate</button>");
     assert.ok((await page()).includes("1 ZEC = $1,600.10"));
 
+    // The wallet refuses an attempt (nothing paid): the batch keeps its Re-lock form (review G2b1: the page
+    // followed isSubmitted and hid it, while the API allows the lock, migration 0014).
+    fake.nextPay = "refused";
+    const walletRefused = (await post(await page(), 'name="confirmTotalZat"')).body.replaceAll("<!-- -->", "");
+    assert.ok(walletRefused.includes("This request sent nothing."), "refused before building");
+    const afterRefusal = await page();
+    assert.ok(afterRefusal.includes(">Re-lock rate</button>") && !afterRefusal.includes("its rate can no longer be changed"), "a refused batch keeps its Re-lock form");
+
     // Paid: the batch is frozen, so the form leaves the page and the page says why; the lock stays shown.
     const toPay = await page();
     assert.equal((await post(toPay, 'name="confirmTotalZat"')).status, 200);
-    assert.equal(fake.payCalls, 1);
+    assert.equal(fake.payCalls, 2, "the refused call, then the payment");
     const frozen = await page();
     assert.ok(!frozen.includes("Re-lock rate</button>") && frozen.includes("its rate can no longer be changed") && frozen.includes("1 ZEC = $1,600.10"));
     // A stale page's post still reaches the handler, which refuses it (409 batch_frozen) and says so.
