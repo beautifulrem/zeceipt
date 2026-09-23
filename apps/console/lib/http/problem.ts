@@ -12,10 +12,13 @@ export interface ProblemJson {
   detail: string;
   code: string;
   problems?: { code: string; index?: number; detail: string }[];
-  /** Submit problems (slice D2): what this request did (the batch's own state is at `status`). */
+  /** Submit problems (slice D2): what this request did (the batch's own state is at `batchStatus`). */
   thisRequest?: "sent_nothing" | "may_have_sent";
   /** Submit problems: the batch's status route (not RFC 9457's `status`, which is the HTTP status code). */
   batchStatus?: string;
+  /** `not_ready_for_receipts` (slice D3): the batch's derived state and next action. */
+  state?: string;
+  next?: string;
   issues?: { path: string; message: string }[];
 }
 

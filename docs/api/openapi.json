@@ -418,6 +418,211 @@
           }
         }
       }
+    },
+    "/api/batches/{id}/receipts": {
+      "get": {
+        "operationId": "listReceipts",
+        "summary": "The batch's stored receipts, decrypted",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "receipts"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Receipt"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "issueReceipts",
+        "summary": "Issue one verified receipt per item once the payment has the configured confirmations (the batch's derived status decides). Idempotent: an issued batch returns its stored receipts without running the issuer again.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Already issued: the stored receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "txid",
+                    "receipts"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "txid": {
+                      "type": "string"
+                    },
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Receipt"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Issued now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "txid",
+                    "inserted",
+                    "existing",
+                    "receipts"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "txid": {
+                      "type": "string"
+                    },
+                    "inserted": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "existing": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Receipt"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Waiting: below the confirmation threshold (pending, not invalid)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "state",
+                    "confirmations",
+                    "required"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "const": "waiting"
+                    },
+                    "confirmations": {
+                      "type": "integer"
+                    },
+                    "required": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -476,7 +681,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts"
           },
           "problems": {
             "type": "array",
@@ -529,6 +734,14 @@
           "batchStatus": {
             "type": "string",
             "description": "Submit problems: the batch's status route (RFC 9457's own `status` member is the HTTP status code)"
+          },
+          "state": {
+            "type": "string",
+            "description": "not_ready_for_receipts: the batch's derived state"
+          },
+          "next": {
+            "type": "string",
+            "description": "not_ready_for_receipts: the next action for that state"
           }
         }
       },
@@ -687,6 +900,68 @@
           "totalZat": {
             "type": "string",
             "pattern": "^[0-9]+$"
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "required": [
+          "idx",
+          "payableId",
+          "txid",
+          "pool",
+          "outputIndex",
+          "valueZat",
+          "recipient",
+          "memo",
+          "issuedAt",
+          "verifiedAt"
+        ],
+        "properties": {
+          "idx": {
+            "type": "integer"
+          },
+          "payableId": {
+            "type": "string"
+          },
+          "txid": {
+            "type": "string"
+          },
+          "pool": {
+            "type": "string"
+          },
+          "outputIndex": {
+            "type": "integer"
+          },
+          "valueZat": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string",
+            "description": "The shareable receipt link (like Stripe's receipt_url). It contains the output's OCK: a bearer capability. Absent when openError is set."
+          },
+          "receipt": {
+            "type": "object",
+            "description": "The signed receipt envelope (no challenge: console receipts are bearer documents). Absent when openError is set."
+          },
+          "openError": {
+            "type": "string",
+            "description": "This row's sealed payload did not open (e.g. seal_unknown_kid); the other rows are still returned"
           }
         }
       }

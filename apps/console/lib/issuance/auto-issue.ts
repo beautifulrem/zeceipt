@@ -24,8 +24,12 @@ export interface ZeceiptCliOptions {
   /** Issuer signing key from `zeceipt keygen`. */
   keyFile: string;
   keyId: string;
-  /** Challenge bound into every receipt and required at verification. */
-  challenge: string;
+  /**
+   * Verifier-issued challenge bound into every receipt and required at verification (ZIP 311 `msg`;
+   * THREAT_MODEL: interactive proofs). The console omits it: its receipts are bearer links for recipients
+   * (slice D3). Without one, `issue` binds none and `verify` requires the receipt to carry none.
+   */
+  challenge?: string;
   timeoutMs?: number;
 }
 
@@ -163,7 +167,7 @@ export async function autoIssue(args: {
     "--ufvk-file", cli.ufvkFile,
     "--key-file", cli.keyFile,
     "--key-id", cli.keyId,
-    "--challenge", cli.challenge,
+    ...(cli.challenge === undefined ? [] : ["--challenge", cli.challenge]),
     "--label", `batch ${batch.id}`,
     ...batch.items.flatMap((i) => ["--only-to", i.address]),
   ];
@@ -199,12 +203,12 @@ export async function autoIssue(args: {
   if (extra.length) problems.push(`${extra.length} receipt(s) for outputs not in the batch: ${extra.map(outputKey).join(", ")}`);
   if (problems.length) throw new IssuanceMismatchError(problems);
 
-  // Verify each receipt exactly as a recipient would (signature + challenge required). The receipt goes to
+  // Verify each receipt exactly as a recipient would (signature required; the challenge, if one was bound). The receipt goes to
   // `zeceipt verify -` on stdin: it contains the output's OCK and is never written to a file here.
   {
     const receipts: IssuedReceipt[] = [];
     for (const { item, r } of pairs) {
-      const v = await zeceiptStdin(cli, ["verify", ...netFlags(batch), ...(cli.rawTxFile ? ["--raw-tx-file", cli.rawTxFile] : ["--endpoint", cli.endpoint!]), "-", "--challenge", cli.challenge, "--require-signature"], JSON.stringify(r.receipt));
+      const v = await zeceiptStdin(cli, ["verify", ...netFlags(batch), ...(cli.rawTxFile ? ["--raw-tx-file", cli.rawTxFile] : ["--endpoint", cli.endpoint!]), "-", ...(cli.challenge === undefined ? [] : ["--challenge", cli.challenge]), "--require-signature"], JSON.stringify(r.receipt));
       let valid = false;
       try {
         valid = v.code === 0 && JSON.parse(v.stdout).valid === true;

@@ -4,7 +4,7 @@
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -101,4 +101,19 @@ test("a batch that could claim one output twice is refused before anything runs"
   await assert.rejects(autoIssue({ batch: twice, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), (e: unknown) => e instanceof IssuanceMismatchError && /appears twice/.test((e as Error).message));
   const noMemo: Batch = { ...batch, items: [{ ...batch.items[0], memo: "" }] };
   await assert.rejects(autoIssue({ batch: noMemo, txid: TXID, status: mined(1), requiredConfirmations: 1, cli }), /empty memo/);
+});
+
+test("without a challenge (console receipts, slice D3): none is bound, and a receipt that carries one does not verify without it", async () => {
+  const noChallenge = { ...cli, challenge: undefined };
+  const r = await autoIssue({ batch, txid: TXID, status: mined(3), requiredConfirmations: 3, cli: noChallenge });
+  assert.equal(r.state, "issued");
+  if (r.state !== "issued") return;
+  for (const got of r.receipts) assert.equal("challenge" in got.receipt, false);
+  // Fail closed: a receipt issued with a challenge is refused by a verifier that expects none.
+  const withChallenge = await autoIssue({ batch, txid: TXID, status: mined(3), requiredConfirmations: 3, cli });
+  assert.equal(withChallenge.state, "issued");
+  if (withChallenge.state !== "issued") return;
+  const v = spawnSync(BIN, ["verify", "--regtest", "--raw-tx-file", RAW, "-", "--require-signature"], { input: JSON.stringify(withChallenge.receipts[0].receipt), encoding: "utf8" });
+  assert.notEqual(v.status, 0, "verification without the bound challenge must fail");
+  assert.match(`${v.stdout}${v.stderr}`, /challenge/i, "and fail at the challenge stage");
 });

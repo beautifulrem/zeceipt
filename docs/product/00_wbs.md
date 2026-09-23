@@ -209,7 +209,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
 - 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-01 → 10-03.
 #### 3.3.6 Payout console — receipts, pages, exports
-- 3.3.6.1 🟡 R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). Library `autoIssue` done 2026-09-23 (confirmation gate, `zeceipt issue --only-to` allow-list, per-item cross-check, verification; PROOF §5c); storing receipts with the unique (txid, pool, index) key comes with the data model (3.3.1.3). 1 pd, 2026-09-27 → 09-28.
+- 3.3.6.1 🟡 R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). Library `autoIssue` done 2026-09-23 (confirmation gate, `zeceipt issue --only-to` allow-list, per-item cross-check, verification; PROOF §5c); storing receipts sealed at rest with the unique (org, txid, pool, index) key: slice B2; over HTTP: slice D3 (Trellis `09-23-console-receipt-routes`), where the batch's derived status decides, below the threshold is 202 waiting (pending, not invalid), and an issued batch returns its stored receipts without re-running the CLI; console receipts carry no challenge (bearer links). Open: the page (slice E) and a background worker. 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.2 ⬜ T — Public receipt page `/r/<payload>` with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
 - 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-9). 1.5 pd, 2026-09-29 → 09-30.
 - 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-08 → 10-09 (only if restored).
@@ -222,7 +222,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 31 Rust tests + 157 TypeScript console tests (and 1 opt-in regtest e2e; the 7 build-and-serve tests run in CI with `ZECEIPT_APP_E2E=1`), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
+- 3.4.2.1 ✅ R — 31 Rust tests + 163 TypeScript console tests (and 1 opt-in regtest e2e; the 7 build-and-serve tests run in CI with `ZECEIPT_APP_E2E=1`), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.

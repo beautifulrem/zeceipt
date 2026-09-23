@@ -258,7 +258,9 @@ test("guard and batch routes through next start: foreign Host and cross-site wri
 
 test("submit and status through next start: pays once against a fake wallet, replays, and follows the chain", { skip: !RUN }, async () => {
   const fake = await new FakeZkool().start();
-  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9" }));
+  // The real zeceipt binary, so receipt issuance spawns it from inside Next's bundled server (slice D3).
+  const bin = process.env.ZECEIPT_BIN ?? resolve(APP, "../../target/debug/zeceipt");
+  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -283,6 +285,15 @@ test("submit and status through next start: pays once against a fake wallet, rep
     fake.mine(2);
     const st = JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string; detail: { txid: string } };
     assert.deepEqual([st.state, st.detail.txid], ["confirmed", txid]);
+
+    // Receipts: none yet; issuing spawns the CLI, which cannot reach lightwalletd here, so nothing is
+    // recorded and the problem quotes nothing (the live path is the regtest e2e, slice E).
+    assert.deepEqual(JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/receipts`, { host: self })).body), { batchId: id, receipts: [] });
+    const issued = await raw(s.port, "POST", `/api/batches/${id}/receipts`, { host: self, origin: `http://${self}` });
+    assert.equal(issued.status, 502, issued.body);
+    assert.equal((JSON.parse(issued.body) as { code: string }).code, "issuance_failed");
+    assert.ok(!issued.body.includes("127.0.0.1:1") && !issued.body.includes(bin));
+    assert.deepEqual(JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/receipts`, { host: self })).body), { batchId: id, receipts: [] });
     assertNoKey(s.output());
   } finally {
     s.child.kill("SIGTERM");
