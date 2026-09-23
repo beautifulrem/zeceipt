@@ -12,7 +12,12 @@ What Zeceipt records per payment: USD amount (payable), ZEC amount, rate with it
 
 ## 2. Fair-market-value policy
 
-- Rate locked at approval from one source (Kraken ZEC/USD) and stored with the timestamp (REQ-CON-4); the execution-time rate is also recorded; both the lock and execution rates appear in exports so an accountant can choose the method and apply it consistently (the "reasonable, consistently applied" standard in practitioner guidance `[R26]`). A second source (CoinGecko) with a cross-source disagreement check is planned as REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch).
+- Three rates, three jobs (corrected 2026-09-23, slice G1a `[R70]`):
+  - **Lock rate.** Converts USD amounts into ZEC before paying. It is taken from one source (Kraken `XZECZUSD`) when the draft is locked, and stored with the source, the pair, the bid, the ask, the last trade and our clock's time (REQ-CON-4). The rate used is the bid, BTCPay's choice even for converting fiat refunds into crypto, so the payee gets at least the USD amount at the price they could sell at.
+  - **Execution rate.** Quoted again at submit, and compared with the lock (REQ-CON-21, below).
+  - **Fair market value for tax.** The IRS values crypto received for services "when received" (FAQ 12). Outside an exchange, that is "as of the date and time the transaction is recorded on the distributed ledger" (FAQ 27). So the FMV belongs to the **confirmation time**, not to the lock; recording it per payment is a later slice (NFR-8).
+
+  All three appear in exports, so an accountant can choose the method and apply it consistently (the "reasonable, consistently applied" standard in practitioner guidance `[R26]`). A second source (CoinGecko) with a cross-source disagreement check is planned as REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch).
 - Deviation > 3% between the approval lock and the execution quote blocks execution until re-quoted (REQ-CON-21, Must under both branches).
 
 ## 3. European Union
