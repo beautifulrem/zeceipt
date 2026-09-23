@@ -401,6 +401,9 @@
           "500": {
             "$ref": "#/components/responses/Problem"
           },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
           "503": {
             "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
             "headers": {

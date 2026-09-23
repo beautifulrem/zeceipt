@@ -41,3 +41,23 @@ test("the documented problem codes are exactly the codes the console emits", () 
   const documented = new Set(spec.components.schemas.Problem.properties.code.description.split(/,\s*/));
   assert.deepEqual([...emitted].sort(), [...documented].sort());
 });
+
+// Review E1 round 2: the statuses each operation can produce, reviewed against the code, so a status added
+// to a route (like the status route's 502) cannot stay undocumented. Every route: 403 (guard), 500 (fixed
+// internal), 503 (not_ready). Bodies: 400 malformed/schema, 413, 415. Update this table with the route.
+const STATUSES: Record<string, string[]> = {
+  "get /api/health": ["200", "403", "503"], // healthResponse never throws: its own 503 is "fail"
+  "get /api/batches": ["200", "403", "500", "503"],
+  "post /api/batches": ["201", "400", "403", "413", "415", "422", "500", "503"],
+  "get /api/batches/{id}": ["200", "403", "404", "500", "503"],
+  "post /api/batches/{id}/submit": ["202", "400", "403", "404", "409", "413", "415", "422", "500", "502", "503"],
+  "get /api/batches/{id}/status": ["200", "403", "404", "409", "500", "502", "503"],
+  "get /api/batches/{id}/receipts": ["200", "403", "404", "500", "503"],
+  "post /api/batches/{id}/receipts": ["200", "201", "202", "403", "404", "409", "500", "502", "503"],
+};
+
+test("each operation documents exactly the statuses its route can produce", () => {
+  const documented = Object.fromEntries(Object.entries(spec.paths).flatMap(([p, ops]) => Object.entries(ops).map(([m, op]) => [`${m} ${p}`, Object.keys((op as { responses: Record<string, unknown> }).responses).sort()])));
+  assert.deepEqual(Object.keys(documented).sort(), Object.keys(STATUSES).sort());
+  for (const [op, statuses] of Object.entries(STATUSES)) assert.deepEqual(documented[op], [...statuses].sort(), op);
+});
