@@ -65,14 +65,16 @@ export class ReferenceTakenError extends ExecutionError {
 // Characters that render as nothing (UAX #44 Default_Ignorable_Code_Point: zero-width spaces and joiners, the soft
 // hyphen, bidirectional controls, variation selectors, …), which UTS #55 names as a source of confusion and spoofing,
 // and any whitespace but the ordinary space (a no-break or em space looks like a space). Either would let two
-// references look the same, or one look like another (review H3: six payables all displayed as "INV-1").
-const INVISIBLE = /\p{Default_Ignorable_Code_Point}/u;
+// references look the same, or one look like another (review H3: six payables all displayed as "INV-1"). Also every
+// control character (C0 and DEL are `isPlainText`'s; C1, U+0080–U+009F, such as NEL and the terminal escape CSI, are
+// neither ignorable nor space: review H3 round 2) and the braille blank U+2800, which displays as a space.
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cc}\u2800]/u;
 const OTHER_SPACE = /(?! )\s/u;
 
 function referenceProblem(r: string): string | undefined {
   if (!isPlainText(r, 1, REFERENCE_MAX) || r.trim() === "") return `reference must be 1–${REFERENCE_MAX} characters of plain text, not only spaces`;
   if (r !== r.trim()) return "reference must not start or end with whitespace (it becomes the memo exactly as written)";
-  if (INVISIBLE.test(r)) return "reference must not contain invisible characters (zero-width characters, bidirectional controls, soft hyphens, variation selectors): the memo must read as it looks";
+  if (INVISIBLE.test(r)) return "reference must not contain invisible characters (zero-width characters, bidirectional controls, soft hyphens, variation selectors, control characters): the memo must read as it looks";
   if (OTHER_SPACE.test(r)) return "reference may use only the ordinary space (a no-break or other space looks the same but is a different memo)";
   if (r !== r.normalize("NFC")) return "reference must be in Unicode NFC (the same text written another way would look like a second payable with the same reference)";
   return undefined;
