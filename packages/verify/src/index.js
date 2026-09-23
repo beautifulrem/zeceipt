@@ -76,6 +76,8 @@ const U64_MAX = 0xffffffffffffffffn;
 export function chainStatus(height) {
   if (height === null || height === 0n) return { status: "mempool" };
   if (height === U64_MAX) return { status: "fork" };
+  // Any other value is a main-chain height. Real heights are far below 2^53, so Number() is exact;
+  // like zeceipt-lwd's mined_height, no further plausibility check is made.
   return { status: "mined", height: Number(height) };
 }
 
