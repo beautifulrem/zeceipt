@@ -36,3 +36,7 @@ export function ua(hrp: string, items: number[][], paddingHrp = hrp): string {
   return bech32m(hrp, raw.length < 48 ? raw : f4jumble(raw));
 }
 export const item = (typecode: number, len: number, fill = 7) => [typecode, len, ...new Array(len).fill(fill)];
+/** An item whose length needs a 3-byte CompactSize (253..65535 bytes), for addresses longer than the console stores. */
+export const bigItem = (typecode: number, len: number, fill = 7) => [typecode, 0xfd, len & 0xff, len >> 8, ...new Array(len).fill(fill)];
+/** A valid regtest UA of 1,000+ characters: Orchard, then an unknown receiver typecode of 640 bytes (review H1 round 2). */
+export const longUa = () => ua("uregtest", [item(3, 43), bigItem(0x10, 640)]);

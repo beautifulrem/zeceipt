@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { bootServerContext, defaultMigrationsDir, SERVER_CONTEXT_KEY, type BootState } from "../lib/index.ts";
 import * as collection from "../app/api/recipients/route.ts";
 import * as item from "../app/api/recipients/[id]/route.ts";
+import { longUa } from "./helpers/ua-encoder.ts";
 
 const HOST = "127.0.0.1:3000";
 const slot = globalThis as { [SERVER_CONTEXT_KEY]?: BootState };
@@ -69,6 +70,15 @@ test("REQ-CON-2: an invalid address is 422 recipient_invalid, with every problem
   assert.equal(r.status, 422);
   assert.equal(r.body.code, "recipient_invalid");
   assert.deepEqual(r.body.problems!.map((p) => [p.code, p.field]).sort(), [["address_hrp", "address"], ["name_invalid", "displayName"], ["notes_invalid", "notes"]]);
+  assert.equal((await list()).recipients.length, before);
+});
+
+test("an address longer than the console stores is 422 address_malformed, not a 500 (review H1 round 2); nothing saved", async () => {
+  const before = (await list()).recipients.length;
+  const r = await create({ displayName: "Long", address: longUa() });
+  assert.equal(r.status, 422);
+  assert.equal(r.body.code, "recipient_invalid");
+  assert.deepEqual(r.body.problems!.map((p) => [p.code, p.field]), [["address_malformed", "address"]]);
   assert.equal((await list()).recipients.length, before);
 });
 

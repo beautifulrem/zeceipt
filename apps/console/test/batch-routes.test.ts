@@ -12,6 +12,7 @@ import type { BatchJson, BatchSummaryJson } from "../lib/http/batches.ts";
 import * as collection from "../app/api/batches/route.ts";
 import * as item from "../app/api/batches/[id]/route.ts";
 import type { ProblemJson } from "../lib/http/problem.ts";
+import { longUa } from "./helpers/ua-encoder.ts";
 
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -109,6 +110,15 @@ test("422: every domain problem, with item indexes; nothing written", async () =
   const codes = x.body.problems!.map((p) => `${p.code}@${p.index ?? "-"}`).sort();
   for (const c of ["title_invalid@-", "amount_nonpositive@0", "amount_too_large@1", "duplicate_payable@1", "memo_duplicate@1"]) assert.ok(codes.includes(c), `${c} in ${codes}`);
   assert.ok(codes.some((c) => c.endsWith("@0") && c !== "amount_nonpositive@0"), `an address problem for item 0 in ${codes}`);
+  assert.equal((await read(await handleList())).body.batches!.length, before);
+});
+
+test("422 batch_invalid for an item address longer than the console stores, not a 500 (review H1 round 2); nothing written", async () => {
+  const before = (await read(await handleList())).body.batches!.length;
+  const x = await read(await handleCreate(post(draft({ items: [{ payableId: "inv-long", address: longUa(), zat: "1", memo: "LONG" }] }))));
+  assert.equal(x.status, 422);
+  assert.equal(x.body.code, "batch_invalid");
+  assert.deepEqual(x.body.problems!.map((p) => `${p.code}@${p.index}`), ["address_malformed@0"]);
   assert.equal((await read(await handleList())).body.batches!.length, before);
 });
 

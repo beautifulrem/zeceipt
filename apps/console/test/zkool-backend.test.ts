@@ -18,6 +18,8 @@ import {
   UnknownOutcomeError,
   ZkoolBackend,
   ZkoolClient,
+  ZkoolGraphqlError,
+  isPreBuildRefusal,
   type Batch,
 } from "../lib/index.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
@@ -136,6 +138,17 @@ test("pre-build refusal (known Zkool message) → failed_retryable; retry with t
   assert.equal(ok.via, "fresh");
   assert.equal(fake.payCalls, calls + 2);
   assert.equal((await store.get("nonce-rej"))?.attempts, 2);
+});
+
+test("an address Zkool cannot decode is a pre-build refusal (review H1 round 2); a lookalike or mixed message is not", () => {
+  // The exact messages a live regtest Zkool gave for an Orchard receiver whose pk_d is not a Pallas point (R76).
+  for (const m of [
+    "Failed to decode orchard address: Invalid Orchard receiver in Unified Address",
+    "Failed to decode sapling address: Incorrect HRP encoding: invalid checksum",
+    "Failed to decode transparent address: Base58(InvalidCharacter { character: '0', index: 28 })",
+  ]) assert.equal(isPreBuildRefusal(new ZkoolGraphqlError([m])), true, m);
+  assert.equal(isPreBuildRefusal(new ZkoolGraphqlError(["Failed to decode block hex: odd length"])), false, "another decode failure, not the address");
+  assert.equal(isPreBuildRefusal(new ZkoolGraphqlError(["Failed to decode orchard address: x", "status: Unavailable"])), false, "every message must be a refusal");
 });
 
 test("preflight failure inside submit leaves the nonce retryable and sends nothing", async () => {

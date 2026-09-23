@@ -1,8 +1,12 @@
-// Unified address checks (ZIP 316), for preflight, batch lines and recipients. Decoded in full since review H1:
-// the network's human-readable part; a valid Bech32m checksum over the whole string (UAs use Bech32m "ignoring any
-// length restrictions"); then the payload: F4Jumble inverted (ZIP 316 bounds 48..4194368 bytes), the 16-byte
-// HRP padding checked and removed, and the items parsed (typecode, length, value, as canonical CompactSizes; known
-// receivers at their exact lengths; typecodes strictly ascending; not both transparent kinds; no trailing bytes).
+// Unified address checks (ZIP 316), for preflight, batch lines and recipients. The structure is decoded since
+// review H1: at most MAX_ADDRESS_CHARS (what the console stores); the network's human-readable part; a valid Bech32m
+// checksum over the whole string (UAs use Bech32m "ignoring any length restrictions"); then the payload: F4Jumble
+// inverted (ZIP 316 bounds 48..4194368 bytes), the 16-byte HRP padding checked and removed, and the items parsed
+// (typecode, length, value, as canonical CompactSizes; known receivers at their exact lengths; typecodes strictly
+// ascending; not both transparent kinds; no MUST-understand metadata; no trailing bytes).
+// Not checked: whether a receiver's bytes are a valid encoding (say an Orchard `pk_d` that is a Pallas point). Zkool
+// refuses such an address while planning, before it builds, and `isPreBuildRefusal` maps that to `payment_rejected`
+// with nothing sent (review H1 round 2; probed on regtest, research log R76).
 // The console pays Ironwood to the Orchard receiver, so an address without one is refused (as Konclave's
 // `ua_receiver` refuses a UA "with no Orchard receiver"). Checked against the official zcash-test-vectors.
 
@@ -36,6 +40,9 @@ function hrpExpand(hrp: string): number[] {
 
 export type AddressProblemCode = "address_hrp" | "address_checksum" | "address_malformed" | "address_no_orchard";
 export type AddressCheck = { ok: true; hrp: string; receivers: UaReceiver[] } | { ok: false; code: AddressProblemCode; detail: string };
+
+/** The longest address the console stores (the `recipients_address` and `batch_items_address` CHECKs). */
+export const MAX_ADDRESS_CHARS = 1000;
 
 /** ZIP 316 typecodes of Revision 0 receivers, with their exact encodings' lengths. */
 export const TYPECODE = { p2pkh: 0x00, p2sh: 0x01, sapling: 0x02, orchard: 0x03 } as const;
@@ -108,6 +115,7 @@ export function decodeUnifiedAddress(words: number[], hrp: string): { receivers:
   const items = raw.subarray(0, raw.length - 16);
   const receivers: UaReceiver[] = [];
   let pos = 0;
+  let lastTypecode = -1;
   while (pos < items.length) {
     const t = compactSize(items, pos);
     if (!t) return { error: "an item's typecode is truncated or not canonical" };
@@ -117,9 +125,13 @@ export function decodeUnifiedAddress(words: number[], hrp: string): { receivers:
     const [length, start] = l;
     if (start + length > items.length) return { error: "an item runs past the end of the address" };
     if (KNOWN_LENGTH[typecode] !== undefined && KNOWN_LENGTH[typecode] !== length) return { error: `typecode ${typecode} must be ${KNOWN_LENGTH[typecode]} bytes, got ${length}` };
-    const last = receivers[receivers.length - 1];
-    if (last && typecode <= last.typecode) return { error: "typecodes must be unique and in ascending order" };
-    receivers.push({ typecode, data: items.slice(start, start + length) });
+    if (typecode <= lastTypecode) return { error: "typecodes must be unique and in ascending order" };
+    lastTypecode = typecode;
+    // Metadata Items (ZIP 316) are typecodes 0xC0–0xFC. A Revision 0 address MUST NOT carry a MUST-understand one
+    // (0xE0–0xFC), so a reader refuses it (review H1 round 2); the rest (0xC0–0xDF) are ignored, not receivers.
+    // Typecodes above 0xFC (such as the experimental 0xFFFA–0xFFFF) are receivers again, as the official vectors show.
+    if (typecode >= 0xe0 && typecode <= 0xfc) return { error: `typecode ${typecode} is MUST-understand metadata, not allowed in a Revision 0 address` };
+    if (typecode < 0xc0 || typecode > 0xfc) receivers.push({ typecode, data: items.slice(start, start + length) });
     pos = start + length;
   }
   if (receivers.length === 0) return { error: "the address has no receivers" };
@@ -135,6 +147,9 @@ export function checkUnifiedAddress(address: string, network: Network): AddressC
   if (hrp !== want) {
     return { ok: false, code: "address_hrp", detail: `expected a ${network} unified address (${want}1…), got prefix ${JSON.stringify(hrp || address.slice(0, 8))}` };
   }
+  // The console stores at most MAX_ADDRESS_CHARS (the recipients and batch_items CHECKs): refuse longer ones here, as a
+  // problem, not as a database error (review H1 round 2: a valid 1,239-character UA gave a 500).
+  if (address.length > MAX_ADDRESS_CHARS) return { ok: false, code: "address_malformed", detail: `the address is ${address.length} characters, longer than the console stores (${MAX_ADDRESS_CHARS})` };
   const r = bech32mCheck(address);
   if (!r) return { ok: false, code: "address_checksum", detail: "Bech32m checksum does not verify (typo or truncated address)" };
   const decoded = decodeUnifiedAddress(r.words, r.hrp);

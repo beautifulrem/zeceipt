@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { checkUnifiedAddress, TYPECODE } from "../lib/execution/address.ts";
+import { checkUnifiedAddress, MAX_ADDRESS_CHARS, TYPECODE } from "../lib/execution/address.ts";
 import { f4jumble, f4jumbleInv } from "../lib/execution/f4jumble.ts";
 
 const FIX = join(import.meta.dirname, "fixtures");
@@ -46,7 +46,7 @@ test("all 60 official unified addresses decode to exactly their receivers; those
   assert.ok(withOrchard > 10 && withOrchard < 60, `the vectors cover both cases (${withOrchard} with Orchard)`);
 });
 
-import { item, ua } from "./helpers/ua-encoder.ts";
+import { item, longUa, ua } from "./helpers/ua-encoder.ts";
 
 const code = (a: string) => {
   const r = checkUnifiedAddress(a, "regtest");
@@ -71,4 +71,22 @@ test("strings that pass the checksum but are not unified addresses are refused (
   assert.equal(code(ua("uregtest", [[0xfd, 0x03, 0x00, 43, ...new Array(43).fill(7)]])), "address_malformed", "a non-canonical CompactSize typecode");
   assert.equal(code(ua("uregtest", [item(2, 43)])), "address_no_orchard", "Sapling only: a valid address this console cannot pay");
   assert.equal(code(ua("uregtest", [item(3, 43), item(0x10, 5)])), "ok", "an unknown typecode after Orchard is allowed (ZIP 316)");
+});
+
+test("metadata items (review H1 round 2): MUST-understand typecodes 0xE0–0xFC are refused; others are ignored, not receivers", () => {
+  for (const tc of [0xe0, 0xfc]) assert.equal(code(ua("uregtest", [item(3, 43), item(tc, 4)])), "address_malformed", `typecode ${tc}`);
+  assert.match((checkUnifiedAddress(ua("uregtest", [item(3, 43), item(0xe0, 4)]), "regtest") as { detail: string }).detail, /MUST-understand metadata/);
+  const r = checkUnifiedAddress(ua("uregtest", [item(3, 43), item(0xc0, 4)]), "regtest");
+  assert.ok(r.ok, "0xC0 is metadata a Revision 0 reader may ignore");
+  assert.deepEqual(r.receivers.map((x) => x.typecode), [3], "and it is not counted as a receiver");
+  assert.equal(code(ua("uregtest", [item(0xc0, 43)])), "address_malformed", "metadata alone: no receivers");
+  const above = checkUnifiedAddress(ua("uregtest", [item(3, 43), [0xfd, 0xfd, 0x00, 4, 1, 2, 3, 4]]), "regtest");
+  assert.ok(above.ok && above.receivers.map((x) => x.typecode).join() === "3,253", "0xFD, just above metadata, is a receiver again");
+});
+
+test("addresses longer than the console stores (1,000 characters) are refused, not stored (review H1 round 2)", () => {
+  const long = longUa();
+  assert.ok(long.length > MAX_ADDRESS_CHARS, `${long.length} characters`);
+  assert.equal(code(long), "address_malformed");
+  assert.match((checkUnifiedAddress(long, "regtest") as { detail: string }).detail, /longer than the console stores \(1000\)/);
 });

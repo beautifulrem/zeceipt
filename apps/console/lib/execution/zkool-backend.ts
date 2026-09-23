@@ -58,7 +58,14 @@ export interface ZkoolBackendOptions {
  * as a GraphQL error although the transaction may already have reached the node — is treated as an
  * unknown outcome. Unrecognised messages therefore fail safe.
  */
-const PRE_BUILD_REFUSALS = [/^Not enough funds/, /^No feasible note selection found/, /^InvalidPoolMask/, /^No Signing Key/, /^No asset matches/, /^Ambiguous query/];
+const PRE_BUILD_REFUSALS = [
+  /^Not enough funds/, /^No feasible note selection found/, /^InvalidPoolMask/, /^No Signing Key/, /^No asset matches/, /^Ambiguous query/,
+  // A unified address whose receivers are well formed but not valid encodings (say an Orchard `pk_d` that is not a
+  // Pallas point): the console checks types and lengths only (ZIP 316 structure), and Zkool refuses such an address
+  // while planning (`pay/plan.rs::decompose_address`, the only source of these three messages). Probed against a
+  // live regtest Zkool with `prepareSend` (plan only), 2026-09-23: review H1 round 2, research log R76.
+  /^Failed to decode (orchard|sapling|transparent) address: /,
+];
 
 export function isPreBuildRefusal(e: ZkoolGraphqlError): boolean {
   return e.messages.length > 0 && e.messages.every((m) => PRE_BUILD_REFUSALS.some((re) => re.test(m)));
