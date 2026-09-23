@@ -1,7 +1,8 @@
 // The payable form's pure pieces (slice H4): reading, the body, and where each API problem is shown.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { payableBody, payableFormErrors, readPayableForm, REFERENCE_TAKEN } from "../lib/view/payable-form.ts";
+import { CHOOSE_RECIPIENT, payableBody, payableFormErrors, readPayableForm, REFERENCE_TAKEN } from "../lib/view/payable-form.ts";
+import { recipientLabel } from "../lib/view/format.ts";
 
 const form = (o: Record<string, string>) => {
   const f = new FormData();
@@ -17,9 +18,20 @@ test("read and build: reference and link trimmed, the amount converted exactly, 
   assert.deepEqual(readPayableForm(new FormData()), { recipientId: "", kind: "", amount: "", reference: "", sourceUrl: "" }, "missing fields read as empty");
 });
 
-test("an amount that is not dollars is the form's own error; the API is not called", () => {
+test("the form's own errors, together, before the API: an amount that is not dollars, and no recipient chosen (review H4)", () => {
   const r = payableBody({ recipientId: "r1", kind: "invoice", amount: "12.345", reference: "X", sourceUrl: "" });
-  assert.ok("amountError" in r && /at most 2 decimal places/.test(r.amountError));
+  assert.ok("fields" in r && /at most 2 decimal places/.test(r.fields.amount![0]) && !r.fields.recipientId);
+  const none = payableBody({ recipientId: "", kind: "invoice", amount: "5", reference: "X", sourceUrl: "" });
+  assert.deepEqual(none, { fields: { recipientId: [CHOOSE_RECIPIENT] } });
+  const both = payableBody({ recipientId: "", kind: "invoice", amount: "", reference: "X", sourceUrl: "" });
+  assert.ok("fields" in both && both.fields.recipientId && both.fields.amount, "both listed at once");
+});
+
+test("two recipients with one name are told apart by the address's ZIP 316 prefix (review H4)", () => {
+  const a = recipientLabel("Alice", "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w");
+  const b = recipientLabel("Alice", "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj");
+  assert.equal(a, "Alice · uregtest1qzj498rks3e6gfazv0fxns3d0…");
+  assert.notEqual(a, b);
 });
 
 test("errors: 422 by field (usdCents shown on the amount), 409 on the reference, 400 by path, the rest on top", () => {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { listPayables, PAYABLE_KINDS, type PayableKind } from "../../lib/data/payables.ts";
 import { listRecipients } from "../../lib/data/recipients.ts";
 import { serverContext } from "../../lib/server/context.ts";
-import { centsText } from "../../lib/view/format.ts";
+import { centsText, recipientLabel, shortAddress } from "../../lib/view/format.ts";
 import { AccessNotice } from "../components/panels.tsx";
 import { PayableForm } from "./payable-form.tsx";
 
@@ -16,8 +16,18 @@ const KIND: Record<PayableKind, { one: string; many: string }> = {
 };
 const isKind = (k: unknown): k is PayableKind => typeof k === "string" && (PAYABLE_KINDS as readonly string[]).includes(k);
 
-/** The link's host as its text: where it goes, readable (IDN hosts show as punycode, so they cannot pass for another). */
-const hostOf = (url: string) => new URL(url).host;
+/**
+ * The link's host as its text: where it goes, readable (IDN hosts show as punycode, so they cannot pass for another).
+ * A stored link always parsed when written (H3); a raw-SQL row that passes the CHECK but not the parser shows as
+ * written rather than failing the page (review H4's optional).
+ */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
 
 /** What the org owes (slice H4; REQ-CON-3; 04 SCR-3): the list, a kind filter (links, no JavaScript) and the add form. */
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -26,7 +36,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   const filter = isKind(kind) ? kind : undefined;
   const [all, recipients] = await Promise.all([listPayables(db, config.orgId), listRecipients(db, config.orgId)]);
   const list = filter ? all.filter((p) => p.kind === filter) : all;
-  const names = new Map(recipients.map((r) => [r.id, r.displayName]));
+  const byId = new Map(recipients.map((r) => [r.id, r]));
   const tab = (k: PayableKind | undefined, label: string) => (
     <li key={k ?? "all"}>
       <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={k === filter ? "font-semibold text-slate-900" : "text-sky-700 underline"}>
@@ -68,7 +78,11 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                 <td className="py-2">
                   <code>{p.reference}</code>
                 </td>
-                <td className="py-2">{names.get(p.recipientId)}</td>
+                <td className="py-2">
+                  {byId.get(p.recipientId)?.displayName}
+                  {/* Names need not be unique: the address prefix tells two "Alice"s apart (review H4). */}
+                  <div className="font-mono text-xs text-slate-500">{shortAddress(byId.get(p.recipientId)?.address ?? "")}</div>
+                </td>
                 <td className="py-2">{KIND[p.kind].one}</td>
                 <td className="py-2 pr-6 text-right tabular-nums">{centsText(p.usdCents)}</td>
                 <td className="py-2">
@@ -91,7 +105,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
           Add a recipient first: a payable is owed to one. <Link href="/recipients" className="text-sky-700 underline">Go to recipients</Link>
         </p>
       ) : (
-        <PayableForm recipients={recipients.map((r) => ({ id: r.id, name: r.displayName }))} />
+        <PayableForm recipients={recipients.map((r) => ({ id: r.id, label: recipientLabel(r.displayName, r.address) }))} />
       )}
     </>
   );

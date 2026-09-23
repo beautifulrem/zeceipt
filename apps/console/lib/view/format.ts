@@ -30,6 +30,14 @@ export function centsText(cents: number): string {
   return `$${dollars}.${String(cents % 100).padStart(2, "0")}`;
 }
 
+/**
+ * A recipient named so two can be told apart (review H4): display names need not be unique (H1 flags addresses, not
+ * names), so the name goes with the address's ZIP 316 prefix, "Alice · uregtest1qzj498rks3e6gfazv0fxns3d0…".
+ */
+export function recipientLabel(name: string, address: string): string {
+  return `${name} · ${shortAddress(address)}`;
+}
+
 /** Data characters kept after the separator: 25 × 5 bits = 125 bits, Zcash's classical security target (ZIP 316). */
 export const SHORT_ADDRESS_DATA_CHARS = 25;
 

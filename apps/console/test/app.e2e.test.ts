@@ -568,6 +568,7 @@ test("payables page through next start, posted as a browser without JavaScript: 
       return raw(s.port, "POST", "/payables", { ...headers, "content-type": m.type }, m.body);
     };
     const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    const UA2 = "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj";
 
     assert.ok((await raw(s.port, "GET", "/", { host: self })).body.includes('href="/payables"'), "the header links to the payables page");
     const none = await page();
@@ -577,7 +578,12 @@ test("payables page through next start, posted as a browser without JavaScript: 
     assert.equal(created.status, 201);
     const recipientId = (JSON.parse(created.body) as { id: string }).id;
     const empty = await page();
-    assert.ok(empty.includes(">Ops wallet</option>") && empty.includes('inputMode="decimal"'), "the form: recipients by name; the money input");
+    assert.ok(empty.includes(`>Ops wallet · ${UA.slice(0, 34)}…</option>`) && empty.includes('inputMode="decimal"'), "the form: recipients by name and address prefix; the money input");
+    assert.ok(/<select name="recipientId"[^>]*><option value="" selected="">Choose a recipient<\/option>/.test(empty), "nothing pre-selected: the first option, selected, is 'Choose a recipient' (review H4, GOV.UK Select)");
+    const twin = await raw(s.port, "POST", "/api/recipients", { ...same, "content-type": "application/json" }, JSON.stringify({ displayName: "Ops wallet", address: UA2 }));
+    assert.equal(twin.status, 201);
+    const twins = await page();
+    assert.ok(twins.includes(`>Ops wallet · ${UA2.slice(0, 34)}…</option>`) && twins.includes(`>Ops wallet · ${UA.slice(0, 34)}…</option>`), "two recipients with one name: two different option labels");
 
     const first = await add(empty, { recipientId, kind: "bounty", amount: "$1,234.56", reference: " BOUNTY-17 ", sourceUrl: "https://github.com/org/repo/issues/17" });
     assert.equal(first.status, 303, first.body.slice(0, 300));
@@ -586,6 +592,7 @@ test("payables page through next start, posted as a browser without JavaScript: 
     assert.equal(second.status, 303);
     const listed = await page();
     assert.ok(listed.includes("<code>BOUNTY-17</code>") && listed.includes("$1,234.56") && listed.includes("$2,500.00"), "exact dollars; the reference trimmed by the form");
+    assert.ok(listed.includes(`${UA.slice(0, 34)}…</div>`), "the list's recipient cell carries the address prefix, so the two 'Ops wallet's can be told apart");
     assert.ok(/href="https:\/\/github.com\/org\/repo\/issues\/17" rel="noopener noreferrer"[^>]*>github.com</.test(listed), "the source link, its host as the text");
     const bounties = await page("?kind=bounty");
     assert.ok(bounties.includes("BOUNTY-17") && !bounties.includes("SALARY-SEP") && bounties.includes('aria-current="page"'), "the kind filter");
@@ -603,6 +610,8 @@ test("payables page through next start, posted as a browser without JavaScript: 
     assert.ok(taken.includes("Already used by another payable") && field(taken, "reference"), "a taken reference under the reference");
     const script = shown(await add(listed, { recipientId, kind: "invoice", amount: "5", reference: "INV-JS", sourceUrl: "javascript:alert(1)" }));
     assert.ok(script.includes("source link must be an absolute https://") && field(script, "sourceUrl"), "a script link under the source");
+    const nobody = shown(await add(listed, { recipientId: "", kind: "invoice", amount: "5", reference: "INV-NOBODY", sourceUrl: "" }));
+    assert.ok(nobody.includes("Choose who this payable is owed to.") && field(nobody, "recipientId") && nobody.includes('value="INV-NOBODY"'), "no recipient chosen: under the recipient, values kept");
     const zero = shown(await add(listed, { recipientId, kind: "invoice", amount: "0", reference: "INV-ZERO", sourceUrl: "" }));
     assert.ok(zero.includes("whole US cents from 1") && field(zero, "amount"), "the API's usd_invalid shown on the amount");
     assert.equal(await count(), before, "nothing saved");

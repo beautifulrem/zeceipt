@@ -19,6 +19,7 @@ export interface PayableFormState {
 export const EMPTY_PAYABLE: PayableFormValues = { recipientId: "", kind: "invoice", amount: "", reference: "", sourceUrl: "" };
 
 export const AMOUNT_HELP = "a US dollar amount with at most 2 decimal places, like 1,234.56";
+export const CHOOSE_RECIPIENT = "Choose who this payable is owed to.";
 export const REFERENCE_TAKEN = "Already used by another payable. References become the memo, so each must be unique.";
 
 /** The form's values: the reference and link trimmed (the page's leniency; the API takes text exactly, H3). */
@@ -30,10 +31,16 @@ export function readPayableForm(form: FormData): PayableFormValues {
   return { recipientId: get("recipientId"), kind: get("kind"), amount: get("amount"), reference: get("reference").trim(), sourceUrl: get("sourceUrl").trim() };
 }
 
-/** The API body for `POST /api/payables`, or the amount's error when it is not a dollar amount (the API is not called). */
-export function payableBody(v: PayableFormValues): { body: Record<string, string | number> } | { amountError: string } {
+/**
+ * The API body for `POST /api/payables`, or the form's own errors (the API is not called): an amount that is not
+ * dollars, and no recipient chosen (the select starts on "Choose a recipient", never on a person: review H4, GOV.UK).
+ */
+export function payableBody(v: PayableFormValues): { body: Record<string, string | number> } | { fields: PayableFormState["fields"] } {
   const usdCents = dollarsToCents(v.amount);
-  if (usdCents === undefined) return { amountError: `Enter ${AMOUNT_HELP}.` };
+  const fields: PayableFormState["fields"] = {};
+  if (v.recipientId === "") fields.recipientId = [CHOOSE_RECIPIENT];
+  if (usdCents === undefined) fields.amount = [`Enter ${AMOUNT_HELP}.`];
+  if (usdCents === undefined || Object.keys(fields).length) return { fields };
   const body: Record<string, string | number> = { recipientId: v.recipientId, kind: v.kind, usdCents, reference: v.reference };
   if (v.sourceUrl !== "") body.sourceUrl = v.sourceUrl;
   return { body };

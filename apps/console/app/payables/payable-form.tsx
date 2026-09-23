@@ -23,7 +23,7 @@ const input = (bad: boolean) => `w-full rounded border px-2 py-1 ${bad ? "border
  * GOV.UK's money input (R79): text with inputmode="decimal" (never type="number"), a "$" prefix hidden from screen
  * readers, and the unit in the label.
  */
-export function PayableForm({ recipients }: { recipients: { id: string; name: string }[] }) {
+export function PayableForm({ recipients }: { recipients: { id: string; label: string }[] }) {
   const [state, formAction, pending] = useActionState(createPayableAction, INITIAL);
   const v = state.values;
   const f = (k: PayableField) => state.fields[k];
@@ -35,10 +35,12 @@ export function PayableForm({ recipients }: { recipients: { id: string; name: st
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
           Recipient
-          <select name="recipientId" defaultValue={v.recipientId || recipients[0]?.id} aria-invalid={invalid("recipientId")} className={input(!!f("recipientId"))}>
+          {/* Who gets paid is a question, not a setting: nothing pre-selected (GOV.UK Select, review H4). */}
+          <select name="recipientId" defaultValue={v.recipientId} aria-invalid={invalid("recipientId")} className={input(!!f("recipientId"))}>
+            <option value="">Choose a recipient</option>
             {recipients.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {r.label}
               </option>
             ))}
           </select>

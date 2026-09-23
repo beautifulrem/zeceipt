@@ -28,6 +28,7 @@ try {
   const page = await browser.newPage();
   await page.goto(`http://${self}/payables`);
   // The JS path: an amount with three decimals, shown under the amount with the values kept.
+  await page.selectOption("select[name=recipientId]", { index: 2 });
   await page.fill('input[name="amount"]', "12.345");
   await page.fill('input[name="reference"]', "INV-2026-09-01");
   await page.click('button:has-text("Add payable")');
