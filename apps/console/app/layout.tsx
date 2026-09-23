@@ -13,6 +13,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="text-lg font-semibold">
               Zeceipt payout console
             </Link>
+            <nav aria-label="Console" className="flex gap-4 text-sm">
+              <Link href="/" className="text-sky-700 underline">
+                Batches
+              </Link>
+              <Link href="/recipients" className="text-sky-700 underline">
+                Recipients
+              </Link>
+            </nav>
           </div>
         </header>
         <main className="mx-auto max-w-5xl space-y-6 px-6 py-8">{children}</main>

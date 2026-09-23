@@ -507,6 +507,51 @@ test("pay follows the rate guard on the page, posted without JavaScript: no Pay 
   }
 });
 
+test("recipients page through next start, posted as a browser without JavaScript: add (303), a duplicate flagged on both rows, an invalid address shown under its field with values kept (slice H2)", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("recipients", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const page = async () => (await raw(s.port, "GET", "/recipients", { host: self })).body.replaceAll("<!-- -->", "");
+    const add = async (html: string, fields: Record<string, string>, headers: Record<string, string> = same) => {
+      const hidden = formFields(html, "Add recipient");
+      const m = multipart([...hidden, ...Object.entries(fields)]);
+      return raw(s.port, "POST", "/recipients", { ...headers, "content-type": m.type }, m.body);
+    };
+    const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    const MAINNET = "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel";
+
+    const home = (await raw(s.port, "GET", "/", { host: self })).body;
+    assert.ok(home.includes('href="/recipients"'), "the header links to the recipients page");
+    const empty = await page();
+    assert.ok(empty.includes("No recipients yet.") && empty.includes('placeholder="uregtest1…"'), "empty state; the address hint follows the network");
+
+    const first = await add(empty, { displayName: "Ops wallet", address: UA, kycStatus: "verified", taxFlag: "non_us", settlementPref: "zec", notes: "" });
+    assert.equal(first.status, 303, first.body.slice(0, 200));
+    assert.equal(first.location, "/recipients");
+    const second = await add(await page(), { displayName: "Grants wallet", address: UA.toUpperCase(), kycStatus: "unknown", taxFlag: "none", settlementPref: "zec", notes: "" });
+    assert.equal(second.status, 303, "a duplicate address is created, not refused");
+    const listed = await page();
+    assert.ok(listed.includes("Pays the same Orchard receiver as Grants wallet") && listed.includes("Pays the same Orchard receiver as Ops wallet"), "flagged on both rows");
+    assert.ok(listed.includes("Verified") && listed.includes("Non-US"), "KYC and tax shown");
+
+    const bad = await add(listed, { displayName: "Wrong network", address: MAINNET, kycStatus: "unknown", taxFlag: "none", settlementPref: "zec", notes: "keep me" });
+    assert.equal(bad.status, 200);
+    const shown = bad.body.replaceAll("<!-- -->", "");
+    assert.ok(shown.includes("expected a regtest unified address"), "the address error is shown");
+    assert.ok(/name="address"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*name="address"/.test(shown), "on the address field");
+    assert.ok(shown.includes('value="Wrong network"') && shown.includes('value="keep me"'), "the entered values stay");
+    assert.ok(!(await page()).includes(">Wrong network<"), "nothing saved");
+
+    const cross = await add(listed, { displayName: "Evil", address: UA, kycStatus: "unknown", taxFlag: "none", settlementPref: "zec", notes: "" }, { host: self, origin: "http://evil.example" });
+    assert.equal(cross.status, 403);
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
 test("create-draft form through next start, posted as a browser without JavaScript: 303 to the new batch; errors next to their lines with values kept", { skip: !RUN }, async () => {
   const s = await start(demoEnv("draft-form"));
   try {
