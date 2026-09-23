@@ -160,3 +160,48 @@ export const receipts = sqliteTable(
     check("receipts_sealed", sql`length(${t.sealed}) > 0 and length(${t.sealedKid}) between 1 and 64`),
   ],
 );
+
+// A decimal price as TEXT (slice G1b): digits first, only digits and at most one point, no trailing point.
+// The app validates first (lib/rates/decimal.ts); this keeps raw SQL from storing `1e3` or `-5`.
+const decimalCheck = (c: unknown) =>
+  sql`typeof(${c}) = 'text' and length(${c}) between 1 and 34 and ${c} glob '[0-9]*' and ${c} not glob '*[^0-9.]*' and ${c} not glob '*.*.*' and ${c} not glob '*.'`;
+const isoCheck = (c: unknown) =>
+  sql`typeof(${c}) = 'text' and length(${c}) = 24 and ${c} glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'`;
+
+/**
+ * ZEC/USD quotes recorded for a batch (slice G1b; REQ-CON-4, NFR-8): an append-only history. `lock` quotes
+ * convert and can be re-taken while the batch is a draft (the latest is current); an `execution` quote is taken
+ * at submit (G2). Prices are exact decimal strings from the source; `rate` is the bid (G1a). Never updated,
+ * deleted or replaced, and no lock once a submission froze the batch (triggers, migration 0012).
+ */
+export const rateQuotes = sqliteTable(
+  "rate_quotes",
+  {
+    orgId: text("org_id").notNull(),
+    batchId: text("batch_id").notNull(),
+    seq: integer("seq").notNull(),
+    purpose: text("purpose", { enum: ["lock", "execution"] }).notNull(),
+    source: text("source").notNull(),
+    pair: text("pair").notNull(),
+    bid: text("bid").notNull(),
+    ask: text("ask").notNull(),
+    last: text("last").notNull(),
+    rate: text("rate").notNull(),
+    fetchedAt: text("fetched_at").notNull(),
+    recordedAt: text("recorded_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.batchId, t.seq] }),
+    foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
+    check("rate_quotes_seq", sql`typeof(${t.seq}) = 'integer' and ${t.seq} >= 1`),
+    check("rate_quotes_purpose", sql`${t.purpose} in ('lock', 'execution')`),
+    check("rate_quotes_source", sql`${t.source} in ('kraken')`),
+    check("rate_quotes_pair", sql`length(${t.pair}) between 1 and 32`),
+    check("rate_quotes_bid", decimalCheck(t.bid)),
+    check("rate_quotes_ask", decimalCheck(t.ask)),
+    check("rate_quotes_last", decimalCheck(t.last)),
+    check("rate_quotes_rate_is_bid", sql`${t.rate} = ${t.bid}`),
+    check("rate_quotes_fetched_at", isoCheck(t.fetchedAt)),
+    check("rate_quotes_recorded_at", isoCheck(t.recordedAt)),
+  ],
+);

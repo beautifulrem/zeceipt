@@ -28,3 +28,5 @@ export type { ConfigProblem, ConsoleConfig, CustodyConfig } from "./config/env.t
 export { compareDecimal, isPositiveDecimal, DECIMAL } from "./rates/decimal.ts";
 export { fetchZecUsdQuote, KRAKEN_TICKER_URL, KRAKEN_ZEC_USD_PAIR, MAX_QUOTE_BYTES, RateUnavailableError } from "./rates/kraken.ts";
 export type { QuoteOptions, RateFailure, RateQuote } from "./rates/kraken.ts";
+export { currentLock, listQuotes, RateRecordError, recordQuote } from "./data/rates.ts";
+export type { QuotePurpose, StoredQuote } from "./data/rates.ts";

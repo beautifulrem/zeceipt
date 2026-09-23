@@ -78,6 +78,20 @@
       "when": 1790115953548,
       "tag": "0010_receipts_sealed_nonnull",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790134590503,
+      "tag": "0011_rate_quotes",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790134602187,
+      "tag": "0012_rate_quotes_append_only",
+      "breakpoints": true
     }
   ]
 }
