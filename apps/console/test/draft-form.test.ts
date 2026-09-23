@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseDraftForm, problemsByLine } from "../lib/view/draft-form.ts";
+import { addLine, editableLines, parseDraftForm, problemsByLine, removeLine, updateLine, BLANK_LINE } from "../lib/view/draft-form.ts";
 
 const form = (entries: [string, string][]) => {
   const f = new FormData();
@@ -40,11 +40,13 @@ test("lines: blank ones skipped, the map keeps form positions, ZEC becomes exact
 });
 
 test("amounts: a malformed amount is an error on its line and nothing is sent", () => {
-  for (const bad of ["", "1,5", "0.123456789", "-1", "1e3", "abc", "21000000.00000001"]) {
+  for (const bad of ["", "1,5", "0.123456789", "-1", "1e3", "abc"]) {
     const p = parseDraftForm(form([["title", "t"], ...line(0, { payableId: "a", address: "u", amount: bad, memo: "m" })]));
     assert.equal(p.body, undefined, bad);
-    assert.match(p.lineErrors[0][0], /^amount: /, bad);
+    assert.equal(p.lineErrors[0][0], "amount: a ZEC amount with at most 8 decimal places, like 0.25", bad);
   }
+  // Above the supply is said as such, not as a decimal-places problem (review E2b round 1).
+  assert.deepEqual(parseDraftForm(form([["title", "t"], ...line(0, { payableId: "a", address: "u", amount: "21000000.00000001", memo: "m" })])).lineErrors, { 0: ["amount: more than 21 million ZEC"] });
   const p = parseDraftForm(form([["title", "t"], ...line(0, { payableId: "a", address: "u", amount: "1", memo: "m" }), ...line(1, { payableId: "b", amount: "x" })]));
   assert.deepEqual(Object.keys(p.lineErrors), ["1"]);
 });
@@ -52,11 +54,34 @@ test("amounts: a malformed amount is an error on its line and nothing is sent", 
 test("problems land on their form line after skipped blanks; the rest goes to the top", () => {
   const lineMap = [0, 2]; // body item 1 is form line 2
   const r400 = problemsByLine({ issues: [{ path: "items.1.zat", message: "Invalid string" }, { path: "title", message: "Invalid input" }, { path: "items", message: "Too small" }] }, lineMap);
-  assert.deepEqual(r400, { top: ["title: Invalid input", "items: Too small"], lines: { 2: ["zat: Invalid string"] } });
+  assert.deepEqual(r400, { top: ["title: Invalid input", "items: Too small"], lines: { 2: ["amount: Invalid string"] } }, "the API's zat is the form's amount");
   const r422 = problemsByLine(
     { problems: [{ code: "memo_duplicate", index: 1, detail: 'memo "A" appears twice' }, { code: "title_invalid", detail: "title must be 1–200 characters of plain text" }, { code: "x", index: 0, detail: "bad address" }] },
     lineMap,
   );
   assert.deepEqual(r422, { top: ["title must be 1–200 characters of plain text"], lines: { 2: ['memo "A" appears twice'], 0: ["bad address"] } });
   assert.deepEqual(problemsByLine({ detail: "the console has not finished starting" }, []), { top: ["the console has not finished starting"], lines: {} });
+});
+
+test("form-level limits in the form's words, before the API is called: no lines, more than 50", () => {
+  const none = parseDraftForm(form([["title", "t"], ...line(0, {}), ...line(1, {})]));
+  assert.deepEqual([none.body, none.top], [undefined, ["Add at least one line."]]);
+  const many = parseDraftForm(form([["title", "t"], ...Array.from({ length: 51 }, (_, i) => line(i, { payableId: `p${i}`, address: "u", amount: "1", memo: `m${i}` })).flat()]));
+  assert.deepEqual([many.body, many.top], [undefined, ["At most 50 lines per batch."]]);
+  assert.deepEqual(parseDraftForm(form([["title", "t"], ...line(0, { payableId: "a", address: "u", amount: "1", memo: "m" })])).top, []);
+});
+
+test("editing lines: remove takes the line clicked (with its values and errors), never the last; ids stay unique", () => {
+  const A = { ...BLANK_LINE, payableId: "A-1", label: "Alice", amount: "1.1" };
+  const B = { ...BLANK_LINE, payableId: "B-1", label: "Bob", amount: "2.2" };
+  const C = { ...BLANK_LINE, payableId: "C-1", label: "Carol", amount: "3.3" };
+  const lines = editableLines([A, B, C], { 1: ["memo: required"] });
+  const afterRemove = removeLine(lines, lines[0].id); // remove Alice (the reviewer's reproduction)
+  assert.deepEqual(afterRemove.map((l) => l.values.label), ["Bob", "Carol"]);
+  assert.deepEqual(afterRemove.map((l) => l.errors), [["memo: required"], []], "Bob's error stays with Bob");
+  const added = addLine(afterRemove);
+  assert.equal(new Set(added.map((l) => l.id)).size, 3, "a new line gets a fresh id");
+  const edited = updateLine(added, added[2].id, "amount", "0.5");
+  assert.deepEqual(edited.map((l) => l.values.amount), ["2.2", "3.3", "0.5"]);
+  assert.equal(removeLine(edited, 999).length, 3, "an unknown id removes nothing");
 });

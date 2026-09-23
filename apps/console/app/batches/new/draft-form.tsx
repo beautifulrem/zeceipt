@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useActionState, useState } from "react";
-import { BLANK_LINE, type DraftFormState, type DraftLine, type LineField } from "../../../lib/view/draft-form.ts";
+import { addLine, editableLines, removeLine, updateLine, type DraftFormState, type DraftLine, type EditableLine, type LineField } from "../../../lib/view/draft-form.ts";
 import { createDraftAction } from "./actions.ts";
 
 const COLUMNS: { field: LineField; label: string; width: string; placeholder?: string }[] = [
@@ -13,7 +13,9 @@ const COLUMNS: { field: LineField; label: string; width: string; placeholder?: s
 ];
 
 function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors: Record<number, string[]>; addressHint: string }) {
-  const [lines, setLines] = useState(initial);
+  // Controlled inputs keyed by a stable line id (review E2b round 1): "Remove" must remove the line clicked,
+  // with its values and its errors, never the last row. Names stay positional for posting.
+  const [lines, setLines] = useState<EditableLine[]>(() => editableLines(initial, errors));
   return (
     <>
       <table className="w-full text-left text-sm">
@@ -30,32 +32,33 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
         </thead>
         <tbody>
           {lines.map((line, n) => (
-            <Fragment key={n}>
+            <Fragment key={line.id}>
               <tr className="align-top">
                 {COLUMNS.map((c) => (
                   <td key={c.field} className="py-1 pr-2">
                     <input
                       name={`lines.${n}.${c.field}`}
                       aria-label={`Line ${n + 1} ${c.label}`}
-                      aria-invalid={errors[n]?.length ? true : undefined}
-                      defaultValue={line[c.field]}
+                      aria-invalid={line.errors.length ? true : undefined}
+                      value={line.values[c.field]}
+                      onChange={(e) => setLines((ls) => updateLine(ls, line.id, c.field, e.target.value))}
                       placeholder={c.field === "address" ? addressHint : c.placeholder}
                       inputMode={c.field === "amount" ? "decimal" : undefined}
-                      className={`${c.width} rounded border px-2 py-1 ${errors[n]?.length ? "border-rose-400" : "border-slate-300"}`}
+                      className={`${c.width} rounded border px-2 py-1 ${line.errors.length ? "border-rose-400" : "border-slate-300"}`}
                     />
                   </td>
                 ))}
                 <td className="py-1">
-                  <button type="button" onClick={() => setLines(lines.filter((_, i) => i !== n))} className="text-sm text-slate-500 underline" aria-label={`Remove line ${n + 1}`}>
+                  <button type="button" onClick={() => setLines((ls) => removeLine(ls, line.id))} className="text-sm text-slate-500 underline" aria-label={`Remove line ${n + 1}`}>
                     Remove
                   </button>
                 </td>
               </tr>
-              {/* The line's problems right under it (review of the Chrome walkthrough: not grouped at the end). */}
-              {errors[n]?.length ? (
+              {/* The line's problems right under it, and they move with it. */}
+              {line.errors.length ? (
                 <tr>
                   <td colSpan={6} role="alert" className="pb-2 text-sm text-rose-800">
-                    Line {n + 1}: {errors[n].join("; ")}
+                    Line {n + 1}: {line.errors.join("; ")}
                   </td>
                 </tr>
               ) : null}
@@ -63,7 +66,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
           ))}
         </tbody>
       </table>
-      <button type="button" onClick={() => setLines([...lines, { ...BLANK_LINE }])} className="text-sm text-sky-700 underline">
+      <button type="button" onClick={() => setLines((ls) => addLine(ls))} className="text-sm text-sky-700 underline">
         + Add line
       </button>
     </>

@@ -11,7 +11,7 @@ import { parseDraftForm, problemsByLine, type ApiProblem, type DraftFormState } 
 export async function createDraftAction(prev: DraftFormState, form: FormData): Promise<DraftFormState> {
   const parsed = parseDraftForm(form);
   const keep = { title: parsed.title, lines: parsed.lines, submission: prev.submission + 1 };
-  if (!parsed.body) return { ...keep, top: [], lineErrors: parsed.lineErrors };
+  if (!parsed.body) return { ...keep, top: parsed.top, lineErrors: parsed.lineErrors };
   const res = await answer(() => createBatchFrom(parsed.body), batchProblem);
   const body = (await res.json()) as ApiProblem & { id?: string };
   if (res.status !== 201 || !body.id) {

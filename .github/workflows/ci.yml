@@ -38,9 +38,10 @@ jobs:
           npx tsc --noEmit -p .
           npm run lint
           ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts
-      - name: console app — next build without ZECEIPT_* variables, then next start boots and passes /api/health; bad configuration exits 1 before answering (REQ-CON-17)
+      - name: console app — next build without ZECEIPT_* variables; next start boots, serves the API and pages (forms posted without JavaScript, and in Chrome with it); bad configuration exits 1 before answering (REQ-CON-17)
         working-directory: apps/console
-        run: ZECEIPT_APP_E2E=1 node --test test/app.e2e.test.ts
+        # ZECEIPT_BROWSER_E2E: the JavaScript-path test drives the runner's Google Chrome through playwright-core.
+        run: ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 node --test test/app.e2e.test.ts
   wasm:
     runs-on: ubuntu-latest
     steps:

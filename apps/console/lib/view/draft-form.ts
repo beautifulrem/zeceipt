@@ -20,11 +20,14 @@ export interface ParsedDraft {
   lineMap: number[];
   /** Amount errors by form line (the handler is not called when there are any). */
   lineErrors: Record<number, string[]>;
+  /** Form-level problems found before calling the handler (no lines, too many lines). */
+  top: string[];
 }
 
 export interface DraftFormState {
   title: string;
   lines: DraftLine[];
+  /** Messages that belong to no line (title, "add at least one line", …). */
   top: string[];
   lineErrors: Record<number, string[]>;
   /** Changes on every submission, so the form re-renders with the submitted values. */
@@ -54,16 +57,24 @@ export function parseDraftForm(form: FormData): ParsedDraft {
     let zat: string;
     try {
       zat = decimalToZat(l.amount).toString();
-    } catch {
-      (lineErrors[n] ??= []).push("amount: a ZEC amount with at most 8 decimal places, like 0.25");
+    } catch (e) {
+      const tooMuch = e instanceof RangeError && /exceeds 21M/.test(e.message);
+      (lineErrors[n] ??= []).push(tooMuch ? "amount: more than 21 million ZEC" : "amount: a ZEC amount with at most 8 decimal places, like 0.25");
       return;
     }
     lineMap.push(n);
     items.push({ payableId: l.payableId.trim(), ...(l.label.trim() ? { label: l.label.trim() } : {}), address: l.address.trim(), zat, memo: l.memo });
   });
-  const ok = Object.keys(lineErrors).length === 0;
-  return { title, lines, lineMap, lineErrors, ...(ok ? { body: { title: title.trim(), items } } : {}) };
+  // The API's own limits, said in the form's words before it is called (review E2b round 1).
+  const top: string[] = [];
+  if (Object.keys(lineErrors).length === 0 && items.length === 0) top.push("Add at least one line.");
+  if (items.length > MAX_LINES) top.push(`At most ${MAX_LINES} lines per batch.`);
+  const ok = Object.keys(lineErrors).length === 0 && top.length === 0;
+  return { title, lines, lineMap, lineErrors, top, ...(ok ? { body: { title: title.trim(), items } } : {}) };
 }
+
+/** The API's recipient limit (D1: `items` 1–50). */
+export const MAX_LINES = 50;
 
 export interface ApiProblem {
   detail?: string;
@@ -82,9 +93,40 @@ export function problemsByLine(body: ApiProblem, lineMap: number[]): { top: stri
   };
   for (const i of body.issues ?? []) {
     const m = /^items\.(\d+)(?:\.(\w+))?$/.exec(i.path);
-    add(m ? Number(m[1]) : undefined, m?.[2] ? `${m[2]}: ${i.message}` : i.path ? `${i.path}: ${i.message}` : i.message);
+    const field = m?.[2] === "zat" ? "amount" : m?.[2]; // the form's column, not the API's field
+    add(m ? Number(m[1]) : undefined, field ? `${field}: ${i.message}` : i.path ? `${i.path}: ${i.message}` : i.message);
   }
   for (const p of body.problems ?? []) add(p.index, p.detail);
   if (top.length === 0 && Object.keys(lines).length === 0 && body.detail) top.push(body.detail);
   return { top, lines };
 }
+
+/**
+ * A line being edited in the browser (review E2b round 1). Each line has a stable id, so React keys rows by
+ * identity, not position: keyed by index with uncontrolled inputs, "Remove line 1" removed the LAST row and
+ * kept line 1's typed values (reproduced: removing Alice's line dropped Carol's). The values are held here
+ * (controlled inputs), and a line's errors travel with it.
+ */
+export interface EditableLine {
+  id: number;
+  values: DraftLine;
+  errors: string[];
+}
+
+export function editableLines(lines: DraftLine[], lineErrors: Record<number, string[]>): EditableLine[] {
+  return lines.map((values, n) => ({ id: n, values: { ...values }, errors: lineErrors[n] ?? [] }));
+}
+
+export function addLine(lines: EditableLine[]): EditableLine[] {
+  const id = lines.reduce((m, l) => Math.max(m, l.id), -1) + 1;
+  return [...lines, { id, values: { ...BLANK_LINE }, errors: [] }];
+}
+
+export function removeLine(lines: EditableLine[], id: number): EditableLine[] {
+  return lines.filter((l) => l.id !== id);
+}
+
+export function updateLine(lines: EditableLine[], id: number, field: LineField, value: string): EditableLine[] {
+  return lines.map((l) => (l.id === id ? { ...l, values: { ...l.values, [field]: value } } : l));
+}
+

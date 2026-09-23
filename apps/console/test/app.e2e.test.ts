@@ -14,6 +14,8 @@ import { join, resolve } from "node:path";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 
 const RUN = process.env.ZECEIPT_APP_E2E === "1";
+// The JavaScript path in a real browser (the system Chrome through playwright-core; no browser download).
+const BROWSER = RUN && process.env.ZECEIPT_BROWSER_E2E === "1";
 const APP = resolve(import.meta.dirname, "..");
 const NEXT = join(APP, "node_modules", "next", "dist", "bin", "next");
 const KEY = Buffer.alloc(32, 0x5c);
@@ -469,6 +471,57 @@ test("create-draft form through next start, posted as a browser without JavaScri
     assert.deepEqual(batch.items.map((i) => [i.payableId, i.label, i.zat, i.memo]), [["p1", "Alice", "25000000", "OCT-1"], ["p2", "", "100000001", "OCT-2"]]);
     assertNoKey(s.output());
   } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
+test("create-draft form in a real browser (JavaScript): Remove takes the line clicked, errors move with their line", { skip: !BROWSER }, async () => {
+  const { chromium } = await import("playwright-core");
+  const s = await start(demoEnv("browser"));
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const base = `http://127.0.0.1:${s.port}`;
+    const page = await browser.newPage();
+    const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    const fillLine = async (n: number, v: { id: string; payee: string; amount: string; memo: string }) => {
+      await page.getByLabel(`Line ${n} Payable id`).fill(v.id);
+      await page.getByLabel(`Line ${n} Payee`).fill(v.payee);
+      await page.getByLabel(`Line ${n} Address`).fill(UA);
+      await page.getByLabel(`Line ${n} Amount (ZEC)`).fill(v.amount);
+      await page.getByLabel(`Line ${n} Memo`).fill(v.memo);
+    };
+    const payees = async () => Promise.all([1, 2, 3].map(async (n) => ((await page.getByLabel(`Line ${n} Payee`).count()) ? page.getByLabel(`Line ${n} Payee`).inputValue() : null)));
+
+    // The reviewer's reproduction: three payees, remove the first, create: Alice must be the one removed.
+    await page.goto(`${base}/batches/new`, { waitUntil: "networkidle" });
+    await page.getByLabel("Title").fill("Browser batch");
+    await fillLine(1, { id: "A-1", payee: "Alice", amount: "1.1", memo: "A" });
+    await fillLine(2, { id: "B-1", payee: "Bob", amount: "2.2", memo: "B" });
+    await fillLine(3, { id: "C-1", payee: "Carol", amount: "3.3", memo: "C" });
+    await page.getByRole("button", { name: "Remove line 1" }).click();
+    assert.deepEqual(await payees(), ["Bob", "Carol", null]);
+    await page.getByRole("button", { name: "Create draft" }).click();
+    await page.waitForURL(/\/batches\/[0-9a-f-]{36}$/, { timeout: 15_000 });
+    const id = page.url().split("/").pop()!;
+    const batch = JSON.parse((await raw(s.port, "GET", `/api/batches/${id}`, { host: `127.0.0.1:${s.port}` })).body) as { items: { payableId: string; label: string; zat: string }[] };
+    assert.deepEqual(batch.items.map((i) => [i.payableId, i.label, i.zat]), [["B-1", "Bob", "220000000"], ["C-1", "Carol", "330000000"]]);
+
+    // An error belongs to its line: a bad amount on line 2 (Bob), then remove line 1: the error is on Bob's row.
+    await page.goto(`${base}/batches/new`, { waitUntil: "networkidle" });
+    await page.getByLabel("Title").fill("Errors travel");
+    await fillLine(1, { id: "A-2", payee: "Alice", amount: "1", memo: "A2" });
+    await fillLine(2, { id: "B-2", payee: "Bob", amount: "1.123456789", memo: "B2" });
+    await page.getByRole("button", { name: "Create draft" }).click();
+    await page.getByText("Line 2: amount: a ZEC amount with at most 8 decimal places").waitFor({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Remove line 1" }).click();
+    assert.equal(await page.getByLabel("Line 1 Payee").inputValue(), "Bob");
+    await page.getByText("Line 1: amount: a ZEC amount with at most 8 decimal places").waitFor({ timeout: 5_000 });
+    assert.equal(await page.getByText("Line 2: amount").count(), 0, "no error left on another line");
+    assertNoKey(s.output());
+  } finally {
+    await browser.close();
     s.child.kill("SIGTERM");
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   }
