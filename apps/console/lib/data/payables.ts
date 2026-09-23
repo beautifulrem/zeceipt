@@ -62,9 +62,18 @@ export class ReferenceTakenError extends ExecutionError {
   }
 }
 
+// Characters that render as nothing (UAX #44 Default_Ignorable_Code_Point: zero-width spaces and joiners, the soft
+// hyphen, bidirectional controls, variation selectors, …), which UTS #55 names as a source of confusion and spoofing,
+// and any whitespace but the ordinary space (a no-break or em space looks like a space). Either would let two
+// references look the same, or one look like another (review H3: six payables all displayed as "INV-1").
+const INVISIBLE = /\p{Default_Ignorable_Code_Point}/u;
+const OTHER_SPACE = /(?! )\s/u;
+
 function referenceProblem(r: string): string | undefined {
   if (!isPlainText(r, 1, REFERENCE_MAX) || r.trim() === "") return `reference must be 1–${REFERENCE_MAX} characters of plain text, not only spaces`;
   if (r !== r.trim()) return "reference must not start or end with whitespace (it becomes the memo exactly as written)";
+  if (INVISIBLE.test(r)) return "reference must not contain invisible characters (zero-width characters, bidirectional controls, soft hyphens, variation selectors): the memo must read as it looks";
+  if (OTHER_SPACE.test(r)) return "reference may use only the ordinary space (a no-break or other space looks the same but is a different memo)";
   if (r !== r.normalize("NFC")) return "reference must be in Unicode NFC (the same text written another way would look like a second payable with the same reference)";
   return undefined;
 }
@@ -73,7 +82,7 @@ function sourceProblem(s: string): string | undefined {
   const rule = `source link must be an absolute https:// or http:// URL of at most ${SOURCE_URL_MAX} characters, without a user name or password`;
   // A literal lowercase prefix and no whitespace, so the database CHECK agrees with this rule exactly (WHATWG URL
   // would also accept "HTTPS://x" or "https:x", and strips surrounding spaces).
-  if (s.length > SOURCE_URL_MAX || !/^https?:\/\/\S+$/.test(s) || !isPlainText(s, 1, SOURCE_URL_MAX)) return rule;
+  if (s.length > SOURCE_URL_MAX || !/^https?:\/\/\S+$/.test(s) || !isPlainText(s, 1, SOURCE_URL_MAX) || INVISIBLE.test(s)) return rule;
   let url: URL;
   try {
     url = new URL(s);

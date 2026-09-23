@@ -70,6 +70,18 @@ test("REQ-CON-3: a missing or malformed reference is refused, exactly as written
   assert.equal((await createPayable(db, base({ reference: "Café-" + "x".repeat(95) }))).reference.length, 100, "100 characters in NFC is allowed");
 });
 
+test("review H3: references that look like another are refused (invisible characters, bidirectional controls, other spaces)", async () => {
+  const lookalikes = [
+    "INV-1\u200b", "INV\u200d-1", "\u2066INV-1\u2069", "INV-1\u00ad", "\u202eINV-1", "INV\u200c-1", "\ufeffINV-1", "INV-1\u061c",
+    "INV\u2060-1", "INV-1\ufe0f", "INV\u00a01", "INV\u20031", "INV\u30001", "INV\u20281", "INV\u3164-1",
+  ];
+  for (const reference of lookalikes) assert.deepEqual(await problems(base({ reference })), ["reference_invalid@reference"], JSON.stringify(reference));
+  for (const reference of ["INV 1 (September)", "Café ☕", "فاتورة-١", "請求書-7", "emoji 🦓", "Grant #7 — milestone 2"]) {
+    assert.equal((await createPayable(db, base({ reference }))).reference, reference, `${reference} is allowed`);
+  }
+  assert.deepEqual(await problems(base({ sourceUrl: "https://example.com/\u202egpj.exe" })), ["source_invalid@sourceUrl"], "a link cannot hide characters either");
+});
+
 test("the source link: https or http only, absolute, no credentials, at most 2,000 characters", async () => {
   const bad = ["javascript:alert(1)", "data:text/html,x", "HTTPS://example.com", "https:example.com", "//example.com/x", "/relative", "https://", " https://example.com", "https://exa mple.com", "https://user:pw@example.com/", "https://user@example.com/", `https://example.com/${"a".repeat(1981)}`, "ftp://example.com"];
   for (const sourceUrl of bad) assert.deepEqual(await problems(base({ sourceUrl })), ["source_invalid@sourceUrl"], sourceUrl);
