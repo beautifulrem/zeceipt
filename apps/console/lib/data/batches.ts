@@ -198,3 +198,6 @@ export function isSubmitted(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id"
 export function rateLockFrozen(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id">): Promise<boolean> {
   return runSync(() => db.select({ n: submissions.nonce }).from(submissions).where(and(eq(submissions.orgId, rec.orgId), eq(submissions.batchId, rec.id), ne(submissions.state, "failed_retryable"))).limit(1).get() !== undefined);
 }
+
+/** A UUIDv7 for any console record (recipients too); `newBatchId` is its original name. */
+export const newUuidV7 = newBatchId;

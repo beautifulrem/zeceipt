@@ -17,7 +17,8 @@ test("money: exact round trips, no floats", () => {
 });
 
 test("address: regtest UA passes; wrong network, typo, case and truncation fail", () => {
-  assert.deepEqual(checkUnifiedAddress(R1, "regtest"), { ok: true, hrp: "uregtest" });
+  const ok = checkUnifiedAddress(R1, "regtest");
+  assert.ok(ok.ok && ok.hrp === "uregtest" && ok.receivers.some((r) => r.typecode === 3 && r.data.length === 43), "decoded, with an Orchard receiver (review H1)");
   assert.equal(checkUnifiedAddress(R1, "main").ok, false);
   const typo = R1.slice(0, 40) + (R1[40] === "q" ? "p" : "q") + R1.slice(41);
   assert.deepEqual(checkUnifiedAddress(typo, "regtest"), { ok: false, code: "address_checksum", detail: "Bech32m checksum does not verify (typo or truncated address)" });
@@ -25,7 +26,7 @@ test("address: regtest UA passes; wrong network, typo, case and truncation fail"
   assert.equal(checkUnifiedAddress(R1.slice(0, -1), "regtest").ok, false);
   assert.equal(checkUnifiedAddress("tmGys6dBuEGjch5LFnhdo5gpSa7jiNRWse6", "regtest").ok, false);
   // BIP-350 Bech32m test vector (short form) — the checksum implementation is the standard one.
-  assert.deepEqual(bech32mCheck("a1lqfn3a"), { hrp: "a" });
+  assert.deepEqual(bech32mCheck("a1lqfn3a"), { hrp: "a", words: [] });
   assert.equal(bech32mCheck("a1lqfn3b"), null);
 });
 

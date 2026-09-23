@@ -25,6 +25,8 @@ export type PreflightProblemCode =
   | "too_many_recipients"
   | "address_hrp"
   | "address_checksum"
+  | "address_malformed"
+  | "address_no_orchard"
   | "amount_nonpositive"
   | "amount_too_large"
   | "memo_empty"

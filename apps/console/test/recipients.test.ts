@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { item, ua } from "./helpers/ua-encoder.ts";
 import { createRecipient, getRecipient, listRecipients, migrateDb, openDb, RecipientInvalidError, type ConsoleDb, type RecipientInput } from "../lib/index.ts";
 
 const ORG = "org-h1";
@@ -98,4 +99,29 @@ test("the schema refuses raw-SQL garbage on its own (CHECKs)", () => {
   assert.throws(() => ins({ display_name: "" }), /recipients_name_len/);
   assert.throws(() => ins({ notes: "x".repeat(1001) }), /recipients_notes_len/);
   assert.throws(() => ins({ id: "not-a-uuid" }), /recipients_id_uuid/);
+});
+
+test("two different addresses with the same Orchard receiver pay the same place: flagged as duplicates (review H1)", async () => {
+  const dir3 = await mkdtemp(join(tmpdir(), "zeceipt-h1-rcv-"));
+  const db3 = openDb({ path: join(dir3, "c.db") });
+  migrateDb(db3);
+  try {
+    const orchardOnly = ua("uregtest", [item(3, 43, 0x11)]);
+    const withSapling = ua("uregtest", [item(2, 43, 0x22), item(3, 43, 0x11)]);
+    const other = ua("uregtest", [item(3, 43, 0x33)]);
+    assert.notEqual(orchardOnly, withSapling);
+    const a = await createRecipient(db3, base({ displayName: "Orchard only", address: orchardOnly }));
+    const b = await createRecipient(db3, base({ displayName: "Sapling + Orchard", address: withSapling }));
+    const c = await createRecipient(db3, base({ displayName: "Elsewhere", address: other }));
+    assert.deepEqual(b.duplicateOf, [a.id], "same Orchard receiver, different string");
+    assert.deepEqual(c.duplicateOf, []);
+    assert.deepEqual((await getRecipient(db3, ORG, a.id))!.duplicateOf, [b.id]);
+  } finally {
+    db3.$client.close();
+    await rm(dir3, { recursive: true, force: true });
+  }
+});
+
+test("a display name of only spaces is refused (review H1)", async () => {
+  assert.deepEqual(await problems(base({ displayName: "   " })), ["name_invalid"]);
 });
