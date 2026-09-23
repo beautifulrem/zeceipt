@@ -60,6 +60,7 @@ test("migrations apply once (one journal row per committed migration); a second 
     "rate_quotes_no_delete",
     "rate_quotes_no_replace",
     "rate_quotes_no_update",
+    "rate_quotes_positive",
     "receipts_fixed",
     "receipts_keep",
     "receipts_no_delete",

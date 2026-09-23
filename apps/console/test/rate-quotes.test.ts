@@ -98,15 +98,24 @@ test("raw SQL: no update, delete or replace; malformed values and unknown batche
   };
   assert.throws(() => ins({ seq: 1 }, "INSERT OR REPLACE"), /never replaced/);
   assert.throws(() => ins({ seq: 1 }, "INSERT OR IGNORE"), /never replaced/);
-  for (const bid of ["1e3", "-5", ".5", "5.", "1.2.3", "1,5", " 1", "", "0x10"]) assert.throws(() => ins({ bid, rate: bid }), /CHECK constraint failed: rate_quotes_bid/, bid);
+  for (const bid of ["1e3", "-5", ".5", "5.", "1.2.3", "1,5", " 1", "", "0x10"]) assert.throws(() => ins({ bid, rate: bid }), /CHECK constraint failed: rate_quotes_bid|greater than zero/, bid); // the shape CHECK, or the positivity trigger first (it runs before CHECKs)
   assert.throws(() => ins({ rate: "2" }), /rate_quotes_rate_is_bid/);
+  // Positive prices only (review G1b round 1): zero in any of the three, however written, is refused.
+  for (const zero of ["0", "0.0", "000.000"]) {
+    assert.throws(() => ins({ bid: zero, rate: zero }), /greater than zero/, `bid ${zero}`);
+    assert.throws(() => ins({ ask: zero }), /greater than zero/, `ask ${zero}`);
+    assert.throws(() => ins({ last: zero }), /greater than zero/, `last ${zero}`);
+  }
+  ins({ seq: 8, bid: "0.00000001", rate: "0.00000001", ask: "0.1" }); // tiny but positive: accepted
+  // bid above ask is NOT a schema rule (it needs decimal arithmetic); the application refuses it (above).
+  ins({ seq: 7, bid: "3", rate: "3", ask: "2" });
   assert.throws(() => ins({ purpose: "fmv" }), /rate_quotes_purpose/);
   assert.throws(() => ins({ source: "coingecko" }), /rate_quotes_source/);
   assert.throws(() => ins({ fetched_at: "2026-09-23 03:40:00" }), /rate_quotes_fetched_at/);
   assert.throws(() => ins({ seq: 0 }), /rate_quotes_seq/);
   assert.throws(() => ins({ batch_id: "01900000-0000-7000-8000-000000000001" }), /FOREIGN KEY/);
   ins({ seq: 9 }); // well-formed: accepted
-  assert.deepEqual(c.prepare("SELECT seq, rate FROM rate_quotes WHERE batch_id = ? ORDER BY seq").all(b.id), [{ seq: 1, rate: "1616.24000" }, { seq: 9, rate: "1.5" }]);
+  assert.deepEqual(c.prepare("SELECT seq, rate FROM rate_quotes WHERE batch_id = ? ORDER BY seq").all(b.id), [{ seq: 1, rate: "1616.24000" }, { seq: 7, rate: "3" }, { seq: 8, rate: "0.00000001" }, { seq: 9, rate: "1.5" }]);
   await freeze(b);
   assert.throws(() => ins({ seq: 10 }), /batch is frozen/, "a raw lock insert after the freeze is refused too");
   ins({ seq: 10, purpose: "execution" });

@@ -92,6 +92,13 @@
       "when": 1790134602187,
       "tag": "0012_rate_quotes_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1790134992073,
+      "tag": "0013_rate_quotes_positive",
+      "breakpoints": true
     }
   ]
 }
