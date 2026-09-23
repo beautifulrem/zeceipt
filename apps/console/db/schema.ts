@@ -4,7 +4,7 @@
 // with the orgs slice.
 
 import { sql } from "drizzle-orm";
-import { check, foreignKey, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 /** One row per (org, nonce): the payment-attempt ledger of a batch. Never pruned (design 3.3.1.3.1.1.3). */
 export const submissions = sqliteTable(
@@ -203,5 +203,40 @@ export const rateQuotes = sqliteTable(
     check("rate_quotes_rate_is_bid", sql`${t.rate} = ${t.bid}`),
     check("rate_quotes_fetched_at", isoCheck(t.fetchedAt)),
     check("rate_quotes_recorded_at", isoCheck(t.recordedAt)),
+  ],
+);
+
+/**
+ * A payee the org pays (slice H1; REQ-CON-2; 05 `recipients`). A live record: batch items copy label and address at
+ * creation, so a later change here never rewrites what was paid (B1, as ZBooks' payout lines do). The address is
+ * a unified address of the recipient's network, stored lowercase. Duplicates are allowed and flagged on read
+ * (05: "flagged not blocked"; a team wallet is legitimate). KYC and tax are recorded facts, never gates (FLOW-1).
+ */
+export const recipients = sqliteTable(
+  "recipients",
+  {
+    orgId: text("org_id").notNull(),
+    id: text("id").notNull(),
+    displayName: text("display_name").notNull(),
+    address: text("address").notNull(),
+    network: text("network", { enum: ["main", "test", "regtest"] }).notNull(),
+    kycStatus: text("kyc_status", { enum: ["unknown", "verified", "not_required"] }).notNull(),
+    taxFlag: text("tax_flag", { enum: ["none", "us_1099", "non_us"] }).notNull(),
+    settlementPref: text("settlement_pref", { enum: ["zec", "usdc_sol"] }).notNull(),
+    notes: text("notes").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.id] }),
+    index("recipients_address").on(t.orgId, t.address),
+    check("recipients_id_uuid", sql`length(${t.id}) = 36 and ${t.id} glob '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'`),
+    check("recipients_name_len", sql`length(${t.displayName}) between 1 and 200`),
+    check("recipients_network", sql`${t.network} in ('main', 'test', 'regtest')`),
+    check("recipients_address", sql`length(${t.address}) between 1 and 1000 and ${t.address} = lower(${t.address}) and ((${t.network} = 'main' and ${t.address} glob 'u1*') or (${t.network} = 'test' and ${t.address} glob 'utest1*') or (${t.network} = 'regtest' and ${t.address} glob 'uregtest1*'))`),
+    check("recipients_kyc", sql`${t.kycStatus} in ('unknown', 'verified', 'not_required')`),
+    check("recipients_tax", sql`${t.taxFlag} in ('none', 'us_1099', 'non_us')`),
+    check("recipients_settlement", sql`${t.settlementPref} in ('zec', 'usdc_sol')`),
+    check("recipients_notes_len", sql`length(${t.notes}) <= 1000`),
   ],
 );

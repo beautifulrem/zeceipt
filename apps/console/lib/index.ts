@@ -32,3 +32,6 @@ export { currentLock, listQuotes, RateRecordError, recordQuote } from "./data/ra
 export type { QuotePurpose, StoredQuote } from "./data/rates.ts";
 export { DEFAULT_MAX_DRIFT_BPS, movedText, pctFromBps, rateDrift } from "./rates/drift.ts";
 export type { Drift } from "./rates/drift.ts";
+export { createRecipient, getRecipient, KYC_STATUSES, listRecipients, recipientProblems, RecipientInvalidError, SETTLEMENT_PREFS, TAX_FLAGS } from "./data/recipients.ts";
+export type { KycStatus, RecipientInput, RecipientProblem, RecipientProblemCode, RecipientRecord, SettlementPref, TaxFlag } from "./data/recipients.ts";
+export { isPlainText } from "./data/text.ts";

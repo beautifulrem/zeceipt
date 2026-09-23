@@ -723,6 +723,146 @@
           }
         }
       }
+    },
+    "/api/recipients": {
+      "get": {
+        "operationId": "listRecipients",
+        "summary": "The org's recipients, newest first, each with duplicateOf.",
+        "responses": {
+          "200": {
+            "description": "The recipients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "recipients"
+                  ],
+                  "properties": {
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Recipient"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createRecipient",
+        "summary": "Create a recipient (REQ-CON-2). The address must be a unified address of the console's network; a duplicate address is flagged in duplicateOf, not refused.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecipient"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipient"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "description": "recipient_invalid, with every problem (code, field, detail)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/recipients/{id}": {
+      "get": {
+        "operationId": "getRecipient",
+        "summary": "One recipient, with duplicateOf.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The recipient",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipient"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -781,7 +921,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found"
           },
           "problems": {
             "type": "array",
@@ -1172,6 +1312,126 @@
           "recordedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "Recipient": {
+        "type": "object",
+        "description": "A payee the org pays (slice H1; REQ-CON-2). A live record: batch items copy label and address at creation, so a later change never rewrites what was paid.",
+        "required": [
+          "id",
+          "displayName",
+          "address",
+          "network",
+          "kycStatus",
+          "taxFlag",
+          "settlementPref",
+          "notes",
+          "createdAt",
+          "updatedAt",
+          "duplicateOf"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "UUIDv7"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "address": {
+            "type": "string",
+            "description": "A unified address of the console's network, lowercase"
+          },
+          "network": {
+            "enum": [
+              "main",
+              "test",
+              "regtest"
+            ]
+          },
+          "kycStatus": {
+            "enum": [
+              "unknown",
+              "verified",
+              "not_required"
+            ],
+            "description": "Recorded and shown; never blocks a payment (FLOW-1)"
+          },
+          "taxFlag": {
+            "enum": [
+              "none",
+              "us_1099",
+              "non_us"
+            ]
+          },
+          "settlementPref": {
+            "enum": [
+              "zec",
+              "usdc_sol"
+            ],
+            "description": "Recorded preference; the console pays ZEC"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duplicateOf": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other recipients with the same address: flagged, not blocked (05)"
+          }
+        }
+      },
+      "CreateRecipient": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "displayName",
+          "address"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "description": "All one case; an all-upper-case address is stored lowercase"
+          },
+          "kycStatus": {
+            "enum": [
+              "unknown",
+              "verified",
+              "not_required"
+            ]
+          },
+          "taxFlag": {
+            "enum": [
+              "none",
+              "us_1099",
+              "non_us"
+            ]
+          },
+          "settlementPref": {
+            "enum": [
+              "zec",
+              "usdc_sol"
+            ]
+          },
+          "notes": {
+            "type": "string"
           }
         }
       }

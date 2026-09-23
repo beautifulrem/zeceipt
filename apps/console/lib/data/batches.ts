@@ -9,6 +9,7 @@ import { runSync } from "../../db/errors.ts";
 import { batchItems, batches, submissions } from "../../db/schema.ts";
 import { ExecutionError, type Batch, type Network, type PreflightProblem, type PreflightProblemCode } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
+import { isPlainText } from "./text.ts";
 
 export interface BatchItemInput {
   payableId: string;
@@ -45,14 +46,8 @@ export interface BatchProblem extends Omit<PreflightProblem, "code"> {
 
 const LIMIT = 200; // characters (Unicode code points, as SQLite's length() counts them): title, payable id, label
 
-/**
- * Plain text for console fields: well-formed (no lone surrogates) and no C0 control characters. NUL in
- * particular makes SQLite's length() stop early, so the schema CHECK would disagree with this one.
- */
-function plainText(s: string, min: number, checkWellFormed = true): boolean {
-  const n = [...s].length;
-  return n >= min && n <= LIMIT && (!checkWellFormed || s.isWellFormed()) && !/[\u0000-\u001f\u007f]/.test(s);
-}
+/** Plain text for console fields (`lib/data/text.ts`), at most LIMIT code points. */
+const plainText = (s: string, min: number, checkWellFormed = true) => isPlainText(s, min, LIMIT, checkWellFormed);
 
 /** Console-only field rules, so the repository never surfaces a raw SQLite constraint error. */
 function recordProblems(input: CreateBatchInput): BatchProblem[] {
