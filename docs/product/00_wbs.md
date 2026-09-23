@@ -210,7 +210,14 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-01 → 10-03.
 #### 3.3.6 Payout console — receipts, pages, exports
 - 3.3.6.1 🟡 R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). Library `autoIssue` done 2026-09-23 (confirmation gate, `zeceipt issue --only-to` allow-list, per-item cross-check, verification; PROOF §5c); storing receipts sealed at rest with the unique (org, txid, pool, index) key: slice B2; over HTTP: slice D3 (Trellis `09-23-console-receipt-routes`), where the batch's derived status decides, below the threshold is 202 waiting (pending, not invalid), and an issued batch returns its stored receipts without re-running the CLI; console receipts carry no challenge (bearer links). The batch page lists receipts and offers Issue once confirmed (E1/E2), shown on the live chain in PROOF §5d. Open: a background worker (issuance without a click). 1 pd, 2026-09-27 → 09-28.
-- 3.3.6.2 ⬜ T — Public receipt page `/r#<payload>` (payload in the fragment, spec §2.1; link format changed in slice F1 `[R66]`) with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28.
+- 3.3.6.2 🟡 T — Public receipt page `/r#<payload>` (payload in the fragment, spec §2.1; link format changed in slice F1 `[R66]`) with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28. Done 2026-09-23 (slices F2a and F2b, Trellis `09-23-verify-chain-status`, `09-23-public-receipt-page`):
+  - a static page at `packages/verify/r/` that reads the link's fragment and verifies in the browser;
+  - the summary shows before any request; the transaction comes from a named public node or a file; a challenge input appears only for bound receipts;
+  - the three-part outcome, with chain status mined/mempool/fork `[R67]`;
+  - a strict CSP and no Referer;
+  - a Chrome e2e proving no request, header or storage carries the receipt (PROOF §2c) `[R68]`.
+
+  Open: the console's links point at the page's host (F3).
 - 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-9). 1.5 pd, 2026-09-29 → 09-30.
 - 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-08 → 10-09 (only if restored).
 
@@ -222,7 +229,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 34 Rust tests + 179 TypeScript console tests (and 2 opt-in regtest e2e: the library, PROOF §5c, and the app through HTTP, §5d; the 10 build-and-serve tests, one of them in Chrome, run in CI with `ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1`), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
+- 3.4.2.1 ✅ R — 34 Rust tests + 179 TypeScript console tests (and 2 opt-in regtest e2e: the library, PROOF §5c, and the app through HTTP, §5d; the 10 build-and-serve tests, one of them in Chrome, run in CI with `ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1`; the public receipt page's 8 Chrome tests, `packages/verify/test/page.e2e.mjs`, also run in CI), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
 - 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.
@@ -308,9 +315,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 31 | 5 | 25 | 2 |
+| 3 Engineering | 63 | 31 | 6 | 24 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 111 | 6 | 58 | 10 |
+| **Total** | 185 | 111 | 7 | 57 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

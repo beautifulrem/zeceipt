@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!--
+  The receipt is in this page's URL fragment (#…), which the browser never sends to the
+  host (spec §2.1). This policy keeps it that way inside the page: scripts and styles
+  only from this site, WebAssembly allowed, and network access only to this site and
+  to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS; test/verify.mjs
+  fails if an endpoint's origin is missing here).
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev">
+<title>Zeceipt — shielded payment receipt</title>
+<link rel="stylesheet" href="page.css">
+<script type="module" src="page.js"></script>
+</head>
+<body>
+<main>
+<h1>Zeceipt receipt</h1>
+<p class="muted">This page checks a receipt for one shielded Zcash payment, entirely in your browser (WebAssembly). The receipt is the part of the link after “#”, which your browser does not send to this site.</p>
+<p id="status" class="muted" role="status">Loading the verifier…</p>
+
+<section id="empty" hidden>
+  <h2>This link has no receipt in it</h2>
+  <p>A receipt link ends with “#” followed by the receipt. To check a receipt you have as text or a file, use the <a href="../demo/">verifier page</a>.</p>
+</section>
+
+<section id="unreadable" class="bad" hidden>
+  <h2>INVALID</h2>
+  <p id="unreadable-copy"></p>
+  <p id="unreadable-error" class="muted"></p>
+</section>
+
+<section id="receipt" hidden>
+  <h2>The receipt</h2>
+  <table id="summary"></table>
+  <h2>The transaction</h2>
+  <p><button id="fetch" type="button">Fetch it from a public node</button></p>
+  <p id="fetch-note" class="muted"></p>
+  <p><label>Or load a raw transaction file (hex) <input type="file" id="rawfile" accept=".hex,.txt"></label></p>
+  <p id="challenge-row" hidden><label>The challenge you sent <input id="challenge" autocomplete="off" spellcheck="false"></label> <button id="verify" type="button">Verify</button></p>
+  <p id="source-status" class="muted" role="status"></p>
+</section>
+
+<section id="outcome" hidden aria-live="polite">
+  <h2 id="headline"></h2>
+  <div id="invalid" hidden>
+    <p id="stage-copy"></p>
+    <p id="stage-error" class="muted"></p>
+  </div>
+  <div id="parts" hidden>
+    <h3>1. The payment</h3>
+    <table id="payment"></table>
+    <h3>2. Chain inclusion</h3>
+    <p id="inclusion"></p>
+    <h3>3. The issuer</h3>
+    <ul id="issuer"></ul>
+    <p id="challenge-line"></p>
+  </div>
+</section>
+
+<h2>What a valid result proves</h2>
+<ul>
+  <li>The named transaction pays the shown value to the shown recipient with the shown memo. This is recovered cryptographically from the transaction with the per-output key in the receipt.</li>
+  <li>If signed: the holder of the shown issuer key made this receipt and wrote its label.</li>
+</ul>
+<h2>What it does not prove</h2>
+<ul>
+  <li>Who is showing you the receipt, unless it is bound to a challenge you sent.</li>
+  <li>Which organisation holds the issuer key.</li>
+  <li>How many confirmations the transaction has: check the depth on an explorer or your own node.</li>
+  <li>Anything about other outputs, other transactions or balances.</li>
+</ul>
+<p class="muted">Privacy: the only request this page makes outside this site is the transaction lookup you choose, and that node learns which transaction you looked up. The page stores nothing.</p>
+</main>
+</body>
+</html>

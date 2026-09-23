@@ -1,0 +1,12 @@
+body { font: 15px/1.5 system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #111; }
+h2 { margin-top: 1.5rem; }
+h3 { margin: 1rem 0 .25rem; font-size: 1rem; }
+table td { padding: .15rem .75rem .15rem 0; vertical-align: top; }
+table td:first-child { color: #555; white-space: nowrap; }
+td, #inclusion, #issuer { overflow-wrap: anywhere; }
+input { font: 13px/1.4 ui-monospace, monospace; }
+#challenge { width: 20rem; max-width: 100%; }
+.muted { color: #555; font-size: 13px; }
+.ok { border-left: 4px solid #1a7f37; padding-left: .75rem; }
+.bad { border-left: 4px solid #b42318; padding-left: .75rem; }
+.pending { border-left: 4px solid #9a6700; padding-left: .75rem; }

@@ -31,6 +31,12 @@ jobs:
           node-version: 24
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
+      - name: public receipt page (packages/verify/r) in Chrome — link to VALID with the three parts, every state, and no request, header or storage carrying the receipt (REQ-CON-12)
+        working-directory: packages/verify
+        # playwright-core drives the runner's Google Chrome; the public gRPC-web node is intercepted, so no internet is needed.
+        run: |
+          npm ci --no-audit --no-fund
+          ZECEIPT_BROWSER_E2E=1 node --test test/page.e2e.mjs
       - name: console library — install dependencies (lockfile; better-sqlite3 prebuilt binary), type check (TypeScript 7), lint (ESLint, zero warnings), unit tests against the debug zeceipt binary
         working-directory: apps/console
         run: |

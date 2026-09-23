@@ -143,6 +143,48 @@ The timings below were measured on the 2026-09-22 build. Since then, the crates 
 
 Timing (2026-09-22, NFR-4). Chrome 153 on `demo/index.html` served locally, `performance.now()` around `verifyReceipt` from `src/index.js`, 20-run averages, signed and challenge-bound receipts: **7.28 ms** on the synthetic fixture (9,166-byte tx) and **6.05 ms** on the Zkool batch fixture `regtest-48db254a…` (15,478 bytes, 4 Ironwood actions, receipt for output 1). 69 % more bytes cost no more time: verification decrypts exactly one output, so the cost is dominated by that single trial decryption and is roughly flat in transaction size across 9–15 KB. At 6–7 ms the measurement is **more than 130× inside the 1 s budget**; the remaining 23 % to the NFR's 20 KB bound is not measured but cannot plausibly change that order of magnitude. Node 26 on the committed wasm: init 13.9 ms; `verify_receipt` 4.11 ms (regtest fixture) / 3.19 ms (synthetic). CLI (release build, `/usr/bin/time`): `zeceipt inspect --txid 0e85513c…da69` fetching the mainnet tx from `zec.rocks` over gRPC/TLS 1.15 s wall; `zeceipt issue --regtest --raw-tx-file … --ufvk …` (trial-decrypt of both outputs + signing, offline) 0.00 s wall; `zeceipt verify --regtest --raw-tx-file …` offline 0.01 s. So a public-node `issue` is fetch-bound at ≈ 1–2 s. The page shows the mined height for fetched transactions and tells the user to confirm depth on an explorer or their own node; it does not compute confirmations itself.
 
+## 2c. synthetic + regtest — the public receipt page in Chrome (2026-09-23)
+
+The page a receipt link opens: `packages/verify/r/` (slice F2b, Trellis `09-23-public-receipt-page`), static, served at `/r/` from the same root as the demo (`npm run demo`, then `http://localhost:8787/r/#<payload>`). It reads the receipt from the link's fragment (spec §2.1) and verifies it with the committed WASM through `src/index.js`, the wrapper npm users get.
+
+Command: `cd packages/verify && npm ci && ZECEIPT_BROWSER_E2E=1 node --test test/page.e2e.mjs` (also in CI).
+- The test serves the package with a small static host that redirects `/r` to `/r/`, as static hosts do.
+- It drives the installed Google Chrome (playwright-core 1.63).
+- It answers `zjs.zec.rocks` with hand-built gRPC-web responses from the committed fixtures, so no internet is needed.
+- Result: **8/8 pass.**
+
+| Opened | What the page shows |
+|---|---|
+| `/r#<signed bearer receipt>` (issued for this test from the synthetic tx with a throwaway key; `demo/fixtures/synthetic-receipt-bearer.json`) | It lands on `/r/#…`: the redirect keeps the fragment (RFC 9110 §10.2.2). The summary (network, txid, output, label, "present, key …", "none (a bearer receipt…)") shows before any outside request. The fetch note names `zjs.zec.rocks/mainnet, then zcash-mainnet.chainsafe.dev`. After the click: **VALID**, 2.50000000 ZEC (250000000 zat), memo `INV-2026-0142`; "Mined at height 3491284, according to zjs.zec.rocks/mainnet. This page does not count confirmations: check the depth on an explorer or your own node."; "Signed by key … (key id 2026-09)"; "issuer binding: unknown"; "Not bound to a challenge: this does not prove who is showing it to you." Exactly one outside request: `GetTransaction`. |
+| the same, with the node answering height 0 / 0xffffffffffffffff | VALID, with inclusion "Pending: … in the mempool; it is not mined yet" / "Not on the main chain: … mined on a fork" (amber). |
+| the same, with the node lacking the transaction | 04's pending copy, "The transaction was not found yet…", and no outcome. Both live public nodes answer an unknown txid with `grpc-status: 5`, which the wrapper now reports as not found `[R68]`. |
+| `fixtures/synthetic-receipt.json` (challenge-bound) | The challenge input appears; after the fetch, "Enter the challenge you sent, then Verify". A wrong challenge gives **INVALID** with 04's challenge copy; `auditor-nonce-7` gives VALID and "Bound to your challenge, and it matched". |
+| the bearer receipt with its label edited | **INVALID**, 04's signature copy. |
+| an unsigned receipt with label `x <b>bold</b> y`, via `location.hash =` in the same tab (no reload) | The page re-renders on `hashchange`. VALID, "Unsigned: the label is the sender's unauthenticated text…". The label shows literally, and there is no `<b>` element in the page. |
+| `fixtures/regtest-receipt.json` | No fetch button: "No public node serves the local regtest chain (development only). Load the raw transaction from a file instead." Challenge `auditor-nonce-9`, then the file `fixtures/regtest-48be62e2….hex`: VALID, 2.50000000, "Unknown: the transaction was loaded from a file…". No outside request. |
+| `/r/`, `/r/#`, `/r/#hello` | "This link has no receipt in it" (twice); then **INVALID** with 04's parse copy. |
+| the WASM request held back | "Loading the verifier…" with "What a valid result proves" and "What it does not prove" already on screen. |
+
+Privacy, checked after every case above:
+- no request URL, header or body the page sent, and nothing the host received, contains any test receipt's payload or OCK;
+- the only outside request is `GetTransaction` with no `Referer`;
+- `localStorage`, `sessionStorage`, cookies, IndexedDB and Cache Storage are empty;
+- no CSP violation and no page error.
+
+Negative controls: each of three leaks planted in `r/page.js` in turn failed the first test.
+- `fetch("/beacon?" + location.hash.slice(1))` → "a request carried a receipt secret";
+- `localStorage.setItem(…)` → `local: 1`;
+- `fetch("https://example.com/x")` → a CSP violation.
+
+The node guard also checks:
+- `view.js` (the stage copy, the three parts);
+- that the page has no inline script or style;
+- the no-referrer meta;
+- that the CSP `connect-src` covers every `GRPC_WEB_ENDPOINTS` origin (removing one fails it);
+- that `page.js` uses no `innerHTML` and no storage.
+
+The source guards now scan `packages/verify/src` and `r/` too; an OCK in a `console.log` there fails them.
+
 ## 3. unit — protocol-level round trip
 
 `ironwood_round_trip_ock_derivation_and_recovery`: encrypt a V3 (Ironwood) note with a random FVK using the `orchard` crate's `IronwoodNoteEncryption`, derive the OCK with `Domain::derive_ock`, recover with `try_output_recovery_with_ock`, and check that a flipped OCK bit and another key's OCK both fail.

@@ -76,8 +76,8 @@ const rawTxMessage = (dataHex, height) => {
   if (height !== undefined) msg.push(0x10, ...varint(height));
   return new Uint8Array(msg);
 };
-const grpcBody = (message, status = 0) => {
-  const trailer = new TextEncoder().encode(`grpc-status:${status}\r\ngrpc-message:${status ? "not found" : ""}\r\n`);
+const grpcBody = (message, status = 0, text = "") => {
+  const trailer = new TextEncoder().encode(`grpc-status:${status}\r\ngrpc-message:${text}\r\n`);
   const parts = [...(message ? [frame(0, message)] : []), frame(0x80, trailer)];
   return Buffer.concat(parts.map((p) => Buffer.from(p)));
 };
@@ -104,9 +104,18 @@ const fork = await fetched(0xffffffffffffffffn);
 check("fetch: height 0xffffffffffffffff is a fork, not a height", fork.chain?.status === "fork" && fork.height === null, view(fork));
 check("chainStatus maps the three cases", typeof chainStatus === "function" && chainStatus(7n).status === "mined" && chainStatus(null).status === "mempool" && chainStatus(0xffffffffffffffffn).status === "fork");
 const notFound = await rejects(withFetch(() => ok200(grpcBody(rawTxMessage("", undefined))), () => fetchRawTx(TXID, "main", ["https://node.test"])));
-check("fetch: empty transaction data is 'transaction not found'", /transaction not found/.test(notFound ?? ""), notFound);
-const trailer = await rejects(withFetch(() => ok200(grpcBody(null, 5)), () => fetchRawTx(TXID, "main", ["https://node.test"])));
+check("fetch: empty transaction data is 'transaction not found'", /transaction [0-9a-f]{64} not found/.test(notFound ?? ""), notFound);
+const trailer = await rejects(withFetch(() => ok200(grpcBody(null, 13, "internal error")), () => fetchRawTx(TXID, "main", ["https://node.test"])));
 check("fetch: a non-zero grpc-status trailer is an error", /grpc trailer/.test(trailer ?? ""), trailer);
+// "Unknown txid", as zeceipt-lwd classifies it: code 5, a "not found"/"no such" message, or empty data.
+const code5 = await rejects(withFetch(() => ok200(grpcBody(null, 5)), () => fetchRawTx(TXID, "main", ["https://node.test"])));
+check("fetch: grpc-status 5 in the trailer is 'not found'", /transaction [0-9a-f]{64} not found/.test(code5 ?? ""), code5);
+const noSuch = await rejects(withFetch(() => new Response("", { status: 200, headers: { "grpc-status": "2", "grpc-message": "No such mempool or blockchain transaction" } }), () => fetchRawTx(TXID, "main", ["https://node.test"])));
+check("fetch: a trailers-only 'No such … transaction' answer is 'not found'", /not found/.test(noSuch ?? ""), noSuch);
+const otherHeaderErr = await rejects(withFetch(() => new Response("", { status: 200, headers: { "grpc-status": "14", "grpc-message": "unavailable" } }), () => fetchRawTx(TXID, "main", ["https://node.test"])));
+check("fetch: another trailers-only status stays a transport error", /grpc-status 14/.test(otherHeaderErr ?? ""), otherHeaderErr);
+const preferMissing = await rejects(withFetch((url) => url.startsWith("https://a.test") ? ok200(grpcBody(rawTxMessage("", undefined))) : Promise.reject(new TypeError("Failed to fetch")), () => fetchRawTx(TXID, "main", ["https://a.test", "https://b.test"])));
+check("fetch: 'not found' from one node wins over another node being down", /not found/.test(preferMissing ?? ""), preferMissing);
 seen.length = 0;
 const failover = await withFetch((url) => url.startsWith("https://down.test") ? new Response("", { status: 503 }) : ok200(grpcBody(rawTxMessage(rawTx, 12n))), () => fetchRawTx(TXID, "main", ["https://down.test", "https://up.test"]));
 check("fetch: fails over to the next endpoint", failover.endpoint === "https://up.test" && seen.length === 2, JSON.stringify(seen.map((x) => x.url)));
@@ -129,6 +138,38 @@ const demoHtml = fs.readFileSync(path.join(here, "../demo/index.html"), "utf8");
 check("demo page states what a valid result proves", /What a valid result proves/i.test(demoHtml));
 check("demo page states what it does not prove", /What it does not prove/i.test(demoHtml));
 check("demo page labels outcomes with text (VALID/INVALID)", /VALID/.test(demoHtml) && /INVALID/.test(demoHtml));
+
+// The public receipt page (r/, slice F2b): its view logic, its copy, and its CSP.
+const pageView = await import("../r/view.js");
+const { GRPC_WEB_ENDPOINTS } = await import("../src/index.js");
+const stages = ["parse", "tx", "txid", "signature", "challenge", "output", "recovery", "other"];
+check("receipt page: every verifier stage has user copy", stages.every((st) => typeof pageView.STAGE_COPY[st] === "string" && pageView.STAGE_COPY[st].length > 10));
+const bad = pageView.outcome({ valid: false, stage: "recovery", error: "x" }, null);
+check("receipt page: INVALID carries the stage copy and the verifier's message", bad.headline === "INVALID" && bad.stageCopy === pageView.STAGE_COPY.recovery && bad.error === "x");
+check("receipt page: an unknown stage falls back to 'other'", pageView.outcome({ valid: false, stage: "new-stage" }, null).stageCopy === pageView.STAGE_COPY.other);
+const good = { valid: true, txid: "ab", pool: "ironwood", output_index: 1, recipient: "u1x", value_zat: 250000000, value_zec: "2.50000000", memo: { kind: "text", text: "m" }, label: "L", issuer_pubkey: "e".repeat(64), issuer_key_id: "k1", challenge_checked: false };
+const node = (chain) => ({ kind: "node", chain, endpoint: "https://zjs.zec.rocks/mainnet" });
+check("receipt page: mined inclusion names the node and disclaims depth", /^Mined at height 12, according to zjs\.zec\.rocks\/mainnet\. This page does not count confirmations/.test(pageView.outcome(good, node({ status: "mined", height: 12 })).inclusion.text));
+check("receipt page: mempool is pending, fork is not the main chain, a file is unknown",
+  pageView.inclusion(node({ status: "mempool" })).state === "pending" && pageView.inclusion(node({ status: "fork" })).state === "fork" && pageView.inclusion({ kind: "file" }).state === "unknown");
+check("receipt page: signed issuer says binding unknown; unsigned says the label is unauthenticated",
+  pageView.issuerLines(good).join(" ").includes("issuer binding: unknown") && /^Unsigned: the label is the sender's unauthenticated text/.test(pageView.issuerLines({ ...good, issuer_pubkey: undefined })[0]));
+check("receipt page: challenge line for bound and bearer receipts", /matched/.test(pageView.challengeLine({ challenge_checked: true })) && /does not prove who is showing it/.test(pageView.challengeLine({ challenge_checked: false })));
+check("receipt page: memo text for text, empty and bytes", pageView.memoText({ kind: "text", text: "a" }) === "a" && pageView.memoText({ kind: "empty" }) === "(empty)" && pageView.memoText({ kind: "bytes", hex: "00ff" }) === "bytes 00ff");
+check("receipt page: fetch plan names the nodes, and explains regtest",
+  /zjs\.zec\.rocks\/mainnet, then zcash-mainnet\.chainsafe\.dev/.test(pageView.fetchPlan("main", GRPC_WEB_ENDPOINTS.main).note) && pageView.fetchPlan("regtest", undefined).canFetch === false);
+const pageHtml = fs.readFileSync(path.join(here, "../r/index.html"), "utf8");
+check("receipt page states what a valid result proves, and what it does not", /What a valid result proves/.test(pageHtml) && /What it does not prove/.test(pageHtml));
+check("receipt page has no inline script or style (CSP allows 'self' only)", !/<script(?![^>]*\bsrc=)[^>]*>/i.test(pageHtml) && !/<style|\sstyle=/i.test(pageHtml));
+check("receipt page sends no Referer", /<meta name="referrer" content="no-referrer">/.test(pageHtml));
+const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(pageHtml)?.[1] ?? "";
+const connect = (/connect-src ([^;]+)/.exec(csp)?.[1] ?? "").split(/\s+/);
+const origins = [...new Set(Object.values(GRPC_WEB_ENDPOINTS).flat().map((u) => new URL(u).origin))];
+check("receipt page CSP connect-src covers every public gRPC-web endpoint", origins.every((o) => connect.includes(o)), `missing: ${origins.filter((o) => !connect.includes(o)).join(" ")}`);
+check("receipt page CSP is default-deny with WebAssembly allowed", /default-src 'none'/.test(csp) && /script-src 'self' 'wasm-unsafe-eval'/.test(csp) && /form-action 'none'/.test(csp) && /base-uri 'none'/.test(csp));
+const pageJs = fs.readFileSync(path.join(here, "../r/page.js"), "utf8");
+check("receipt page writes the DOM with textContent only (no innerHTML/outerHTML/insertAdjacentHTML)", !/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(pageJs));
+check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|document\.cookie/.test(pageJs));
 
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

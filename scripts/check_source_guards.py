@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Source guards run in CI (NFR-1 / REQ-CLI-6 and NFR-6).
 
-1. No key-material vocabulary in non-test library/binary code (crates, `apps/console/lib/**/*.ts`, `apps/console/db/**/*.ts` and the console app: `app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`), nor in any `scripts/**/*.py|*.sh` code line unless the file carries the header marker
+1. No key-material vocabulary in non-test library/binary code (crates, `apps/console/lib/**/*.ts`, `apps/console/db/**/*.ts` and the console app: `app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`; the browser verifier's `packages/verify/src/*.js` and the receipt page's `packages/verify/r/*.js`), nor in any `scripts/**/*.py|*.sh` code line unless the file carries the header marker
    `# key-material-allowed: regtest-only harness` in its first three lines AND that line is tagged
    `# key-material-allowed` (currently only the Zkool regtest tracer, two lines):
    whole words `seed`, `mnemonic`, `spending` (case-insensitive) in `crates/*/src/**/*.rs`,
@@ -33,6 +33,10 @@ ts_files = sorted([
     *(p for p in (console / "app").rglob("*") if p.suffix in (".ts", ".tsx")),
     *(p for p in (console / "instrumentation.ts", console / "proxy.ts", console / "next.config.ts") if p.exists()),
 ])
+# The browser verifier's hand-written JavaScript ships too: the npm wrapper and the public receipt page.
+# Same rules as the console (the wasm-pack output in pkg/ is generated and not scanned).
+verify_pkg = repo / "packages" / "verify"
+web_files = sorted([*(verify_pkg / "src").glob("*.js"), *(verify_pkg / "r").glob("*.js")])
 for path in files:
     text = path.read_text(encoding="utf-8")
     non_test = text.split("#[cfg(test)]")[0]
@@ -58,14 +62,14 @@ for path in files:
     for i, line in enumerate(text.splitlines(), 1):
         if log_re.search(line) and secret_re.search(line):
             hits.append(f"{path.relative_to(repo)}:{i}: log line mentions ock/ovk/memo: {line.strip()}")
-for path in ts_files:
+for path in [*ts_files, *web_files]:
     text = path.read_text(encoding="utf-8")
     for i, line in enumerate(text.splitlines(), 1):
         code = re.sub(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|`(?:[^`\\]|\\.)*`", '""', line).split("//", 1)[0]
         if line.strip().startswith(("//", "*", "/*")):
             continue
         if key_re.search(code):
-            hits.append(f"{path.relative_to(repo)}:{i}: key-material term in console library code: {line.strip()}")
+            hits.append(f"{path.relative_to(repo)}:{i}: key-material term in shipped code: {line.strip()}")
         if log_re.search(code) or re.search(r"console\.(log|info|warn|error|debug)\(", code):
             if secret_re.search(code):
                 hits.append(f"{path.relative_to(repo)}:{i}: log line mentions ock/ovk/memo: {line.strip()}")
@@ -91,7 +95,7 @@ for path in py_files:
             if carved and "key-material-allowed" in tail:
                 continue
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term in a script line without a per-line `# key-material-allowed` tag: {line.strip()}")
-print(f"source guards: {len(files)} crate files + {len(ts_files)} console lib/db/app files + {py_scanned} scripts scanned (carve-out files: {carve_outs})")
+print(f"source guards: {len(files)} crate files + {len(ts_files)} console lib/db/app files + {len(web_files)} browser verifier files + {py_scanned} scripts scanned (carve-out files: {carve_outs})")
 if hits:
     print("\n".join(hits))
     sys.exit(1)

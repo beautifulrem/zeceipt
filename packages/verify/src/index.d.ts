@@ -39,5 +39,9 @@ export const GRPC_WEB_ENDPOINTS: { main: string[]; test: string[] };
 /** The node's view of the transaction, from lightwalletd's `RawTransaction.height` sentinels. */
 export type ChainStatus = { status: "mined"; height: number } | { status: "mempool" } | { status: "fork" };
 export function chainStatus(height: bigint | null): ChainStatus;
-/** Throws when `network` has no public endpoint (regtest) and none are passed. */
+/**
+ * Throws when `network` has no public endpoint (regtest) and none are passed. When no node has the
+ * transaction (gRPC code 5, a "not found"/"no such" message, or empty data), the error has
+ * `code: "not_found"`, and it wins over another node being unreachable.
+ */
 export function fetchRawTx(txidDisplayHex: string, network?: Network, endpoints?: string[]): Promise<{ hex: string; height: number | null; chain: ChainStatus; endpoint: string }>;

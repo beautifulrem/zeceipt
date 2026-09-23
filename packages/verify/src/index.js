@@ -91,7 +91,12 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
   if (!Array.isArray(endpoints) || endpoints.length === 0) {
     throw new Error(`no public gRPC-web endpoint for ${network}; pass endpoints or load the raw transaction from a file`);
   }
-  let lastErr = null;
+  // As in zeceipt-lwd: indexers say "unknown txid" with gRPC code 5, a "not found"/"no such"
+  // message, or empty data. A node that does not have the transaction is an answer, so it is
+  // reported in preference to another node being unreachable.
+  const notFound = () => Object.assign(new Error(`transaction ${txidDisplayHex} not found`), { code: "not_found" });
+  const failure = (status, message) => (status === "5" || /not found|no such/i.test(message) ? notFound() : null);
+  let lastErr = null, missing = null;
   for (const ep of endpoints) {
     try {
       const res = await fetch(`${ep}/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTransaction`, {
@@ -100,7 +105,8 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
         body: encodeTxFilter(txidDisplayHex),
       });
       const grpcStatus = res.headers.get("grpc-status");
-      if (!res.ok || (grpcStatus && grpcStatus !== "0")) throw new Error(`HTTP ${res.status} grpc-status ${grpcStatus ?? "?"} ${res.headers.get("grpc-message") ?? ""}`);
+      if (grpcStatus && grpcStatus !== "0") throw failure(grpcStatus, res.headers.get("grpc-message") ?? "") ?? new Error(`HTTP ${res.status} grpc-status ${grpcStatus} ${res.headers.get("grpc-message") ?? ""}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} grpc-status ${grpcStatus ?? "?"} ${res.headers.get("grpc-message") ?? ""}`);
       const buf = new Uint8Array(await res.arrayBuffer());
       // frames: [flag][len BE][payload]...; flag 0 = message, 0x80 = trailers
       let pos = 0, message = null;
@@ -108,14 +114,14 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
         const flag = buf[pos]; const len = new DataView(buf.buffer, buf.byteOffset + pos + 1, 4).getUint32(0, false);
         const payload = buf.slice(pos + 5, pos + 5 + len); pos += 5 + len;
         if (flag === 0) message = payload;
-        else if (flag & 0x80) { const t = new TextDecoder().decode(payload); const m = /grpc-status:\s*(\d+)/i.exec(t); if (m && m[1] !== "0") throw new Error("grpc trailer: " + t.trim()); }
+        else if (flag & 0x80) { const t = new TextDecoder().decode(payload); const m = /grpc-status:\s*(\d+)/i.exec(t); if (m && m[1] !== "0") throw failure(m[1], t) ?? new Error("grpc trailer: " + t.trim()); }
       }
       if (!message) throw new Error("empty gRPC-web response");
       const { data, height } = decodeRawTransaction(message);
-      if (!data || data.length === 0) throw new Error("transaction not found");
+      if (!data || data.length === 0) throw notFound();
       const chain = chainStatus(height);
       return { hex: bytesToHex(data), height: chain.status === "mined" ? chain.height : null, chain, endpoint: ep };
-    } catch (e) { lastErr = e; }
+    } catch (e) { if (e.code === "not_found") missing = e; else lastErr = e; }
   }
-  throw lastErr;
+  throw missing ?? lastErr;
 }

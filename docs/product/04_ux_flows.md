@@ -56,7 +56,7 @@ Error states: rate source down (the lock is blocked and the batch stays in draft
 | SCR-7 | Audit packs | build, download, share link |
 | SCR-8 | Exports | OpenZcash / QuickBooks / Xero (REQ-CON-14); 1099 totals (NFR-9, baseline only); column preview |
 | SCR-9 | Settings | members & roles, issuer keys (key id, rotation), well-known file, endpoints |
-| SCR-10 | Public receipt page | loading wasm · fetching · valid · invalid(stage) · pending |
+| SCR-10 | Public receipt page (`packages/verify/r/`, built in F2b) | loading the verifier (proves/does-not-prove already shown) · no receipt in the link · unreadable (parse copy) · receipt summary before any request · fetching from a named node / loading a file · waiting for the challenge (bound receipts only) · VALID with the three parts (inclusion: mined at H / pending in the mempool / not on the main chain / unknown from a file) · INVALID(stage copy) · not found yet (pending copy) |
 | SCR-11 | Public pack page | per-row results, total, lower-bound note |
 
 ## 4. Error taxonomy → user copy

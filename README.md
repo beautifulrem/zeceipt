@@ -33,7 +33,9 @@ $Z issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/syn
 $Z verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
 ```
 
-Browser: `cd packages/verify && npm run build:wasm && npm run demo` then open `http://localhost:8787/demo/`.
+Browser: `cd packages/verify && npm run build:wasm && npm run demo`, then open `http://localhost:8787/demo/` to paste a receipt.
+
+Receipt links: `zeceipt issue` prints each receipt as `https://<host>/r#<payload>` (`--host`, default `https://zeceipt.xyz`). The receipt is in the fragment, which browsers never send to the host (spec §2.1). The page at `/r/` (`packages/verify/r/`) reads it and verifies in the browser: open `http://localhost:8787/r/#<payload>` with `npm run demo` running. It shows the payment, where the transaction is on chain (per the public node you choose to ask, or unknown for a file), and who signed. It makes no other request and stores nothing (`docs/PROOF.md` §2c).
 
 ## Crates
 
