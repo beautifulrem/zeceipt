@@ -3,6 +3,7 @@
 // naming variables but never the key (REQ-CON-17 "fails startup"). Opt-in (a production build takes a
 // while): ZECEIPT_APP_E2E=1 node --test test/app.e2e.test.ts
 
+import http from "node:http";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -353,6 +354,78 @@ test("page actions through next start, posted as a browser without JavaScript: p
     // A server stuck in a request ignores SIGTERM (Next waits for it): never let cleanup hang the suite.
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     await fake.stop();
+  }
+});
+
+test("rate lock from the batch page, posted as a browser without JavaScript: lock, re-lock, the source failing keeps the lock, and no form once paid (slice G1c2)", { skip: !RUN }, async () => {
+  // A fake of Kraken's Ticker (ZECEIPT_RATE_URL): each step sets its answer.
+  let tick: { status: number; body: string } = { status: 200, body: "" };
+  const ticker = (bid: string, ask: string, last: string) => ({ status: 200, body: JSON.stringify({ error: [], result: { XZECZUSD: { a: [ask, "1", "1.000"], b: [bid, "1", "1.000"], c: [last, "0.1"] } } }) });
+  const source = http.createServer((_req, res) => void res.writeHead(tick.status, { "content-type": "application/json" }).end(tick.body));
+  await new Promise<void>((r) => source.listen(0, "127.0.0.1", r));
+  const fake = await new FakeZkool().start();
+  const s = await start(demoEnv("rates", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD` }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const draft = JSON.stringify({ title: "rates", items: [
+      { payableId: "r1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "101000000", memo: "RATE-1" },
+      { payableId: "r2", address: "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj", zat: "50000", memo: "RATE-2" },
+    ] });
+    const id = (JSON.parse((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, draft)).body) as { id: string }).id;
+    const page = async () => (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body.replaceAll("<!-- -->", "");
+    const post = async (html: string, marker: string, headers: Record<string, string> = same) => {
+      const f = multipart(formFields(html, marker));
+      return raw(s.port, "POST", `/batches/${id}`, { ...headers, "content-type": f.type }, f.body);
+    };
+
+    const before = await page();
+    assert.ok(before.includes("Not locked.") && before.includes(">Lock rate</button>") && !before.includes("USD at lock"), "unlocked: the form, no USD column");
+
+    // Lock: the page shows the rate (bid), its source and time, and USD at the lock beside each amount and the total.
+    tick = ticker("1610.95000", "1611.71000", "1611.35000");
+    const locked = await post(before, ">Lock rate</button>");
+    assert.equal(locked.status, 200);
+    const after = (await page());
+    assert.ok(after.includes("1 ZEC = $1,610.95") && after.includes("(bid, exactly 1610.95000)"), "the rate and its exact bid");
+    assert.ok(after.includes("Kraken XZECZUSD · ask 1611.71000 · last trade 1611.35000") && / UTC</.test(after), "its source and time");
+    assert.ok(after.includes("USD at lock"), "the USD column");
+    // 1.01 ZEC → 1627.0595 → $1,627.06; 0.0005 ZEC → 0.805475 → $0.81; total 1.0105 ZEC → 1627.864975 → $1,627.86.
+    // The total is rounded once: the sum of the rounded parts would be $1,627.87, a cent off.
+    assert.ok(after.includes("$1,627.06") && after.includes("$0.81") && after.includes("$1,627.86") && !after.includes("$1,627.87"), "exact per item, and the total rounded once");
+    assert.ok(after.includes(">Re-lock rate</button>"));
+
+    // A cross-site post of the form is refused before the source is asked.
+    tick = ticker("9.00", "9.01", "9.00");
+    assert.equal((await post(after, ">Re-lock rate</button>", { host: self, origin: "http://evil.example" })).status, 403);
+    assert.ok((await page()).includes("1 ZEC = $1,610.95"), "unchanged");
+
+    // The source failing: "Not locked" with the reason, and the previous lock stays.
+    tick = { status: 503, body: "busy" };
+    const failed = (await post(after, ">Re-lock rate</button>")).body.replaceAll("<!-- -->", "");
+    assert.ok(failed.includes("Not locked:") && failed.includes("(http)"), "the outcome says nothing was locked, and why");
+    assert.ok((await page()).includes("1 ZEC = $1,610.95"), "the previous lock stays");
+
+    // Re-lock: the new rate becomes current.
+    tick = ticker("1600.10", "1600.90", "1600.50");
+    await post(await page(), ">Re-lock rate</button>");
+    assert.ok((await page()).includes("1 ZEC = $1,600.10"));
+
+    // Paid: the batch is frozen, so the form leaves the page and the page says why; the lock stays shown.
+    const toPay = await page();
+    assert.equal((await post(toPay, 'name="confirmTotalZat"')).status, 200);
+    assert.equal(fake.payCalls, 1);
+    const frozen = await page();
+    assert.ok(!frozen.includes("Re-lock rate</button>") && frozen.includes("its rate can no longer be changed") && frozen.includes("1 ZEC = $1,600.10"));
+    // A stale page's post still reaches the handler, which refuses it (409 batch_frozen) and says so.
+    const stale = (await post(toPay, ">Re-lock rate</button>")).body.replaceAll("<!-- -->", "");
+    assert.ok(stale.includes("its rate can no longer be locked"), "the stale post is refused with the reason");
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+    await fake.stop();
+    await new Promise((r) => source.close(r));
   }
 });
 

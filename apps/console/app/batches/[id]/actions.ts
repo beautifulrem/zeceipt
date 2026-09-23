@@ -10,11 +10,12 @@
 // POST also passes proxy.ts (loopback Host, no cross-site writes) and Next's own Origin check.
 
 import { revalidatePath } from "next/cache";
+import { lockRateResponse, ratesProblem } from "../../../lib/http/rates.ts";
 import { issueReceiptsResponse, issuerCli, receiptsProblem } from "../../../lib/http/receipts.ts";
 import { answer } from "../../../lib/http/route.ts";
 import { submitBatch } from "../../../lib/http/submit.ts";
 import { serverContext } from "../../../lib/server/context.ts";
-import { receiptsOutcome, submitOutcome, type ActionOutcome } from "../../../lib/view/outcome.ts";
+import { lockOutcome, receiptsOutcome, submitOutcome, type ActionOutcome } from "../../../lib/view/outcome.ts";
 
 export async function payAction(_prev: ActionOutcome | null, form: FormData): Promise<ActionOutcome> {
   const id = String(form.get("batchId") ?? "");
@@ -28,4 +29,12 @@ export async function issueAction(_prev: ActionOutcome | null, form: FormData): 
   const res = await answer(() => issueReceiptsResponse(id, issuerCli(serverContext().config)), receiptsProblem);
   revalidatePath(`/batches/${id}`);
   return receiptsOutcome(res);
+}
+
+/** Lock (or re-lock) the draft's ZEC/USD rate: the same handler as `POST /api/batches/{id}/rate-lock` (slice G1c2). */
+export async function lockRateAction(_prev: ActionOutcome | null, form: FormData): Promise<ActionOutcome> {
+  const id = String(form.get("batchId") ?? "");
+  const res = await answer(() => lockRateResponse(id), ratesProblem);
+  revalidatePath(`/batches/${id}`);
+  return lockOutcome(res);
 }

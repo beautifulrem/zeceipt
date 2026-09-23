@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { shortAddress, zecText } from "../lib/view/format.ts";
+import { rateText, shortAddress, usdText, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -95,4 +95,20 @@ test("payment mode: custody apart from the lifecycle, in words; nothing secret",
   const ext = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "external" }));
   assert.match(ext.custody, /never pays/);
   assert.ok(!JSON.stringify([hot, ext]).includes(Buffer.alloc(32, 9).toString("base64")));
+});
+
+test("USD beside an amount: exact to the cent at the locked rate, rounded half up once (slice G1c2)", () => {
+  assert.equal(usdText(100_000_000n, "1616.24000"), "$1,616.24");
+  assert.equal(usdText(101_000_000n, "1616.24"), "$1,632.40"); // 1.01 × 1616.24 = 1632.4024
+  assert.equal(usdText(1n, "1616.24"), "$0.00"); // 0.0000161624
+  assert.equal(usdText(31_000n, "1616.24"), "$0.50"); // 0.501034… rounds down
+  assert.equal(usdText(30_935n, "1616.24"), "$0.50"); // 0.4999838… rounds up
+  assert.equal(usdText(30_934n, "1616.24"), "$0.50"); // 0.49996… rounds up
+  assert.equal(usdText(30_000n, "1616.24"), "$0.48"); // 0.484872 rounds down
+  assert.equal(usdText(50_000_000n, "0.01"), "$0.01"); // exactly half a cent (0.005) rounds up
+  assert.equal(usdText(2_100_000_000_000_000n, "999999999999999.999999999999999999"), "$21,000,000,000,000,000,000,000.00"); // 21M ZEC at an absurd rate: 20,999,999,999,999,999,999,999.99999999997… rounds up; no overflow, no float
+  assert.equal(usdText(0n, "1616.24"), "$0.00");
+  assert.equal(rateText("1610.95000"), "1 ZEC = $1,610.95");
+  assert.throws(() => usdText(1n, "1e3"), RangeError);
+  assert.throws(() => usdText(-1n, "1"), RangeError);
 });

@@ -1,15 +1,16 @@
 import { notFound } from "next/navigation";
-import { getBatch } from "../../../lib/data/batches.ts";
+import { getBatch, isSubmitted } from "../../../lib/data/batches.ts";
+import { currentLock } from "../../../lib/data/rates.ts";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
 import { serverContext } from "../../../lib/server/context.ts";
-import { shortAddress, zecText } from "../../../lib/view/format.ts";
+import { rateText, shortAddress, usdText, zecText } from "../../../lib/view/format.ts";
 import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
-import { IssueForm, PayForm } from "./action-forms.tsx";
+import { IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const view = status ? stateView(status) : unavailable ? STATUS_UNAVAILABLE : undefined;
   const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);
+  const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
+  const submitted = await isSubmitted(ctx.db, rec);
   return (
     <>
       <AccessNotice />
@@ -107,6 +110,33 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         )}
       </section>
 
+      <section aria-labelledby="rate-heading" className="space-y-2 rounded-lg border border-slate-200 p-4">
+        <h2 id="rate-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+          ZEC/USD rate
+        </h2>
+        {lock ? (
+          <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1 text-sm">
+            <dt className="text-slate-500">Locked rate</dt>
+            <dd>
+              <strong>{rateText(lock.rate)}</strong> <span className="text-slate-500">(bid, exactly {lock.rate})</span>
+            </dd>
+            <dt className="text-slate-500">Source</dt>
+            <dd>
+              Kraken {lock.pair} · ask {lock.ask} · last trade {lock.last}
+            </dd>
+            <dt className="text-slate-500">Fetched</dt>
+            <dd>{lock.fetchedAt.replace("T", " ").slice(0, 19)} UTC</dd>
+          </dl>
+        ) : (
+          <p className="text-sm">Not locked. Lock the rate to record the ZEC/USD value this batch is based on (source and time kept).</p>
+        )}
+        {submitted ? (
+          <p className="text-sm text-slate-500">The batch has been submitted: its rate can no longer be changed.</p>
+        ) : (
+          <LockRateForm id={rec.id} locked={lock !== undefined} />
+        )}
+      </section>
+
       <section aria-labelledby="items-heading" className="space-y-2">
         <h2 id="items-heading" className="text-lg font-semibold">
           Items
@@ -120,6 +150,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               <th>Address</th>
               <th>Memo</th>
               <th className="text-right">Amount</th>
+              {lock && <th className="text-right">USD at lock</th>}
             </tr>
           </thead>
           <tbody>
@@ -134,6 +165,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                 <td className="text-right" title={`${i.zat} zatoshi`}>
                   {zecText(i.zat)}
                 </td>
+                {lock && <td className="text-right">{usdText(i.zat, lock.rate)}</td>}
               </tr>
             ))}
           </tbody>
@@ -145,6 +177,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               <td className="text-right font-semibold" title={`${total} zatoshi`}>
                 {zecText(total)}
               </td>
+              {lock && <td className="text-right font-semibold">{usdText(total, lock.rate)}</td>}
             </tr>
           </tfoot>
         </table>

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { ActionOutcome } from "../../../lib/view/outcome.ts";
-import { issueAction, payAction } from "./actions.ts";
+import { issueAction, lockRateAction, payAction } from "./actions.ts";
 
 const TONE: Record<ActionOutcome["tone"], string> = {
   neutral: "border-slate-300 bg-slate-50",
@@ -46,6 +46,20 @@ export function IssueForm({ id }: { id: string }) {
       <input type="hidden" name="batchId" value={id} />
       <button type="submit" disabled={pending} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {pending ? "Issuing…" : "Issue receipts"}
+      </button>
+      <Result outcome={outcome} />
+    </form>
+  );
+}
+
+/** Lock the draft's ZEC/USD rate from the configured source, or re-lock it (a new lock becomes current). */
+export function LockRateForm({ id, locked }: { id: string; locked: boolean }) {
+  const [outcome, formAction, pending] = useActionState(lockRateAction, null);
+  return (
+    <form action={formAction} className="space-y-2">
+      <input type="hidden" name="batchId" value={id} />
+      <button type="submit" disabled={pending} className="rounded-md border border-slate-400 px-4 py-2 text-sm font-semibold disabled:opacity-60">
+        {pending ? "Asking the source…" : locked ? "Re-lock rate" : "Lock rate"}
       </button>
       <Result outcome={outcome} />
     </form>

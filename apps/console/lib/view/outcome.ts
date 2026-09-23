@@ -2,6 +2,7 @@
 // in plain language. The detail is the problem's fixed text, never the wallet's. `thisRequest` becomes a
 // sentence; an uncertain outcome is headed "Outcome unknown", never shown as a failure (Konclave #280).
 
+import { rateText } from "./format.ts";
 import type { Tone } from "./status.ts";
 
 export interface ActionOutcome {
@@ -19,6 +20,11 @@ interface Body {
   receipts?: unknown[];
   confirmations?: number;
   required?: number;
+  rate?: string;
+  bid?: string;
+  pair?: string;
+  fetchedAt?: string;
+  reason?: string;
 }
 
 const VERDICT = {
@@ -57,6 +63,18 @@ export async function receiptsOutcome(res: Response): Promise<ActionOutcome> {
   }
   if (res.status === 202) {
     return { tone: "info", headline: "Waiting", detail: `Receipts are issued after ${b.required} confirmations; the payment has ${b.confirmations}.` };
+  }
+  return problemOutcome(b);
+}
+
+/** After "Lock rate" (slice G1c2): the new rate with its source and time, or why nothing was locked. */
+export async function lockOutcome(res: Response): Promise<ActionOutcome> {
+  const b = (await res.json()) as Body;
+  if (res.status === 201 && b.rate) {
+    return { tone: "success", headline: "Rate locked", detail: `${rateText(b.rate)} (Kraken ${b.pair} bid ${b.rate}, fetched ${String(b.fetchedAt).replace("T", " ").slice(0, 19)} UTC).` };
+  }
+  if (b.code === "rate_unavailable") {
+    return { tone: "warning", headline: "Not locked", detail: sentence(b.detail, `The source's answer was unusable (${b.reason ?? "unknown"}); try again shortly.`) };
   }
   return problemOutcome(b);
 }

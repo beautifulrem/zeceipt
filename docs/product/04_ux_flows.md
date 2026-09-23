@@ -5,7 +5,7 @@
 1. Three-part outcome, never a single boolean: cryptographic validity · chain inclusion (confirmations) · issuer binding (confirmed / unknown / unsigned).
 2. Proves / does-not-prove text is always visible next to a result (spec §4).
 3. The receipt page needs no login and no server: verification runs in the browser; the page says which node it asks for the txid.
-4. Money is shown as ZEC with 8 decimals and USD at the locked rate with its source and timestamp; never floats.
+4. Money is shown as ZEC with 8 decimals and USD at the locked rate with its source and timestamp; never floats. Built on the batch page (slice G1c2; REQ-CON-4): ZEC is exact to the zatoshi, but trailing zeros are trimmed ("1.01 ZEC", `zecText`, slice E1), so "8 decimals" means the precision, not a padded format. USD at the lock is computed with bigints and rounded to the cent once, beside the rate's exact bid, source and fetch time.
 5. English only (hackathon rule `[R1]`).
 
 ## 2. Flows

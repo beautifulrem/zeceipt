@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { problem } from "../lib/http/problem.ts";
-import { receiptsOutcome, submitOutcome } from "../lib/view/outcome.ts";
+import { lockOutcome, receiptsOutcome, submitOutcome } from "../lib/view/outcome.ts";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const TXID = "a".repeat(64);
@@ -35,4 +35,16 @@ test("receipts: issued (201 or 200), waiting (202), and problems", async () => {
   const failed = await receiptsOutcome(problem(502, "issuance_failed", "zeceipt issue failed or its receipts do not match the batch; nothing was recorded"));
   assert.deepEqual(failed, { tone: "warning", headline: "Not done", detail: "zeceipt issue failed or its receipts do not match the batch; nothing was recorded." });
   assert.equal((await receiptsOutcome(problem(409, "not_ready_for_receipts", "receipts are issued only for a confirmed payment"))).headline, "Not done");
+});
+
+test("rate lock: the new rate with its source and time; an unusable source says nothing was locked (slice G1c2)", async () => {
+  assert.deepEqual(
+    await lockOutcome(json(201, { seq: 1, source: "kraken", pair: "XZECZUSD", bid: "1610.95000", ask: "1611.71000", last: "1611.35000", rate: "1610.95000", fetchedAt: "2026-09-23T03:49:53.281Z", recordedAt: "2026-09-23T03:49:53.282Z" })),
+    { tone: "success", headline: "Rate locked", detail: "1 ZEC = $1,610.95 (Kraken XZECZUSD bid 1610.95000, fetched 2026-09-23 03:49:53 UTC)." },
+  );
+  assert.deepEqual(
+    await lockOutcome(problem(502, "rate_unavailable", "the ZEC/USD source did not give a usable quote; nothing was locked", { reason: "network" })),
+    { tone: "warning", headline: "Not locked", detail: "the ZEC/USD source did not give a usable quote; nothing was locked. The source's answer was unusable (network); try again shortly." },
+  );
+  assert.deepEqual(await lockOutcome(problem(409, "batch_frozen", "the batch has a submission; its rate can no longer be locked")), { tone: "warning", headline: "Not done", detail: "the batch has a submission; its rate can no longer be locked." });
 });
