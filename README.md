@@ -35,7 +35,7 @@ $Z verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-
 
 Browser: `cd packages/verify && npm run build:wasm && npm run demo`, then open `http://localhost:8787/demo/` to paste a receipt.
 
-Receipt links: `zeceipt issue` prints each receipt as `https://<host>/r#<payload>` (`--host`, default `https://zeceipt.xyz`). The receipt is in the fragment, which browsers never send to the host (spec §2.1). The page at `/r/` (`packages/verify/r/`) reads it and verifies in the browser: open `http://localhost:8787/r/#<payload>` with `npm run demo` running. It shows the payment, where the transaction is on chain (per the public node you choose to ask, or unknown for a file), and who signed. It makes no other request and stores nothing (`docs/PROOF.md` §2c).
+Receipt links: `zeceipt issue` prints each receipt as `https://<host>/r#<payload>` (`--host`, default `https://zeceipt.xyz`). The receipt is in the fragment, which browsers never send to the host (spec §2.1). The page at `/r/` (`packages/verify/r/`) reads it and verifies in the browser: open `http://localhost:8787/r/#<payload>` with `npm run demo` running. It shows the payment, where the transaction is on chain (per the public node you choose to ask, or unknown for a file), and who signed. It makes no other request and stores nothing (`docs/PROOF.md` §2c). Hosting it: serve `packages/verify/` as the site root, and make `/r` redirect to `/r/`. Static hosts do this for a directory, and the redirect keeps the fragment (RFC 9110 §10.2.2). The page's relative paths (`page.js`, `page.css`, `../src/`, `../pkg/`) only resolve from `/r/`, so a host that serves `r/index.html` at `/r` without redirecting breaks the page. Check this on the real host.
 
 ## Crates
 

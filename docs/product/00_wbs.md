@@ -241,7 +241,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 ### 4.1 Publishing
 #### 4.1.1 Repository and package
 - 4.1.1.1 👤 ⬜ U — Create GitHub org/repo, push, enable CI.
-- 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example.
+- 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example. The receipt page needs `packages/verify/` as the site root, with `/r` redirected to `/r/` (README, "Receipt links"). Check it on the host, and add the page's CSP and `Referrer-Policy` as response headers there (a meta cannot carry `frame-ancestors`).
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve.
 - 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-08 → 10-09.
 #### 4.1.2 Community and design test

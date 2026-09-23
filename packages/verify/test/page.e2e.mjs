@@ -145,6 +145,7 @@ test("a bearer receipt opened by its link: summary first, then VALID with the th
   assert.match(issuer, /Signed by key [0-9a-f]{64} \(key id 2026-09\)/);
   assert.match(issuer, /issuer binding: unknown/);
   assert.match(await text(s.page, "#challenge-line"), /Not bound to a challenge/);
+  assert.equal(await s.page.getAttribute("#outcome", "class"), "ok", "green only when a node reports it mined");
   assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 1, "exactly one outside request: GetTransaction");
   await assertPrivate(s);
   await s.context.close();
@@ -233,6 +234,7 @@ test("regtest: no public node, the file load verifies with inclusion unknown", {
   assert.equal(await text(s.page, "#headline"), "VALID");
   assert.match(await text(s.page, "#payment"), /2\.50000000 ZEC/);
   assert.equal(await text(s.page, "#inclusion"), "Unknown: the transaction was loaded from a file. Check the txid on an explorer or your own node.");
+  assert.equal(await s.page.getAttribute("#outcome", "class"), "pending", "no success colour for a transaction nobody vouched for");
   assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 0, "a file load makes no outside request");
   await assertPrivate(s);
   await s.context.close();

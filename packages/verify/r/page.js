@@ -64,7 +64,10 @@ function verifyNow() {
     $("inclusion").textContent = view.inclusion.text;
     $("issuer").replaceChildren(...view.issuer.map((line) => { const li = document.createElement("li"); li.textContent = line; return li; }));
     $("challenge-line").textContent = view.challenge;
-    $("outcome").className = view.inclusion.state === "mined" || view.inclusion.state === "unknown" ? "ok" : "pending";
+    // Green only when a node reports the transaction mined in the main chain. From a file the page
+    // cannot tell (the verifier checks one output, not the whole transaction), so it is amber like
+    // pending and fork; the words carry the meaning, the colour only follows them.
+    $("outcome").className = view.inclusion.state === "mined" ? "ok" : "pending";
   } else {
     $("stage-copy").textContent = view.stageCopy;
     $("stage-error").textContent = view.error;

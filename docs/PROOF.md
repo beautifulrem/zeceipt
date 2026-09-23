@@ -161,7 +161,7 @@ Command: `cd packages/verify && npm ci && ZECEIPT_BROWSER_E2E=1 node --test test
 | `fixtures/synthetic-receipt.json` (challenge-bound) | The challenge input appears; after the fetch, "Enter the challenge you sent, then Verify". A wrong challenge gives **INVALID** with 04's challenge copy; `auditor-nonce-7` gives VALID and "Bound to your challenge, and it matched". |
 | the bearer receipt with its label edited | **INVALID**, 04's signature copy. |
 | an unsigned receipt with label `x <b>bold</b> y`, via `location.hash =` in the same tab (no reload) | The page re-renders on `hashchange`. VALID, "Unsigned: the label is the sender's unauthenticated text…". The label shows literally, and there is no `<b>` element in the page. |
-| `fixtures/regtest-receipt.json` | No fetch button: "No public node serves the local regtest chain (development only). Load the raw transaction from a file instead." Challenge `auditor-nonce-9`, then the file `fixtures/regtest-48be62e2….hex`: VALID, 2.50000000, "Unknown: the transaction was loaded from a file…". No outside request. |
+| `fixtures/regtest-receipt.json` | No fetch button: "No public node serves the local regtest chain (development only). Load the raw transaction from a file instead." Challenge `auditor-nonce-9`, then the file `fixtures/regtest-48be62e2….hex`: VALID, 2.50000000, "Unknown: the transaction was loaded from a file…", with the amber border: green only when a node reports the transaction mined (review F2b round 1). No outside request. |
 | `/r/`, `/r/#`, `/r/#hello` | "This link has no receipt in it" (twice); then **INVALID** with 04's parse copy. |
 | the WASM request held back | "Loading the verifier…" with "What a valid result proves" and "What it does not prove" already on screen. |
 
