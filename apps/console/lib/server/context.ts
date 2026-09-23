@@ -16,6 +16,7 @@ import { ExecutionError } from "../execution/types.ts";
 import { SqliteIdempotencyStore } from "../execution/sqlite-store.ts";
 import { ZkoolBackend } from "../execution/zkool-backend.ts";
 import { ZkoolClient } from "../execution/zkool-client.ts";
+import { fetchZecUsdQuote, type RateQuote } from "../rates/kraken.ts";
 import { migrateDb, openDb, type ConsoleDb } from "../../db/client.ts";
 
 export interface ServerContext {
@@ -26,6 +27,8 @@ export interface ServerContext {
   readonly store: SqliteIdempotencyStore;
   /** The Zkool backend in hot custody; undefined in external custody, where this console never pays (slice D2). */
   readonly backend?: ZkoolBackend;
+  /** A fresh ZEC/USD quote from the configured source (slice G1c1); throws RateUnavailableError, never a default. */
+  readonly quote: () => Promise<RateQuote>;
 }
 
 /**
@@ -109,7 +112,8 @@ export function serverContext(): ServerContext {
       custody.mode === "hot"
         ? new ZkoolBackend({ client: new ZkoolClient({ url: custody.zkool.url, allowRemote: custody.zkool.allowRemote }), account: custody.zkool.account, store })
         : undefined;
-    ctx = Object.freeze({ config, db, keyring: keyringFromConfig(config), store, backend });
+    const quote = () => fetchZecUsdQuote({ url: config.rateUrl });
+    ctx = Object.freeze({ config, db, keyring: keyringFromConfig(config), store, backend, quote });
     built.set(boot, ctx);
   }
   return ctx;

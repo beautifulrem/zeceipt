@@ -10,6 +10,7 @@ import { BatchInvalidError, createBatch, getBatch, listBatches, type BatchRecord
 import { serverContext } from "../server/context.ts";
 import { readJson } from "./body.ts";
 import { HttpProblem, problem } from "./problem.ts";
+import { rateLockJson, type LockJson } from "./rates.ts";
 
 const ItemBody = z.strictObject({
   payableId: z.string(),
@@ -25,7 +26,8 @@ export const CreateBatchBody = z.strictObject({
 
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-export function batchJson(rec: BatchRecord) {
+/** The batch as the API shows it; `rateLock` is its current ZEC/USD lock (slice G1c1), null until locked. */
+export function batchJson(rec: BatchRecord, rateLock: LockJson | null = null) {
   return {
     id: rec.id,
     network: rec.network,
@@ -33,6 +35,7 @@ export function batchJson(rec: BatchRecord) {
     createdAt: rec.createdAt,
     totalZat: rec.items.reduce((s, i) => s + i.zat, 0n).toString(),
     items: rec.items.map((i) => ({ idx: i.idx, payableId: i.payableId, label: i.label, address: i.address, zat: i.zat.toString(), memo: i.memo })),
+    rateLock,
   };
 }
 
@@ -89,5 +92,5 @@ export async function getBatchResponse(id: string): Promise<Response> {
   const { config, db } = serverContext();
   const rec = UUID_V7.test(id) ? await getBatch(db, config.orgId, id) : undefined;
   if (!rec) return problem(404, "batch_not_found", "no batch with this id");
-  return json(200, batchJson(rec));
+  return json(200, batchJson(rec, await rateLockJson(config.orgId, rec.id)));
 }

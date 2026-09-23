@@ -138,6 +138,23 @@ test("receipt host: https (http only on loopback), no credentials, query or frag
   assert.equal(configSummary(loadConfig({ ...hot, ZECEIPT_RECEIPT_HOST: "http://127.0.0.1:8787" })).receiptHost, "http://127.0.0.1:8787");
 });
 
+test("rate source: Kraken's Ticker by default; https, or http on loopback; a query allowed; no credentials or fragment (slice G1c1)", () => {
+  const url = (v: string | undefined) => loadConfig({ ...hot, ZECEIPT_RATE_URL: v }).rateUrl;
+  assert.equal(url(undefined), "https://api.kraken.com/0/public/Ticker?pair=ZECUSD");
+  assert.equal(url("https://mirror.example.org/0/public/Ticker?pair=ZECUSD"), "https://mirror.example.org/0/public/Ticker?pair=ZECUSD");
+  assert.equal(url("http://127.0.0.1:9911/ticker"), "http://127.0.0.1:9911/ticker");
+  for (const bad of ["http://mirror.example.org/ticker", "https://u:p@mirror.example.org/", "https://mirror.example.org/#x", "https://mirror.example.org/#", "file:///etc/passwd", "ticker"]) {
+    assert.deepEqual(problems({ ...hot, ZECEIPT_RATE_URL: bad }), ["ZECEIPT_RATE_URL"], bad);
+  }
+  try {
+    loadConfig({ ...hot, ZECEIPT_RATE_URL: "https://secret-user:secret-pass@x.example" });
+    assert.fail("should refuse");
+  } catch (e) {
+    assert.ok(e instanceof ConfigError && !e.message.includes("secret-pass"));
+  }
+  assert.equal(configSummary(loadConfig(hot)).rateUrl, "https://api.kraken.com/0/public/Ticker?pair=ZECUSD");
+});
+
 test("wrap keys: 32 bytes each, strict base64, unique well-formed ids; the last one seals", () => {
   const w = (v: string) => problems({ ...hot, ZECEIPT_WRAP_KEYS: v });
   assert.deepEqual(w(`k1:${Buffer.alloc(31).toString("base64")}`), ["ZECEIPT_WRAP_KEYS"], "31 bytes");

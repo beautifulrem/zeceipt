@@ -650,6 +650,79 @@
           }
         }
       }
+    },
+    "/api/batches/{id}/rate-lock": {
+      "post": {
+        "operationId": "lockRate",
+        "summary": "Lock the draft batch's ZEC/USD rate from the configured source (Kraken's Ticker by default, ZECEIPT_RATE_URL). No body. A re-lock appends a new lock, which becomes current. Refused once the batch has a submission. On any source failure nothing is locked.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Locked: the new current lock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLock"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "batch_frozen: the batch has a submission",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "502": {
+            "description": "rate_unavailable: the source gave no usable quote (the extension `reason` is one of network, http, too_large, json, source_error, pair_missing, bad_price, crossed_book); nothing was locked",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -708,7 +781,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable"
           },
           "problems": {
             "type": "array",
@@ -769,6 +842,10 @@
           "next": {
             "type": "string",
             "description": "not_ready_for_receipts: the next action for that state"
+          },
+          "reason": {
+            "type": "string",
+            "description": "rate_unavailable only: why the source's answer was unusable (a fixed word)"
           }
         }
       },
@@ -830,7 +907,8 @@
           "title",
           "createdAt",
           "totalZat",
-          "items"
+          "items",
+          "rateLock"
         ],
         "properties": {
           "id": {
@@ -890,6 +968,17 @@
                 }
               }
             }
+          },
+          "rateLock": {
+            "description": "The current ZEC/USD lock, or null until the batch is locked",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RateLock"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -989,6 +1078,66 @@
           "openError": {
             "type": "string",
             "description": "This row's sealed payload did not open (e.g. seal_unknown_kid); the other rows are still returned"
+          }
+        }
+      },
+      "RateLock": {
+        "type": "object",
+        "description": "A ZEC/USD quote recorded as a batch's rate lock (slice G1c1; REQ-CON-4, NFR-8). The rate is the bid (BTCPay's choice); ask and last are kept so another reasonable method can be applied consistently. Each lock is a new record: a re-lock appends and becomes current.",
+        "required": [
+          "seq",
+          "source",
+          "pair",
+          "bid",
+          "ask",
+          "last",
+          "rate",
+          "fetchedAt",
+          "recordedAt"
+        ],
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Position in the batch's quote history"
+          },
+          "source": {
+            "const": "kraken"
+          },
+          "pair": {
+            "type": "string",
+            "examples": [
+              "XZECZUSD"
+            ]
+          },
+          "bid": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}(\\.[0-9]{1,18})?$",
+            "description": "USD per ZEC, a plain decimal string exactly as the source sent it"
+          },
+          "ask": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}(\\.[0-9]{1,18})?$",
+            "description": "USD per ZEC, a plain decimal string exactly as the source sent it"
+          },
+          "last": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}(\\.[0-9]{1,18})?$",
+            "description": "USD per ZEC, a plain decimal string exactly as the source sent it"
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^[0-9]{1,15}(\\.[0-9]{1,18})?$",
+            "description": "The rate used to convert: equal to bid"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the source's answer arrived (the console's clock; the ticker carries no timestamp)"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

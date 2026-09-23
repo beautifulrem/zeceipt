@@ -9,6 +9,7 @@ import { Keyring } from "../crypto/seal.ts";
 import { SecretBytes } from "../crypto/secret.ts";
 import { LOOPBACK_HOSTS } from "../execution/zkool-client.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
+import { KRAKEN_TICKER_URL } from "../rates/kraken.ts";
 
 export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean } } | { mode: "external" };
 
@@ -24,6 +25,8 @@ export interface ConsoleConfig {
   issuer: { bin: string; ufvkFile: string; keyFile: string; keyId: string };
   /** Where the public receipt page is served; receipt links are `<receiptHost>/r#<payload>` (spec §2.1). */
   receiptHost: string;
+  /** A Kraken-format Ticker URL for ZEC/USD quotes (slice G1c1); default Kraken's own. */
+  rateUrl: string;
 }
 
 export interface ConfigProblem {
@@ -57,6 +60,7 @@ const KNOWN = [
   "ISSUER_KEY_FILE",
   "ISSUER_KEY_ID",
   "RECEIPT_HOST",
+  "RATE_URL",
 ].map((k) => P + k);
 
 // http(s) only, and no user:password@ part: neither Zkool nor lightwalletd uses URL credentials, and a URL is
@@ -84,6 +88,16 @@ const receiptHostUrl = z.string().refine((s) => {
     return false;
   }
 }).transform((s) => new URL(s).href.replace(/\/+$/, ""));
+// The ZEC/USD source (slice G1c1): Kraken's Ticker by default; tests and a local mirror may use loopback http.
+// Same transport rules as the receipt host, except that a query is allowed (the Ticker URL has one).
+const rateUrlSchema = z.string().refine((s) => {
+  try {
+    const u = new URL(s);
+    return (u.protocol === "https:" || (u.protocol === "http:" && LOOPBACK_HOSTS.has(u.hostname))) && u.username === "" && u.password === "" && u.hash === "" && !s.includes("#");
+  } catch {
+    return false;
+  }
+}).transform((s) => new URL(s).href);
 const absPath = z.string().refine((s) => isAbsolute(s) && !s.startsWith("file:") && s !== ":memory:" && !/[\u0000-\u001f\u007f]/.test(s));
 const intIn = (min: number, max: number) => z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min).max(max));
 
@@ -142,6 +156,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const ufvkFile = field("UFVK_FILE", absPath, "must be the absolute path of the issuer's UFVK file");
   const keyFile = field("ISSUER_KEY_FILE", absPath, "must be the absolute path of the issuer signing key file");
   const keyId = field("ISSUER_KEY_ID", z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), "must be 1–64 characters of A-Z, a-z, 0-9, ., _ and -");
+  const rateUrl = field("RATE_URL", rateUrlSchema, "must be the https URL of a Kraken-format ZEC/USD ticker (http only on a loopback host), without credentials or fragment", { fallback: KRAKEN_TICKER_URL });
   const receiptHost = field("RECEIPT_HOST", receiptHostUrl, "must be the https URL of the public receipt page's site (http only on a loopback host), without credentials, query or fragment", { fallback: DEFAULT_RECEIPT_HOST });
 
   if (problems.length) throw new ConfigError(problems);
@@ -155,6 +170,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     lightwalletdUrl: lightwalletdUrl!,
     issuer: { bin: bin!, ufvkFile: ufvkFile!, keyFile: keyFile!, keyId: keyId! },
     receiptHost: receiptHost!,
+    rateUrl: rateUrl!,
   };
   return deepFreeze(config);
 }
@@ -215,6 +231,7 @@ export function configSummary(c: ConsoleConfig): Record<string, unknown> {
     lightwalletdUrl: c.lightwalletdUrl,
     issuer: { ...c.issuer },
     receiptHost: c.receiptHost,
+    rateUrl: c.rateUrl,
   };
 }
 
