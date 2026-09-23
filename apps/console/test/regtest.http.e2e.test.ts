@@ -216,7 +216,8 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
         const page = await context.newPage();
         const sent: string[] = [];
         page.on("request", (req) => sent.push(`${req.url()} ${JSON.stringify(req.headers())} ${req.postData() ?? ""}`));
-        await page.goto(r.url!.replace("/r#", "/r/#")); // the host would redirect /r → /r/ anyway (F2b); skip the hop
+        await page.goto(r.url!); // the link exactly as the console printed it: the host redirects /r → /r/, the fragment stays
+        assert.equal(new URL(page.url()).pathname, "/r/");
         await page.waitForFunction(() => /verification runs in this page/.test(document.getElementById("status")!.textContent ?? ""));
         await page.setInputFiles("#rawfile", rawFile);
         await page.waitForSelector("#outcome:not([hidden])");

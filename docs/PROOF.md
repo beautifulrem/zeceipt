@@ -745,6 +745,7 @@ What the log shows:
   - **What each page showed:** VALID, that item's memo and exact zatoshi, and the issuer's signature with key id 2026-09.
   - **No outside requests:** none were made (a file load).
   - **No leaks:** no request the page made, and none of the 22 the host received, carried any receipt payload or OCK.
+  - **Opened exactly as printed (review F3 round 1).** Re-run `console-http-e2e-20260923032735.json` opened each link exactly as the console printed it. The host redirected `/r` to `/r/` with the fragment kept, and all 3 pages showed VALID; none of the 25 host requests carried a receipt.
 
 - **Fragment links (slice F1).** Re-run with the rebuilt CLI: `console-http-e2e-20260923014326.json`, tx `953b2718…` at 2875, confirmed at 2878. Each console link is `https://zeceipt.xyz/r#…` (asserted without printing it), and each link verifies online as given (outputs 2, 0, 3).
 
