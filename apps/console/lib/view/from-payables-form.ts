@@ -48,11 +48,17 @@ const CHOICE_CODES = new Set(["empty_batch", "too_many_recipients"]);
 // another batch took a payable was refused silently).
 const NOT_OFFERED = new Set(["payable_taken", "payable_unknown"]);
 
+/** What the page knows of a posted payable: its reference and, when a batch holds it, that batch's title. */
+export interface PostedPayable {
+  reference: string;
+  heldBy?: string;
+}
+
 /**
  * Where each part of an API answer goes; `posted` is the id list that was sent (so an index finds its payable), and
- * `references` names the posted payables that still exist (id → reference).
+ * `known` describes the posted payables that still exist. `known` is undefined when they could not be looked up.
  */
-export function fromPayablesFormErrors(body: ApiProblemBody, posted: string[], references: Record<string, string> = {}): Pick<FromPayablesFormState, "top" | "title" | "choice" | "byPayable"> {
+export function fromPayablesFormErrors(body: ApiProblemBody, posted: string[], known?: Record<string, PostedPayable>): Pick<FromPayablesFormState, "top" | "title" | "choice" | "byPayable"> {
   const out = { top: [] as string[], title: [] as string[], choice: [] as string[], byPayable: {} as Record<string, string[]> };
   if (body.code === "rate_unavailable") {
     out.top.push(SOURCE_DOWN);
@@ -65,7 +71,13 @@ export function fromPayablesFormErrors(body: ApiProblemBody, posted: string[], r
   for (const p of body.problems ?? []) {
     const id = p.index === undefined ? undefined : posted[p.index];
     if (id !== undefined && NOT_OFFERED.has(p.code)) {
-      out.top.push(references[id] ? `${references[id]}: ${p.detail}. It is no longer offered.` : "A chosen payable no longer exists, so it is no longer offered.");
+      const k = known?.[id];
+      // Only say "no longer exists" when the lookup succeeded and found nothing (review H5b round 2): a failed lookup
+      // falls back to the API's own words.
+      if (k?.heldBy !== undefined) out.top.push(`${k.reference} is already in the batch "${k.heldBy}", so it is no longer offered.`);
+      else if (k) out.top.push(`${k.reference}: ${p.detail}. It is no longer offered.`);
+      else if (known) out.top.push("A chosen payable no longer exists, so it is no longer offered.");
+      else out.top.push(`A chosen payable is no longer offered: ${p.detail}.`);
     } else if (id !== undefined) (out.byPayable[id] ??= []).push(p.detail);
     else if (p.code === "title_invalid") out.title.push(ENTER_TITLE);
     else if (CHOICE_CODES.has(p.code)) out.choice.push(p.detail);

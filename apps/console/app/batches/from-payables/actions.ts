@@ -5,10 +5,11 @@
 
 import { redirect } from "next/navigation";
 import { createFromPayablesFrom, payableBatchesProblem } from "../../../lib/http/payable-batches.ts";
+import { payableHolders } from "../../../lib/data/payable-status.ts";
 import { getPayable } from "../../../lib/data/payables.ts";
 import { answer } from "../../../lib/http/route.ts";
 import { serverContext } from "../../../lib/server/context.ts";
-import { CHOOSE_ONE, fromPayablesFormErrors, readFromPayablesForm, type FromPayablesFormState } from "../../../lib/view/from-payables-form.ts";
+import { CHOOSE_ONE, fromPayablesFormErrors, readFromPayablesForm, type FromPayablesFormState, type PostedPayable } from "../../../lib/view/from-payables-form.ts";
 
 export async function createBatchFromPayablesAction(prev: FromPayablesFormState, form: FormData): Promise<FromPayablesFormState> {
   const values = readFromPayablesForm(form);
@@ -17,14 +18,22 @@ export async function createBatchFromPayablesAction(prev: FromPayablesFormState,
   if (values.payableIds.length === 0) return { ...next, choice: [CHOOSE_ONE] };
   const res = await answer(() => createFromPayablesFrom({ title: values.title, payableIds: values.payableIds }), payableBatchesProblem);
   if (res.status !== 201) {
-    // The posted payables' references, so a problem about one no longer offered can name it (review H5b).
+    // The posted payables' references and holders, so a problem about one no longer offered can name it and its
+    // batch (review H5b). A failed lookup (say the store is busy) leaves `known` undefined: nothing is claimed about
+    // the payables then, rather than calling them gone (review H5b round 2).
     const { config, db } = serverContext();
-    const references: Record<string, string> = {};
-    for (const id of values.payableIds) {
-      const p = await getPayable(db, config.orgId, id).catch(() => undefined);
-      if (p) references[id] = p.reference;
+    let known: Record<string, PostedPayable> | undefined;
+    try {
+      const holders = await payableHolders(db, config.orgId);
+      known = {};
+      for (const id of values.payableIds) {
+        const p = await getPayable(db, config.orgId, id);
+        if (p) known[id] = { reference: p.reference, ...(holders.get(id) ? { heldBy: holders.get(id)!.title } : {}) };
+      }
+    } catch {
+      known = undefined;
     }
-    return { ...next, ...fromPayablesFormErrors((await res.json()) as Parameters<typeof fromPayablesFormErrors>[0], values.payableIds, references) };
+    return { ...next, ...fromPayablesFormErrors((await res.json()) as Parameters<typeof fromPayablesFormErrors>[0], values.payableIds, known) };
   }
   const { id } = (await res.json()) as { id: string };
   // Outside any try: redirect throws. 303 for a no-JS post, a client navigation otherwise (R64).
