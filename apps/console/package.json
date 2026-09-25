@@ -8,9 +8,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
     "test": "node --test test/*.test.ts",
     "test:regtest": "ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts",
     "typecheck": "tsc --noEmit -p .",

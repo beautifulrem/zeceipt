@@ -29,6 +29,8 @@ The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentat
 | `lib/http/problem.ts`, `guard.ts`, `route.ts`, `body.ts`, `batches.ts`; `proxy.ts`; `app/api/**` | RFC 9457 problems; the one request-guard rule (loopback `Host`; no cross-site writes), applied to pages and static files by `proxy.ts` and to every API route by `guarded()`; the capped JSON reader; the batch handlers (create, list, get) |
 | `instrumentation.ts`, `app/layout.tsx`, `app/page.tsx`, `next.config.ts` | Next.js entry points: `register()` (Node.js runtime only) calls `registerNode`; the root layout and a placeholder `/` |
 
+The `start` and `dev` scripts bind 127.0.0.1 themselves (slice S1): `next start` alone listens on every interface, and until sign-in exists (leaf 3.3.1.2) the loopback bind is what keeps other machines out. Do not pass another `-H`.
+
 ## Demo footage
 
 `ZECEIPT_REGTEST=1 node test/shots/demo-video.ts [out-dir]` (after `next build`, with the regtest services running as in `docs/REGTEST_RUNBOOK.md`) records the pitch's console beats on the live regtest chain in Chrome (slice L2): three silent segments (payables to Pay; receipts and history; a receipt link VALID, then tampered, INVALID) and `shots.json` with each step's timing, into `../raw/demo/<stamp>/`, outside the repository. Receipt links and keys are never written.
@@ -68,5 +70,5 @@ npm run lint                                                               # ESL
 ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts          # unit tests (fake Zkool + real zeceipt on fixtures)
 npm run test:app                                                           # next build, then next start: health passes; bad config exits 1
 ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts                     # live regtest, see docs/REGTEST_RUNBOOK.md and PROOF §5c
-npm run build && set -a && . ./.env && set +a && npm start -- -H 127.0.0.1  # the app (loopback), with a filled-in copy of .env.example
+npm run build && set -a && . ./.env && set +a && npm start  # the app, loopback only (the script binds 127.0.0.1), with a filled-in copy of .env.example
 ```

@@ -976,3 +976,48 @@ test("create-draft form in a real browser (JavaScript): Remove takes the line cl
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   }
 });
+
+// Slice S1 (R95): plain `npm start` binds loopback. `next start` alone listens on 0.0.0.0, and the request guard stops
+// browsers and DNS rebinding, not a network peer that writes its own `Host: localhost`; until sign-in exists the bind
+// address is what keeps other machines out (RSK-24). Started exactly as an operator would, through the package script.
+test("npm start binds 127.0.0.1 only: healthy on loopback, refused on this machine's own network address (slice S1)", { skip: !RUN }, async () => {
+  const { networkInterfaces } = await import("node:os");
+  const { spawn } = await import("node:child_process");
+  const { freePort } = await import("./helpers/app-server.ts");
+  const port = await freePort();
+  let out = "";
+  const child = spawn("npm", ["start", "--", "-p", String(port)], { cwd: APP, env: demoEnv("bind") as NodeJS.ProcessEnv, detached: true, stdio: ["ignore", "pipe", "pipe"] });
+  child.stdout!.on("data", (d) => (out += d));
+  child.stderr!.on("data", (d) => (out += d));
+  const exited = new Promise<number | null>((r) => child.once("exit", (code) => r(code)));
+  try {
+    await waitHealthy(port, child, () => out);
+    const lan = Object.values(networkInterfaces()).flat().find((i) => i && i.family === "IPv4" && !i.internal)?.address;
+    if (lan) {
+      const refused = await new Promise<string>((ok) => {
+        const sock = connect({ host: lan, port }, () => {
+          sock.destroy();
+          ok("connected");
+        });
+        sock.on("error", (e) => ok((e as NodeJS.ErrnoException).code ?? "error"));
+        sock.setTimeout(3000, () => {
+          sock.destroy();
+          ok("timeout");
+        });
+      });
+      assert.equal(refused, "ECONNREFUSED", `a peer on ${lan}:${port} must not reach the console`);
+    } else {
+      // No non-loopback address on this machine: the listening socket itself must be the loopback one.
+      const ls = spawnSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" });
+      assert.match(ls.stdout, /127\.0\.0\.1:\d+ \(LISTEN\)/);
+      assert.doesNotMatch(ls.stdout, /\*:\d+ \(LISTEN\)/);
+    }
+  } finally {
+    try {
+      process.kill(-child.pid!, "SIGTERM"); // npm and the server it started: the whole process group, nothing else
+    } catch {
+      /* already gone */
+    }
+    await within(exited, 10_000, "npm start shutdown").catch(() => process.kill(-child.pid!, "SIGKILL"));
+  }
+});

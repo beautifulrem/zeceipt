@@ -37,7 +37,7 @@ Each item is re-read at every run; the evidence is where it is proven.
 | No secret in logs or output (wrap keys, OCKs, receipts, CLI output) | NFR-6 guard; `assertNoKey` over every server's output in the app e2e; the receipt worker logs batch ids and codes only (slice I2) |
 | Receipt links never reach a server | The fragment form `/r#<payload>`; the Chrome e2e checks every request, header and storage area (`docs/PROOF.md` §2c) |
 | OCKs and receipt links sealed at rest | AES-256-GCM with HKDF per-org keys and AAD (`lib/crypto/seal.ts`, slice B2); tamper tests |
-| Requests only from this machine; no cross-site writes | The request guard (loopback Host, same-origin writes) on every page and API route (`proxy.ts`, `guarded()`); the app e2e |
+| Requests only from this machine; no cross-site writes | The `start` and `dev` scripts bind 127.0.0.1 (slice S1; the app e2e starts through `npm start` and is refused on the machine's network address); the request guard (loopback Host, same-origin writes) on every page and API route (`proxy.ts`, `guarded()`), which stops browsers and DNS rebinding, not a peer choosing its own Host |
 | Payment integrity | One nonce per batch (REQ-CON-7); the rate guard (REQ-CON-21); the approval HMAC over the lines, lock and paying account, required before every attempt (REQ-CON-5, slice I3) |
 | Audit trail holds no secret | `audit_log` details are chosen non-secret columns, checked against real receipts and approvals (slice I4) |
 | Dependencies pinned | `Cargo.lock`, and `package-lock.json` in each package; CI installs with `npm ci` |
