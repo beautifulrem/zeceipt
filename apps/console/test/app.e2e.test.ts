@@ -794,7 +794,7 @@ test("voiding a draft from the batch page through next start, as a browser witho
 test("the linkability warning through next start (REQ-CON-6, slice H6): after real receipts for batch A, a new draft paying the same recipient shows the report, and the recipients page and chooser flag it", { skip: !RUN }, async () => {
   const s = await start(demoEnv("linkability", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
   const ROOT = resolve(APP, "../..");
-  const BIN = process.env.ZECEIPT_BIN_DEBUG ?? join(ROOT, "target/debug/zeceipt");
+  const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/debug/zeceipt"); // as every other test (review H6)
   const TXID = "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2";
   const FIXTURE = [
     { payableId: "p-2", label: "R2", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "101000000", memo: "INV-R-002" },
