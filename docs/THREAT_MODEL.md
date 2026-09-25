@@ -18,3 +18,54 @@ Assets: the organisation's spending keys (never in scope of this software), its 
 | Dependency drift (Ironwood/NU7 format changes) | Verifier breaks | Pinned crate set; v6 parsing tested against a committed mainnet fixture; NU7 re-test scheduled for the testnet activation on 2026-10-06. |
 
 Out of scope: spend-authority proof (full ZIP 311), consensus validation of the transaction (verifiers rely on their data source for inclusion), and key management for the issuer's signing key beyond file permissions.
+
+## The payout console (`apps/console`)
+
+The table above covers receipts and verifiers. This section covers the console, which pays batches from a hot wallet in hot custody. The method is OWASP's four questions: what we are building, what can go wrong, what we do about it, and whether it worked `[R100]`. Each threat carries its STRIDE letter, the control, the evidence and the residual. Slice T1 wrote this section, and its mapping found three gaps, fixed as slices S3, S4 and S5.
+
+**What we are building.** One operator, on one machine, uses a browser to reach the console on loopback.
+
+```
+operator's browser ──(1)── console (Next.js, 127.0.0.1) ──(2)── SQLite file (sealed receipts, audit trails)
+   other tabs/sites ─┘            │  │                     └──(3)── Zkool GraphQL (hot wallet: the seed) ──► lightwalletd ──► chain
+                                  │  └──(4)── zeceipt CLI (UFVK file, issuer key file) ──► lightwalletd
+                                  └──(5)── Kraken ticker (ZEC/USD)          receipt links ──(6)── the receipt page's host
+```
+
+Trust boundaries:
+1. The browser and every other page open in it.
+2. Anyone who can write the database file or read its backups.
+3. The wallet endpoint and whoever else can reach it.
+4. The CLI subprocess and the files it reads.
+5. The rate source.
+6. The receipt page's host.
+
+**Assets:**
+- the hot wallet's funds, where the seed stays in Zkool;
+- the Zkool token (S3);
+- the wrap keys, which seal receipts and key the approvals;
+- the sealed receipts, whose OCKs are bearer disclosures;
+- the approvals;
+- the record of what was paid.
+
+| Threat (STRIDE) | Control and evidence | Residual |
+|---|---|---|
+| **A hostile page or another host drives the console** (S, T): a cross-site POST, DNS rebinding, or a network peer | Every request passes `lib/http/guard.ts`: `Host` must be a loopback name; writes refuse a cross-site `Sec-Fetch-Site` and any foreign or `null` `Origin`; JSON bodies need `application/json`. The `start` and `dev` scripts bind 127.0.0.1 (S1). Evidence: `http-guard`, `route-guard` and `scripts` tests, and the app e2e, which is refused on the machine's LAN address. RSK-24, R60, R95 | A request with neither `Origin` nor `Sec-Fetch-Site` passes as a non-browser caller (see the next row) |
+| **Clickjacking** (T): a hostile page frames a batch page and tricks a click on Approve or Pay. The framed form posts same-origin, so the guard passes it | Every response refuses framing: `frame-ancestors 'none'` and `X-Frame-Options: DENY`, plus `nosniff` and `no-referrer` (S4). Evidence: the app e2e checks seven response classes, and Chrome blocks a hostile origin's iframe (the negative control rendered it). R98 | No `script-src` policy yet: nonces force dynamic rendering, so it is a separate decision |
+| **Any local process uses the console** (S, E): there is no sign-in | Accepted until authentication (leaf 3.3.1.2). The approval's approver is recorded as `operator`. RSK-24 | Anything on the machine that can reach the port can approve and pay a batch |
+| **The hot wallet is paid from directly, around the console** (S, E): `zkool_graphql` listens on every interface, with no bind option, and without a key it serves anyone | Zkool runs with `--jwt-public-key-file`. The console holds a token for its own account only (write, expiry), never the signing key. Startup refuses an admin, foreign, read-only or expired token and a file others can read. A refused token counts as "nothing sent". Evidence: `zkool-token` tests, and route tests against a fake that requires tokens. Live in PROOF §5e: no token → HTTP 500 AuthError. RSK-25, R97 | **Bearer token:** whoever reads the file can pay from that account until it expires. **Plain HTTP:** hence loopback only. **Slice S3b:** until the probe is built, the console cannot see whether Zkool enforces tokens, and the token's signature is not yet checked at boot |
+| **Wrap keys leak** (I): through logs, errors, the environment or the database | The keys come from the environment only: parsed strictly, wrapped in `SecretBytes` (redacted in every string form) and scrubbed from `process.env` after boot. Config errors name the variable, never the value. Rotation: the last key seals, `rewrapReceipts` re-seals, and `sealedKidsInUse` shows when an old key can go. Evidence: `config`, `seal`, `server-context` and `receipts` tests; `assertNoKey` over every server's output in the app e2e | A copy survives in `/proc/<pid>/environ` and in Next's environment snapshot (RSK-23). Recipients, addresses, memos and amounts are plaintext in the database; only receipts are sealed |
+| **The database is edited or restored from a backup** (T): an approval forged, a line changed after approval, a paid batch paid again | **Approvals:** HMAC-SHA256 under a key derived from the wrap key, which is not in the database, over the lines, the lock and the paying account, recomputed on every read (I3). **Frozen data:** freeze triggers on submitted batches; append-only rate quotes, approvals and audit and record trails. **Paid batches:** since S5, a batch is never paid on the database's word alone; the wallet's mined history is read before every `pay`, and a transaction that already pays every line is adopted. Evidence: `approvals`, `batches`, `audit`, `record-log` and `zkool-backend` tests, and the route test that edits a paid submission back to retryable. R99 | A writer of the file can drop triggers and rewrite the trails. It can usually read the Zkool token too, which is host compromise. A payment still unmined at restore time is not seen, because Zkool runs `--no-mempool` |
+| **A batch is paid twice after an uncertain outcome** (T) | One nonce per batch, with exclusive intents and compare-and-set writes. Refusals before any build count as nothing sent. An uncertain outcome is paid again only when nothing is mined and the account is scanned past the attempt's expiry bound. Evidence: `zkool-backend`, `submit-routes` and `store-race` tests; PROOF §5c and §5d (one payment for two Pay posts). RSK-21, RSK-22 | RSK-21's stated cases: a stall inside Zkool longer than the pay timeout, or a reorg deeper than the margin |
+| **The rate moved or was mislabelled** (T, S) | A rate lock per batch. Submit re-quotes and refuses a move beyond `ZECEIPT_RATE_MAX_DRIFT_BPS` (409 `rate_moved`, before any `pay`). Each quote records its host, and the page names Kraken only for `api.kraken.com` (N1). Evidence: `drift`, `submit-routes`, `rate-quotes` and `view` tests. REQ-CON-21, NFR-8 | A compromised or wrong rate source within the drift limit is believed. The source is one exchange |
+| **A payee's address is swapped** (T), as in business email compromise | No route edits a recipient or a payable. Lines copy the address when the batch is made. The approval covers each line's address. The record trail keeps every change as `{previous, current}` (full addresses when the short forms match). Addresses are decoded in full (ZIP 316) and must hold an Orchard receiver; duplicates are flagged by receiver. Evidence: `record-log`, `recipients` and `address-vectors` tests. R91 | Confirming a change through a second channel (R91) waits for an edit path, which does not exist yet |
+| **A receipt link leaks** (I): at rest, in transit, or through its host | Receipts are sealed at rest (AES-256-GCM, with the row as AAD), served `no-store` and never logged; `verify` reads a receipt from stdin, not from a file. Links are built on read on `ZECEIPT_RECEIPT_HOST`, which has no default (S2): the host serves the page that reads the fragment. See the link-host row above | **The receipt page can be framed:** its CSP is a `<meta>` tag, where browsers ignore `frame-ancestors`, so it must be served with that header (README, "Hosting it"). **A loopback host** opens the recipient's own machine: an operator error with a visible symptom, since the link fails for them |
+| **Denial of service** (D) | Bodies are capped at 256 KiB while they arrive. There are timeouts on Zkool (60 s, and 300 s for `pay`), Kraken (10 s), the CLI (120 s, with a 16 MiB output cap) and SQLite (2 s busy). The receipt worker backs off exponentially, capped at 32 passes, and its passes never overlap | Node's `requestTimeout` is still its 300 s default (RSK-24; the deploy leaf lowers it) |
+| **The CLI subprocess is abused** (E): argument injection | `execFile` and `spawn`, never a shell. Each argument is its own argv entry. Addresses are validated unified addresses; the batch id is a UUIDv7; paths and the host come from validated config. The UFVK and the issuer key are passed as file paths | No test aims at argument injection specifically |
+| **Actions cannot be attributed** (R) | Append-only audit and record trails, written in the same transaction as the change (0021–0023), and served as history on the batch, recipient and payable pages | There is one approver, `operator`, and no identity until sign-in. The two-person rule (REQ-CON-22) is dropped |
+| **A dependency is compromised** (T) | Lockfiles; `npm ci`; `scripts/security_review.sh` (cargo audit `--deny warnings`, npm audit, gitleaks over history and tree, the source guards), recorded in `docs/SECURITY_REVIEW.md` | Advisory databases lag new attacks |
+
+**Did we do a good job?** Every row names its evidence. Rows added by a slice were reviewed to 100 (`docs/product/reviews/`), and `docs/SECURITY_REVIEW.md` re-reads the checklist at every run. Open items:
+- slice S3b (the wallet probe, and checking the token's signature at boot);
+- sign-in (leaf 3.3.1.2), which closes the local-process row;
+- a `script-src` policy.
