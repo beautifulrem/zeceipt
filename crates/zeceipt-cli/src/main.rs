@@ -16,6 +16,8 @@ use zeceipt_core::zeceipt_types::{binding, AuditPack, Network, Receipt, TypesErr
 use zeceipt_core::{CoreError, IssueOptions, OutgoingKeys};
 use zeceipt_lwd::{Client, LwdError};
 
+mod wellknown;
+
 #[derive(Parser)]
 #[command(
     name = "zeceipt",
@@ -143,6 +145,15 @@ enum Cmd {
         /// Fail if the receipt is unsigned.
         #[arg(long)]
         require_signature: bool,
+        /// Look up the issuer binding the key id claims (spec §7): fetch
+        /// https://<domain>/.well-known/zeceipt.json and report confirmed / not listed / unknown.
+        /// This tells that domain one of its receipts is being checked. It never changes `valid`.
+        #[arg(long)]
+        check_issuer: bool,
+        /// Compare with a well-known file already downloaded, instead of fetching it (no request); the
+        /// file is taken as the claimed domain's.
+        #[arg(long, value_name = "FILE", conflicts_with = "check_issuer")]
+        issuer_file: Option<PathBuf>,
     },
     /// Combine receipt files into an audit pack.
     Pack {
@@ -408,6 +419,8 @@ async fn run() -> anyhow::Result<ExitCode> {
             challenge,
             raw_tx_file,
             require_signature,
+            check_issuer,
+            issuer_file,
         } => {
             let input = if receipt == "-" {
                 let mut s = String::new();
@@ -463,9 +476,28 @@ async fn run() -> anyhow::Result<ExitCode> {
             let expected = challenge.as_deref().unwrap_or("").as_bytes();
             match zeceipt_core::verify(&r, &parsed, expected, require_signature) {
                 Ok(v) => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&json!({
+                    // The binding (spec §7) is looked up only when asked, after the receipt verified; it never
+                    // changes `valid`.
+                    let issuer_binding = if let Some(p) = &issuer_file {
+                        let body = std::fs::read(p)
+                            .with_context(|| format!("read --issuer-file {}", p.display()))?;
+                        // The user supplies the file as the claimed domain's.
+                        Some(match binding::receipt_claim(&r) {
+                            Err(unknown) => unknown,
+                            Ok(claim) => binding::evaluate(&r, &claim.domain, &body),
+                        })
+                    } else if check_issuer {
+                        Some(match binding::receipt_claim(&r) {
+                            Err(unknown) => unknown,
+                            Ok(claim) => match wellknown::fetch(&claim).await {
+                                Ok(body) => binding::evaluate(&r, &claim.domain, &body),
+                                Err(reason) => binding::Binding::Unknown { reason },
+                            },
+                        })
+                    } else {
+                        None
+                    };
+                    let mut out = json!({
                             "valid": true,
                             "txid": v.txid,
                             "height": height,
@@ -480,8 +512,11 @@ async fn run() -> anyhow::Result<ExitCode> {
                             "challenge_checked": v.challenge_checked,
                             "proves": "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's OCK",
                             "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
-                        }))?
-                    );
+                    });
+                    if let Some(b) = issuer_binding {
+                        out["issuer_binding"] = serde_json::to_value(b)?;
+                    }
+                    println!("{}", serde_json::to_string_pretty(&out)?);
                     Ok(ExitCode::SUCCESS)
                 }
                 Err(e) => {

@@ -187,6 +187,17 @@ The node guard also checks:
 
 The source guards now scan `packages/verify/src` and `r/` too; an OCK in a `console.log` there fails them.
 
+## 2d. mainnet-read — the issuer binding lookup over the internet (2026-09-26, slice W2b)
+
+`zeceipt verify --check-issuer` on a receipt issued from the synthetic fixture with a throwaway key and the key id `2026-09@example.org`:
+
+```
+$ zeceipt verify <receipt> --raw-tx-file fixtures/synthetic-ironwood.hex --check-issuer
+{ "valid": true, …, "issuer_binding": { "state": "unknown", "reason": "example.org answered HTTP 404" } }
+```
+
+The system resolver gave a public address (104.20.26.136), and TLS was verified against the web PKI roots with the name `example.org`. The GET for `/.well-known/zeceipt.json` completed and was answered 404. example.org publishes no file, so the binding is unknown, and `valid` stays true. This shows the live path: resolution, the public-address check, the pinned connection, TLS and the HTTP rules. The confirmed and not-listed outcomes are shown offline with `--issuer-file` (`verify_reports_the_issuer_binding_and_never_changes_validity`), because no public domain serves a `zeceipt.json` yet (registering `zeceipt.xyz` is WBS 4.1.1.2, the user's).
+
 ## 3. unit — protocol-level round trip
 
 `ironwood_round_trip_ock_derivation_and_recovery`: encrypt a V3 (Ironwood) note with a random FVK using the `orchard` crate's `IronwoodNoteEncryption`, derive the OCK with `Domain::derive_ock`, recover with `try_output_recovery_with_ock`, and check that a flipped OCK bit and another key's OCK both fail.

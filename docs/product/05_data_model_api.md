@@ -75,7 +75,7 @@ Array of receipt envelopes (spec §2). Public feed for ledgers (FLOW-5).
 
 - Receipt envelope v0: `spec/receipt-v0.md` §2 (JSON), §5 (signing), URL form `/r#<base64url(json)>` (§2.1; payload in the fragment, the v0 path form `/r/…` still parsed; `[R66]`).
 - Audit pack: `{"version":"zeceipt-v0","title","declared_total_zat","receipts":[…]}` (spec §8).
-- **Well-known issuer keys** (`https://<domain>/.well-known/zeceipt.json`; spec §7; REQ-CORE-10, REQ-INT-3; planned for leaf 3.3.3.3, dropped in the solo branch and being added back in slices W2 and W3; not built yet). The design was redone in slice W1 `[R101]`: a domain-control binding, and the key id `<label>@<domain>` carries the claim.
+- **Well-known issuer keys** (`https://<domain>/.well-known/zeceipt.json`; spec §7; REQ-CORE-10, REQ-INT-3; planned for leaf 3.3.3.3, dropped in the solo branch and being added back: built in the CLI (slices W2a, W2b); the receipt page is planned (W3)). The design was redone in slice W1 `[R101]`: a domain-control binding, and the key id `<label>@<domain>` carries the claim.
 ```json
 { "version": "zeceipt-v0",
   "keys": [ { "key_id": "2026-09@pay.example.org", "pubkey": "<64 hex>", "note": "optional" } ] }

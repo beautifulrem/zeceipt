@@ -43,6 +43,13 @@ fn main() {
         .collect();
     let long_label = format!("{}@example.org", "x".repeat(65));
     out.push(json!({ "key_id": long_label, "why": "a 65-character label", "claim": claim(&long_label).map(|c| json!({"label": c.label, "domain": c.domain, "url": c.url()})) }));
+    for (n, why) in [
+        (63, "a 63-character domain label (the limit)"),
+        (64, "a 64-character domain label"),
+    ] {
+        let key_id = format!("a@{}.example", "x".repeat(n));
+        out.push(json!({ "key_id": key_id, "why": why, "claim": claim(&key_id).map(|c| json!({"label": c.label, "domain": c.domain, "url": c.url()})) }));
+    }
     for (d, why) in [
         (53, "a 253-character domain (the limit)"),
         (54, "a 254-character domain"),

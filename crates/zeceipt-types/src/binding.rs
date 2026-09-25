@@ -174,14 +174,23 @@ pub fn receipt_claim(receipt: &Receipt) -> Result<Claim, Binding> {
     claim(key_id).ok_or_else(|| unknown("the key id claims no domain (it is not <label>@<domain>)"))
 }
 
-/// Compare a receipt with the file its claimed domain served (`body`, as fetched). The caller fetched the claim's URL
-/// following the lookup rules (HTTPS, no redirects, at most `MAX_FILE_BYTES`, 10 s) and passes what it got; any
-/// failure before this point is the caller's `Unknown`.
-pub fn evaluate(receipt: &Receipt, body: &[u8]) -> Binding {
+/// Compare a receipt with a well-known file: `body`, as served by `served_by` (the domain the caller actually fetched
+/// from). The caller fetched following the lookup rules (HTTPS, no redirects, at most `MAX_FILE_BYTES`, 10 s); any
+/// failure before this point is the caller's `Unknown`. A file from any domain other than the one the receipt claims
+/// vouches for nothing here, so a caller that fetched the wrong URL gets "unknown", never a confirmation (review W2a).
+pub fn evaluate(receipt: &Receipt, served_by: &str, body: &[u8]) -> Binding {
     let c = match receipt_claim(receipt) {
         Ok(c) => c,
         Err(b) => return b,
     };
+    if served_by != c.domain {
+        return Binding::Unknown {
+            reason: format!(
+                "the file came from {served_by}, not from {}, the domain the receipt claims",
+                c.domain
+            ),
+        };
+    }
     if body.len() > MAX_FILE_BYTES {
         return unknown("the file is larger than 64 KiB");
     }
@@ -213,6 +222,16 @@ mod tests {
     use crate::{Network, Pool, Receipt};
     use ed25519_dalek::SigningKey;
 
+    /// `evaluate` with the file served by the domain the receipt claims (what a correct caller passes).
+    fn ev(r: &Receipt, body: &[u8]) -> Binding {
+        let served_by = r
+            .issuer_key_id
+            .as_deref()
+            .and_then(claim)
+            .map(|c| c.domain)
+            .unwrap_or_default();
+        evaluate(r, &served_by, body)
+    }
     fn key(n: u8) -> SigningKey {
         SigningKey::from_bytes(&[n; 32])
     }
@@ -284,7 +303,7 @@ mod tests {
         let (k, other) = (key(7), key(8));
         let r = signed("2026-09@pay.example.org", &k);
         assert_eq!(
-            evaluate(&r, &file(&[("2026-09@pay.example.org", &k)])),
+            ev(&r, &file(&[("2026-09@pay.example.org", &k)])),
             Binding::Confirmed {
                 domain: "pay.example.org".into()
             }
@@ -296,7 +315,7 @@ mod tests {
             file(&[]),
         ] {
             assert_eq!(
-                evaluate(&r, &f),
+                ev(&r, &f),
                 Binding::NotListed {
                     domain: "pay.example.org".into()
                 }
@@ -305,24 +324,24 @@ mod tests {
         // A file vouches for its own domain only: an entry claiming another domain is ignored.
         let foreign = signed("2026-09@evil.example.net", &k);
         assert_eq!(
-            evaluate(&foreign, &file(&[("2026-09@pay.example.org", &k)])),
+            ev(&foreign, &file(&[("2026-09@pay.example.org", &k)])),
             Binding::NotListed {
                 domain: "evil.example.net".into()
             }
         );
         // Unknown: nothing to compare.
-        assert!(matches!(evaluate(&r, b"not json"), Binding::Unknown { .. }));
+        assert!(matches!(ev(&r, b"not json"), Binding::Unknown { .. }));
         assert!(matches!(
-            evaluate(&r, br#"{"version":"zeceipt-v1","keys":[]}"#),
+            ev(&r, br#"{"version":"zeceipt-v1","keys":[]}"#),
             Binding::Unknown { .. }
         ));
         assert!(matches!(
-            evaluate(&r, &vec![b' '; MAX_FILE_BYTES + 1]),
+            ev(&r, &vec![b' '; MAX_FILE_BYTES + 1]),
             Binding::Unknown { .. }
         ));
         assert!(
             matches!(
-                evaluate(&signed("2026-09", &k), &file(&[])),
+                ev(&signed("2026-09", &k), &file(&[])),
                 Binding::Unknown { .. }
             ),
             "no claim"
@@ -330,14 +349,14 @@ mod tests {
         let mut unsigned = r.clone();
         unsigned.signature = None;
         assert!(matches!(
-            evaluate(&unsigned, &file(&[("2026-09@pay.example.org", &k)])),
+            ev(&unsigned, &file(&[("2026-09@pay.example.org", &k)])),
             Binding::Unknown { .. }
         ));
         let mut forged = r.clone();
         forged.label = "altered".into();
         assert!(
             matches!(
-                evaluate(&forged, &file(&[("2026-09@pay.example.org", &k)])),
+                ev(&forged, &file(&[("2026-09@pay.example.org", &k)])),
                 Binding::Unknown { .. }
             ),
             "a signature that does not verify claims nothing"
@@ -348,9 +367,26 @@ mod tests {
             hex::encode(k.verifying_key().to_bytes()).to_uppercase()
         );
         assert!(matches!(
-            evaluate(&r, upper.as_bytes()),
+            ev(&r, upper.as_bytes()),
             Binding::Confirmed { .. }
         ));
+    }
+
+    #[test]
+    fn a_file_from_another_domain_vouches_for_nothing() {
+        let k = key(7);
+        let r = signed("2026-09@pay.example.org", &k);
+        let body = file(&[("2026-09@pay.example.org", &k)]);
+        assert!(matches!(
+            evaluate(&r, "pay.example.org", &body),
+            Binding::Confirmed { .. }
+        ));
+        for wrong in ["evil.example.net", "example.org", "pay.example.org.", ""] {
+            assert!(
+                matches!(evaluate(&r, wrong, &body), Binding::Unknown { .. }),
+                "served by {wrong:?}"
+            );
+        }
     }
 
     #[test]
@@ -409,7 +445,7 @@ mod tests {
         // What `put` builds, `evaluate` confirms.
         let r = signed("2026-10@pay.example.org", &k2);
         assert!(matches!(
-            evaluate(&r, &serde_json::to_vec(&f).unwrap()),
+            ev(&r, &serde_json::to_vec(&f).unwrap()),
             Binding::Confirmed { .. }
         ));
     }

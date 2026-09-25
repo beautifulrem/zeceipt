@@ -583,3 +583,108 @@ fn well_known_prints_the_binding_file() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `verify --issuer-file` / `--check-issuer` (spec §7): the binding is reported next to the verdict
+/// and never changes `valid`. Offline here: the file is compared as given (the fetch rules are
+/// unit-tested in `wellknown.rs`; `--check-issuer` without a claim makes no request).
+#[test]
+fn verify_reports_the_issuer_binding_and_never_changes_validity() {
+    let dir = std::env::temp_dir().join(format!("zeceipt-binding-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let raw = fixture("synthetic-ironwood.hex");
+    let ovk = std::fs::read_to_string(fixture("synthetic-ovk.hex")).unwrap();
+    let key = dir.join("issuer.key");
+    let other = dir.join("other.key");
+    assert_eq!(run(&["keygen", "--out", key.to_str().unwrap()]).0, 0);
+    assert_eq!(run(&["keygen", "--out", other.to_str().unwrap()]).0, 0);
+    let issue = |key_id: &str, out: &str| {
+        let d = dir.join(out);
+        let (c, _, err) = run(&[
+            "issue",
+            "--raw-tx-file",
+            &raw,
+            "--ovk",
+            ovk.trim(),
+            "--key-file",
+            key.to_str().unwrap(),
+            "--key-id",
+            key_id,
+            "--out-dir",
+            d.to_str().unwrap(),
+        ]);
+        assert_eq!(c, 0, "{err}");
+        std::fs::read_dir(&d)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path()
+    };
+    let claimed = issue("2026-09@pay.example.org", "claimed");
+    let plain = issue("2026-09", "plain");
+    let well_known = |key_file: &PathBuf, name: &str| {
+        let (c, o, err) = run(&[
+            "well-known",
+            "--key-file",
+            key_file.to_str().unwrap(),
+            "--key-id",
+            "2026-09@pay.example.org",
+        ]);
+        assert_eq!(c, 0, "{err}");
+        let p = dir.join(name);
+        std::fs::write(&p, o).unwrap();
+        p
+    };
+    let ours = well_known(&key, "ours.json");
+    let theirs = well_known(&other, "theirs.json");
+    let junk = dir.join("junk.json");
+    std::fs::write(&junk, "<html>").unwrap();
+
+    let verify = |receipt: &PathBuf, extra: &[&str]| {
+        let mut args = vec!["verify", receipt.to_str().unwrap(), "--raw-tx-file", &raw];
+        args.extend_from_slice(extra);
+        let (c, o, err) = run(&args);
+        assert_eq!(c, 0, "the binding never changes the verdict: {o} {err}");
+        let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+        assert_eq!(v["valid"], true);
+        v
+    };
+    assert!(
+        verify(&claimed, &[]).get("issuer_binding").is_none(),
+        "no lookup unless asked"
+    );
+    assert_eq!(
+        verify(&claimed, &["--issuer-file", ours.to_str().unwrap()])["issuer_binding"],
+        serde_json::json!({"state": "confirmed", "domain": "pay.example.org"})
+    );
+    assert_eq!(
+        verify(&claimed, &["--issuer-file", theirs.to_str().unwrap()])["issuer_binding"],
+        serde_json::json!({"state": "not_listed", "domain": "pay.example.org"}),
+        "the domain lists another key under this id"
+    );
+    assert_eq!(
+        verify(&claimed, &["--issuer-file", junk.to_str().unwrap()])["issuer_binding"]["state"],
+        "unknown"
+    );
+    let none = verify(&plain, &["--check-issuer"]);
+    assert_eq!(none["issuer_binding"]["state"], "unknown");
+    assert!(
+        none["issuer_binding"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("claims no domain"),
+        "{none}"
+    );
+    let (c, _, err) = run(&[
+        "verify",
+        claimed.to_str().unwrap(),
+        "--raw-tx-file",
+        &raw,
+        "--check-issuer",
+        "--issuer-file",
+        ours.to_str().unwrap(),
+    ]);
+    assert_eq!(c, 3, "the two are exclusive: {err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
