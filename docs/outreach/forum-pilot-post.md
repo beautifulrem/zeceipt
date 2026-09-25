@@ -13,7 +13,7 @@ If your team pays contributors in shielded ZEC, you can already keep amounts and
 
 ## What a receipt proves, and what it does not
 
-**It proves** that the named transaction contains an output paying this value to this recipient with this memo, and that the issuer knew that output's key, which requires the sender's outgoing viewing key.
+**It proves** that the named transaction contains an output paying this value to this recipient with this memo, and that whoever made the receipt knew that output's key. Deriving the key takes the sender's outgoing viewing key, but anyone holding an earlier receipt for that output knows it too; a signature says which key made the receipt, not who the sender is.
 
 **It does not prove**:
 - who is showing it: a receipt is a bearer document. For an interactive check, bind a challenge.

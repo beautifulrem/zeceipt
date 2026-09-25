@@ -35,7 +35,7 @@ $Z verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-
 
 Browser: `cd packages/verify && npm run build:wasm && npm run demo`, then open `http://localhost:8787/demo/` to paste a receipt.
 
-Receipt links: `zeceipt issue` prints each receipt as `https://<host>/r#<payload>` (`--host`, default `https://zeceipt.xyz`). The receipt is in the fragment, which browsers never send to the host (spec §2.1). The page at `/r/` (`packages/verify/r/`) reads it and verifies in the browser: open `http://localhost:8787/r/#<payload>` with `npm run demo` running. It shows the payment, where the transaction is on chain (per the public node you choose to ask, or unknown for a file), and who signed. It makes no other request and stores nothing (`docs/PROOF.md` §2c). Hosting it: serve `packages/verify/` as the site root, and make `/r` redirect to `/r/`. Static hosts do this for a directory, and the redirect keeps the fragment (RFC 9110 §10.2.2). The page's relative paths (`page.js`, `page.css`, `../src/`, `../pkg/`) only resolve from `/r/`, so a host that serves `r/index.html` at `/r` without redirecting breaks the page. Check this on the real host.
+Receipt links: `zeceipt issue` prints each receipt as `https://<host>/r#<payload>` (`--host`). **Use a host you control:** the page that host serves can read the link's fragment, which holds the receipt. The default, `https://zeceipt.xyz`, is not registered yet (WBS 4.1.1.2), so pass `--host` with your own site until it is. The receipt is in the fragment, which browsers never send to the host (spec §2.1). The page at `/r/` (`packages/verify/r/`) reads it and verifies in the browser: open `http://localhost:8787/r/#<payload>` with `npm run demo` running. It shows the payment, where the transaction is on chain (per the public node you choose to ask, or unknown for a file), and who signed. It makes no other request and stores nothing (`docs/PROOF.md` §2c). Hosting it: serve `packages/verify/` as the site root, and make `/r` redirect to `/r/`. Static hosts do this for a directory, and the redirect keeps the fragment (RFC 9110 §10.2.2). The page's relative paths (`page.js`, `page.css`, `../src/`, `../pkg/`) only resolve from `/r/`, so a host that serves `r/index.html` at `/r` without redirecting breaks the page. Check this on the real host.
 
 ## Payout console
 
@@ -47,7 +47,9 @@ Receipt links: `zeceipt issue` prints each receipt as `https://<host>/r#<payload
 4. Pay: one Ironwood transaction for the whole batch through Zkool (the seed stays in the wallet; the console holds a viewing key), never twice, with the rate re-checked before paying.
 5. Receipts: one per payment, issued automatically once the payment has the configured confirmations, each a link its recipient can verify in the browser.
 
-Each batch, recipient and payable keeps an append-only history of its changes. The console also warns before paying an address an earlier receipt disclosed. Shown end to end on a local regtest chain: `docs/PROOF.md` §5c and §5d. Running it: [`apps/console/README.md`](apps/console/README.md).
+Each batch, recipient and payable keeps an append-only history of its changes. The console also warns before paying an address an earlier receipt disclosed.
+
+What the live chain shows (a local regtest chain, `docs/PROOF.md` §5c, §5d): a batch made on the console's form, its rate locked (from the run's local test quote source), approved, paid once in one Ironwood transaction for two posts of the Pay form, receipts issued from the page and verified against the chain, and the audit trail read back. Batches made from USD payables, the live Kraken quote and automatic issuance are covered by the console's tests, not yet by a live run in PROOF. Running it: [`apps/console/README.md`](apps/console/README.md).
 
 ## Crates
 
@@ -63,7 +65,7 @@ All cryptography comes from `orchard 0.15.5`, `sapling-crypto 0.7`, `zcash_note_
 
 ## What a receipt proves / does not prove
 
-Proves: the named transaction pays the shown value to the shown recipient with the shown memo, and the issuer knew that output's OCK (i.e. held the sender's outgoing viewing key). If signed: the holder of the issuer key produced it.
+Proves: the named transaction pays the shown value to the shown recipient with the shown memo, and whoever produced the receipt knew that output's OCK (deriving it takes the sender's outgoing viewing key, but anyone holding an earlier receipt for that output knows it too). If signed: the holder of the issuer key produced this envelope.
 Does not prove: who is presenting it (use a challenge for interactive proofs), anything about other outputs/transactions/balances, or spend authority.
 
 ## Integrations
@@ -76,7 +78,7 @@ Does not prove: who is presenting it (use a challenge for interactive proofs), a
 
 Working and tested: envelope v0 with committed test vectors (`spec/test-vectors/receipt-v0.json`); Ironwood, Orchard and Sapling recovery (official Orchard note-encryption vectors from `zcash-test-vectors`, Ironwood/Orchard/Sapling round trips, tamper cases); CLI with exit codes 0/1/2/3; lightwalletd gRPC client verified live against `zec.rocks`; offline issue → verify → tamper matrix reproduced by CLI and in Chrome with the committed WASM package (`packages/verify/pkg`). A **consensus-valid regtest Ironwood transaction** (Zebra + Zaino + zcash-devtool, all from source) is issued from the sender's UFVK and verified over gRPC and offline (`docs/PROOF.md` §5; fixture and CLI test committed). CI workflow is committed but this repository has not been pushed to a remote yet, so it has not run on GitHub. Security self-review: `scripts/security_review.sh` (`cargo audit`, `npm audit`, gitleaks over the history and the tree, the source guards; results in `docs/SECURITY_REVIEW.md`).
 
-The payout console works end to end on a local regtest chain (`docs/PROOF.md` §5c, §5d): batches from USD payables at a Kraken rate, approval, one transaction per batch, receipts issued automatically, and an audit trail.
+The payout console works end to end on a local regtest chain (`docs/PROOF.md` §5c, §5d): a batch locked, approved, paid once in one transaction, its receipts issued and verified, and its audit trail. Batches from USD payables, the live Kraken quote and automatic issuance are tested but not yet shown in a live run.
 
 Pending: receipts on a public chain (the testnet run is prepared and waits on faucet funds, `docs/PROOF.md` §4; mainnet follows), and publishing `@zeceipt/verify` to npm. Dropped for this hackathon: the Solana attestation program. Out of scope for v0: the spend-authority proof (full ZIP 311).
 

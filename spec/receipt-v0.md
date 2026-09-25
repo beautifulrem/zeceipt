@@ -68,7 +68,7 @@ There is no partial success. Any failure is "invalid"; a transaction that cannot
 For **unsigned** receipts every field, including `network`, is caller-controlled and therefore advisory; a verifier that knows which network it is operating on must reject a receipt whose `network` contradicts it (the CLI does this when `--testnet` is given explicitly).
 
 ### What verification proves
-- The named transaction contains an output that pays `value` to `recipient` with `memo`, and whoever produced the receipt knew that output's OCK (which requires the sender's OVK).
+- The named transaction contains an output that pays `value` to `recipient` with `memo`, and whoever produced the receipt knew that output's OCK. Deriving an OCK takes the sender's OVK, but an OCK is also inside every receipt for that output, so anyone holding an earlier receipt knows it too. A signature attributes the envelope to a key, not the OCK to its sender.
 
 ### What it does not prove
 - That the person **showing** the receipt is the sender or the recipient (use a challenge, §6, for interactive proofs).
