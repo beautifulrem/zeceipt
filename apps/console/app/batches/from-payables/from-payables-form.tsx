@@ -12,6 +12,8 @@ export interface Choice {
   recipient: string;
   kind: string;
   dollars: string;
+  /** REQ-CON-6 (slice H6): a receipt already disclosed this payable's recipient address. */
+  warning?: string;
 }
 
 function Errors({ list }: { list?: string[] }) {
@@ -53,6 +55,14 @@ export function FromPayablesForm({ choices }: { choices: Choice[] }) {
                 <span>
                   <code>{c.reference}</code> · {c.dollars} · {c.kind}
                   <span className="block text-xs text-slate-500">{c.recipient}</span>
+                  {c.warning && (
+                    <span className="block text-xs text-amber-800">
+                      {c.warning}{" "}
+                      <a href="#linkability" className="underline">
+                        Why this matters
+                      </a>
+                    </span>
+                  )}
                 </span>
               </label>
               <Errors list={state.byPayable[c.id]} />

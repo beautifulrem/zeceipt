@@ -7,7 +7,7 @@ import { z } from "zod";
 import { BatchInvalidError } from "../data/batches.ts";
 import { createBatchFromPayables, MAX_PAYABLES, payableBatchProblems } from "../data/payable-batches.ts";
 import { serverContext } from "../server/context.ts";
-import { batchJson } from "./batches.ts";
+import { batchJson, linkabilityJson } from "./batches.ts";
 import { readJson } from "./body.ts";
 import { HttpProblem, problem } from "./problem.ts";
 import { lockJson, ratesProblem } from "./rates.ts";
@@ -50,5 +50,5 @@ export async function createFromPayablesFrom(body: unknown): Promise<Response> {
   if (problems.length) throw new BatchInvalidError(problems);
   const q = await quote();
   const { batch, lock } = await createBatchFromPayables(db, { ...input, quote: q });
-  return json(201, batchJson(batch, lockJson(lock)), { Location: `/api/batches/${batch.id}` });
+  return json(201, batchJson(batch, lockJson(lock), await linkabilityJson(db, batch)), { Location: `/api/batches/${batch.id}` });
 }

@@ -12,7 +12,10 @@ import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
-import { batchDigest, batchNonce, getBatch, openDb, SqliteIdempotencyStore, toExecutionBatch } from "../lib/index.ts";
+import { autoIssue, batchDigest, batchNonce, getBatch, Keyring, openDb, recordReceipts, SqliteIdempotencyStore, toExecutionBatch, type AutoIssueResult } from "../lib/index.ts";
+import { LINKABILITY_SPEC } from "../lib/view/linkability.ts";
+import { item, ua } from "./helpers/ua-encoder.ts";
+import { execFileSync } from "node:child_process";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
 
 const RUN = process.env.ZECEIPT_APP_E2E === "1";
@@ -782,6 +785,60 @@ test("voiding a draft from the batch page through next start, as a browser witho
     const stale = (await confirm(stalePage, `/batches/${c.id}/void`)).body.replaceAll("<!-- -->", "");
     assert.ok(/role="alert"[^>]*>[\s\S]*Not voided:[\s\S]*already voided/.test(stale), "the refusal, in words");
     assert.equal((await get("/batches/01900000-0000-7000-8000-000000000000/void")).includes("404") || (await raw(s.port, "GET", "/batches/01900000-0000-7000-8000-000000000000/void", { host: self })).status === 404, true, "404 for an unknown batch");
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
+test("the linkability warning through next start (REQ-CON-6, slice H6): after real receipts for batch A, a new draft paying the same recipient shows the report, and the recipients page and chooser flag it", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("linkability", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  const ROOT = resolve(APP, "../..");
+  const BIN = process.env.ZECEIPT_BIN_DEBUG ?? join(ROOT, "target/debug/zeceipt");
+  const TXID = "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2";
+  const FIXTURE = [
+    { payableId: "p-2", label: "R2", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "101000000", memo: "INV-R-002" },
+    { payableId: "p-3", label: "R3", address: "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj", zat: "102000000", memo: "INV-R-003" },
+    { payableId: "p-4", label: "R4", address: "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5", zat: "103000000", memo: "INV-R-004" },
+  ];
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}`, "content-type": "application/json" };
+    const post = async (path: string, body: unknown) => JSON.parse((await raw(s.port, "POST", path, same, JSON.stringify(body))).body) as { id: string };
+    const get = async (path: string) => (await raw(s.port, "GET", path, { host: self })).body.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"');
+    const bob = await post("/api/recipients", { displayName: "Bob", address: FIXTURE[1].address });
+    const fresh = await post("/api/recipients", { displayName: "Fresh", address: ua("uregtest", [item(3, 43, 9)]) });
+    assert.match(fresh.id, /^[0-9a-f-]{36}$/, "a valid address no receipt disclosed");
+    const quiet = await post("/api/batches", { title: "Quiet", items: [{ payableId: "q-1", address: FIXTURE[0].address, zat: "5", memo: "QUIET-1" }] });
+    assert.ok(!(await get(`/batches/${quiet.id}`)).includes("Before paying: addresses already disclosed"), "no receipt yet: no panel");
+    // Batch A: the fixture transaction's outputs, broadcast and receipted for real (the real CLI, the server's key).
+    const a = await post("/api/batches", { title: "September", items: FIXTURE });
+    const side = openDb({ path: join(dir, "linkability.db") });
+    try {
+      const rec = (await getBatch(side, "demo-org", a.id))!;
+      const store = new SqliteIdempotencyStore(side, { orgId: "demo-org" });
+      const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
+      await store.createIntent({ ...base, state: "submitting" });
+      await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
+      const keyFile = join(dir, "linkability-issuer.key");
+      execFileSync(BIN, ["keygen", "--out", keyFile]);
+      const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, keyId: "2026-09", challenge: "h6e2e" } });
+      await recordReceipts(side, new Keyring([{ kid: "k1", key: KEY }]), { orgId: "demo-org", batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
+    } finally {
+      side.$client.close();
+    }
+    const quietNow = await get(`/batches/${quiet.id}`);
+    assert.ok(quietNow.includes("Before paying: addresses already disclosed") && quietNow.includes('Line 1 (QUIET-1): A receipt already disclosed this address (batch "September").'), "the batch validation report names the line and the batch");
+    assert.ok(quietNow.includes(LINKABILITY_SPEC) && quietNow.includes("fresh address from the same wallet"), "spec §9's words and the remedy");
+    assert.ok(!(await get(`/batches/${a.id}`)).includes("Before paying: addresses already disclosed"), "A is not warned about its own receipts");
+    const people = await get("/recipients");
+    assert.ok(people.includes('A receipt already disclosed this address (batch "September").') && people.includes('id="linkability"'), "the recipients page flags Bob and explains");
+    // Rendered text only (after ">"); the same words also sit in React's serialised payload inside a <script>.
+    assert.equal(people.match(/>A receipt already disclosed this address/g)?.length, 1, "only Bob, not Fresh");
+    await post("/api/payables", { recipientId: bob.id, kind: "invoice", usdCents: 1000, reference: "LINK-1" });
+    const chooser = await get("/batches/from-payables");
+    assert.ok(chooser.includes('A receipt already disclosed this address (batch "September").') && chooser.includes('id="linkability"'), "the chooser flags the payable");
   } finally {
     s.child.kill("SIGTERM");
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));

@@ -159,3 +159,13 @@ export function checkUnifiedAddress(address: string, network: Network): AddressC
   }
   return { ok: true, hrp: r.hrp, receivers: decoded.receivers };
 }
+
+/**
+ * The Orchard receiver an address pays, as hex, or undefined when it has none or does not decode (slices H1, H6).
+ * "The same place" throughout the console: duplicates (H1) and addresses a receipt disclosed (H6) compare this.
+ */
+export function orchardReceiverHex(address: string, network: Network): string | undefined {
+  const r = checkUnifiedAddress(address, network);
+  const orchard = r.ok ? r.receivers.find((x) => x.typecode === TYPECODE.orchard) : undefined;
+  return orchard ? Buffer.from(orchard.data).toString("hex") : undefined;
+}

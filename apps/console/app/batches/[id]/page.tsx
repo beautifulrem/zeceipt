@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { getBatch, isSubmitted, rateFixed, rateLockFrozen } from "../../../lib/data/batches.ts";
 import { currentLock } from "../../../lib/data/rates.ts";
 import { voidable } from "../../../lib/data/voids.ts";
+import { batchLinkability, disclosedReceivers } from "../../../lib/data/linkability.ts";
+import { disclosedText } from "../../../lib/view/linkability.ts";
+import { LinkabilityNote } from "../../components/linkability.tsx";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
@@ -45,6 +48,9 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const lockFrozen = await rateLockFrozen(ctx.db, rec);
   // Slice H5d: offered only while nothing can have been sent (the route stays the authority).
   const canVoid = await voidable(ctx.db, rec);
+  // REQ-CON-6 (slice H6): the batch validation report's linkability part, while the operator can still act on it
+  // (nothing sent: the draft can be voided and made again with a fresh address).
+  const linkable = canVoid ? batchLinkability(await disclosedReceivers(ctx.db, rec.orgId), rec) : [];
   return (
     <>
       <AccessNotice />
@@ -180,6 +186,25 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           <LockRateForm id={rec.id} locked={lock !== undefined} />
         )}
       </section>
+
+      {linkable.length > 0 && (
+        <section aria-labelledby="linkability-heading" className="space-y-2 rounded-lg border border-amber-300 p-4">
+          <h2 id="linkability-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+            Before paying: addresses already disclosed
+          </h2>
+          <ul className="list-disc pl-5 text-sm">
+            {linkable.map((l) => {
+              const line = rec.items.find((i) => i.idx === l.idx)!;
+              return (
+                <li key={l.idx}>
+                  Line {l.idx + 1} ({line.label || line.memo}): {disclosedText(l.disclosedBy.map((d) => d.title))}
+                </li>
+              );
+            })}
+          </ul>
+          <LinkabilityNote />
+        </section>
+      )}
 
       <section aria-labelledby="items-heading" className="space-y-2">
         <h2 id="items-heading" className="text-lg font-semibold">

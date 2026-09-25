@@ -8,6 +8,8 @@
 import { z } from "zod";
 import { BatchInvalidError, createBatch, getBatch, listBatches, rateFixed, type BatchRecord, type BatchSummary } from "../data/batches.ts";
 import { serverContext } from "../server/context.ts";
+import type { ConsoleDb } from "../../db/client.ts";
+import { batchLinkability, disclosedReceivers } from "../data/linkability.ts";
 import { readJson } from "./body.ts";
 import { HttpProblem, problem } from "./problem.ts";
 import { rateLockJson, type LockJson } from "./rates.ts";
@@ -27,7 +29,15 @@ export const CreateBatchBody = z.strictObject({
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** The batch as the API shows it; `rateLock` is its current ZEC/USD lock (slice G1c1), null until locked. */
-export function batchJson(rec: BatchRecord, rateLock: LockJson | null = null) {
+/** The batch validation report's linkability part (slice H6): lines paying an address another batch's receipt disclosed. */
+export type LinkabilityJson = { idx: number; disclosedBy: { batchId: string }[] }[];
+
+/** The linkability of `rec` as the API shows it (slice H6; REQ-CON-6). */
+export async function linkabilityJson(db: ConsoleDb, rec: BatchRecord): Promise<LinkabilityJson> {
+  return batchLinkability(await disclosedReceivers(db, rec.orgId), rec).map((l) => ({ idx: l.idx, disclosedBy: l.disclosedBy.map((d) => ({ batchId: d.batchId })) }));
+}
+
+export function batchJson(rec: BatchRecord, rateLock: LockJson | null = null, linkability: LinkabilityJson = []) {
   return {
     id: rec.id,
     network: rec.network,
@@ -40,6 +50,8 @@ export function batchJson(rec: BatchRecord, rateLock: LockJson | null = null) {
     rateFixed: rateFixed(rec),
     // Voided (slice H5c): final; nothing was sent, and its memos and payables are free again.
     voided: rec.voidedAt ? { at: rec.voidedAt } : null,
+    // REQ-CON-6 (slice H6): lines paying an address another batch's receipt already disclosed (spec §9).
+    linkability,
   };
 }
 
@@ -82,7 +94,7 @@ export async function createBatchFrom(body: unknown): Promise<Response> {
     title: parsed.data.title,
     items: parsed.data.items.map((i) => ({ payableId: i.payableId, label: i.label, address: i.address, zat: BigInt(i.zat), memo: i.memo })),
   });
-  return json(201, batchJson(rec), { Location: `/api/batches/${rec.id}` });
+  return json(201, batchJson(rec, null, await linkabilityJson(db, rec)), { Location: `/api/batches/${rec.id}` });
 }
 
 /** `GET /api/batches`: newest first. */
@@ -96,5 +108,5 @@ export async function getBatchResponse(id: string): Promise<Response> {
   const { config, db } = serverContext();
   const rec = UUID_V7.test(id) ? await getBatch(db, config.orgId, id) : undefined;
   if (!rec) return problem(404, "batch_not_found", "no batch with this id");
-  return json(200, batchJson(rec, await rateLockJson(config.orgId, rec.id)));
+  return json(200, batchJson(rec, await rateLockJson(config.orgId, rec.id), await linkabilityJson(db, rec)));
 }

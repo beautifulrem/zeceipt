@@ -1,7 +1,10 @@
+import { disclosedReceivers, disclosersOf } from "../../lib/data/linkability.ts";
 import { listRecipients } from "../../lib/data/recipients.ts";
+import { disclosedText } from "../../lib/view/linkability.ts";
 import { UA_HRP } from "../../lib/execution/address.ts";
 import { serverContext } from "../../lib/server/context.ts";
 import { Address } from "../components/address.tsx";
+import { LinkabilityNote } from "../components/linkability.tsx";
 import { AccessNotice } from "../components/panels.tsx";
 import { RecipientForm } from "./recipient-form.tsx";
 
@@ -15,6 +18,10 @@ const SETTLE: Record<string, string> = { zec: "ZEC", usdc_sol: "USDC (Solana)" }
 export default async function RecipientsPage() {
   const { config, db } = serverContext();
   const list = await listRecipients(db, config.orgId);
+  // REQ-CON-6 (slice H6): recipients whose address a receipt already disclosed.
+  const disclosed = await disclosedReceivers(db, config.orgId);
+  const disclosedBy = new Map(list.map((r) => [r.id, disclosersOf(disclosed, r.address, r.network)]));
+  const anyDisclosed = [...disclosedBy.values()].some((d) => d.length > 0);
   const names = new Map(list.map((r) => [r.id, r.displayName]));
   return (
     <>
@@ -45,6 +52,14 @@ export default async function RecipientsPage() {
                   {r.duplicateOf.length > 0 && (
                     <p className="text-xs text-amber-800">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
                   )}
+                  {disclosedBy.get(r.id)!.length > 0 && (
+                    <p className="text-xs text-amber-800">
+                      {disclosedText(disclosedBy.get(r.id)!.map((d) => d.title))}{" "}
+                      <a href="#linkability" className="underline">
+                        Why this matters
+                      </a>
+                    </p>
+                  )}
                 </td>
                 <td className="py-2">
                   <Address value={r.address} />
@@ -57,6 +72,7 @@ export default async function RecipientsPage() {
           </tbody>
         </table>
       )}
+      {anyDisclosed && <LinkabilityNote />}
       <RecipientForm addressHint={`${UA_HRP[config.network]}1…`} />
     </>
   );

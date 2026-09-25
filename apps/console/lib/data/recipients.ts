@@ -7,7 +7,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
 import { recipients } from "../../db/schema.ts";
-import { checkUnifiedAddress, TYPECODE } from "../execution/address.ts";
+import { checkUnifiedAddress, orchardReceiverHex } from "../execution/address.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
 import { newUuidV7 } from "./batches.ts";
 import { isPlainText } from "./text.ts";
@@ -126,9 +126,7 @@ const newestFirst = desc(sql`rowid`);
  * it also feeds the linkability warning, H6). Stored addresses were validated, so they decode.
  */
 function payTo(address: string, network: Network): string {
-  const r = checkUnifiedAddress(address, network);
-  const orchard = r.ok ? r.receivers.find((x) => x.typecode === TYPECODE.orchard) : undefined;
-  return orchard ? Buffer.from(orchard.data).toString("hex") : `address:${address}`;
+  return orchardReceiverHex(address, network) ?? `address:${address}`;
 }
 
 /** Other recipients of the org paying the same place, newest first (review H1: one order everywhere). */

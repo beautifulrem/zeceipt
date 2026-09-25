@@ -4,7 +4,7 @@
 
 import { voidBatch } from "../data/voids.ts";
 import { serverContext } from "../server/context.ts";
-import { batchJson } from "./batches.ts";
+import { batchJson, linkabilityJson } from "./batches.ts";
 import { problem } from "./problem.ts";
 import { rateLockJson } from "./rates.ts";
 
@@ -24,5 +24,5 @@ export async function voidBatchResponse(id: string): Promise<Response> {
   const { config, db } = serverContext();
   if (!UUID_V7.test(id)) return problem(404, "batch_not_found", "no batch with this id");
   const rec = await voidBatch(db, config.orgId, id);
-  return new Response(JSON.stringify(batchJson(rec, await rateLockJson(config.orgId, rec.id))), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  return new Response(JSON.stringify(batchJson(rec, await rateLockJson(config.orgId, rec.id), await linkabilityJson(db, rec))), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }

@@ -1374,7 +1374,8 @@
           "items",
           "rateLock",
           "rateFixed",
-          "voided"
+          "voided",
+          "linkability"
         ],
         "properties": {
           "id": {
@@ -1477,6 +1478,36 @@
                 "type": "null"
               }
             ]
+          },
+          "linkability": {
+            "type": "array",
+            "description": "The batch validation report's linkability part (slice H6; REQ-CON-6, spec §9): lines paying an address (the same Orchard receiver) that another batch's receipt already disclosed. Empty when none.",
+            "items": {
+              "type": "object",
+              "required": [
+                "idx",
+                "disclosedBy"
+              ],
+              "properties": {
+                "idx": {
+                  "type": "integer"
+                },
+                "disclosedBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "batchId"
+                    ],
+                    "properties": {
+                      "batchId": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -1658,7 +1689,8 @@
           "notes",
           "createdAt",
           "updatedAt",
-          "duplicateOf"
+          "duplicateOf",
+          "disclosedBy"
         ],
         "properties": {
           "id": {
@@ -1721,6 +1753,21 @@
               "type": "string"
             },
             "description": "Other recipients with the same address: flagged, not blocked (05)"
+          },
+          "disclosedBy": {
+            "type": "array",
+            "description": "Batches whose receipts already disclosed this address (the same Orchard receiver; slice H6, REQ-CON-6). Empty when none.",
+            "items": {
+              "type": "object",
+              "required": [
+                "batchId"
+              ],
+              "properties": {
+                "batchId": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
