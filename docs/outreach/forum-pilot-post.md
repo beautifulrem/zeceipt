@@ -20,11 +20,13 @@ If your team pays contributors in shielded ZEC, you can already keep amounts and
 - anything about the transaction's other outputs, or about balances;
 - spend authority (full ZIP 311 is a roadmap item).
 
-This is the spec's own wording (`spec/receipt-v0.md` §4 [after the push]).
+**What it costs** (the spec's §9): a receipt reveals that output's address, so receipts to the same address are linkable; pay each contributor at a fresh address from their wallet (the console warns before paying an address an earlier receipt disclosed). And disclosure is permanent: a receipt cannot be revoked.
+
+Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the push]).
 
 ## What works today
 
-- **Receipt core and CLI** (Rust, `librustzcash` crates): v6 transactions with Ironwood, Orchard and Sapling outputs. `zeceipt issue` recovers each output the viewing key opens and writes a signed receipt; `zeceipt verify` fails closed at a named step (txid, signature, challenge, output, recovery). Real mainnet v6 transactions are parsed and fetched over gRPC. `zeceipt pack` and `verify-pack` bundle a period's receipts with a verified total, labelled a lower bound.
+- **Receipt core and CLI** (Rust, `librustzcash` crates): Ironwood outputs of v6 transactions, shown end to end on mainnet data and a regtest chain. Orchard and Sapling output recovery is implemented and tested against the official Orchard vectors and Sapling round trips; the Orchard pool is sealed, so Orchard receipts are historical. `zeceipt issue` recovers each output the viewing key opens and writes a signed receipt; `zeceipt verify` fails closed at a named step (txid, signature, challenge, output, recovery). Real mainnet v6 transactions are parsed and fetched over gRPC. `zeceipt pack` and `verify-pack` bundle a period's receipts with a verified total, labelled a lower bound.
 - **Consensus-valid proof on a private regtest chain:**
   - a real wallet (zcash-devtool) builds an Ironwood transaction, Zebra mines it and Zaino indexes it;
   - receipts are issued from the sender's UFVK and verified over gRPC and offline;
@@ -36,7 +38,7 @@ This is the spec's own wording (`spec/receipt-v0.md` §4 [after the push]).
   - an approval bound by HMAC to the exact lines, rate and paying account;
   - a rate check before paying;
   - receipts issued automatically after N confirmations;
-  - an append-only history of every change.
+  - an append-only history of each batch, recipient and payable.
 
   It drives Zkool: the seed stays in the wallet, and the console holds a viewing key. Shown end to end on regtest.
 
