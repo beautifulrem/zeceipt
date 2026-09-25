@@ -96,9 +96,15 @@ A signature proves only "made with key K". An organisation binds its keys to a d
 
 **The claim.** A receipt claims a domain through its signed `issuer_key_id`, written `<label>@<domain>`, for example `2026-09@pay.example.org`, as NIP-05 writes `name@domain`.
 - `<label>` is 1–64 characters of `A-Z a-z 0-9 . _ -`.
-- `<domain>` is a lowercase DNS name with at least one dot, no port and no IP literal.
+- `<domain>` is an ASCII DNS name in LDH form, and nothing else:
+  - lowercase `a-z`, `0-9` and `-`;
+  - labels of 1–63 characters that neither start nor end with `-`;
+  - at least one dot and at most 253 characters;
+  - no trailing dot, no port and no IP literal (its last label is not all digits).
+
+  An internationalised name appears only as its `xn--` A-label. Verifiers look up and display the domain exactly as written, never decoded to Unicode, so a lookalike cannot hide behind a script mix-up.
 - The key id is signed (§5), so the claimed domain cannot be changed without breaking the signature.
-- A key id without `@` claims no domain, and its binding is unknown.
+- A key id without `@`, or with a domain outside this form (for example non-ASCII), claims no domain. Its binding is unknown, and it is never looked up.
 
 **The file** is `https://<domain>/.well-known/zeceipt.json`:
 
