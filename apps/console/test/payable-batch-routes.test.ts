@@ -79,7 +79,7 @@ test("a re-lock is 409 rate_fixed, and nothing is recorded", async () => {
   const before = asked;
   const again = await relock(String(r.body.id));
   assert.deepEqual([again.status, again.body.code], [409, "rate_fixed"]);
-  assert.match(String(again.body.detail), /cannot be re-locked; to pay at another rate, the draft must be voided/);
+  assert.match(String(again.body.detail), /cannot be re-locked; to pay at another rate, void this draft/);
   assert.equal(asked, before, "refused before asking the source");
   assert.deepEqual((await listQuotes(slot[SERVER_CONTEXT_KEY]!.db, ORG, String(r.body.id))).map((q) => q.seq), [1]);
 });

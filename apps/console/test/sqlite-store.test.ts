@@ -48,17 +48,28 @@ test("migrations apply once (one journal row per committed migration); a second 
   assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, journal.entries.length);
   const names = (type: string) =>
     (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);
-  assert.deepEqual(names("table"), ["batch_items", "batches", "payables", "rate_quotes", "receipts", "recipients", "submission_claims", "submission_txids", "submissions"]);
+  assert.deepEqual(names("table"), ["batch_items", "batch_voids", "batches", "memo_claims", "payables", "rate_quotes", "receipts", "recipients", "submission_claims", "submission_txids", "submissions"]);
   assert.deepEqual(names("trigger"), [
+    "batch_items_claim_memo",
     "batch_items_frozen_delete",
     "batch_items_frozen_insert",
     "batch_items_frozen_update",
     "batch_items_manual_not_payable",
+    "batch_items_not_voided_change",
+    "batch_items_not_voided_delete",
+    "batch_items_not_voided_insert",
     "batch_items_payable_fact",
     "batch_items_payable_fixed",
+    "batch_voids_no_delete",
+    "batch_voids_no_update",
+    "batch_voids_only_unpaid",
     "batches_frozen_delete",
     "batches_frozen_insert",
     "batches_frozen_update",
+    "batches_not_voided_change",
+    "batches_not_voided_delete",
+    "memo_claims_no_update",
+    "memo_claims_release_only_voided",
     "payables_batched_keep",
     "payables_batched_no_delete",
     "rate_quotes_fixed_for_payables",
@@ -66,10 +77,12 @@ test("migrations apply once (one journal row per committed migration); a second 
     "rate_quotes_no_delete",
     "rate_quotes_no_replace",
     "rate_quotes_no_update",
+    "rate_quotes_not_voided",
     "rate_quotes_positive",
     "receipts_fixed",
     "receipts_keep",
     "receipts_no_delete",
+    "receipts_not_voided",
     "receipts_own_broadcast",
     "receipts_sealed_valid_insert",
     "receipts_sealed_valid_update",
@@ -79,6 +92,8 @@ test("migrations apply once (one journal row per committed migration); a second 
     "submissions_identity_fixed",
     "submissions_keep",
     "submissions_no_delete",
+    "submissions_not_voided_insert",
+    "submissions_not_voided_retry",
   ]);
 });
 

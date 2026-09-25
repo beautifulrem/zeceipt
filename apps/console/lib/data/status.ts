@@ -19,7 +19,9 @@ export type BatchState =
   | "confirmed"
   | "receipts_partial"
   | "receipts_issued"
-  | "expired";
+  | "expired"
+  // Slice H5c: voided while nothing could have been sent; final (R82: Stripe's void, BTCPay's cancel).
+  | "voided";
 
 /**
  * What an operator (or a worker) can do next:
@@ -46,6 +48,7 @@ export interface BatchStatus {
     expiresBy?: number;
     cause?: UnknownCause;
     stale?: boolean;
+    voidedAt?: string;
   };
 }
 
@@ -59,10 +62,14 @@ export interface BatchFacts {
   now: Date;
   /** Age after which a `submitting` record is stale (the backend's `inFlightMs`). */
   inFlightMs: number;
+  /** When the batch was voided (slice H5c): final, whatever its failed attempts say. */
+  voidedAt?: string;
 }
 
 /** Pure: the status table of design §3.3.1.3.4.2, row for row. */
 export function deriveBatchStatus(f: BatchFacts): BatchStatus {
+  // A void is allowed only while nothing may have been sent (trigger 0019), so it outranks a failed attempt.
+  if (f.voidedAt !== undefined) return { state: "voided", next: "none", detail: { voidedAt: f.voidedAt } };
   const s = f.submission;
   if (!s) return { state: "draft", next: "submit", detail: { items: f.itemCount } };
   switch (s.state) {
@@ -137,6 +144,7 @@ export async function getBatchStatus(
     // It changed twice while we read: report the newest record without a chain answer rather than guess.
     return { state: "submitting", next: "wait", detail: { txid: submission.txid } };
   }
+  if (batch.voidedAt !== undefined) return deriveBatchStatus({ itemCount: batch.items.length, receipts: 0, requiredConfirmations: opts.requiredConfirmations, now: (opts.now ?? (() => new Date()))(), inFlightMs: backend.inFlightMs, voidedAt: batch.voidedAt });
   return deriveBatchStatus({
     itemCount: batch.items.length,
     submission,

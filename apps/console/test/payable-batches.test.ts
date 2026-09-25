@@ -116,9 +116,10 @@ test("the schema: a line naming a payable carries its facts, before the lock; ne
   assert.throws(() => line(open.id, { ref: null, idx: 11, pid: "hand-11", memo: "CENTS-ONLY" }), /CHECK constraint failed: batch_items_usd_cents/, "cents without a payable (the CHECK: both or neither)");
   assert.throws(() => line(batch.id, {}), /before the batch is locked/, "no payable line after the lock");
   line(open.id, {});
-  // A second line for the payable carries its reference as memo (0017), so the org-wide memo index (0018) refuses it
-  // first; the partial index on payable_ref stays as a second backstop.
-  assert.throws(() => line(open.id, { idx: 10 }), /UNIQUE constraint failed: batch_items\.org_id, batch_items\.memo/, "one batch per payable");
+  // A second line for the payable, in another live batch, carries its reference as memo (0017), so its memo claim
+  // (0019, which replaced 0018's index) refuses it: one live batch per payable.
+  const other = await createBatch(db, { orgId: ORG, network: "regtest", title: "raw other", items: [{ payableId: "o", address: UA[0], zat: 5n, memo: "OTHER-LIVE" }] });
+  assert.throws(() => line(other.id, { idx: 10 }), /UNIQUE constraint failed: memo_claims\.org_id, memo_claims\.memo/, "one live batch per payable");
   for (const set of ["memo = 'X'", "usd_cents = 1", "payable_ref = NULL, usd_cents = NULL"]) {
     assert.throws(() => db.$client.prepare(`UPDATE batch_items SET ${set} WHERE org_id = ? AND batch_id = ? AND idx = 9`).run(ORG, open.id), /its payable, cents and memo are fixed/, set);
   }
@@ -161,5 +162,5 @@ test("review H5a round 1: the schema backs it whatever writes the database (a ha
   assert.throws(() => line(1, "raw-1", p.reference), /a hand-made line cannot pay a payable/, "its reference");
   assert.throws(() => line(2, p.id, "RAW-HAND-2"), /a hand-made line cannot pay a payable/, "its id");
   const other = await createBatch(db, { orgId: ORG, network: "regtest", title: "raw other", items: [{ payableId: "raw-o", address: UA[0], zat: 5n, memo: "RAW-OTHER" }] });
-  assert.throws(() => db.$client.prepare("INSERT INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, 1, 'raw-x', '', ?, 5, 'RAW-HAND-0')").run(ORG, other.id, UA[0]), /UNIQUE constraint failed: batch_items\.org_id, batch_items\.memo/, "a memo used by another batch");
+  assert.throws(() => db.$client.prepare("INSERT INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, 1, 'raw-x', '', ?, 5, 'RAW-HAND-0')").run(ORG, other.id, UA[0]), /UNIQUE constraint failed: memo_claims\.org_id, memo_claims\.memo/, "a memo used by another batch (its claim, 0019)");
 });

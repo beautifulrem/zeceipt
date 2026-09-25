@@ -4,7 +4,7 @@
 // with the orgs slice.
 
 import { sql } from "drizzle-orm";
-import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, unique, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 /** One row per (org, nonce): the payment-attempt ledger of a batch. Never pruned (design 3.3.1.3.1.1.3). */
 export const submissions = sqliteTable(
@@ -118,11 +118,8 @@ export const batchItems = sqliteTable(
   },
   (t) => [
     primaryKey({ columns: [t.orgId, t.batchId, t.idx] }),
-    uniqueIndex("batch_items_payable_once").on(t.orgId, t.payableRef).where(sql`${t.payableRef} is not null`),
-    // A memo is a payable reference (REQ-CON-3): unique across the org's batches, not only within one, so one
-    // obligation cannot sit in two batches whichever way they were made (review H5a: a hand-made line and a payables
-    // line could both carry "INV-7").
-    uniqueIndex("batch_items_memo_org").on(t.orgId, t.memo),
+    // A memo's uniqueness across the org's live batches is `memo_claims` (slice H5c), which a void can release
+    // without touching frozen lines; the 0017/0018 indexes it replaced are dropped in 0019.
     check("batch_items_payable_ref", sql`(${t.payableRef} is null) = (${t.usdCents} is null)`),
     check("batch_items_usd_cents", sql`${t.usdCents} is null or (typeof(${t.usdCents}) = 'integer' and ${t.usdCents} between 1 and 99999999)`),
     foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
@@ -282,5 +279,43 @@ export const payables = sqliteTable(
     check("payables_reference", sql`typeof(${t.reference}) = 'text' and length(${t.reference}) between 1 and 100 and ${t.reference} = trim(${t.reference})`),
     check("payables_source_url", sql`${t.sourceUrl} is null or (typeof(${t.sourceUrl}) = 'text' and length(${t.sourceUrl}) <= 2000 and (${t.sourceUrl} glob 'https://?*' or ${t.sourceUrl} glob 'http://?*'))`),
     check("payables_created_at", isoCheck(t.createdAt)),
+  ],
+);
+
+/**
+ * A voided draft (slice H5c; R82): final and kept, as Stripe voids an invoice and BTCPay cancels a payout. Allowed
+ * only while nothing may have been sent (no submission, or only `failed_retryable`); afterwards the batch can take no
+ * submission, retry, quote or receipt (triggers, 0019). Append-only.
+ */
+export const batchVoids = sqliteTable(
+  "batch_voids",
+  {
+    orgId: text("org_id").notNull(),
+    batchId: text("batch_id").notNull(),
+    voidedAt: text("voided_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.batchId] }),
+    foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
+    check("batch_voids_voided_at", isoCheck(t.voidedAt)),
+  ],
+);
+
+/**
+ * The live claim on a memo (slice H5c): one per (org, memo), inserted by a trigger with every batch line, deleted only
+ * when its batch is voided. A memo is a payable reference, so this is also each payable's claim (a payable line's memo
+ * is its reference, 0017). It replaces 0018's index on batch_items, which a void could not release.
+ */
+export const memoClaims = sqliteTable(
+  "memo_claims",
+  {
+    orgId: text("org_id").notNull(),
+    memo: text("memo").notNull(),
+    batchId: text("batch_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.memo] }),
+    foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
+    index("memo_claims_batch").on(t.orgId, t.batchId),
   ],
 );

@@ -38,13 +38,15 @@ export function batchJson(rec: BatchRecord, rateLock: LockJson | null = null) {
     rateLock,
     // Made from payables (slice H5a): the amounts were converted at `rateLock`, which cannot be re-taken.
     rateFixed: rateFixed(rec),
+    // Voided (slice H5c): final; nothing was sent, and its memos and payables are free again.
+    voided: rec.voidedAt ? { at: rec.voidedAt } : null,
   };
 }
 
 export type BatchJson = ReturnType<typeof batchJson>;
 
 export function summaryJson(s: BatchSummary) {
-  return { id: s.id, network: s.network, title: s.title, createdAt: s.createdAt, itemCount: s.itemCount, totalZat: s.totalZat.toString() };
+  return { id: s.id, network: s.network, title: s.title, createdAt: s.createdAt, itemCount: s.itemCount, totalZat: s.totalZat.toString(), voided: s.voided };
 }
 
 export type BatchSummaryJson = ReturnType<typeof summaryJson>;

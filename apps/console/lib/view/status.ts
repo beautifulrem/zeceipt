@@ -29,6 +29,7 @@ const STATE: Record<BatchState, { label: string; tone: Tone; step: Step; blocked
   confirmed: { label: "Confirmed", tone: "success", step: "confirmed", explanation: "Paid and confirmed on chain. Receipts can be issued." },
   receipts_partial: { label: "Confirmed, receipts incomplete", tone: "warning", step: "receipts", explanation: "Some receipts are issued; issuing again completes the rest." },
   receipts_issued: { label: "Receipts issued", tone: "success", step: "receipts", explanation: "Paid, confirmed, and one receipt per item issued." },
+  voided: { label: "Voided", tone: "neutral", step: "draft", explanation: "Voided before anything was sent. Nothing was paid, and this batch can no longer be paid; its payables are free for a new batch." },
   expired: { label: "Expired, never mined", tone: "danger", step: "sent", blocked: true, explanation: "The transaction can no longer be mined, so nothing was paid by it. Re-sending is a human decision." },
 };
 

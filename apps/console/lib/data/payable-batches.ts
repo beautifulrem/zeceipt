@@ -12,7 +12,7 @@ import type { Network } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
 import { usdCentsToZat } from "../rates/convert.ts";
 import type { RateQuote } from "../rates/kraken.ts";
-import { BatchInvalidError, newBatchId, zatToDb, type BatchProblem, type BatchRecord } from "./batches.ts";
+import { BatchInvalidError, liveLine, newBatchId, zatToDb, type BatchProblem, type BatchRecord } from "./batches.ts";
 import { quoteProblem, toStored, type StoredQuote } from "./rates.ts";
 import { isPlainText } from "./text.ts";
 
@@ -41,7 +41,7 @@ function readProblems(db: Db, input: PayableBatchInput): BatchProblem[] {
   // its id or its reference as the memo (review H5a round 1: the index on payable_ref alone missed those).
   const references = [...refs.values()];
   const lines = ids.length ? db.select({ ref: batchItems.payableRef, payableId: batchItems.payableId, memo: batchItems.memo, batchId: batchItems.batchId }).from(batchItems)
-    .where(and(eq(batchItems.orgId, input.orgId), or(inArray(batchItems.payableRef, ids), inArray(batchItems.payableId, ids), references.length ? inArray(batchItems.memo, references) : sql`0`))).all() : [];
+    .where(and(eq(batchItems.orgId, input.orgId), liveLine, or(inArray(batchItems.payableRef, ids), inArray(batchItems.payableId, ids), references.length ? inArray(batchItems.memo, references) : sql`0`))).all() : [];
   const held = new Map<string, string>();
   for (const [id, reference] of refs) {
     const line = lines.find((l) => l.ref === id || l.payableId === id || l.memo === reference);
@@ -62,11 +62,12 @@ export function payableBatchProblems(db: ConsoleDb, input: PayableBatchInput): P
   return runSync(() => readProblems(db, input));
 }
 
-/** A unique index refused a line (the payable, or its reference as a memo): another batch took it after our check. */
+/** The memo claim refused a line (the payable's reference as a memo): another batch took it after our check. */
 function isTakenConflict(e: unknown): boolean {
   for (let c: unknown = e; c; c = (c as { cause?: unknown }).cause) {
     const { code, message } = c as { code?: unknown; message?: unknown };
-    if (code === "SQLITE_CONSTRAINT_UNIQUE" && typeof message === "string" && /batch_items\.org_id, batch_items\.(payable_ref|memo)/.test(message)) return true;
+    // The memo claim (slice H5c, 0019) is the one cross-batch key: a payable line's memo is its reference.
+    if ((code === "SQLITE_CONSTRAINT_PRIMARYKEY" || code === "SQLITE_CONSTRAINT_UNIQUE") && typeof message === "string" && message.includes("memo_claims.org_id, memo_claims.memo")) return true;
   }
   return false;
 }

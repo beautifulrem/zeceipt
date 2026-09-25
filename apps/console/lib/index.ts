@@ -38,4 +38,5 @@ export { createPayable, getPayable, listPayables, PAYABLE_KINDS, payableProblems
 export type { PayableInput, PayableKind, PayableProblem, PayableProblemCode, PayableRecord } from "./data/payables.ts";
 export { createBatchFromPayables, MAX_PAYABLES, payableBatchProblems } from "./data/payable-batches.ts";
 export { dustZat, usdCentsToZat } from "./rates/convert.ts";
+export { voidBatch, VoidError, type VoidErrorCode } from "./data/voids.ts";
 export { isPlainText } from "./data/text.ts";

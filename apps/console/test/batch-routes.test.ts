@@ -163,7 +163,7 @@ test("list: newest first; totals are exact decimal strings above 2^53", async ()
   assert.ok(10500000000000000 > Number.MAX_SAFE_INTEGER);
   const list = (await read(await handleList())).body.batches!;
   assert.equal(list[0].id, big.body.id);
-  assert.deepEqual(list[0], { id: big.body.id, network: "regtest", title: "big", createdAt: big.body.createdAt, itemCount: 5, totalZat: "10500000000000000" });
+  assert.deepEqual(list[0], { id: big.body.id, network: "regtest", title: "big", createdAt: big.body.createdAt, itemCount: 5, totalZat: "10500000000000000", voided: false });
 });
 
 test("404: unknown id, non-UUIDv7 text, and path tricks never reach the database as ids", async () => {

@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
-import { batchItems, batches, payables, submissions } from "../../db/schema.ts";
+import { batchItems, batches, batchVoids, payables, submissions } from "../../db/schema.ts";
 import { ExecutionError, type Batch, type Network, type PreflightProblem, type PreflightProblemCode } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
 import { isPlainText } from "./text.ts";
@@ -27,6 +27,8 @@ export interface BatchRecord {
   title: string;
   createdAt: string;
   items: (Required<BatchItemInput> & { idx: number; payableRef?: string; usdCents?: number })[];
+  /** When the batch was voided (slice H5c); absent while it is live. */
+  voidedAt?: string;
 }
 
 export interface BatchSummary {
@@ -36,6 +38,8 @@ export interface BatchSummary {
   createdAt: string;
   itemCount: number;
   totalZat: bigint;
+  /** Voided (slice H5c). */
+  voided: boolean;
 }
 
 /** Problems the repository adds to preflight's static rules: fields the console stores but the chain never sees. */
@@ -158,6 +162,9 @@ export function createBatch(db: ConsoleDb, input: CreateBatchInput, opts: { maxR
   );
 }
 
+/** Lines of batches that are not voided: a voided batch holds no memo and no payable (slice H5c). */
+export const liveLine = sql`not exists (select 1 from batch_voids v where v.org_id = ${batchItems.orgId} and v.batch_id = ${batchItems.batchId})`;
+
 /**
  * A hand-made batch's lines against the rest of the org (review H5a round 1): a memo is a payable reference, unique
  * across the org's batches (index `batch_items_memo_org`), and a payable is paid only through a batch made from
@@ -166,7 +173,7 @@ export function createBatch(db: ConsoleDb, input: CreateBatchInput, opts: { maxR
 function acrossBatches(db: Pick<ConsoleDb, "select">, orgId: string, items: { payableId: string; memo: string }[]): BatchProblem[] {
   const memos = [...new Set(items.map((i) => i.memo))];
   const ids = [...new Set(items.map((i) => i.payableId))];
-  const heldBy = new Map(db.select({ memo: batchItems.memo, batchId: batchItems.batchId }).from(batchItems).where(and(eq(batchItems.orgId, orgId), inArray(batchItems.memo, memos))).all().map((r) => [r.memo, r.batchId]));
+  const heldBy = new Map(db.select({ memo: batchItems.memo, batchId: batchItems.batchId }).from(batchItems).where(and(eq(batchItems.orgId, orgId), inArray(batchItems.memo, memos), liveLine)).all().map((r) => [r.memo, r.batchId]));
   const owed = db.select({ id: payables.id, reference: payables.reference }).from(payables)
     .where(and(eq(payables.orgId, orgId), or(inArray(payables.id, ids), inArray(payables.reference, memos)))).all();
   const problems: BatchProblem[] = [];
@@ -183,6 +190,7 @@ export function getBatch(db: ConsoleDb, orgId: string, id: string): Promise<Batc
     const b = db.select().from(batches).where(and(eq(batches.orgId, orgId), eq(batches.id, id))).get();
     if (!b) return undefined;
     const items = db.select().from(batchItems).where(and(eq(batchItems.orgId, orgId), eq(batchItems.batchId, id))).orderBy(batchItems.idx).all();
+    const voided = db.select({ at: batchVoids.voidedAt }).from(batchVoids).where(and(eq(batchVoids.orgId, orgId), eq(batchVoids.batchId, id))).get();
     return {
       orgId: b.orgId,
       id: b.id,
@@ -194,6 +202,7 @@ export function getBatch(db: ConsoleDb, orgId: string, id: string): Promise<Batc
         // A line made from a payable (slice H5a) names it and keeps its cents; a hand-made line has neither.
         ...(i.payableRef !== null && i.usdCents !== null ? { payableRef: i.payableRef, usdCents: i.usdCents } : {}),
       })),
+      ...(voided ? { voidedAt: voided.at } : {}),
     };
   });
 }
@@ -211,6 +220,7 @@ export function listBatches(db: ConsoleDb, orgId: string): Promise<BatchSummary[
         // Summed as SQLite's 64-bit integer and returned as text: a total can exceed 2^53 (50 items of 2.1e15).
         // The 64-bit sum itself overflows only above ~4,392 items of 2.1e15, far past maxRecipients.
         totalZat: sql<string>`cast(coalesce(sum(${batchItems.zat}), 0) as text)`,
+        voided: sql<number>`exists (select 1 from batch_voids v where v.org_id = ${batches.orgId} and v.batch_id = ${batches.id})`,
       })
       .from(batches)
       .leftJoin(batchItems, and(eq(batchItems.orgId, batches.orgId), eq(batchItems.batchId, batches.id)))
@@ -218,7 +228,7 @@ export function listBatches(db: ConsoleDb, orgId: string): Promise<BatchSummary[
       .groupBy(batches.orgId, batches.id)
       .orderBy(desc(batches.createdAt), desc(batches.id))
       .all()
-      .map((r) => ({ ...r, itemCount: Number(r.itemCount), totalZat: BigInt(r.totalZat) })),
+      .map((r) => ({ ...r, itemCount: Number(r.itemCount), totalZat: BigInt(r.totalZat), voided: Boolean(r.voided) })),
   );
 }
 

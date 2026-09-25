@@ -333,7 +333,7 @@
     "/api/batches/{id}/status": {
       "get": {
         "operationId": "getBatchStatus",
-        "summary": "The batch's derived status (never stored): draft, submitting, retryable, needs_attention, pending, confirming, confirmed, receipts_partial, receipts_issued or expired, with the next action",
+        "summary": "The batch's derived status (never stored): draft, submitting, retryable, needs_attention, pending, confirming, confirmed, receipts_partial, receipts_issued, expired or voided, with the next action",
         "parameters": [
           {
             "name": "id",
@@ -373,7 +373,8 @@
                         "confirmed",
                         "receipts_partial",
                         "receipts_issued",
-                        "expired"
+                        "expired",
+                        "voided"
                       ]
                     },
                     "next": {
@@ -1093,6 +1094,57 @@
           }
         }
       }
+    },
+    "/api/batches/{id}/void": {
+      "post": {
+        "operationId": "voidBatch",
+        "summary": "Void a draft that cannot have paid (slice H5c; as Stripe voids an invoice and BTCPay cancels a payout): allowed while there is no submission or only a failed_retryable one. Final and kept; the batch's memos and payables are released for a new batch.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The voided batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Batch"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "batch_frozen: a payment attempt may have sent this batch (a submission in any state but failed_retryable); batch_voided: already voided. Nothing was changed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1151,7 +1203,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken, rate_fixed"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken, rate_fixed, batch_voided"
           },
           "problems": {
             "type": "array",
@@ -1321,7 +1373,8 @@
           "totalZat",
           "items",
           "rateLock",
-          "rateFixed"
+          "rateFixed",
+          "voided"
         ],
         "properties": {
           "id": {
@@ -1404,6 +1457,26 @@
           "rateFixed": {
             "type": "boolean",
             "description": "Made from payables (slice H5a): the amounts were converted at rateLock, which cannot be re-taken (409 rate_fixed)"
+          },
+          "voided": {
+            "description": "Voided (slice H5c): final; nothing was sent, and its memos and payables are free again. Null while live.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "at"
+                ],
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -1415,7 +1488,8 @@
           "title",
           "createdAt",
           "itemCount",
-          "totalZat"
+          "totalZat",
+          "voided"
         ],
         "properties": {
           "id": {
@@ -1441,6 +1515,10 @@
           "totalZat": {
             "type": "string",
             "pattern": "^[0-9]+$"
+          },
+          "voided": {
+            "type": "boolean",
+            "description": "Voided (slice H5c)"
           }
         }
       },

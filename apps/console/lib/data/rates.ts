@@ -50,9 +50,8 @@ export function quoteProblem(q: RateQuote): string | undefined {
 const FROZEN = /batch is frozen: a submission exists/;
 const FIXED = /rate is fixed: the batch was made from payables/;
 /** Why a batch made from payables cannot be re-locked (slice H5a; the API's `rate_fixed`). */
-// Honest until H5c: its payables stay in this batch, so "make a new batch" would be refused (payable_taken) until
-// the draft can be voided.
-export const FIXED_DETAIL = "the amounts were converted from the payables at this batch's lock, so the batch cannot be re-locked; to pay at another rate, the draft must be voided and made again from its payables (voiding is not built yet)";
+// Voiding (slice H5c) frees the payables, so a new batch from them can be made at today's rate.
+export const FIXED_DETAIL = "the amounts were converted from the payables at this batch's lock, so the batch cannot be re-locked; to pay at another rate, void this draft (POST /api/batches/{id}/void; allowed while nothing may have been sent) and make a new batch from its payables";
 
 export async function recordQuote(
   db: ConsoleDb,

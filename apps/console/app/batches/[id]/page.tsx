@@ -143,7 +143,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         {rateFixed(rec) ? (
           // Slice H5a: the lines were converted at this lock (BTCPay's fixed payout rate), so there is no Re-lock.
           <p className="text-sm text-slate-500">
-            Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate, the draft must be voided and made again (voiding is not built yet).
+            Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate, void this draft and make a new batch from its payables.
           </p>
         ) : lockFrozen ? (
           <p className="text-sm text-slate-500">A payment attempt may have paid this batch: its rate can no longer be changed.</p>
