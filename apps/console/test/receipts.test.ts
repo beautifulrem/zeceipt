@@ -250,13 +250,29 @@ test("an output already receipted for one batch cannot be receipted for another 
   const org = "org-b2-shared";
   const first = await issuedBatch("shared-1", { org });
   await recordReceipts(db, ring, { orgId: org, batchId: first.rec.id, issued: first.issued });
-  // The misconfiguration this guarded against (two batches of one org carrying the same outputs, broadcast as one
-  // tx) can no longer be created: memos are unique across the org's batches (review H5a round 1, migration 0018),
-  // so the second batch is refused before it exists. The receipt-level guard stays as defence in depth.
+  // Two batches of one org can no longer carry the same outputs: memos are unique across the org's batches (review
+  // H5a round 1, migration 0018), so an identical second batch is refused at creation.
+  await assert.rejects(issuedBatch("shared-2", { org }), (e: unknown) => e instanceof BatchInvalidError && e.problems.every((p) => p.code === "memo_taken") && e.problems[0].detail.includes(`already used by batch ${first.rec.id}`));
+  // The receipt guard stays for a crafted `issued` (review H5a round 2): a second batch with its own memos, recorded as
+  // broadcast in the same transaction, whose receipts claim the outputs the first batch already holds. A real
+  // verifier never recovers another batch's memos from an output; this reaches the guard directly.
+  const second = await createBatch(db, { orgId: org, network: "regtest", title: "shared-2", items: PAYEES.map((p) => ({ ...p, payableId: `${p.payableId}-b`, memo: `${p.memo}-b` })) });
+  const store = new SqliteIdempotencyStore(db, { orgId: org });
+  const base = { nonce: batchNonce(second), batchId: second.id, batchDigest: batchDigest(toExecutionBatch(second)), createdAt: "t", attempts: 1 };
+  await store.createIntent({ ...base, state: "submitting" });
+  await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
+  const crafted = {
+    ...first.issued,
+    receipts: first.issued.receipts.map((r) => {
+      const item = second.items.find((i) => i.payableId === `${r.payableId}-b`)!;
+      return { ...r, payableId: item.payableId, recovered: { ...r.recovered, memo: { kind: "text" as const, text: item.memo } } };
+    }),
+  } as typeof first.issued;
   await assert.rejects(
-    issuedBatch("shared-2", { org }),
-    (e: unknown) => e instanceof BatchInvalidError && e.problems.every((p) => p.code === "memo_taken") && e.problems[0].detail.includes(`already used by batch ${first.rec.id}`),
+    recordReceipts(db, ring, { orgId: org, batchId: second.id, issued: crafted }),
+    (e: unknown) => e instanceof ReceiptRecordError && e.code === "receipt_mismatch" && e.message.includes(`already has a receipt for batch ${first.rec.id}`),
   );
+  assert.deepEqual(await listReceipts(db, ring, org, second.id), []);
 });
 
 test("autoIssue never writes a receipt (OCK) to a temp file; outDir (tools only) is owner-only", async () => {
