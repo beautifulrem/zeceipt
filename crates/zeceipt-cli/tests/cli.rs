@@ -688,3 +688,34 @@ fn verify_reports_the_issuer_binding_and_never_changes_validity() {
     assert_eq!(c, 3, "the two are exclusive: {err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The verdict's own words match spec §4 (slice D5, after review D2): whoever produced the receipt
+/// knew the OCK, which anyone holding an earlier receipt for the output also knows; never "the issuer".
+#[test]
+fn verify_says_what_a_receipt_proves_as_spec_section_4_does() {
+    let raw = fixture("synthetic-ironwood.hex");
+    let ovk = std::fs::read_to_string(fixture("synthetic-ovk.hex")).unwrap();
+    let (c, o, err) = run(&[
+        "issue",
+        "--raw-tx-file",
+        &raw,
+        "--ovk",
+        ovk.trim(),
+        "--host",
+        "https://receipts.example",
+    ]);
+    assert_eq!(c, 0, "{err}");
+    let url = serde_json::from_str::<serde_json::Value>(o.trim()).unwrap()["receipts"][0]["url"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (c, o, _) = run(&["verify", &url, "--raw-tx-file", &raw]);
+    assert_eq!(c, 0);
+    let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    let proves = v["proves"].as_str().unwrap();
+    assert!(
+        proves.contains("whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it"),
+        "{proves}"
+    );
+    assert!(!proves.contains("the issuer knew"), "{proves}");
+}

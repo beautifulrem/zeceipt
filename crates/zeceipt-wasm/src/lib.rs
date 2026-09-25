@@ -51,7 +51,7 @@ struct VerifyOut {
     does_not_prove: &'static str,
 }
 
-const PROVES: &str = "this transaction pays the shown value to the shown recipient with the shown memo; the issuer knew this output's outgoing cipher key";
+const PROVES: &str = "this transaction pays the shown value to the shown recipient with the shown memo; whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it; a signature attributes the receipt to a key, not the OCK to the sender";
 const DOES_NOT_PROVE: &str =
     "who is presenting this receipt; anything about other outputs, transactions or balances";
 
