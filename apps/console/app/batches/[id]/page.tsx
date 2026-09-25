@@ -9,7 +9,7 @@ import { LinkabilityNote } from "../../components/linkability.tsx";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
-import { serverContext } from "../../../lib/server/context.ts";
+import { approvalCheck, serverContext } from "../../../lib/server/context.ts";
 import { rateText, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
 import { Address } from "../../components/address.tsx";
 import { paymentMode } from "../../../lib/view/mode.ts";
@@ -17,7 +17,7 @@ import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { ZecAmount } from "../../components/amount.tsx";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
-import { IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
+import { ApproveForm, IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   let unavailable = false;
   if (ctx.backend) {
     try {
-      status = await getBatchStatus(ctx.db, ctx.backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations });
+      status = await getBatchStatus(ctx.db, ctx.backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations, approval: approvalCheck(ctx) });
     } catch (e) {
       if (!(e instanceof ZkoolTransportError || e instanceof ZkoolGraphqlError)) throw e;
       unavailable = true;
@@ -88,6 +88,18 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             </div>
             <Lifecycle view={view} />
             <p className="text-sm">{view.explanation}</p>
+            {status.next === "approve" &&
+              (lock ? (
+                // Slice I3: every payment needs an approval of the batch as shown, at this lock (re-lock: approve again).
+                <>
+                  <p className="text-sm">Check the lines, the total and the locked rate below, then approve. Pay is offered once approved.</p>
+                  <ApproveForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} lockSeq={lock.seq} rate={rateText(lock.rate)} />
+                </>
+              ) : (
+                <p className="text-sm">
+                  <strong>Lock the ZEC/USD rate below before approving.</strong> The approval and the payment are checked against it.
+                </p>
+              ))}
             {status.next === "submit" &&
               (lock || submitted ? (
                 <PayForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} again={status.state === "needs_attention"} />

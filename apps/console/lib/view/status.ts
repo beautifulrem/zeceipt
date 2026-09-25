@@ -7,10 +7,11 @@
 import type { BatchState, BatchStatus, NextAction } from "../data/status.ts";
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
-export type Step = "draft" | "sent" | "in_block" | "confirmed" | "receipts";
+export type Step = "draft" | "approved" | "sent" | "in_block" | "confirmed" | "receipts";
 
 export const LIFECYCLE_STEPS: readonly { step: Step; label: string }[] = [
   { step: "draft", label: "Draft" },
+  { step: "approved", label: "Approved" },
   { step: "sent", label: "Sent" },
   { step: "in_block", label: "In a block" },
   { step: "confirmed", label: "Confirmed" },
@@ -20,7 +21,9 @@ export const LIFECYCLE_STEPS: readonly { step: Step; label: string }[] = [
 const MAY_HAVE_SENT = "The payment may have been sent. Do not pay this batch by hand.";
 
 const STATE: Record<BatchState, { label: string; tone: Tone; step: Step; blocked?: true; explanation: string }> = {
-  draft: { label: "Draft", tone: "neutral", step: "draft", explanation: "Not submitted. Nothing has been paid." },
+  draft: { label: "Draft", tone: "neutral", step: "draft", explanation: "Not approved and not submitted. Nothing has been paid." },
+  // Slice I3: approved as it is now, at its current lock; a re-lock or any change to a line needs a new approval.
+  approved: { label: "Approved, not sent", tone: "info", step: "approved", explanation: "Approved at the current rate lock. Nothing has been paid yet. Re-locking the rate needs a new approval." },
   submitting: { label: "Submitting", tone: "info", step: "sent", explanation: "A submit is running or was interrupted; the payment may be in progress. Do not pay this batch any other way." },
   retryable: { label: "Not sent, can retry", tone: "warning", step: "draft", explanation: "The last attempt sent nothing. Submitting again is safe." },
   needs_attention: { label: "Outcome unknown", tone: "danger", step: "sent", blocked: true, explanation: MAY_HAVE_SENT },
@@ -34,6 +37,7 @@ const STATE: Record<BatchState, { label: string; tone: Tone; step: Step; blocked
 };
 
 export const NEXT_TEXT: Record<NextAction, string> = {
+  approve: "Approve the batch (its lines, total and locked rate)",
   submit: "Submit the batch (with its total)",
   wait: "Nothing to do yet",
   issue_receipts: "Issue receipts",

@@ -16,7 +16,7 @@ import { getBatchStatus } from "../data/status.ts";
 import { StoreBusyError } from "../execution/idempotency.ts";
 import { autoIssue, IssuanceMismatchError, ReceiptVerificationError, type ZeceiptCliOptions } from "../issuance/auto-issue.ts";
 import type { ConsoleConfig } from "../config/env.ts";
-import { serverContext } from "../server/context.ts";
+import { approvalCheck, serverContext } from "../server/context.ts";
 import { HttpProblem, problem } from "./problem.ts";
 
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -62,7 +62,7 @@ export async function issueReceiptsResponse(id: string, cli: ZeceiptCliOptions):
   const backend = ctx.backend;
   if (!backend) throw new HttpProblem(409, "custody_external", "this console runs in external-signer custody and does not track payments, so it cannot issue receipts");
   const rec = await batchOr404(id);
-  const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations });
+  const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations, approval: approvalCheck(ctx) });
   if (!status) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
   const list = async () => (await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id)).map(receiptJson);
   switch (status.state) {

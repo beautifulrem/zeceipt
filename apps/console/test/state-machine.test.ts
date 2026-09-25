@@ -14,6 +14,7 @@ import * as lockRoute from "../app/api/batches/[id]/rate-lock/route.ts";
 import * as submitRoute from "../app/api/batches/[id]/submit/route.ts";
 import * as statusRoute from "../app/api/batches/[id]/status/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { approve } from "./helpers/approve.ts";
 
 const HOST = "127.0.0.1:3000";
 const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
@@ -52,7 +53,9 @@ const status = async (id: string) => (await (await statusRoute.GET(new Request(`
 test("REQ-CON-10: the same batch at 2 confirmations is confirming under N=3 and confirmed under N=2", async () => {
   const created = (await (await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify({ title: "I1", items: [{ payableId: "i1-1", address: UA, zat: "1000", memo: "I1-1" }] }) }), undefined)).json()) as { id: string };
   assert.equal((await lockRoute.POST(new Request(`http://${HOST}/x`, { method: "POST", headers }), params(created.id))).status, 201);
-  assert.deepEqual((await status(created.id)).state, "draft");
+  assert.deepEqual([(await status(created.id)).state, (await status(created.id)).next], ["draft", "approve"]);
+  await approve(created.id); // slice I3: REQ-CON-10's "approved"
+  assert.deepEqual([(await status(created.id)).state, (await status(created.id)).next], ["approved", "submit"]);
   const paid = await submitRoute.POST(new Request(`http://${HOST}/x`, { method: "POST", headers, body: JSON.stringify({ confirmTotalZat: "1000" }) }), params(created.id));
   assert.equal(paid.status, 202);
   assert.equal((await status(created.id)).state, "pending", "broadcast, not in a block");

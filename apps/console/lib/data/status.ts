@@ -6,11 +6,16 @@
 import type { IdempotencyStore, SubmissionRecord } from "../execution/idempotency.ts";
 import type { PayoutBackend, TxStatus, UnknownCause } from "../execution/types.ts";
 import type { ConsoleDb } from "../../db/client.ts";
+import type { Keyring } from "../crypto/seal.ts";
+import { validApproval } from "./approvals.ts";
 import { batchNonce, getBatch } from "./batches.ts";
+import { currentLock } from "./rates.ts";
 import { countReceipts } from "./receipts.ts";
 
 export type BatchState =
   | "draft"
+  // Slice I3: a valid approval of the batch as it is now, nothing sent yet (REQ-CON-10's "approved").
+  | "approved"
   | "submitting"
   | "retryable"
   | "needs_attention"
@@ -25,6 +30,7 @@ export type BatchState =
 
 /**
  * What an operator (or a worker) can do next:
+ * - `approve`: approve the batch as it is now, at its current lock (slice I3; a lock comes first);
  * - `submit`: call `submit` again with the same nonce (first time, retry, or reconciliation);
  * - `wait`: nothing to do yet;
  * - `issue_receipts`: run `autoIssue` + `recordReceipts`;
@@ -33,7 +39,7 @@ export type BatchState =
  * - `investigate`: the records disagree in a way no automatic call resolves (see `detail.cause`);
  * - `none`: finished.
  */
-export type NextAction = "submit" | "wait" | "issue_receipts" | "resend_expired" | "record_expiry" | "investigate" | "none";
+export type NextAction = "approve" | "submit" | "wait" | "issue_receipts" | "resend_expired" | "record_expiry" | "investigate" | "none";
 
 export interface BatchStatus {
   state: BatchState;
@@ -64,6 +70,11 @@ export interface BatchFacts {
   inFlightMs: number;
   /** When the batch was voided (slice H5c): final, whatever its failed attempts say. */
   voidedAt?: string;
+  /**
+   * A valid approval of the batch as it is now (slice I3): read only while nothing may have been sent (no
+   * submission, or `failed_retryable`), where it decides between `approve` and `submit`. Absent means not approved.
+   */
+  approved?: boolean;
 }
 
 /** Pure: the status table of design §3.3.1.3.4.2, row for row. */
@@ -71,14 +82,16 @@ export function deriveBatchStatus(f: BatchFacts): BatchStatus {
   // A void is allowed only while nothing may have been sent (trigger 0019), so it outranks a failed attempt.
   if (f.voidedAt !== undefined) return { state: "voided", next: "none", detail: { voidedAt: f.voidedAt } };
   const s = f.submission;
-  if (!s) return { state: "draft", next: "submit", detail: { items: f.itemCount } };
+  // Every attempt that will pay needs a valid approval (slice I3), so without one the next step is to approve.
+  if (!s) return f.approved ? { state: "approved", next: "submit", detail: { items: f.itemCount } } : { state: "draft", next: "approve", detail: { items: f.itemCount } };
   switch (s.state) {
     case "submitting": {
       const stale = f.now.getTime() - Date.parse(s.createdAt) >= f.inFlightMs;
       return stale ? { state: "needs_attention", next: "submit", detail: { stale: true } } : { state: "submitting", next: "wait", detail: {} };
     }
     case "failed_retryable":
-      return { state: "retryable", next: "submit", detail: { error: s.error } };
+      // A re-lock after the refusal invalidates the approval: approve the batch at the new lock, then retry.
+      return { state: "retryable", next: f.approved ? "submit" : "approve", detail: { error: s.error } };
     case "unknown_outcome":
       return { state: "needs_attention", next: "submit", detail: { error: s.error, expiresBy: s.expiresBy } };
     case "broadcast":
@@ -125,7 +138,12 @@ export async function getBatchStatus(
   backend: StatusSource,
   orgId: string,
   batchId: string,
-  opts: { requiredConfirmations: number; now?: () => Date },
+  opts: {
+    requiredConfirmations: number;
+    now?: () => Date;
+    /** How approvals are checked (slice I3): the keyring they are MACed under and the backend that pays (`backendId`). */
+    approval: { keyring: Keyring; backend: string };
+  },
 ): Promise<BatchStatus | undefined> {
   const batch = await getBatch(db, orgId, batchId);
   if (!batch) return undefined;
@@ -145,9 +163,14 @@ export async function getBatchStatus(
     return { state: "submitting", next: "wait", detail: { txid: submission.txid } };
   }
   if (batch.voidedAt !== undefined) return deriveBatchStatus({ itemCount: batch.items.length, receipts: 0, requiredConfirmations: opts.requiredConfirmations, now: (opts.now ?? (() => new Date()))(), inFlightMs: backend.inFlightMs, voidedAt: batch.voidedAt });
+  // Only where it decides the next step: nothing may have been sent yet.
+  const approved = !submission || submission.state === "failed_retryable"
+    ? (await validApproval(db, opts.approval.keyring, batch, await currentLock(db, orgId, batchId), opts.approval.backend)) !== undefined
+    : undefined;
   return deriveBatchStatus({
     itemCount: batch.items.length,
     submission,
+    approved,
     chain,
     receipts: await countReceipts(db, orgId, batchId),
     requiredConfirmations: opts.requiredConfirmations,

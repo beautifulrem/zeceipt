@@ -10,6 +10,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   autoIssue,
+  backendId,
+  recordApproval,
+  recordQuote,
   batchDigest,
   batchNonce,
   createBatch,
@@ -45,18 +48,25 @@ const sub = (state: SubmissionRecord["state"], over: Partial<SubmissionRecord> =
 });
 const mined = (confirmations: number): TxStatus => ({ state: "mined", height: 100, confirmations, tip: 99 + confirmations });
 const unknown = (cause: Extract<TxStatus, { state: "unknown" }>["cause"]): TxStatus => ({ state: "unknown", cause, reason: cause });
+const KEYRING = new Keyring([{ kid: "k1", key: Buffer.alloc(32, 1) }]);
+const APPROVAL = { keyring: KEYRING, backend: backendId(9) };
+const QUOTE = { source: "kraken", pair: "XZECZUSD", bid: "1600.00", ask: "1601.00", last: "1600.00", rate: "1600.00", fetchedAt: "2026-09-23T11:59:00.000Z" } as const;
 const facts = (over: Partial<BatchFacts>): BatchFacts => ({ itemCount: 3, receipts: 0, requiredConfirmations: 2, now: NOW, inFlightMs: 600_000, ...over });
 
 test("the status table, row by row (design §3.3.1.3.4.2)", () => {
   const rows: [string, Partial<BatchFacts>, string, string][] = [
-    ["no submission", {}, "draft", "submit"],
+    // Slice I3: every payment needs an approval; without one the next step is to approve.
+    ["no submission, not approved", {}, "draft", "approve"],
+    ["no submission, approved", { approved: true }, "approved", "submit"],
     ["submitting, young", { submission: sub("submitting") }, "submitting", "wait"],
     ["submitting, stale", { submission: sub("submitting", { createdAt: "2026-09-23T11:40:00Z" }) }, "needs_attention", "submit"],
-    ["failed_retryable", { submission: sub("failed_retryable", { error: "No feasible note selection found" }) }, "retryable", "submit"],
+    ["failed_retryable, still approved", { submission: sub("failed_retryable", { error: "No feasible note selection found" }), approved: true }, "retryable", "submit"],
+    ["failed_retryable, re-locked since (not approved)", { submission: sub("failed_retryable", { error: "rate moved" }) }, "retryable", "approve"],
     ["unknown_outcome", { submission: sub("unknown_outcome", { expiresBy: 150 }) }, "needs_attention", "submit"],
     ["broadcast, pending", { submission: sub("broadcast"), chain: { state: "pending", broadcastAt: "t" } }, "pending", "wait"],
     ["broadcast, 1 of 2", { submission: sub("broadcast"), chain: mined(1) }, "confirming", "wait"],
     ["broadcast, confirmed, no receipts", { submission: sub("broadcast"), chain: mined(2) }, "confirmed", "issue_receipts"],
+    ["broadcast: the approval no longer matters", { submission: sub("broadcast"), chain: mined(2), approved: false }, "confirmed", "issue_receipts"],
     ["broadcast, confirmed, 1 of 3 receipts", { submission: sub("broadcast"), chain: mined(5), receipts: 1 }, "receipts_partial", "issue_receipts"],
     ["broadcast, confirmed, all receipts", { submission: sub("broadcast"), chain: mined(2), receipts: 3 }, "receipts_issued", "none"],
     ["broadcast, expired", { submission: sub("broadcast", { expiresBy: 150 }), chain: unknown("expired") }, "expired", "resend_expired"],
@@ -117,15 +127,19 @@ test("reader end to end with the fake Zkool: draft → pending → confirming �
     const rec = await createBatch(db, { orgId: org, network: "regtest", title: "status", items: PAYEES.map((p) => ({ ...p, memo: `${p.memo}-s` })) });
     const store = new SqliteIdempotencyStore(db, { orgId: org });
     const backend = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
-    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 3 }).then((s) => [s?.state, s?.next]);
-    assert.deepEqual(await read(), ["draft", "submit"]);
+    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 3, approval: APPROVAL }).then((s) => [s?.state, s?.next]);
+    assert.deepEqual(await read(), ["draft", "approve"]);
+    // Slice I3: locked and approved as it is, the next step is to pay.
+    const lock = await recordQuote(db, { orgId: org, batchId: rec.id, purpose: "lock", quote: QUOTE });
+    await recordApproval(db, KEYRING, { rec, lock, backend: APPROVAL.backend });
+    assert.deepEqual(await read(), ["approved", "submit"]);
     await backend.submit(toExecutionBatch(rec), batchNonce(rec));
     assert.deepEqual(await read(), ["pending", "wait"]);
     fake.mine();
     assert.deepEqual(await read(), ["confirming", "wait"]);
     fake.mine(2);
     assert.deepEqual(await read(), ["confirmed", "issue_receipts"]);
-    assert.equal(await getBatchStatus(db, backend, org, "00000000-0000-7000-8000-000000000000", { requiredConfirmations: 3 }), undefined);
+    assert.equal(await getBatchStatus(db, backend, org, "00000000-0000-7000-8000-000000000000", { requiredConfirmations: 3, approval: APPROVAL }), undefined);
     const cols = (db.$client.prepare("SELECT name FROM pragma_table_info('batches')").all() as { name: string }[]).map((c) => c.name);
     assert.ok(!cols.includes("state"), "the status is derived, not a column");
   } finally {
@@ -149,7 +163,7 @@ test("with the real fixture transaction and real receipts: confirmed → receipt
     fake.mined.push({ txid: TXID, height: fake.height, expiry: fake.height + 40, recipients: [] });
     fake.height += 1;
     const backend = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
-    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 2 });
+    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 2, approval: APPROVAL });
     assert.deepEqual(await read().then((s) => [s?.state, s?.next]), ["confirmed", "issue_receipts"]);
     const keyFile = join(dir, "issuer.key");
     execFileSync(BIN, ["keygen", "--out", keyFile]);
@@ -181,7 +195,7 @@ test("a broadcast whose expiry bound was never recorded: record_expiry → (afte
     fake.drop();
     fake.advance(200);
     await new Promise((r) => setTimeout(r, 5)); // past the 1 ms pending timeout
-    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 1 }).then((s) => [s?.state, s?.next]);
+    const read = () => getBatchStatus(db, backend, org, rec.id, { requiredConfirmations: 1, approval: APPROVAL }).then((s) => [s?.state, s?.next]);
     assert.deepEqual(await read(), ["needs_attention", "record_expiry"]);
     const bound = await backend.ensureExpiryBound(batchNonce(rec));
     assert.equal(await backend.ensureExpiryBound(batchNonce(rec)), bound, "idempotent");
@@ -191,7 +205,7 @@ test("a broadcast whose expiry bound was never recorded: record_expiry → (afte
     await backend.resubmitExpired(toExecutionBatch(rec), batchNonce(rec));
     // Read the new attempt with the default pending timeout (this test's backend uses 1 ms to force "timeout").
     const normal = new ZkoolBackend({ client: new ZkoolClient({ url: fake.url, timeoutMs: 2_000, payTimeoutMs: 2_000 }), account: 9, store });
-    assert.deepEqual(await getBatchStatus(db, normal, org, rec.id, { requiredConfirmations: 1 }).then((x) => [x?.state, x?.next]), ["pending", "wait"]);
+    assert.deepEqual(await getBatchStatus(db, normal, org, rec.id, { requiredConfirmations: 1, approval: APPROVAL }).then((x) => [x?.state, x?.next]), ["pending", "wait"]);
   } finally {
     await fake.stop();
   }
@@ -208,10 +222,10 @@ test("a reader must use the backend's own store: a backend on another org's stor
     // A misconfigured reader: reads the right record through `store`, but its status() consults another org's index.
     const other = new ZkoolBackend({ client, account: 9, store: new SqliteIdempotencyStore(db, { orgId: "someone-else" }) });
     const mixed = { status: other.status.bind(other), store: mine.store, inFlightMs: mine.inFlightMs };
-    const s = await getBatchStatus(db, mixed, org, rec.id, { requiredConfirmations: 1 });
+    const s = await getBatchStatus(db, mixed, org, rec.id, { requiredConfirmations: 1, approval: APPROVAL });
     assert.deepEqual([s?.state, s?.next, s?.detail.cause], ["needs_attention", "investigate", "not_ours"]);
     // The correctly paired reader sees the truth.
-    assert.deepEqual(await getBatchStatus(db, mine, org, rec.id, { requiredConfirmations: 1 }).then((x) => x?.state), "pending");
+    assert.deepEqual(await getBatchStatus(db, mine, org, rec.id, { requiredConfirmations: 1, approval: APPROVAL }).then((x) => x?.state), "pending");
   } finally {
     await fake.stop();
   }
@@ -239,7 +253,7 @@ test("the reader never combines a submission snapshot with the chain status of a
       return mined(9);
     },
   };
-  const s = await getBatchStatus(db, source, org, rec.id, { requiredConfirmations: 1, now: () => NOW });
+  const s = await getBatchStatus(db, source, org, rec.id, { requiredConfirmations: 1, now: () => NOW, approval: APPROVAL });
   assert.deepEqual([s?.state, s?.next], ["submitting", "wait"], "the newer record wins; the stale 'expired' answer is discarded");
   assert.equal(calls, 1);
 });

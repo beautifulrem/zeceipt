@@ -147,7 +147,7 @@ test("concurrent issues: exactly one receipt per item; only the request that rec
 test("not ready: a draft or an uncertain batch is refused with its state and next action; nothing recorded", async () => {
   const draft = await scenario("org-draft", { broadcast: null });
   const d = await read(await issue(draft, cli));
-  assert.deepEqual([d.status, d.body.code, d.body.state, d.body.next], [409, "not_ready_for_receipts", "draft", "submit"]);
+  assert.deepEqual([d.status, d.body.code, d.body.state, d.body.next], [409, "not_ready_for_receipts", "draft", "approve"]);
   const uncertain = await scenario("org-uncertain", { broadcast: "unknown_outcome" });
   const u = await read(await issue(uncertain, cli));
   assert.deepEqual([u.status, u.body.code, u.body.state], [409, "not_ready_for_receipts", "needs_attention"]);

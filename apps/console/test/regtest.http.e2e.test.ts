@@ -140,6 +140,11 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     assert.equal((await post(`/batches/${id}`, formFields(unlockedPage, ">Lock rate</button>"))).status, 200);
     assert.equal((await api<{ rateLock: { rate: string } | null }>(`/api/batches/${id}`)).rateLock?.rate, "1600.00");
     step("locked", { rate: "1600.00", source: "fake ticker (deterministic)" });
+    // Approve with the page's form (slice I3): the total and the lock the page showed.
+    const lockedPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
+    assert.equal((await post(`/batches/${id}`, formFields(lockedPage, 'name="lockSeq"'))).status, 200);
+    assert.equal((await api<{ state: string }>(`/api/batches/${id}/status`)).state, "approved");
+    step("approved", { lockSeq: 1 });
     const draftPage = (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body;
     const payFields = formFields(draftPage, 'name="confirmTotalZat"');
     const paid = await post(`/batches/${id}`, payFields);

@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ConfigError, keyringFromConfig, loadConfig, scrubSecretEnv, type ConsoleConfig } from "../config/env.ts";
 import type { Keyring } from "../crypto/seal.ts";
+import { backendId } from "../data/approvals.ts";
 import { ExecutionError } from "../execution/types.ts";
 import { SqliteIdempotencyStore } from "../execution/sqlite-store.ts";
 import { ZkoolBackend } from "../execution/zkool-backend.ts";
@@ -117,6 +118,16 @@ export function serverContext(): ServerContext {
     built.set(boot, ctx);
   }
   return ctx;
+}
+
+/**
+ * How approvals are made and checked (slice I3): the keyring they are MACed under and the paying backend's id.
+ * Hot custody only: in external custody this console never pays, so nothing asks (a caller that does is a bug).
+ */
+export function approvalCheck(ctx: ServerContext): { keyring: Keyring; backend: string } {
+  const custody = ctx.config.custody;
+  if (custody.mode !== "hot") throw new Error("approvals are checked only in hot custody");
+  return { keyring: ctx.keyring, backend: backendId(custody.zkool.account) };
 }
 
 /**

@@ -18,7 +18,8 @@
 // The handler never reads `request.signal`: a client that disconnects mid-pay does not abort the pay.
 
 import { z } from "zod";
-import { batchNonce, getBatch, toExecutionBatch } from "../data/batches.ts";
+import { batchNonce, getBatch, toExecutionBatch, type BatchRecord } from "../data/batches.ts";
+import { validApproval } from "../data/approvals.ts";
 import { currentLock, recordQuote } from "../data/rates.ts";
 import { movedText, pctFromBps, rateDrift } from "../rates/drift.ts";
 import { getBatchStatus } from "../data/status.ts";
@@ -32,7 +33,7 @@ import {
 } from "../execution/types.ts";
 import type { ZkoolBackend } from "../execution/zkool-backend.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../execution/zkool-client.ts";
-import { ContextNotReadyError, serverContext, type ServerContext } from "../server/context.ts";
+import { approvalCheck, ContextNotReadyError, serverContext, type ServerContext } from "../server/context.ts";
 import { readJson } from "./body.ts";
 import { HttpProblem, problem } from "./problem.ts";
 
@@ -91,6 +92,8 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
     reachedBackend = true;
     const beforePay = async () => {
       try {
+        // Slice I3: approval first (no network call), then the rate guard's fresh quote.
+        await approvalGuard(ctx, rec);
         await rateGuard(ctx, rec.id);
       } catch (e) {
         refusedBeforePay = true;
@@ -113,6 +116,20 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
 }
 
 /**
+ * The approval guard (slice I3; design I3.1.5): every attempt that will pay needs a valid approval, for this backend,
+ * of exactly the lines this attempt pays (`rec`, the record handed to the backend) at the batch's current lock, read
+ * here so a re-lock since the request began is seen. Runs before any pay, so a refusal is `sent_nothing`.
+ */
+async function approvalGuard(ctx: ServerContext, rec: BatchRecord): Promise<void> {
+  const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
+  if (!lock) return; // the rate guard refuses with `rate_not_locked`: locking comes before approving
+  const check = approvalCheck(ctx);
+  if (!(await validApproval(ctx.db, check.keyring, rec, lock, check.backend))) {
+    throw new HttpProblem(409, "not_approved", "approve the batch as it is now, at its current rate lock, before paying (POST /api/batches/{id}/approve); a re-lock or any change needs a new approval; this request sent nothing");
+  }
+}
+
+/**
  * The lock-vs-execution guard (REQ-CON-21; slices G2a, G2b1). A current lock is required. A fresh quote is taken
  * and recorded as the execution quote before the attempt pays (a fresh batch: before its submission exists;
  * a retry: while its record is `failed_retryable`, which can be re-locked). A move beyond `rateMaxDriftBps`
@@ -125,7 +142,7 @@ async function rateGuard(ctx: ServerContext, batchId: string): Promise<void> {
   const exec = await recordQuote(ctx.db, { orgId: ctx.config.orgId, batchId, purpose: "execution", quote });
   const drift = rateDrift(lock.rate, exec.rate, ctx.config.rateMaxDriftBps);
   if (drift.moved) {
-    throw new HttpProblem(409, "rate_moved", `ZEC/USD moved ${movedText(drift.bps, ctx.config.rateMaxDriftBps)} since the lock; at most ${pctFromBps(ctx.config.rateMaxDriftBps)} is allowed; re-lock the rate, then pay; this request sent nothing`, {
+    throw new HttpProblem(409, "rate_moved", `ZEC/USD moved ${movedText(drift.bps, ctx.config.rateMaxDriftBps)} since the lock; at most ${pctFromBps(ctx.config.rateMaxDriftBps)} is allowed; re-lock the rate, approve the batch again, then pay; this request sent nothing`, {
       rate: { lock: lock.rate, lockedAt: lock.fetchedAt, execution: exec.rate, quotedAt: exec.fetchedAt, driftBps: drift.bps, maxDriftBps: ctx.config.rateMaxDriftBps, direction: drift.direction },
     });
   }
@@ -136,7 +153,7 @@ export async function statusResponse(id: string): Promise<Response> {
   const ctx = serverContext();
   const backend = backendOrConflict(ctx);
   await batchOr404(ctx, id);
-  const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, id, { requiredConfirmations: ctx.config.confirmations });
+  const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, id, { requiredConfirmations: ctx.config.confirmations, approval: approvalCheck(ctx) });
   if (!status) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
   return new Response(JSON.stringify({ batchId: id, ...status }), { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }

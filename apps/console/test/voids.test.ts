@@ -117,10 +117,13 @@ test("the schema: a voided batch takes no attempt, retry, quote, receipt or chan
 test("migrating a database that has lines from before the claims: every memo is claimed, so a duplicate is still refused", async () => {
   const oldDir = join(dir, "migrations-0018");
   cpSync(defaultMigrationsDir(), oldDir, { recursive: true });
-  rmSync(join(oldDir, "0019_void_and_claims.sql"));
-  rmSync(join(oldDir, "meta", "0019_snapshot.json"));
-  const journal = JSON.parse(readFileSync(join(oldDir, "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
-  journal.entries = journal.entries.filter((e) => e.tag !== "0019_void_and_claims");
+  // The folder as it stood before 0019: that migration and every later one removed.
+  const journal = JSON.parse(readFileSync(join(oldDir, "meta", "_journal.json"), "utf8")) as { entries: { idx: number; tag: string }[] };
+  for (const e of journal.entries.filter((e) => e.idx >= 19)) {
+    rmSync(join(oldDir, `${e.tag}.sql`));
+    rmSync(join(oldDir, "meta", `${e.tag.slice(0, 4)}_snapshot.json`));
+  }
+  journal.entries = journal.entries.filter((e) => e.idx < 19);
   writeFileSync(join(oldDir, "meta", "_journal.json"), JSON.stringify(journal));
   const old = openDb({ path: join(dir, "old.db") });
   try {

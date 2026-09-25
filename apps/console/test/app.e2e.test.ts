@@ -240,9 +240,11 @@ test("submit and status through next start: pays once against a fake wallet, rep
     assert.ok(list.body.replace(/<[^>]+>/g, "").includes("0.00001000 ZEC"), "list shows the total with 8 decimals");
     const draftPage = await page(`/batches/${id}`);
     assert.equal(draftPage.status, 200);
-    for (const text of ["Draft", "Not submitted. Nothing has been paid.", "Submit the batch (with its total)", "Zkool, account 9", "Regtest (local test chain)", "PAY-1", "Total"]) {
+    // Slice I3: locked but not approved, the next step is to approve; the button names the total and the rate.
+    for (const text of ["Draft", "Not approved and not submitted. Nothing has been paid.", "Approve the batch (its lines, total and locked rate)", "Approve paying 0.00001000 ZEC at 1 ZEC = $1,600.00", "Zkool, account 9", "Regtest (local test chain)", "PAY-1", "Total"]) {
       assert.ok(draftPage.body.includes(text), `draft page shows ${text}`);
     }
+    assert.ok(!draftPage.body.includes("Pay 0.00001000 ZEC"), "no Pay before an approval");
     assert.ok(!/\bConfirmed \(/.test(draftPage.body) && !draftPage.body.includes("Receipts issued<"), "no confirmed claim on a draft");
     assert.equal((await page("/batches/0190a0d6-7e3b-7c61-8d3f-4a2b1c0d9e8f")).status, 404);
     assert.equal((await page("/batches/not-an-id")).status, 404);
@@ -251,12 +253,22 @@ test("submit and status through next start: pays once against a fake wallet, rep
     // A cross-site submit is refused before anything runs.
     assert.equal((await raw(s.port, "POST", `/api/batches/${id}/submit`, { ...same, origin: "http://evil.example" }, '{"confirmTotalZat":"1000"}')).status, 403);
     assert.equal(fake.payCalls, 0);
+    // Slice I3, through the bundled server: unapproved, submit is refused before the wallet; a cross-site approve is
+    // refused; approving names the total and the lock it saw.
+    const unapproved = await raw(s.port, "POST", `/api/batches/${id}/submit`, same, '{"confirmTotalZat":"1000"}');
+    assert.deepEqual([unapproved.status, (JSON.parse(unapproved.body) as { code: string }).code, (JSON.parse(unapproved.body) as { thisRequest: string }).thisRequest], [409, "not_approved", "sent_nothing"]);
+    assert.equal(fake.payCalls, 0);
+    assert.equal((await raw(s.port, "POST", `/api/batches/${id}/approve`, { ...same, origin: "http://evil.example" }, '{"confirmTotalZat":"1000","lockSeq":1}')).status, 403);
+    const approved = await raw(s.port, "POST", `/api/batches/${id}/approve`, same, '{"confirmTotalZat":"1000","lockSeq":1}');
+    assert.equal(approved.status, 201, approved.body);
+    assert.equal((JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state, "approved");
 
     // A wallet refusal is mapped by class inside the app bundle. Before slice E1 the backend was built in
     // the instrumentation bundle, whose error classes the app's instanceof never matched: this answered 500.
     const refusedDraft = JSON.stringify({ title: "refused", items: [{ payableId: "r1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "REFUSED-1" }] });
     const refusedId = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, refusedDraft)).body) as { id: string }).id;
     assert.equal((await raw(s.port, "POST", `/api/batches/${refusedId}/rate-lock`, { host: self, origin: `http://${self}` })).status, 201);
+    assert.equal((await raw(s.port, "POST", `/api/batches/${refusedId}/approve`, same, '{"confirmTotalZat":"1000","lockSeq":1}')).status, 201);
     // An unlocked batch is refused before the wallet, through the bundled server (mapped by code, E1).
     const unlockedId = (JSON.parse((await raw(s.port, "POST", "/api/batches", same, JSON.stringify({ title: "unlocked", items: [{ payableId: "u1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "UNLOCKED-1" }] }))).body) as { id: string }).id;
     const unlocked = await raw(s.port, "POST", `/api/batches/${unlockedId}/submit`, same, '{"confirmTotalZat":"1000"}');
@@ -327,9 +339,21 @@ test("page actions through next start, posted as a browser without JavaScript: p
     const text = async () => (await raw(s.port, "GET", `/batches/${id}`, { host: self })).body.replaceAll("<!-- -->", "");
     const state = async () => (JSON.parse((await raw(s.port, "GET", `/api/batches/${id}/status`, { host: self })).body) as { state: string }).state;
 
-    // Draft: Pay (naming the amount) is offered, Issue is not.
+    // Draft, locked: Approve (naming the amount and the rate) is offered, Pay is not (slice I3).
+    const lockedPage = await text();
+    assert.ok(lockedPage.includes("Approve paying 0.00002500 ZEC at 1 ZEC = $1,600.00") && !lockedPage.includes("Pay 0.00002500 ZEC"), "approve first");
+    const approveForm = multipart(formFields(lockedPage, 'name="lockSeq"'));
+    // A cross-site post of the approve form is refused before anything runs.
+    assert.equal((await raw(s.port, "POST", `/batches/${id}`, { host: self, origin: "http://evil.example", "content-type": approveForm.type }, approveForm.body)).status, 403);
+    assert.equal(await state(), "draft");
+    const approvedPost = await raw(s.port, "POST", `/batches/${id}`, { ...same, "content-type": approveForm.type }, approveForm.body);
+    assert.equal(approvedPost.status, 200);
+    assert.equal(await state(), "approved");
+
+    // Approved: Pay (naming the amount) is offered, Issue is not.
     const draftPage = await text();
-    assert.ok(draftPage.includes("Pay 0.00002500 ZEC"), "the button names the amount");
+    assert.ok(draftPage.includes("Approved, not sent") && draftPage.includes("Pay 0.00002500 ZEC"), "the button names the amount");
+    assert.ok(!draftPage.includes("Approve paying"), "approved: no second approval offered");
     assert.ok(!draftPage.includes(">Issue receipts</button>"));
     const pay = multipart(formFields(draftPage, 'name="confirmTotalZat"'));
 
@@ -441,6 +465,7 @@ test("rate lock from the batch page, posted as a browser without JavaScript: loc
 
     // The wallet refuses an attempt (nothing paid): the batch keeps its Re-lock form (review G2b1: the page
     // followed isSubmitted and hid it, while the API allows the lock, migration 0014).
+    await post(await page(), 'name="lockSeq"'); // approve at this lock (slice I3)
     fake.nextPay = "refused";
     const walletRefused = (await post(await page(), 'name="confirmTotalZat"')).body.replaceAll("<!-- -->", "");
     assert.ok(walletRefused.includes("This request sent nothing."), "refused before building");
@@ -483,11 +508,14 @@ test("pay follows the rate guard on the page, posted without JavaScript: no Pay 
     };
 
     const unlocked = await page();
-    assert.ok(!unlocked.includes('name="confirmTotalZat"') && unlocked.includes("Lock the ZEC/USD rate below before paying."), "no Pay before a lock; the page says what to do");
+    assert.ok(!unlocked.includes('name="confirmTotalZat"') && unlocked.includes("Lock the ZEC/USD rate below before approving."), "no Approve or Pay before a lock; the page says what to do");
 
     await post(unlocked, ">Lock rate</button>");
+    const toApprove = await page();
+    assert.ok(toApprove.includes("Approve paying 0.00003000 ZEC at 1 ZEC = $1,600.00") && !toApprove.includes("Pay 0.00003000 ZEC"), "Approve appears once locked (slice I3)");
+    await post(toApprove, 'name="lockSeq"');
     const locked = await page();
-    assert.ok(locked.includes("Pay 0.00003000 ZEC"), "Pay appears once locked");
+    assert.ok(locked.includes("Pay 0.00003000 ZEC"), "Pay appears once approved");
 
     // The wallet refuses the first attempt (nothing paid): the batch can still be re-locked (review G2b1).
     fake.nextPay = "refused";
@@ -498,13 +526,15 @@ test("pay follows the rate guard on the page, posted without JavaScript: no Pay 
 
     bid = "1680.00"; // +5.00%
     const refused = await post(afterRefusal, 'name="confirmTotalZat"');
-    assert.ok(refused.includes("Rate moved:") && refused.includes("ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, then pay. This request sent nothing."), "the refusal in plain words with both rates");
+    assert.ok(refused.includes("Rate moved:") && refused.includes("ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, approve the batch again, then pay. This request sent nothing."), "the refusal in plain words with both rates");
     assert.equal(fake.payCalls, 1, "only the refused attempt reached the wallet; the moved retry paid nothing");
 
     await post(await page(), ">Re-lock rate</button>");
     const relocked = await page();
-    assert.ok(relocked.includes("1 ZEC = $1,680.00"));
-    const paid = await post(relocked, 'name="confirmTotalZat"');
+    // The re-lock voided the approval: the page offers Approve at the new rate, not Pay (slice I3).
+    assert.ok(relocked.includes("Approve paying 0.00003000 ZEC at 1 ZEC = $1,680.00") && !relocked.includes("Pay 0.00003000 ZEC"), "approve again after a re-lock");
+    await post(relocked, 'name="lockSeq"');
+    const paid = await post(await page(), 'name="confirmTotalZat"');
     assert.equal(fake.payCalls, 2, "paid once after the re-lock (the refused call counted, paid nothing)");
     assert.ok(paid.includes("Broadcast, not in a block yet"), "the page shows the new status");
   } finally {
@@ -751,7 +781,7 @@ test("voiding a draft from the batch page through next start, as a browser witho
     assert.equal(done.status, 303, done.body.slice(0, 300));
     assert.equal(done.location, `/batches/${b.id}`);
     const voided = await get(`/batches/${b.id}`);
-    assert.ok(voided.includes("Voided") && !voided.includes("Void this draft…") && !voided.includes("Lock rate") && !voided.includes(">Pay "), "read-only: no Lock, Pay or Void control");
+    assert.ok(voided.includes("Voided") && !voided.includes("Void this draft…") && !voided.includes("Lock rate") && !voided.includes(">Pay ") && !voided.includes("Approve paying"), "read-only: no Lock, Approve, Pay or Void control");
     assert.ok((await get(`/batches/${b.id}/void`)).includes("This batch was voided on") && !(await get(`/batches/${b.id}/void`)).includes("Void this batch</button>"), "its confirmation page offers nothing");
     assert.equal((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, JSON.stringify({ title: "again", items: [{ payableId: "p-again", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1", memo: "VOID-PAGE-1" }] }))).status, 201, "its memo is free again");
 

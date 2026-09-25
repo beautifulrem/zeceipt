@@ -50,10 +50,10 @@ test("rate lock: the new rate with its source and time; an unusable source says 
 });
 
 test("the rate guard in words (slice G2b2): a moved rate names both rates and the limit; nothing was sent", async () => {
-  const moved = problem(409, "rate_moved", "ZEC/USD moved 5.00% since the lock; at most 3.00% is allowed; re-lock the rate, then pay; this request sent nothing", {
+  const moved = problem(409, "rate_moved", "ZEC/USD moved 5.00% since the lock; at most 3.00% is allowed; re-lock the rate, approve the batch again, then pay; this request sent nothing", {
     thisRequest: "sent_nothing", rate: { lock: "1600.00", lockedAt: "2026-09-23T04:00:00.000Z", execution: "1680.00", quotedAt: "2026-09-23T04:05:00.000Z", driftBps: "500.00", maxDriftBps: 300, direction: "up" },
   });
-  assert.deepEqual(await submitOutcome(moved), { tone: "warning", headline: "Rate moved", detail: "ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, then pay. This request sent nothing." });
+  assert.deepEqual(await submitOutcome(moved), { tone: "warning", headline: "Rate moved", detail: "ZEC/USD moved 5.00% since the lock (1600.00 → 1680.00 USD per ZEC); at most 3.00% is allowed. Re-lock the rate, approve the batch again, then pay. This request sent nothing." });
   const edge = problem(409, "rate_moved", "x", { thisRequest: "sent_nothing", rate: { lock: "1000", execution: "1030.00000001", driftBps: "300.00", maxDriftBps: 300 } });
   assert.match((await submitOutcome(edge)).detail, /moved more than 3\.00% since the lock/, "never a figure equal to the limit");
   const justPast = problem(409, "rate_moved", "x", { thisRequest: "sent_nothing", rate: { lock: "1000.00", execution: "1030.05", driftBps: "300.50", maxDriftBps: 300 } });

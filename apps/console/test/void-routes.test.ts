@@ -17,6 +17,7 @@ import * as submitRoute from "../app/api/batches/[id]/submit/route.ts";
 import * as statusRoute from "../app/api/batches/[id]/status/route.ts";
 import * as voidRoute from "../app/api/batches/[id]/void/route.ts";
 import * as lockRoute from "../app/api/batches/[id]/rate-lock/route.ts";
+import { approve } from "./helpers/approve.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 import { submitProblem } from "../lib/http/submit.ts";
 
@@ -78,6 +79,7 @@ test("409 batch_frozen once an attempt may have sent the batch; nothing changed"
   tick = ticker("1600.00");
   const b = await hand("PAID-ONE");
   assert.equal((await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.body.id}/rate-lock`, { method: "POST", headers }), params(b.body.id!))).status, 201, "locked (submit needs a lock)");
+  await approve(b.body.id!);
   const paid = await submit(b.body.id!, "1000");
   assert.equal(paid.status, 202, JSON.stringify(paid.body));
   const v = await voidIt(b.body.id!);
@@ -92,6 +94,7 @@ test("AC3, the recovery path: a batch from payables whose rate moved is refused,
   assert.equal(first.status, 201);
   tick = ticker("1700.00"); // +6.25%: beyond the 3% limit
   const calls = fake.payCalls;
+  await approve(first.body.id!);
   const refused = await submit(first.body.id!, first.body.totalZat!);
   assert.deepEqual([refused.status, refused.body.code, refused.body.thisRequest], [409, "rate_moved", "sent_nothing"]);
   assert.equal(fake.payCalls, calls, "nothing paid");
@@ -101,6 +104,7 @@ test("AC3, the recovery path: a batch from payables whose rate moved is refused,
   const second = await fromIds("At 1700", [p]);
   assert.equal(second.status, 201, JSON.stringify(second.body));
   assert.equal(second.body.items![0].zat, "94117647", "$1,600.00 at 1700 USD/ZEC");
+  await approve(second.body.id!);
   const paid = await submit(second.body.id!, second.body.totalZat!);
   assert.equal(paid.status, 202, JSON.stringify(paid.body));
   assert.equal(fake.payCalls, calls + 1, "paid once, from the new batch");
@@ -123,6 +127,7 @@ test("review H5c round 1: a voided batch refuses Lock and Pay with 409 batch_voi
   // A refused attempt, then voided: submit took retry() into the trigger and answered 500 "may_have_sent" (my own probe).
   const b = await hand("VOIDED-RETRY");
   assert.equal((await lock(b.body.id!)).status, 201);
+  await approve(b.body.id!);
   fake.nextPay = "refused";
   assert.equal((await submit(b.body.id!, "1000")).body.code, "payment_rejected");
   assert.equal((await voidIt(b.body.id!)).status, 200);

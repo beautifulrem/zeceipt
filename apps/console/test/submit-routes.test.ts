@@ -19,6 +19,7 @@ import * as collection from "../app/api/batches/route.ts";
 import * as submitRoute from "../app/api/batches/[id]/submit/route.ts";
 import * as statusRoute from "../app/api/batches/[id]/status/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { approve } from "./helpers/approve.ts";
 
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -46,8 +47,11 @@ const source = http.createServer((_req, res) => {
 });
 let sourceUrl = "";
 
-/** A draft; locked at the ticker's current rate unless `lock: false` (submit requires a lock since G2b1). */
-async function createDraft(zat = ["1000", "2500"], opts: { lock?: boolean } = {}) {
+/**
+ * A draft; locked at the ticker's current rate unless `lock: false` (submit requires a lock since G2b1), and approved
+ * as it is unless `approve: false` (every payment requires an approval since I3).
+ */
+async function createDraft(zat = ["1000", "2500"], opts: { lock?: boolean; approve?: boolean } = {}) {
   n++;
   const body = { title: `batch ${n}`, items: zat.map((z, i) => ({ payableId: `p${n}-${i}`, address: R[i % 2], zat: z, memo: `M${n}-${i}` })) };
   const r = await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify(body) }), undefined);
@@ -56,6 +60,7 @@ async function createDraft(zat = ["1000", "2500"], opts: { lock?: boolean } = {}
   if (opts.lock !== false) {
     const l = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id));
     assert.equal(l.status, 201, "locked");
+    if (opts.approve !== false) await approve(b.id);
   }
   return b;
 }
@@ -106,7 +111,7 @@ after(async () => {
 
 test("pays once: 202 with a txid, a replay returns the same txid with Idempotent-Replayed; status follows the chain", async () => {
   const b = await createDraft();
-  assert.deepEqual((await status(b.id!)).body, { batchId: b.id, state: "draft", next: "submit", detail: { items: 2 } });
+  assert.deepEqual((await status(b.id!)).body, { batchId: b.id, state: "approved", next: "submit", detail: { items: 2 } });
   const calls = fake.payCalls;
   const first = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
   assert.equal(first.status, 202);
@@ -139,7 +144,7 @@ test("confirmation: missing, malformed or mismatched totals are refused before a
   }
   assert.equal((await read(await submit(b.id!, "{", {}))).body.code, "malformed_json");
   assert.equal(fake.payCalls, calls, "pay never called");
-  assert.equal((await status(b.id!)).body.state, "draft");
+  assert.equal((await status(b.id!)).body.state, "approved", "still approved, never sent");
 });
 
 test("refused before build: 409 payment_rejected, sent_nothing, no wallet text; a resubmit pays", async () => {
@@ -304,7 +309,7 @@ test("an unrecognised failure after the backend was reached is indeterminate (50
 test("external custody: no backend; submit and status answer 409 custody_external", async () => {
   const ctx = boot({ ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined });
   assert.equal(ctx.backend, undefined);
-  const b = await createDraft();
+  const b = await createDraft(undefined, { approve: false }); // external custody takes no approvals (approve-routes)
   for (const r of [await read(await submit(b.id!, { confirmTotalZat: "3500" })), await status(b.id!)]) {
     assert.equal(r.status, 409);
     assert.equal(r.body.code, "custody_external");
@@ -339,9 +344,15 @@ test("a move beyond the limit: 409 rate_moved with both rates, the execution quo
   assert.equal(fake.payCalls, calls, "nothing paid");
   const { db, config } = slot[SERVER_CONTEXT_KEY]!;
   assert.deepEqual((await listQuotes(db, config.orgId, b.id!)).map((q) => [q.purpose, q.rate]), [["lock", "1600.00"], ["execution", "1680.00"]], "the refusal keeps its evidence");
-  // Re-lock at the new rate: now within the limit, it pays.
+  // Re-lock at the new rate: the approval named the old lock, so the next attempt is refused until approved again (I3).
   const relock = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!));
   assert.equal(relock.status, 201);
+  assert.deepEqual([(await status(b.id!)).body.state, (await status(b.id!)).body.next], ["draft", "approve"], "a re-lock voids the approval");
+  const unapproved = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
+  assert.deepEqual([unapproved.status, unapproved.body.code, unapproved.body.thisRequest, unapproved.body.batchStatus], [409, "not_approved", "sent_nothing", `/api/batches/${b.id}/status`]);
+  assert.equal(fake.payCalls, calls, "nothing paid without an approval");
+  await approve(b.id!);
+  // Now within the limit and approved at the new lock, it pays.
   const paid = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
   assert.equal(paid.status, 202);
   assert.equal(fake.payCalls, calls + 1);
@@ -426,6 +437,8 @@ test("a wallet refusal, then the market moves: the retry is re-judged (409 rate_
   assert.deepEqual((await listQuotes(db, config.orgId, b.id!)).map((q) => [q.purpose, q.rate]), [["lock", "1600.00"], ["execution", "1600.00"], ["execution", "2000.00"]], "a fresh execution quote for the retry");
   const relock = await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!));
   assert.equal(relock.status, 201, "a refused batch can be re-locked (its submission is failed_retryable)");
+  assert.deepEqual([(await status(b.id!)).body.state, (await status(b.id!)).body.next], ["retryable", "approve"], "the retry needs an approval at the new lock");
+  await approve(b.id!);
   const paid = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
   assert.equal(paid.status, 202);
   assert.equal(fake.payCalls, pays + 1, "exactly one more pay");
@@ -450,6 +463,7 @@ test("an attempt proven unminable, then the market moves: the re-send is re-judg
   assert.equal(fake.payCalls, pays);
   assert.equal((await status(b.id!)).body.state, "retryable", "the record says what is true: nothing was paid");
   assert.equal((await lockRoute.POST(new Request(`http://${HOST}/api/batches/${b.id}/rate-lock`, { method: "POST", headers }), params(b.id!))).status, 201);
+  await approve(b.id!);
   const paid = await read(await submit(b.id!, { confirmTotalZat: "1000" }));
   assert.equal(paid.status, 202);
   assert.equal(fake.payCalls, pays + 1);

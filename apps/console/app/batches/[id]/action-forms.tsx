@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { ActionOutcome } from "../../../lib/view/outcome.ts";
-import { issueAction, lockRateAction, payAction } from "./actions.ts";
+import { approveAction, issueAction, lockRateAction, payAction } from "./actions.ts";
 
 const TONE: Record<ActionOutcome["tone"], string> = {
   neutral: "border-slate-300 bg-slate-50",
@@ -33,6 +33,22 @@ export function PayForm({ id, totalZat, totalText, again }: { id: string; totalZ
       <input type="hidden" name="confirmTotalZat" value={totalZat} />
       <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {pending ? "Paying…" : again ? "Submit again (looks for the payment on chain first)" : `Pay ${totalText}`}
+      </button>
+      <Result outcome={outcome} />
+    </form>
+  );
+}
+
+/** Approve the batch as shown (slice I3): the total and the lock the page showed go with the form. */
+export function ApproveForm({ id, totalZat, totalText, lockSeq, rate }: { id: string; totalZat: string; totalText: string; lockSeq: number; rate: string }) {
+  const [outcome, formAction, pending] = useActionState(approveAction, null);
+  return (
+    <form action={formAction} className="space-y-2">
+      <input type="hidden" name="batchId" value={id} />
+      <input type="hidden" name="confirmTotalZat" value={totalZat} />
+      <input type="hidden" name="lockSeq" value={lockSeq} />
+      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {pending ? "Approving…" : `Approve paying ${totalText} at ${rate}`}
       </button>
       <Result outcome={outcome} />
     </form>

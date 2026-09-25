@@ -31,6 +31,7 @@ export class Keyring {
   // Runtime-private (#): invisible to JSON, spread, structuredClone and inspect.
   readonly #keys: Map<string, Buffer>;
   readonly #derived = new Map<string, Buffer>();
+  readonly #approvalKeys = new Map<string, Buffer>();
   /** The kid new values are sealed under: the last key given. */
   readonly current: string;
 
@@ -75,6 +76,23 @@ export class Keyring {
     if (!k) {
       k = Buffer.from(hkdfSync("sha256", wrap, SALT, `org:${orgId}`, 32));
       this.#derived.set(cacheKey, k);
+    }
+    return k;
+  }
+
+  /**
+   * HKDF-SHA256(ikm = wrap key, salt = "zeceipt/wrap/v1", info = "approval:" + orgId) → 32 bytes: the key approvals
+   * are MACed with (slice I3). Its own `info`, so it never equals the sealing key (`org:`; RFC 5869 §3.2).
+   */
+  approvalKey(kid: string, orgId: string): Buffer {
+    const wrap = this.#keys.get(kid);
+    if (!wrap) throw new SealError("seal_unknown_kid", "the approval names a key id this keyring does not hold");
+    if (!orgId) throw new RangeError("orgId is required");
+    const cacheKey = `${kid}\u0000${orgId}`;
+    let k = this.#approvalKeys.get(cacheKey);
+    if (!k) {
+      k = Buffer.from(hkdfSync("sha256", wrap, SALT, `approval:${orgId}`, 32));
+      this.#approvalKeys.set(cacheKey, k);
     }
     return k;
   }

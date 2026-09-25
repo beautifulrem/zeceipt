@@ -64,14 +64,24 @@ export async function submitOutcome(res: Response): Promise<ActionOutcome> {
     return {
       tone: "warning",
       headline: "Rate moved",
-      detail: `ZEC/USD moved ${movedText(moved.driftBps, moved.maxDriftBps)} since the lock (${moved.lock} → ${moved.execution} USD per ZEC); at most ${pctFromBps(moved.maxDriftBps)} is allowed. Re-lock the rate, then pay. ${VERDICT.sent_nothing}`,
+      detail: `ZEC/USD moved ${movedText(moved.driftBps, moved.maxDriftBps)} since the lock (${moved.lock} → ${moved.execution} USD per ZEC); at most ${pctFromBps(moved.maxDriftBps)} is allowed. Re-lock the rate, approve the batch again, then pay. ${VERDICT.sent_nothing}`,
     };
   }
   if (b.code === "rate_not_locked") return { tone: "warning", headline: "Not paid", detail: `Lock the ZEC/USD rate first. ${VERDICT.sent_nothing}` };
+  if (b.code === "not_approved") return { tone: "warning", headline: "Not paid", detail: `Approve the batch at its current rate lock first. ${VERDICT.sent_nothing}` };
   if (b.code === "rate_unavailable") {
     return { tone: "warning", headline: "Not paid", detail: `The rate source's answer was unusable (${b.reason ?? "unknown"}), so the rate could not be checked. Try again shortly. ${VERDICT.sent_nothing}` };
   }
   return problemOutcome(b);
+}
+
+/** After Approve (slice I3): 201 recorded, 200 already approved; problems in the API's own words (nothing was approved). */
+export async function approveOutcome(res: Response): Promise<ActionOutcome> {
+  const b = (await res.json()) as Body;
+  if (res.status === 201) return { tone: "success", headline: "Approved", detail: "The batch is approved as shown, at the current rate lock. It can be paid now." };
+  if (res.status === 200) return { tone: "info", headline: "Already approved", detail: "This batch was already approved as shown, at the current rate lock; nothing new was recorded." };
+  if (b.code === "approval_stale") return { tone: "warning", headline: "Not approved", detail: "The rate was re-locked after this page was shown. Check the batch at the new rate and approve again." };
+  return { tone: "warning", headline: "Not approved", detail: sentence(b.detail, undefined) };
 }
 
 export async function receiptsOutcome(res: Response): Promise<ActionOutcome> {

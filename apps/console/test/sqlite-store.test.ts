@@ -48,8 +48,13 @@ test("migrations apply once (one journal row per committed migration); a second 
   assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, journal.entries.length);
   const names = (type: string) =>
     (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);
-  assert.deepEqual(names("table"), ["batch_items", "batch_voids", "batches", "memo_claims", "payables", "rate_quotes", "receipts", "recipients", "submission_claims", "submission_txids", "submissions"]);
+  assert.deepEqual(names("table"), ["approvals", "batch_items", "batch_voids", "batches", "memo_claims", "payables", "rate_quotes", "receipts", "recipients", "submission_claims", "submission_txids", "submissions"]);
   assert.deepEqual(names("trigger"), [
+    "approvals_frozen",
+    "approvals_lock_exists",
+    "approvals_no_delete",
+    "approvals_no_update",
+    "approvals_not_voided",
     "batch_items_claim_memo",
     "batch_items_frozen_delete",
     "batch_items_frozen_insert",

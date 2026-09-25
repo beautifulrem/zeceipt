@@ -319,3 +319,34 @@ export const memoClaims = sqliteTable(
     index("memo_claims_batch").on(t.orgId, t.batchId),
   ],
 );
+
+/**
+ * Approvals (slice I3; REQ-CON-5 as scaled: one approver). Append-only: each row is an HMAC over the batch's lines,
+ * its lock and the paying backend at the moment of approval (`lib/data/approvals.ts`). Validity is recomputed on
+ * read, never stored: a re-lock or any change to a line makes the HMAC stop verifying (Safe's confirmations bind
+ * the transaction hash; BTCPay's approve names the revision seen; R87). Triggers (0020): no update or delete, none
+ * for a voided batch, none once a submission may have paid, and the lock named must be one of the batch's locks.
+ */
+export const approvals = sqliteTable(
+  "approvals",
+  {
+    orgId: text("org_id").notNull(),
+    batchId: text("batch_id").notNull(),
+    seq: integer("seq").notNull(),
+    approver: text("approver").notNull(),
+    approvedAt: text("approved_at").notNull(),
+    lockSeq: integer("lock_seq").notNull(),
+    kid: text("kid").notNull(),
+    hmac: text("hmac").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.batchId, t.seq] }),
+    foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),
+    check("approvals_seq", sql`typeof(${t.seq}) = 'integer' and ${t.seq} >= 1`),
+    check("approvals_lock_seq", sql`typeof(${t.lockSeq}) = 'integer' and ${t.lockSeq} >= 1`),
+    check("approvals_approver", sql`length(${t.approver}) between 1 and 64`),
+    check("approvals_approved_at", isoCheck(t.approvedAt)),
+    check("approvals_kid", sql`length(${t.kid}) between 1 and 32 and ${t.kid} not glob '*[^A-Za-z0-9_-]*'`),
+    check("approvals_hmac_hex", sql`length(${t.hmac}) = 64 and ${t.hmac} not glob '*[^0-9a-f]*'`),
+  ],
+);

@@ -10,8 +10,8 @@ import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
 
-const STATES: BatchState[] = ["draft", "submitting", "retryable", "needs_attention", "pending", "confirming", "confirmed", "receipts_partial", "receipts_issued", "expired"];
-const NEXTS: NextAction[] = ["submit", "wait", "issue_receipts", "resend_expired", "record_expiry", "investigate", "none"];
+const STATES: BatchState[] = ["draft", "approved", "submitting", "retryable", "needs_attention", "pending", "confirming", "confirmed", "receipts_partial", "receipts_issued", "expired"];
+const NEXTS: NextAction[] = ["approve", "submit", "wait", "issue_receipts", "resend_expired", "record_expiry", "investigate", "none"];
 const st = (state: BatchState, detail: BatchStatus["detail"] = {}, next: NextAction = "wait"): BatchStatus => ({ state, next, detail });
 
 test("every derived state has a label, a tone, a lifecycle step and an explanation; every next action has text", () => {
@@ -21,7 +21,8 @@ test("every derived state has a label, a tone, a lifecycle step and an explanati
     assert.ok(LIFECYCLE_STEPS.some((x) => x.step === v.step), s);
   }
   for (const n of NEXTS) assert.ok(NEXT_TEXT[n], n);
-  assert.equal(stateView(st("draft", {}, "submit")).next, "Submit the batch (with its total)");
+  assert.equal(stateView(st("approved", {}, "submit")).next, "Submit the batch (with its total)");
+  assert.equal(stateView(st("draft", {}, "approve")).next, "Approve the batch (its lines, total and locked rate)");
 });
 
 test("fail closed: the word 'confirmed' only for confirmed payments; 'not in a block yet' for pending", () => {
@@ -40,7 +41,7 @@ test("wallet unreachable: only what the record proves (broadcast), and a warning
   assert.equal(STATUS_UNAVAILABLE.label, "Status unavailable");
   assert.match(STATUS_UNAVAILABLE.explanation, /^The payment was broadcast, but the wallet did not answer, so this page cannot say whether it is in a block or confirmed\./);
   assert.match(STATUS_UNAVAILABLE.explanation, /Do not pay this batch by hand/);
-  assert.deepEqual(stepsFor(STATUS_UNAVAILABLE).map((s) => s.mark), ["done", "blocked", "ahead", "ahead", "ahead"], "nothing beyond Sent is claimed");
+  assert.deepEqual(stepsFor(STATUS_UNAVAILABLE).map((s) => s.mark), ["done", "done", "blocked", "ahead", "ahead", "ahead"], "nothing beyond Sent is claimed");
 });
 
 test("needs_attention: the cause is named, and every cause warns against paying by hand", () => {
@@ -59,10 +60,13 @@ test("needs_attention: the cause is named, and every cause warns against paying 
 });
 
 test("lifecycle marks: done before, current (or blocked) at, ahead after", () => {
-  assert.deepEqual(stepsFor(stateView(st("pending"))).map((s) => s.mark), ["done", "current", "ahead", "ahead", "ahead"]);
-  assert.deepEqual(stepsFor(stateView(st("needs_attention"))).map((s) => s.mark), ["done", "blocked", "ahead", "ahead", "ahead"]);
-  assert.deepEqual(stepsFor(stateView(st("receipts_issued"))).map((s) => s.mark), ["done", "done", "done", "done", "current"]);
-  assert.deepEqual(stepsFor(stateView(st("retryable"))).map((s) => s.mark), ["current", "ahead", "ahead", "ahead", "ahead"]);
+  // Slice I3: Draft → Approved → Sent → In a block → Confirmed → Receipts.
+  assert.deepEqual(LIFECYCLE_STEPS.map((s) => s.label), ["Draft", "Approved", "Sent", "In a block", "Confirmed", "Receipts"]);
+  assert.deepEqual(stepsFor(stateView(st("approved"))).map((s) => s.mark), ["done", "current", "ahead", "ahead", "ahead", "ahead"]);
+  assert.deepEqual(stepsFor(stateView(st("pending"))).map((s) => s.mark), ["done", "done", "current", "ahead", "ahead", "ahead"]);
+  assert.deepEqual(stepsFor(stateView(st("needs_attention"))).map((s) => s.mark), ["done", "done", "blocked", "ahead", "ahead", "ahead"]);
+  assert.deepEqual(stepsFor(stateView(st("receipts_issued"))).map((s) => s.mark), ["done", "done", "done", "done", "done", "current"]);
+  assert.deepEqual(stepsFor(stateView(st("retryable"))).map((s) => s.mark), ["current", "ahead", "ahead", "ahead", "ahead", "ahead"]);
 });
 
 test("amounts: exact ZEC from zatoshi with a fixed 8 decimals (slice G1d), including totals beyond 21M ZEC; short addresses", () => {

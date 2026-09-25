@@ -13,15 +13,28 @@ import { revalidatePath } from "next/cache";
 import { lockRateResponse, ratesProblem } from "../../../lib/http/rates.ts";
 import { issueReceiptsResponse, issuerCli, receiptsProblem } from "../../../lib/http/receipts.ts";
 import { answer } from "../../../lib/http/route.ts";
+import { approveBatch, approvalsProblem } from "../../../lib/http/approvals.ts";
 import { submitBatch } from "../../../lib/http/submit.ts";
 import { serverContext } from "../../../lib/server/context.ts";
-import { lockOutcome, receiptsOutcome, submitOutcome, type ActionOutcome } from "../../../lib/view/outcome.ts";
+import { approveOutcome, lockOutcome, receiptsOutcome, submitOutcome, type ActionOutcome } from "../../../lib/view/outcome.ts";
 
 export async function payAction(_prev: ActionOutcome | null, form: FormData): Promise<ActionOutcome> {
   const id = String(form.get("batchId") ?? "");
   const res = await answer(() => submitBatch(id, async () => ({ confirmTotalZat: String(form.get("confirmTotalZat") ?? "") })));
   revalidatePath(`/batches/${id}`);
   return submitOutcome(res);
+}
+
+/**
+ * Approve the batch as the page showed it (slice I3): the same handler as `POST /api/batches/{id}/approve`. The form
+ * posts the total and the lock the page showed, so a re-lock in between is refused (`approval_stale`), never approved.
+ */
+export async function approveAction(_prev: ActionOutcome | null, form: FormData): Promise<ActionOutcome> {
+  const id = String(form.get("batchId") ?? "");
+  const lockSeq = Number(String(form.get("lockSeq") ?? ""));
+  const res = await answer(() => approveBatch(id, async () => ({ confirmTotalZat: String(form.get("confirmTotalZat") ?? ""), lockSeq })), approvalsProblem);
+  revalidatePath(`/batches/${id}`);
+  return approveOutcome(res);
 }
 
 export async function issueAction(_prev: ActionOutcome | null, form: FormData): Promise<ActionOutcome> {

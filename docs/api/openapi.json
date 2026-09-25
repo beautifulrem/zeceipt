@@ -186,7 +186,7 @@
     "/api/batches/{id}/submit": {
       "post": {
         "operationId": "submitBatch",
-        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress. Every attempt that will pay requires a rate lock and re-quotes the ZEC/USD rate: a fresh batch, a retry after a refusal, and a re-send of an attempt proven unminable. A move beyond ZECEIPT_RATE_MAX_DRIFT_BPS (default 300 bp) refuses with 409 rate_moved, no lock gives 409 rate_not_locked, and a failing source gives 502 rate_unavailable. All of these send nothing, and after a refusal the batch can be re-locked. A retry that may already have paid (a replay of a broadcast, or a reconciliation that finds the payment) is never re-judged.",
+        "summary": "Pay the batch once through the wallet (hot custody). Idempotent per batch: the nonce batch/<id> is the key; a retry returns the recorded txid with Idempotent-Replayed: true. Every problem states `thisRequest` (sent_nothing or may_have_sent) and links `batchStatus`. A client disconnect does not abort a payment in progress. Every attempt that will pay requires a valid approval of the batch as it is now, at its current lock (409 not_approved, sent_nothing; POST /api/batches/{id}/approve), and a rate lock and re-quotes the ZEC/USD rate: a fresh batch, a retry after a refusal, and a re-send of an attempt proven unminable. A move beyond ZECEIPT_RATE_MAX_DRIFT_BPS (default 300 bp) refuses with 409 rate_moved, no lock gives 409 rate_not_locked, and a failing source gives 502 rate_unavailable. All of these send nothing, and after a refusal the batch can be re-locked (then approved again). A retry that may already have paid (a replay of a broadcast, or a reconciliation that finds the payment) is never re-judged.",
         "parameters": [
           {
             "name": "id",
@@ -283,7 +283,7 @@
             "$ref": "#/components/responses/Problem"
           },
           "409": {
-            "description": "payment_rejected, submission_in_flight (with Retry-After: 5; an attempt counts as running for up to 10 minutes), nonce_conflict, custody_external; batch_voided: the batch is voided (slice H5c), so it can never be paid (sent_nothing)",
+            "description": "payment_rejected, submission_in_flight (with Retry-After: 5; an attempt counts as running for up to 10 minutes), nonce_conflict, custody_external; batch_voided: the batch is voided (slice H5c), so it can never be paid (sent_nothing); not_approved: no valid approval of the batch as it is now at its current lock (a re-lock or any change to a line needs a new one; sent_nothing)",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -330,10 +330,219 @@
         }
       }
     },
+    "/api/batches/{id}/approve": {
+      "post": {
+        "operationId": "approveBatch",
+        "summary": "Approve the batch as it is now (slice I3; REQ-CON-5 with one approver). The body names what the approver saw: the total and the current lock's seq. The approval is an HMAC-SHA256, under a key derived from the wrap key (HKDF, its own info), over the batch's lines (index, payable id, address, zat, memo), its network, the paying wallet account and the lock (seq, rate). It is valid only while all of them are unchanged: a re-lock or any change to a line needs a new approval. Every attempt that will pay requires one. Hot custody only.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "confirmTotalZat",
+                  "lockSeq"
+                ],
+                "properties": {
+                  "confirmTotalZat": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,17}$",
+                    "description": "Must equal the batch total (zatoshi)"
+                  },
+                  "lockSeq": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Must be the current lock's seq (GET /api/batches/{id} rateLock.seq)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Already approved as it is now at this lock: the existing approval; nothing new recorded",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "/api/batches/{id}/status"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "approval"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "approval": {
+                      "type": "object",
+                      "required": [
+                        "seq",
+                        "approvedAt",
+                        "lockSeq",
+                        "approver"
+                      ],
+                      "properties": {
+                        "seq": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 UTC with milliseconds"
+                        },
+                        "lockSeq": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "The lock the approval names"
+                        },
+                        "approver": {
+                          "type": "string",
+                          "description": "'operator' (one approver; the console has no sign-in yet)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Approved: the new approval",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "/api/batches/{id}/status"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "approval"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "approval": {
+                      "type": "object",
+                      "required": [
+                        "seq",
+                        "approvedAt",
+                        "lockSeq",
+                        "approver"
+                      ],
+                      "properties": {
+                        "seq": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "approvedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 UTC with milliseconds"
+                        },
+                        "lockSeq": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "The lock the approval names"
+                        },
+                        "approver": {
+                          "type": "string",
+                          "description": "'operator' (one approver; the console has no sign-in yet)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "custody_external; batch_voided; batch_frozen: a submission may have paid; rate_not_locked: lock first; approval_stale: the posted lockSeq is not the current lock (re-locked since; the extension `lockSeq` is the current one). Nothing was approved",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "description": "confirmation_mismatch: confirmTotalZat is not the batch total; nothing was approved",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/batches/{id}/status": {
       "get": {
         "operationId": "getBatchStatus",
-        "summary": "The batch's derived status (never stored): draft, submitting, retryable, needs_attention, pending, confirming, confirmed, receipts_partial, receipts_issued, expired or voided, with the next action",
+        "summary": "The batch's derived status (never stored): draft, approved, submitting, retryable, needs_attention, pending, confirming, confirmed, receipts_partial, receipts_issued, expired or voided, with the next action",
         "parameters": [
           {
             "name": "id",
@@ -365,6 +574,7 @@
                     "state": {
                       "enum": [
                         "draft",
+                        "approved",
                         "submitting",
                         "retryable",
                         "needs_attention",
@@ -379,6 +589,7 @@
                     },
                     "next": {
                       "enum": [
+                        "approve",
                         "submit",
                         "wait",
                         "issue_receipts",
@@ -1203,7 +1414,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken, rate_fixed, batch_voided"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken, rate_fixed, batch_voided, not_approved, approval_stale"
           },
           "problems": {
             "type": "array",

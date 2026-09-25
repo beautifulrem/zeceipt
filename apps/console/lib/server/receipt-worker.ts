@@ -11,7 +11,7 @@ import { getBatchStatus } from "../data/status.ts";
 import type { ZeceiptCliOptions } from "../issuance/auto-issue.ts";
 import { issueReceiptsResponse, issuerCli, receiptsProblem } from "../http/receipts.ts";
 import { answer } from "../http/route.ts";
-import { serverContext } from "./context.ts";
+import { approvalCheck, serverContext } from "./context.ts";
 
 export interface PassResult {
   /** Batches whose receipts this pass recorded (201). */
@@ -33,7 +33,7 @@ export async function receiptPass(opts: { cli?: ZeceiptCliOptions } = {}): Promi
     // Cheap skips before asking the chain (design I2.1.3): voided, or already one receipt per line.
     if (b.voided || (await countReceipts(ctx.db, ctx.config.orgId, b.id)) >= b.itemCount) continue;
     try {
-      const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, b.id, { requiredConfirmations: ctx.config.confirmations });
+      const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, b.id, { requiredConfirmations: ctx.config.confirmations, approval: approvalCheck(ctx) });
       if (status?.next !== "issue_receipts") continue;
       const res = await answer(() => issueReceiptsResponse(b.id, cli), receiptsProblem);
       if (res.status === 201) out.issued.push(b.id);

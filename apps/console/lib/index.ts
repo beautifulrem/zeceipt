@@ -29,6 +29,8 @@ export { compareDecimal, isPositiveDecimal, DECIMAL } from "./rates/decimal.ts";
 export { fetchZecUsdQuote, KRAKEN_TICKER_URL, KRAKEN_ZEC_USD_PAIR, MAX_QUOTE_BYTES, RateUnavailableError } from "./rates/kraken.ts";
 export type { QuoteOptions, RateFailure, RateQuote } from "./rates/kraken.ts";
 export { currentLock, listQuotes, RateRecordError, recordQuote } from "./data/rates.ts";
+export { APPROVER, ApprovalError, approvalHmac, approvalMessage, backendId, recordApproval, validApproval } from "./data/approvals.ts";
+export type { Approval } from "./data/approvals.ts";
 export type { QuotePurpose, StoredQuote } from "./data/rates.ts";
 export { DEFAULT_MAX_DRIFT_BPS, movedText, pctFromBps, rateDrift } from "./rates/drift.ts";
 export type { Drift } from "./rates/drift.ts";
