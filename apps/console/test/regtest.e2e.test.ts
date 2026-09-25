@@ -7,7 +7,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { autoIssue, FileIdempotencyStore, isPreBuildRefusal, POOL, ZkoolBackend, ZkoolClient, ZkoolGraphqlError, type Batch, type TxStatus } from "../lib/index.ts";
+import { readFileSync } from "node:fs";
+import { autoIssue, FileIdempotencyStore, isPreBuildRefusal, POOL, readZkoolToken, ZkoolBackend, ZkoolClient, ZkoolGraphqlError, type Batch, type TxStatus } from "../lib/index.ts";
 
 const ENABLED = process.env.ZECEIPT_REGTEST === "1";
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -17,6 +18,10 @@ const ZKOOL = process.env.ZKOOL_URL ?? "http://127.0.0.1:9000/graphql";
 const ZAINO = process.env.ENDPOINT ?? "http://127.0.0.1:8137";
 const ZEBRA_RPC = process.env.ZEBRA_RPC ?? "http://127.0.0.1:18232/";
 const ISSUER = Number(process.env.ZKOOL_ISSUER ?? 9);
+// Zkool runs with --jwt-public-key-file (slice S3, REGTEST_RUNBOOK): the console gets the issuer's scoped token; the
+// harness, which creates and reads the recipients' accounts, an admin token. Paths only: never printed.
+const ZKOOL_TOKEN_FILE = process.env.ZKOOL_TOKEN_FILE ?? join(ARTIFACT_DIR, `zkool-jwt/account-${ISSUER}.jwt`);
+const ZKOOL_ADMIN_TOKEN_FILE = process.env.ZKOOL_ADMIN_TOKEN_FILE ?? join(ARTIFACT_DIR, "zkool-jwt/admin.jwt");
 const CONFIRMATIONS = Number(process.env.CONFIRMATIONS ?? 2);
 
 async function zebra<T>(method: string, params: unknown[]): Promise<T> {
@@ -34,7 +39,11 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
     log.push(e);
     console.log(JSON.stringify(e, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
   };
-  const client = new ZkoolClient({ url: ZKOOL });
+  // The backend pays with the issuer's scoped token, as the console does; the harness uses an admin token for the
+  // recipients' accounts (slice S3).
+  const { token, expiresAt } = readZkoolToken(ZKOOL_TOKEN_FILE, ISSUER);
+  const client = new ZkoolClient({ url: ZKOOL, token, tokenExpiresAt: expiresAt });
+  const admin = new ZkoolClient({ url: ZKOOL, token: readFileSync(ZKOOL_ADMIN_TOKEN_FILE, "utf8").trim() });
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const storeDir = join(ARTIFACT_DIR, "console-nonces");
   const store = new FileIdempotencyStore(storeDir);
@@ -43,11 +52,11 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
   // Fresh recipient accounts (Ironwood only) so each run has its own memos and addresses.
   const recipients: { id: number; ua: string }[] = [];
   for (let i = 0; i < 3; i++) {
-    const { createAccount: id } = await client.request<{ createAccount: number }>(
+    const { createAccount: id } = await admin.request<{ createAccount: number }>(
       "mutation($new: NewAccount!) { createAccount(newAccount: $new) }",
-      { new: { name: `e2e-${stamp}-${i + 1}`, key: "", passphrase: "", aindex: 0, birth: await client.currentHeight(), pools: 8, useInternal: false } },
+      { new: { name: `e2e-${stamp}-${i + 1}`, key: "", passphrase: "", aindex: 0, birth: await admin.currentHeight(), pools: 8, useInternal: false } },
     );
-    const { addressByAccount } = await client.request<{ addressByAccount: { ua: string } }>("query($id: Int!) { addressByAccount(idAccount: $id) { ua } }", { id });
+    const { addressByAccount } = await admin.request<{ addressByAccount: { ua: string } }>("query($id: Int!) { addressByAccount(idAccount: $id) { ua } }", { id });
     recipients.push({ id, ua: addressByAccount.ua });
   }
   const batch: Batch = {
@@ -140,8 +149,8 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
   assert.equal((await readdir(outDir)).filter((f) => f.endsWith(".json")).length, 3);
 
   // Recipients' own view: each sees its memo.
-  for (const r of recipients) await client.sync(r.id);
-  const views = await Promise.all(recipients.map(async (r) => (await client.request<{ transactionsByAccount: { txid: string; notes: { value: string; memo: string }[] }[] }>(
+  for (const r of recipients) await admin.sync(r.id);
+  const views = await Promise.all(recipients.map(async (r) => (await admin.request<{ transactionsByAccount: { txid: string; notes: { value: string; memo: string }[] }[] }>(
     "query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid notes { value memo } } }", { id: r.id })).transactionsByAccount));
   step("recipient views", { views });
   views.forEach((v, i) => assert.equal(v.find((t) => t.txid === first.txid)?.notes[0]?.memo, batch.items[i].memo));

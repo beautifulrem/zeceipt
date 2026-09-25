@@ -9,10 +9,11 @@ import { Keyring } from "../crypto/seal.ts";
 import { SecretBytes } from "../crypto/secret.ts";
 import { LOOPBACK_HOSTS } from "../execution/zkool-client.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
+import { readZkoolToken, ZkoolTokenError } from "../execution/zkool-token.ts";
 import { DEFAULT_MAX_DRIFT_BPS } from "../rates/drift.ts";
 import { KRAKEN_TICKER_URL } from "../rates/kraken.ts";
 
-export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean } } | { mode: "external" };
+export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean; tokenFile: string } } | { mode: "external" };
 
 export interface ConsoleConfig {
   custody: CustodyConfig;
@@ -57,6 +58,7 @@ const KNOWN = [
   "ZKOOL_URL",
   "ZKOOL_ACCOUNT",
   "ZKOOL_ALLOW_REMOTE",
+  "ZKOOL_TOKEN_FILE",
   "DB_PATH",
   "ORG_ID",
   "NETWORK",
@@ -144,14 +146,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     const url = field("ZKOOL_URL", httpUrl, "must be an http(s) URL without credentials of the Zkool GraphQL endpoint (required in hot custody)");
     const account = field("ZKOOL_ACCOUNT", intIn(0, 2 ** 31 - 1), "must be the Zkool account id, an integer ≥ 0 (required in hot custody)");
     const allowRemote = field("ZKOOL_ALLOW_REMOTE", z.enum(["true", "false"]).transform((s) => s === "true"), "must be true or false", { fallback: false });
-    // Zkool has no authentication: a non-loopback endpoint needs the explicit opt-in (ZkoolClient enforces the
-    // same rule; checking here puts it in the one startup report).
+    // Zkool listens on every interface and serves anyone unless started with --jwt-public-key-file (slice S3, R97): the
+    // console holds a token scoped to its account; the file's contents are checked at boot (lib/execution/zkool-token.ts).
+    const tokenFile = field("ZKOOL_TOKEN_FILE", absPath, "must be the absolute path of the Zkool token file for this account (required in hot custody; mint it with scripts/zkool-token.ts)");
+    // Zkool speaks plain HTTP, so its token crosses the wire readable: a non-loopback endpoint needs the explicit
+    // opt-in (ZkoolClient enforces the same rule; checking here puts it in the one startup report).
     if (url !== undefined && allowRemote === false && !LOOPBACK_HOSTS.has(new URL(url).hostname)) {
       problems.push({ variable: `${P}ZKOOL_URL`, message: "is not a loopback address; set ZECEIPT_ZKOOL_ALLOW_REMOTE=true to allow a remote Zkool deliberately" });
-    } else if (url !== undefined && account !== undefined && allowRemote !== undefined) custody = { mode: "hot", zkool: { url, account, allowRemote } };
+    } else if (url !== undefined && account !== undefined && allowRemote !== undefined && tokenFile !== undefined) custody = { mode: "hot", zkool: { url, account, allowRemote, tokenFile } };
   } else if (mode === "external") {
     // REQ-CON-17: with an external signer the app holds a viewing key only; any hot-wallet endpoint is a misconfiguration.
-    for (const k of ["ZKOOL_URL", "ZKOOL_ACCOUNT", "ZKOOL_ALLOW_REMOTE"]) {
+    for (const k of ["ZKOOL_URL", "ZKOOL_ACCOUNT", "ZKOOL_ALLOW_REMOTE", "ZKOOL_TOKEN_FILE"]) {
       if (get(k) !== undefined) problems.push({ variable: P + k, message: "must not be set in external custody (no hot wallet)" });
     }
     custody = { mode: "external" };
@@ -235,10 +240,24 @@ function parseWrapKeys(raw: string | undefined, problems: ConfigProblem[]): Cons
   return keys.length === parts.length ? keys : undefined;
 }
 
+/**
+ * Hot custody: read the Zkool token file and check its scope (slice S3; `readZkoolToken`). A problem is a ConfigError
+ * naming the variable, with our message and never the token. Undefined in external custody.
+ */
+export function loadZkoolToken(c: ConsoleConfig, now = new Date()): { token: string; expiresAt: Date } | undefined {
+  if (c.custody.mode !== "hot") return undefined;
+  try {
+    return readZkoolToken(c.custody.zkool.tokenFile, c.custody.zkool.account, now);
+  } catch (e) {
+    if (e instanceof ZkoolTokenError) throw new ConfigError([{ variable: `${P}ZKOOL_TOKEN_FILE`, message: e.message }]);
+    throw e;
+  }
+}
+
 /** Safe to log: no key material, no secrets; file paths and endpoints are not secret. */
 export function configSummary(c: ConsoleConfig): Record<string, unknown> {
   return {
-    custody: c.custody.mode === "hot" ? { mode: "hot", zkoolUrl: c.custody.zkool.url, account: c.custody.zkool.account, allowRemote: c.custody.zkool.allowRemote } : { mode: "external" },
+    custody: c.custody.mode === "hot" ? { mode: "hot", zkoolUrl: c.custody.zkool.url, account: c.custody.zkool.account, allowRemote: c.custody.zkool.allowRemote, tokenFile: c.custody.zkool.tokenFile } : { mode: "external" },
     dbPath: c.dbPath,
     orgId: c.orgId,
     network: c.network,

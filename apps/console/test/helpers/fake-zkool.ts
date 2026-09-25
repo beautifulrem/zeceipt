@@ -6,6 +6,7 @@
 import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
+import { verifyZkoolToken, type ZkoolClaims } from "../../lib/execution/zkool-token.ts";
 
 export interface FakeTx { txid: string; height: number; expiry: number; recipients: { address: string; amount: string; memo: string }[] }
 
@@ -40,6 +41,20 @@ export class FakeZkool {
   mined: FakeTx[] = [];
   nextPay: PayMode = "ok";
   payDelayMs = 0;
+  /** Set by `requireTokens`: the ES256 public key Zkool was started with (`--jwt-public-key-file`). */
+  publicKeyPem?: string;
+  /** The last `authorization` header received (slice S3). */
+  lastAuthorization?: string;
+
+  /**
+   * Check tokens as zkool_graphql does with `--jwt-public-key-file` (slice S3, measured 2026-09-25): no token or an
+   * invalid or expired one → HTTP 500 "Unhandled rejection: AuthError" before any GraphQL runs; a valid token for
+   * another account → the GraphQL error "Unauthorized" on that account's operations; `pay` also needs `write`.
+   */
+  requireTokens(publicKeyPem: string): this {
+    this.publicKeyPem = publicKeyPem;
+    return this;
+  }
 
   async start(): Promise<this> {
     this.server = createServer((req, res) => {
@@ -52,21 +67,37 @@ export class FakeZkool {
           res.setHeader("content-type", "application/json");
           res.end(JSON.stringify(data));
         };
+        this.lastAuthorization = req.headers.authorization;
+        let claims: ZkoolClaims | undefined;
+        if (this.publicKeyPem) {
+          const token = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7).trim() : undefined;
+          claims = token ? verifyZkoolToken(token, this.publicKeyPem) : undefined;
+          if (!claims) {
+            res.statusCode = 500;
+            return res.end("Unhandled rejection: AuthError");
+          }
+        }
+        // zkool2 `check_auth`: admin (sub 0) or the token's own account, with write when asked.
+        const denied = (write: boolean) => claims !== undefined && claims.sub !== 0 && (claims.sub !== variables?.id || (write && !claims.write));
+        const unauthorized = { data: null, errors: [{ message: "Unauthorized" }] };
         try {
           if (query.includes("currentHeight")) {
             if (this.failCurrentHeight) return reply({ data: null, errors: [{ message: "status: Unavailable, message: \"lwd down\"" }] });
             return reply({ data: { currentHeight: this.height } });
           }
           if (query.includes("synchronizeAccount")) {
+            if (denied(false)) return reply(unauthorized);
             if (!this.syncBusy) this.scanned = this.height;
             return reply({ data: { synchronizeAccount: this.height } });
           }
           if (query.includes("balanceByAccount")) {
+            if (denied(false)) return reply(unauthorized);
             const z = this.ironwoodZat;
             const dec = `${z / 100000000n}.${(z % 100000000n).toString().padStart(8, "0")}`;
             return reply({ data: { balanceByAccount: { height: this.scanned, transparent: "0", sapling: "0", orchard: "0", ironwood: dec, total: dec } } });
           }
           if (query.includes("transactionsByAccount")) {
+            if (denied(false)) return reply(unauthorized);
             const since = variables.h ?? 0;
             return reply({
               data: {
@@ -81,6 +112,7 @@ export class FakeZkool {
             });
           }
           if (query.includes("pay(")) {
+            if (denied(true)) return reply(unauthorized);
             this.payCalls++;
             const mode = this.nextPay;
             this.nextPay = "ok";

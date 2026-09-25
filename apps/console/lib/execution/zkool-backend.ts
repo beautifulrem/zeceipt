@@ -19,7 +19,7 @@ import {
   SubmissionInFlightError,
   UnknownOutcomeError,
 } from "./types.ts";
-import { POOL, ZkoolClient, ZkoolGraphqlError, type ZkoolTx } from "./zkool-client.ts";
+import { POOL, ZkoolAuthError, ZkoolClient, ZkoolGraphqlError, type ZkoolTx } from "./zkool-client.ts";
 
 export interface ZkoolBackendOptions {
   client: ZkoolClient;
@@ -65,6 +65,9 @@ const PRE_BUILD_REFUSALS = [
   // while planning (`pay/plan.rs::decompose_address`, the only source of these three messages). Probed against a
   // live regtest Zkool with `prepareSend` (plan only), 2026-09-23: review H1 round 2, research log R76.
   /^Failed to decode (orchard|sapling|transparent) address: /,
+  // The token does not cover this account, or lacks write: `pay` calls `check_auth` before anything else
+  // (zkool2 `graphql/mutation.rs`), so nothing was built (slice S3; measured with a read-only token, R97).
+  /^Unauthorized$/,
 ];
 
 export function isPreBuildRefusal(e: ZkoolGraphqlError): boolean {
@@ -148,6 +151,12 @@ export class ZkoolBackend implements PayoutBackend {
         code: "insufficient_funds",
         detail: `needs ${totalZat + feeEstimateZat} zat (payments ${totalZat} + fee estimate ${feeEstimateZat}), Ironwood spendable ${spendableZat}`,
       });
+    }
+    // The token must outlive the attempt (slice S3): an expiry during `pay` would be refused by Zkool's HTTP filter
+    // (nothing sent, ZkoolAuthError), but refusing here names the cause before anything is attempted.
+    const expiresAt = this.client.tokenExpiresAt;
+    if (expiresAt && expiresAt.getTime() - this.now().getTime() < this.client.payTimeoutMs + 60_000) {
+      problems.push({ code: "zkool_token_expiring", detail: `the Zkool token expires at ${expiresAt.toISOString()}; mint a new one (scripts/zkool-token.ts) and restart the console` });
     }
     return { ok: problems.length === 0, problems, totalZat, feeEstimateZat, spendableZat, height };
   }
@@ -300,7 +309,7 @@ export class ZkoolBackend implements PayoutBackend {
     try {
       txid = await this.client.pay(this.account, batch.items.map((i) => ({ address: i.address, zat: i.zat, memo: i.memo })), POOL.ironwood);
     } catch (e) {
-      if (e instanceof ZkoolGraphqlError && isPreBuildRefusal(e)) {
+      if ((e instanceof ZkoolGraphqlError && isPreBuildRefusal(e)) || e instanceof ZkoolAuthError) {
         await this.saveOutcome({ ...intentRec, state: "failed_retryable", error: e.message }, intentRec, ["submitting"]);
         throw new PaymentRejectedError(e.message);
       }

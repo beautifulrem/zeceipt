@@ -10,7 +10,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ConfigError, keyringFromConfig, loadConfig, scrubSecretEnv, type ConsoleConfig } from "../config/env.ts";
+import { ConfigError, keyringFromConfig, loadConfig, loadZkoolToken, scrubSecretEnv, type ConsoleConfig } from "../config/env.ts";
 import type { Keyring } from "../crypto/seal.ts";
 import { backendId } from "../data/approvals.ts";
 import { ExecutionError } from "../execution/types.ts";
@@ -43,6 +43,8 @@ export interface ServerContext {
 export interface BootState {
   readonly config: ConsoleConfig;
   readonly db: ConsoleDb;
+  /** Hot custody: the Zkool token read and checked at boot (slice S3). Never logged. */
+  readonly zkoolToken?: { readonly token: string; readonly expiresAt: Date };
 }
 
 export interface BootOptions {
@@ -81,6 +83,7 @@ export function bootServerContext(env: Record<string, string | undefined>, opts:
     throw new Error(`migrations journal not found at ${journal}; start the console from apps/console (the folder is <cwd>/db/migrations)`);
   }
   keyringFromConfig(config); // fail at startup, not on the first receipt, if the keys cannot form a keyring
+  const zkoolToken = loadZkoolToken(config); // hot custody: read and scope-checked before anything is opened (slice S3)
   const db = openDb({ path: config.dbPath });
   try {
     migrateDb(db, opts.migrationsFolder);
@@ -89,7 +92,7 @@ export function bootServerContext(env: Record<string, string | undefined>, opts:
     throw e;
   }
   scrubSecretEnv(env);
-  slot[SERVER_CONTEXT_KEY] = Object.freeze({ config, db });
+  slot[SERVER_CONTEXT_KEY] = Object.freeze({ config, db, ...(zkoolToken ? { zkoolToken: Object.freeze(zkoolToken) } : {}) });
   return serverContext();
 }
 
@@ -106,12 +109,12 @@ export function serverContext(): ServerContext {
   if (!boot) throw new ContextNotReadyError();
   let ctx = built.get(boot);
   if (!ctx) {
-    const { config, db } = boot;
+    const { config, db, zkoolToken } = boot;
     const store = new SqliteIdempotencyStore(db, { orgId: config.orgId });
     const custody = config.custody;
     const backend =
       custody.mode === "hot"
-        ? new ZkoolBackend({ client: new ZkoolClient({ url: custody.zkool.url, allowRemote: custody.zkool.allowRemote }), account: custody.zkool.account, store })
+        ? new ZkoolBackend({ client: new ZkoolClient({ url: custody.zkool.url, allowRemote: custody.zkool.allowRemote, token: zkoolToken?.token, tokenExpiresAt: zkoolToken?.expiresAt }), account: custody.zkool.account, store })
         : undefined;
     const quote = () => fetchZecUsdQuote({ url: config.rateUrl });
     ctx = Object.freeze({ config, db, keyring: keyringFromConfig(config), store, backend, quote });

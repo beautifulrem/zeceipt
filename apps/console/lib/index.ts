@@ -3,7 +3,8 @@ export * from "./execution/types.ts";
 export { zatToDecimal, decimalToZat, signedDecimalToZat, ZAT_PER_ZEC, MAX_ZAT } from "./execution/money.ts";
 export { checkUnifiedAddress, bech32mCheck, UA_HRP } from "./execution/address.ts";
 export { estimateIronwoodFeeZat, MARGINAL_FEE_ZAT } from "./execution/fee.ts";
-export { ZkoolClient, ZkoolGraphqlError, ZkoolTransportError, POOL } from "./execution/zkool-client.ts";
+export { ZkoolAuthError, ZkoolClient, ZkoolGraphqlError, ZkoolTransportError, POOL } from "./execution/zkool-client.ts";
+export { checkZkoolToken, mintZkoolToken, readZkoolToken, verifyZkoolToken, ZkoolTokenError, type ZkoolClaims } from "./execution/zkool-token.ts";
 export { FileIdempotencyStore, MemoryIdempotencyStore, StoreBusyError, batchDigest } from "./execution/idempotency.ts";
 export type { Expect, IdempotencyStore, SubmissionRecord, SubmissionState, TxidEntry } from "./execution/idempotency.ts";
 export { ZkoolBackend, isPreBuildRefusal } from "./execution/zkool-backend.ts";
@@ -20,7 +21,7 @@ export { countReceipts, listReceipts, recordReceipts, ReceiptRecordError, rewrap
 export { deriveBatchStatus, getBatchStatus } from "./data/status.ts";
 export type { BatchFacts, BatchState, BatchStatus, NextAction } from "./data/status.ts";
 export type { RecordResult, StoredReceipt } from "./data/receipts.ts";
-export { ConfigError, configSummary, keyringFromConfig, loadConfig, scrubSecretEnv } from "./config/env.ts";
+export { ConfigError, configSummary, keyringFromConfig, loadConfig, loadZkoolToken, scrubSecretEnv } from "./config/env.ts";
 export { bootFailureLines, bootServerContext, ContextNotReadyError, SERVER_CONTEXT_KEY, serverContext } from "./server/context.ts";
 export type { BootOptions, BootState, ServerContext } from "./server/context.ts";
 export { SecretBytes } from "./crypto/secret.ts";

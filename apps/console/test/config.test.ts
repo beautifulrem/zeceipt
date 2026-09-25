@@ -13,6 +13,7 @@ const hot: Record<string, string> = {
   ZECEIPT_CUSTODY_MODE: "hot",
   ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql",
   ZECEIPT_ZKOOL_ACCOUNT: "9",
+  ZECEIPT_ZKOOL_TOKEN_FILE: "/etc/zeceipt/zkool-account-9.jwt",
   ZECEIPT_DB_PATH: "/var/lib/zeceipt/console.db",
   ZECEIPT_ORG_ID: "demo-org",
   ZECEIPT_NETWORK: "regtest",
@@ -28,6 +29,7 @@ const external = (() => {
   const e = { ...hot, ZECEIPT_CUSTODY_MODE: "external" };
   delete (e as Record<string, string | undefined>).ZECEIPT_ZKOOL_URL;
   delete (e as Record<string, string | undefined>).ZECEIPT_ZKOOL_ACCOUNT;
+  delete (e as Record<string, string | undefined>).ZECEIPT_ZKOOL_TOKEN_FILE;
   return e;
 })();
 const problems = (env: Record<string, string | undefined>) => {
@@ -40,15 +42,18 @@ const problems = (env: Record<string, string | undefined>) => {
   }
 };
 
-test("REQ-CON-17: external custody refuses any Zkool setting; hot custody requires the Zkool URL and account", () => {
+test("REQ-CON-17: external custody refuses any Zkool setting; hot custody requires the Zkool URL, account and token file (slice S3)", () => {
   const c = loadConfig(external);
   assert.deepEqual(c.custody, { mode: "external" });
   assert.deepEqual(problems({ ...external, ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql" }), ["ZECEIPT_ZKOOL_URL"]);
   assert.deepEqual(problems({ ...external, ZECEIPT_ZKOOL_ACCOUNT: "9" }), ["ZECEIPT_ZKOOL_ACCOUNT"]);
   assert.deepEqual(problems({ ...external, ZECEIPT_ZKOOL_ALLOW_REMOTE: "false" }), ["ZECEIPT_ZKOOL_ALLOW_REMOTE"]);
+  assert.deepEqual(problems({ ...external, ZECEIPT_ZKOOL_TOKEN_FILE: "/etc/zeceipt/zkool.jwt" }), ["ZECEIPT_ZKOOL_TOKEN_FILE"]);
+  assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_TOKEN_FILE: undefined }), ["ZECEIPT_ZKOOL_TOKEN_FILE"]);
+  assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_TOKEN_FILE: "zkool.jwt" }), ["ZECEIPT_ZKOOL_TOKEN_FILE"], "relative path");
   assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_URL: undefined }), ["ZECEIPT_ZKOOL_URL"]);
   assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_ACCOUNT: "" }), ["ZECEIPT_ZKOOL_ACCOUNT"]);
-  assert.deepEqual(loadConfig(hot).custody, { mode: "hot", zkool: { url: "http://127.0.0.1:9000/graphql", account: 9, allowRemote: false } });
+  assert.deepEqual(loadConfig(hot).custody, { mode: "hot", zkool: { url: "http://127.0.0.1:9000/graphql", account: 9, allowRemote: false, tokenFile: "/etc/zeceipt/zkool-account-9.jwt" } });
   assert.deepEqual(problems({ ...hot, ZECEIPT_CUSTODY_MODE: "custodial" }), ["ZECEIPT_CUSTODY_MODE"]);
   assert.deepEqual(problems({ ...hot, ZECEIPT_CUSTODY_MODE: undefined }), ["ZECEIPT_CUSTODY_MODE"]);
 });
@@ -107,6 +112,7 @@ test("every rule, and all problems reported together", () => {
     "ZECEIPT_WRAP_KEYS",
     "ZECEIPT_ZKOOL_ACCOUNT",
     "ZECEIPT_ZKOOL_ALLOW_REMOTE",
+    "ZECEIPT_ZKOOL_TOKEN_FILE",
     "ZECEIPT_ZKOOL_URL",
   ]);
   for (const [k, v] of [["CONFIRMATIONS", "101"], ["CONFIRMATIONS", "3.5"], ["AUTO_RECEIPTS_SECONDS", "-1"], ["AUTO_RECEIPTS_SECONDS", "86401"], ["AUTO_RECEIPTS_SECONDS", "1.5"], ["ZKOOL_ACCOUNT", "1e3"], ["DB_PATH", "file:/x.db"], ["ORG_ID", "x".repeat(65)]] as const) {

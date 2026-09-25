@@ -759,6 +759,26 @@ What the log shows:
   - `GET /api/batches/{id}/history` held exactly `created, locked, approved, quoted, attempt_submitting, attempt_broadcast, expiry_recorded, receipt_issued ×3`: the approval at lock 1, the guard's execution quote, one attempt for two posts of the Pay form (the second replayed the record and changed nothing the trail tracks), the broadcast event naming the transaction, and one receipt event per line (outputs 3, 2, 1), each naming the transaction;
   - three receipts verified by the CLI with the issuer's signature required, and three receipt pages VALID in Chrome with no request carrying a receipt.
 
+## 5e. regtest — Zkool enforces tokens; the console pays with a token scoped to its account (2026-09-25, slice S3)
+
+Before this, Zkool ran without `--jwt-public-key-file`: `lsof` showed `zkool_graphql … TCP *:9000 (LISTEN)`, and an unauthenticated `{ currentHeight }` on 127.0.0.1 answered. From the machine's LAN address the request timed out, only because macOS's application firewall is on. Zkool was restarted with an ES256 public key (`raw/tools/regtest/zkool-jwt/`, outside the repository). The console's token was minted with `scripts/zkool-token.ts` (account 9, write, 30 days, a new 0600 file); the test harness has an admin token for creating recipients. No token was printed. Measured with `curl`:
+
+| request | answer |
+|---|---|
+| no token (`currentHeight`; `balanceByAccount(9)`) | HTTP 500 `Unhandled rejection: AuthError` |
+| a garbage token; an expired token (account 9) | HTTP 500 `Unhandled rejection: AuthError` |
+| account 1's token reading `balanceByAccount(9)` | 200, GraphQL error `Unauthorized` |
+| a read-only token for account 9 calling `pay` | 200, GraphQL error `Unauthorized` (nothing built: `check_auth` runs first) |
+| account 9's token: `balanceByAccount(9)`, `currentHeight` | served |
+
+Then the same run as §5d, through the console with `ZECEIPT_ZKOOL_TOKEN_FILE` (`ZECEIPT_REGTEST=1 node --test test/regtest.http.e2e.test.ts`; `raw/tools/regtest/console-http-e2e-20260925173141.json`):
+- its first step asserts that this Zkool refuses a request without a token (500, `Unhandled rejection: AuthError`);
+- a batch of 3 made on the form, locked (the run's local ticker, 1600.00), approved, paid once for two Pay posts: tx `ec0fecd3…6519`, mined at 50588;
+- confirmed at 2, 3 receipts issued and verified; each recipient's own account holds its memo;
+- each link VALID on the receipt page.
+
+The library test (§5c) passed the same way, paying with the issuer's scoped token (`test/regtest.e2e.test.ts`).
+
 ## 6. testnet — placeholder
 
 To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.

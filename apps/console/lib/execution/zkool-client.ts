@@ -23,13 +23,29 @@ export class ZkoolTransportError extends Error {
   }
 }
 
+/**
+ * Zkool refused the token before running anything (slice S3): with `--jwt-public-key-file`, a missing, invalid or
+ * expired token is rejected by the HTTP filter ahead of GraphQL, answered as HTTP 500 "Unhandled rejection:
+ * AuthError" (zkool2 `graphql-cli.rs`, measured 2026-09-25, R97). Nothing was built or sent.
+ */
+export class ZkoolAuthError extends ZkoolTransportError {
+  constructor(message: string) {
+    super(message);
+    this.name = "ZkoolAuthError";
+  }
+}
+
 export const POOL = { transparent: 1, sapling: 2, orchard: 4, ironwood: 8 } as const;
 
 export interface ZkoolClientOptions {
   /** e.g. http://127.0.0.1:9000/graphql */
   url: string;
-  /** Zkool has no authentication; only loopback is allowed unless explicitly overridden. */
+  /** Zkool speaks plain HTTP (its token is readable on the wire): only loopback unless explicitly overridden. */
   allowRemote?: boolean;
+  /** The ES256 token scoped to the account (slice S3), sent as `authorization: Bearer`; never logged. */
+  token?: string;
+  /** The token's expiry, from its `exp` claim (checked at boot). */
+  tokenExpiresAt?: Date;
   timeoutMs?: number;
   /** `pay` builds and proves a transaction; give it longer. */
   payTimeoutMs?: number;
@@ -41,24 +57,28 @@ export interface ZkoolTx { txid: string; height: number; value: string; fee: str
 export interface ZkoolBalance { height: number | null; ironwood: string; orchard: string; sapling: string; transparent: string; total: string }
 export interface ZkoolRecipient { address: string; zat: bigint; memo: string }
 
-/** Hosts that count as loopback (Zkool has no authentication, so it stays on loopback unless allowed). */
+/** Hosts that count as loopback (Zkool's traffic is plain HTTP, so it stays on loopback unless allowed). */
 export const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
 export class ZkoolClient {
   readonly url: string;
   readonly timeoutMs: number;
   readonly payTimeoutMs: number;
+  readonly tokenExpiresAt?: Date;
+  readonly #token?: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: ZkoolClientOptions) {
     const u = new URL(opts.url);
     if (!opts.allowRemote && !LOOPBACK_HOSTS.has(u.hostname)) {
-      throw new Error(`refusing non-loopback Zkool endpoint ${u.hostname}: the server has no authentication (pass allowRemote to override)`);
+      throw new Error(`refusing non-loopback Zkool endpoint ${u.hostname}: its traffic, token included, is plain HTTP (pass allowRemote to override)`);
     }
     this.url = u.toString();
     this.timeoutMs = opts.timeoutMs ?? 60_000;
     this.payTimeoutMs = opts.payTimeoutMs ?? 300_000;
     this.fetchImpl = opts.fetch ?? fetch;
+    this.#token = opts.token;
+    this.tokenExpiresAt = opts.tokenExpiresAt;
   }
 
   async request<T>(query: string, variables: Record<string, unknown> = {}, timeoutMs = this.timeoutMs): Promise<T> {
@@ -66,13 +86,18 @@ export class ZkoolClient {
     try {
       res = await this.fetchImpl(this.url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(this.#token === undefined ? {} : { authorization: `Bearer ${this.#token}` }) },
         body: JSON.stringify({ query, variables }),
         redirect: "error",
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e) {
       throw new ZkoolTransportError(`request to ${this.url} failed: ${(e as Error).message}`, { cause: e });
+    }
+    if (res.status === 500) {
+      const text = await res.text().catch(() => "");
+      if (text.startsWith("Unhandled rejection: AuthError")) throw new ZkoolAuthError(`Zkool at ${this.url} refused the token (missing, invalid or expired)`);
+      throw new ZkoolTransportError(`HTTP 500 from ${this.url}`);
     }
     if (!res.ok) throw new ZkoolTransportError(`HTTP ${res.status} from ${this.url}`);
     let body: { data?: T; errors?: { message: string }[] };

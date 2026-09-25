@@ -8,12 +8,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { baseEnv, raw, start, waitHealthy, within } from "../helpers/app-server.ts";
 import { FakeZkool } from "../helpers/fake-zkool.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "../helpers/zkool-token.ts";
 
 const OUT = process.argv[2] ?? join(import.meta.dirname, "../../../../docs/product/screenshots");
 const dir = mkdtempSync(join(tmpdir(), "i3-shot-"));
-const fake = await new FakeZkool().start();
+const fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
 const env = {
-  ...baseEnv(), ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
+  ...baseEnv(), ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
   ZECEIPT_DB_PATH: join(dir, "c.db"), ZECEIPT_ORG_ID: "shot", ZECEIPT_NETWORK: "regtest", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 4).toString("base64")}`,
   ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137", ZECEIPT_BIN: "/opt/x", ZECEIPT_UFVK_FILE: "/etc/x", ZECEIPT_ISSUER_KEY_FILE: "/etc/y", ZECEIPT_ISSUER_KEY_ID: "k", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
   NODE_USE_ENV_PROXY: "1", NO_PROXY: "127.0.0.1,localhost",

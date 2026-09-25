@@ -7,7 +7,7 @@ import http from "node:http";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -17,6 +17,7 @@ import { LINKABILITY_SPEC } from "../lib/view/linkability.ts";
 import { item, ua } from "./helpers/ua-encoder.ts";
 import { execFileSync } from "node:child_process";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const RUN = process.env.ZECEIPT_APP_E2E === "1";
 // The JavaScript path in a real browser (the system Chrome through playwright-core; no browser download).
@@ -34,7 +35,7 @@ const demoEnv = (name: string, extra: Record<string, string | undefined> = {}) =
     ...baseEnv(),
     ZECEIPT_CUSTODY_MODE: "hot",
     ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql",
-    ZECEIPT_ZKOOL_ACCOUNT: "1",
+    ZECEIPT_ZKOOL_ACCOUNT: "1", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(1),
     ZECEIPT_DB_PATH: join(dir, `${name}.db`),
     ZECEIPT_ORG_ID: "demo-org",
     ZECEIPT_NETWORK: "regtest",
@@ -129,6 +130,8 @@ for (const [name, extra, variable] of [
   ["hot custody without a Zkool endpoint (REQ-CON-17)", { ZECEIPT_ZKOOL_URL: undefined }, "ZECEIPT_ZKOOL_URL"],
   ["a wrap key written where its id belongs", { ZECEIPT_WRAP_KEYS: `${KEY.toString("base64url")}:k1` }, "ZECEIPT_WRAP_KEYS"],
   ["a database path in a missing directory", { ZECEIPT_DB_PATH: join(dir, "missing", "x.db") }, "TypeError: Cannot open database"],
+  ["an admin Zkool token, every account (slice S3)", { ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(0) }, "ZECEIPT_ZKOOL_TOKEN_FILE"],
+  ["a Zkool token file other users can read (slice S3)", { ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(1, {}, { mode: 0o644 }) }, "ZECEIPT_ZKOOL_TOKEN_FILE"],
 ] as const) {
   test(`next start exits 1 before serving: ${name}`, { skip: !RUN }, async () => {
     const s = await start(demoEnv(`bad-${variable}`, extra as Record<string, string | undefined>));
@@ -149,6 +152,8 @@ for (const [name, extra, variable] of [
     assert.deepEqual(answered, [], "a request was answered before the failed boot exited");
     assert.match(s.output(), new RegExp(`startup refused: ${variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
     assertNoKey(s.output());
+    const tokenFile = (extra as { ZECEIPT_ZKOOL_TOKEN_FILE?: string }).ZECEIPT_ZKOOL_TOKEN_FILE;
+    if (tokenFile) assert.ok(!s.output().includes(readFileSync(tokenFile, "utf8").trim().split(".")[2]), "the token is never printed");
   });
 }
 
@@ -210,11 +215,11 @@ test("guard and batch routes through next start: foreign Host and cross-site wri
 });
 
 test("submit and status through next start: pays once against a fake wallet, replays, and follows the chain", { skip: !RUN }, async () => {
-  const fake = await new FakeZkool().start();
+  const fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
   let fakeStopped = false;
   // The real zeceipt binary, so receipt issuance spawns it from inside Next's bundled server (slice D3).
   const bin = process.env.ZECEIPT_BIN ?? resolve(APP, "../../target/debug/zeceipt");
-  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1", ZECEIPT_AUTO_RECEIPTS_SECONDS: "60" }));
+  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1", ZECEIPT_AUTO_RECEIPTS_SECONDS: "60" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     // Slice I2 (REQ-CON-11): hot custody starts the automatic receipt worker from register().
@@ -326,9 +331,9 @@ test("submit and status through next start: pays once against a fake wallet, rep
 
 
 test("page actions through next start, posted as a browser without JavaScript: pay once, never twice, receipts offered after confirmation", { skip: !RUN }, async () => {
-  const fake = await new FakeZkool().start();
+  const fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
   const bin = process.env.ZECEIPT_BIN ?? resolve(APP, "../../target/debug/zeceipt");
-  const s = await start(demoEnv("actions", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1" }));
+  const s = await start(demoEnv("actions", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -414,8 +419,8 @@ test("rate lock from the batch page, posted as a browser without JavaScript: loc
   const ticker = (bid: string, ask: string, last: string) => ({ status: 200, body: JSON.stringify({ error: [], result: { XZECZUSD: { a: [ask, "1", "1.000"], b: [bid, "1", "1.000"], c: [last, "0.1"] } } }) });
   const source = http.createServer((_req, res) => void res.writeHead(tick.status, { "content-type": "application/json" }).end(tick.body));
   await new Promise<void>((r) => source.listen(0, "127.0.0.1", r));
-  const fake = await new FakeZkool().start();
-  const s = await start(demoEnv("rates", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD` }));
+  const fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
+  const s = await start(demoEnv("rates", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD` }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -496,8 +501,8 @@ test("pay follows the rate guard on the page, posted without JavaScript: no Pay 
   let bid = "1600.00";
   const source = http.createServer((_req, res) => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: [(Number(bid) + 1).toFixed(2), "1", "1"], b: [bid, "1", "1"], c: [bid, "0.1"] } } })));
   await new Promise<void>((r) => source.listen(0, "127.0.0.1", r));
-  const fake = await new FakeZkool().start();
-  const s = await start(demoEnv("guard", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/t` }));
+  const fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
+  const s = await start(demoEnv("guard", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/t` }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -549,7 +554,7 @@ test("pay follows the rate guard on the page, posted without JavaScript: no Pay 
 });
 
 test("recipients page through next start, posted as a browser without JavaScript: add (303), a duplicate flagged on both rows, an invalid address shown under its field with values kept (slice H2)", { skip: !RUN }, async () => {
-  const s = await start(demoEnv("recipients", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_AUTO_RECEIPTS_SECONDS: "60" }));
+  const s = await start(demoEnv("recipients", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_AUTO_RECEIPTS_SECONDS: "60" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     assert.ok(!s.output().includes("receipts: automatic issuance"), "external custody runs no receipt worker (slice I2)");
@@ -598,7 +603,7 @@ test("recipients page through next start, posted as a browser without JavaScript
 });
 
 test("payables page through next start, posted as a browser without JavaScript: add in dollars (303), the kind filter, and every error under its field with values kept (slice H4)", { skip: !RUN }, async () => {
-  const s = await start(demoEnv("payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  const s = await start(demoEnv("payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -666,7 +671,7 @@ test("payables page through next start, posted as a browser without JavaScript: 
 });
 
 test("a batch made from payables through next start: USD at lock equals each payable's dollars; the lock is shown and fixed, with no Lock/Re-lock form (slice H5a)", { skip: !RUN }, async () => {
-  const s = await start(demoEnv("from-payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  const s = await start(demoEnv("from-payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -705,7 +710,7 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: ["1601.00", "1", "1"], b: ["1600.00", "1", "1"], c: ["1600.00", "0.1"] } } }));
   });
   await new Promise<void>((r) => ticker.listen(0, "127.0.0.1", r));
-  const s = await start(demoEnv("choose-payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_RATE_URL: `http://127.0.0.1:${(ticker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD` }));
+  const s = await start(demoEnv("choose-payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_RATE_URL: `http://127.0.0.1:${(ticker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD` }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -760,7 +765,7 @@ test("choosing payables through next start, as a browser without JavaScript: 303
 });
 
 test("voiding a draft from the batch page through next start, as a browser without JavaScript: a link, a confirmation with a warning button, 303; paid batches offer nothing; a stale confirmation is refused in words (slice H5d)", { skip: !RUN }, async () => {
-  const s = await start(demoEnv("void-page", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  const s = await start(demoEnv("void-page", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -830,7 +835,7 @@ test("voiding a draft from the batch page through next start, as a browser witho
 });
 
 test("the linkability warning through next start (REQ-CON-6, slice H6): after real receipts for batch A, a new draft paying the same recipient shows the report, and the recipients page and chooser flag it", { skip: !RUN }, async () => {
-  const s = await start(demoEnv("linkability", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  const s = await start(demoEnv("linkability", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined }));
   const ROOT = resolve(APP, "../..");
   const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/debug/zeceipt"); // as every other test (review H6)
   const TXID = "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2";

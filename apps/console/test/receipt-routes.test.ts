@@ -15,6 +15,7 @@ import { HttpProblem, type ProblemJson } from "../lib/http/problem.ts";
 import * as collection from "../app/api/batches/route.ts";
 import * as receiptsRoute from "../app/api/batches/[id]/receipts/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/debug/zeceipt");
@@ -45,7 +46,7 @@ async function scenario(org: string, opts: { broadcast?: "broadcast" | "unknown_
   const env: Record<string, string> = {
     ZECEIPT_CUSTODY_MODE: "hot",
     ZECEIPT_ZKOOL_URL: fake.url,
-    ZECEIPT_ZKOOL_ACCOUNT: "9",
+    ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9),
     ZECEIPT_DB_PATH: join(dir, `${org}.db`),
     ZECEIPT_ORG_ID: org,
     ZECEIPT_NETWORK: "regtest",
@@ -80,7 +81,7 @@ function onChain(confirmations: number) {
 before(async () => {
   assert.ok(existsSync(BIN), `zeceipt binary not found at ${BIN}`);
   execFileSync(BIN, ["keygen", "--out", join(dir, "issuer.key")]);
-  fake = await new FakeZkool().start();
+  fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
   fake.height = fake.scanned = 700;
   cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), host: "https://receipts.example", keyId: "2026-09" };
 });

@@ -15,7 +15,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
@@ -30,10 +30,15 @@ const ZKOOL = process.env.ZKOOL_URL ?? "http://127.0.0.1:9000/graphql";
 const ZAINO = process.env.ENDPOINT ?? "http://127.0.0.1:8137";
 const ZEBRA_RPC = process.env.ZEBRA_RPC ?? "http://127.0.0.1:18232/";
 const ISSUER = Number(process.env.ZKOOL_ISSUER ?? 9);
+// Zkool runs with --jwt-public-key-file (slice S3, REGTEST_RUNBOOK): the console gets the issuer's scoped token; the
+// harness, which creates and reads the recipients' accounts, an admin token. Paths only: never printed.
+const ZKOOL_TOKEN_FILE = process.env.ZKOOL_TOKEN_FILE ?? join(ARTIFACT_DIR, `zkool-jwt/account-${ISSUER}.jwt`);
+const ZKOOL_ADMIN_TOKEN_FILE = process.env.ZKOOL_ADMIN_TOKEN_FILE ?? join(ARTIFACT_DIR, "zkool-jwt/admin.jwt");
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/release/zeceipt");
 
 async function zkool<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  const r = await fetch(ZKOOL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query, variables }) });
+  const headers = { "content-type": "application/json", authorization: `Bearer ${readFileSync(ZKOOL_ADMIN_TOKEN_FILE, "utf8").trim()}` };
+  const r = await fetch(ZKOOL, { method: "POST", headers, body: JSON.stringify({ query, variables }) });
   const j = (await r.json()) as { data: T; errors?: unknown };
   if (j.errors) throw new Error(JSON.stringify(j.errors));
   return j.data;
@@ -63,6 +68,11 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     console.log(JSON.stringify(e));
   };
 
+  // Slice S3: this Zkool (started with --jwt-public-key-file) refuses a request without a token before any GraphQL runs.
+  const bare = await fetch(ZKOOL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: "{ currentHeight }" }) });
+  assert.deepEqual([bare.status, await bare.text()], [500, "Unhandled rejection: AuthError"], "Zkool must be started with --jwt-public-key-file (REGTEST_RUNBOOK)");
+  step("zkool_refuses_no_token", { status: bare.status });
+
   // Fresh recipients (Ironwood only), as in PROOF §5c.
   const birth = await zebraHeight();
   const recipients: { id: number; ua: string }[] = [];
@@ -89,7 +99,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     ...baseEnv(),
     ZECEIPT_CUSTODY_MODE: "hot",
     ZECEIPT_ZKOOL_URL: ZKOOL,
-    ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER),
+    ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER), ZECEIPT_ZKOOL_TOKEN_FILE: ZKOOL_TOKEN_FILE,
     ZECEIPT_DB_PATH: join(dir, "console.db"),
     ZECEIPT_ORG_ID: "regtest-demo",
     ZECEIPT_NETWORK: "regtest",
