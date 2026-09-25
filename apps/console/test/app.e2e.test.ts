@@ -45,6 +45,8 @@ const demoEnv = (name: string, extra: Record<string, string | undefined> = {}) =
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
     ZECEIPT_ISSUER_KEY_ID: "2026-09",
     ZECEIPT_RATE_URL: defaultTickerUrl,
+    // No receipt worker unless a test is about it (review I2 round 1): its passes would race the assertions.
+    ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
     ...extra,
   };
   for (const k of Object.keys(e)) if (e[k] === undefined) delete e[k];
@@ -212,7 +214,7 @@ test("submit and status through next start: pays once against a fake wallet, rep
   let fakeStopped = false;
   // The real zeceipt binary, so receipt issuance spawns it from inside Next's bundled server (slice D3).
   const bin = process.env.ZECEIPT_BIN ?? resolve(APP, "../../target/debug/zeceipt");
-  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1" }));
+  const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1", ZECEIPT_AUTO_RECEIPTS_SECONDS: "60" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     // Slice I2 (REQ-CON-11): hot custody starts the automatic receipt worker from register().
@@ -514,7 +516,7 @@ test("pay follows the rate guard on the page, posted without JavaScript: no Pay 
 });
 
 test("recipients page through next start, posted as a browser without JavaScript: add (303), a duplicate flagged on both rows, an invalid address shown under its field with values kept (slice H2)", { skip: !RUN }, async () => {
-  const s = await start(demoEnv("recipients", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  const s = await start(demoEnv("recipients", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_AUTO_RECEIPTS_SECONDS: "60" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
     assert.ok(!s.output().includes("receipts: automatic issuance"), "external custody runs no receipt worker (slice I2)");

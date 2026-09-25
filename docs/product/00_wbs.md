@@ -210,7 +210,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.5.5 ⬜ R — Zallet `z_sendmany` adapter with unknown-outcome handling (REQ-CON-8; cuttable). 0.5 pd, 2026-10-08 → 10-09.
 - 3.3.5.6 ⬜ R — Per-recipient ZIP-321 URI/QR adapter, non-custodial (REQ-CON-9). 0.5 pd, 2026-10-01 → 10-03.
 #### 3.3.6 Payout console — receipts, pages, exports
-- 3.3.6.1 🟡 R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). Library `autoIssue` done 2026-09-23 (confirmation gate, `zeceipt issue --only-to` allow-list, per-item cross-check, verification; PROOF §5c); storing receipts sealed at rest with the unique (org, txid, pool, index) key: slice B2; over HTTP: slice D3 (Trellis `09-23-console-receipt-routes`), where the batch's derived status decides, below the threshold is 202 waiting (pending, not invalid), and an issued batch returns its stored receipts without re-running the CLI; console receipts carry no challenge (bearer links). The batch page lists receipts and offers Issue once confirmed (E1/E2), shown on the live chain in PROOF §5d. Open: a background worker (issuance without a click). 1 pd, 2026-09-27 → 09-28. Automatic issuance (slice I2, Trellis `09-25-receipt-worker`): a worker started from `instrumentation.ts` issues receipts for confirmed batches every `ZECEIPT_AUTO_RECEIPTS_SECONDS` through the same idempotent handler `[R86]`.
+- 3.3.6.1 ✅ R — Auto-issuance after N confirmations via `zeceipt-core` (wasm or sidecar), idempotent per (txid, index) (REQ-CON-11, NFR-3). Library `autoIssue` done 2026-09-23 (confirmation gate, `zeceipt issue --only-to` allow-list, per-item cross-check, verification; PROOF §5c); storing receipts sealed at rest with the unique (org, txid, pool, index) key: slice B2; over HTTP: slice D3 (Trellis `09-23-console-receipt-routes`), where the batch's derived status decides, below the threshold is 202 waiting (pending, not invalid), and an issued batch returns its stored receipts without re-running the CLI; console receipts carry no challenge (bearer links). The batch page lists receipts and offers Issue once confirmed (E1/E2), shown on the live chain in PROOF §5d. Open: a background worker (issuance without a click). 1 pd, 2026-09-27 → 09-28. Automatic issuance (slice I2, Trellis `09-25-receipt-worker`): a worker started from `instrumentation.ts` issues receipts for confirmed batches every `ZECEIPT_AUTO_RECEIPTS_SECONDS` through the same idempotent handler `[R86]`; review 100/100 (docs/product/reviews/receipt-worker-round-1.md), done 2026-09-25.
 - 3.3.6.2 ✅ T — Public receipt page `/r#<payload>` (payload in the fragment, spec §2.1; link format changed in slice F1 `[R66]`) with three-part outcome and challenge input (REQ-CON-12, REQ-WEB-7). 1 pd, 2026-09-27 → 09-28. Done 2026-09-23 (slices F2a and F2b, Trellis `09-23-verify-chain-status`, `09-23-public-receipt-page`):
   - a static page at `packages/verify/r/` that reads the link's fragment and verifies in the browser;
   - the summary shows before any request; the transaction comes from a named public node or a file; a challenge input appears only for bound receipts;
@@ -316,9 +316,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 34 | 4 | 23 | 2 |
+| 3 Engineering | 63 | 35 | 3 | 23 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 114 | 5 | 56 | 10 |
+| **Total** | 185 | 115 | 4 | 56 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).
