@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Consistency checks for docs/product/.
 
-- every [Rn] cited anywhere resolves to a row in 10_research_log.md, and every row is cited
+- every [Rn] cited anywhere resolves to a row in 10_research_log.md, and every row is cited; the R rows form one contiguous table
 - every requirement id (REQ-*/NFR-*) is unique and appears in the §8 traceability matrix, with the same status glyph as its definition row
 - §8 leaf numbers exist in 00_wbs.md; ⬜ rows never cite PROOF as evidence
 - every test name cited in 01_requirements.md / 00_wbs.md exists under crates/
@@ -35,6 +35,15 @@ for name, text in files.items():
             errors.append(f"{name}: unresolved reference [{ref}]")
 for ref in sorted(defined - cited, key=lambda r: int(r[1:])):
     errors.append(f"10_research_log.md: {ref} is defined but never cited")
+# Every R row sits inside the one table: a blank line, a heading or a list between rows ends a Markdown table, and the rows
+# after it render as text (review S4c round 2: R96-R104 had fallen out of the table behind a note block).
+_log_lines = log.split("\n")
+_r_rows = [i for i, l in enumerate(_log_lines) if re.match(r"^\| R\d+ \|", l)]
+if _r_rows and _r_rows != list(range(_r_rows[0], _r_rows[0] + len(_r_rows))):
+    _gap = next(i for a, i in zip(_r_rows, _r_rows[1:]) if i != a + 1)
+    errors.append(f"10_research_log.md: the R rows are not one table (a break before line {_gap + 1}); keep every row contiguous and notes below the table")
+if _r_rows and not all(l.rstrip().endswith("|") for l in (_log_lines[i] for i in _r_rows)):
+    errors.append("10_research_log.md: every R row must end with '|' (no multi-line cells)")
 
 # requirement ids (definition tables only)
 req_text = files.get("01_requirements.md", "")
