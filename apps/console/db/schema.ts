@@ -119,6 +119,10 @@ export const batchItems = sqliteTable(
   (t) => [
     primaryKey({ columns: [t.orgId, t.batchId, t.idx] }),
     uniqueIndex("batch_items_payable_once").on(t.orgId, t.payableRef).where(sql`${t.payableRef} is not null`),
+    // A memo is a payable reference (REQ-CON-3): unique across the org's batches, not only within one, so one
+    // obligation cannot sit in two batches whichever way they were made (review H5a: a hand-made line and a payables
+    // line could both carry "INV-7").
+    uniqueIndex("batch_items_memo_org").on(t.orgId, t.memo),
     check("batch_items_payable_ref", sql`(${t.payableRef} is null) = (${t.usdCents} is null)`),
     check("batch_items_usd_cents", sql`${t.usdCents} is null or (typeof(${t.usdCents}) = 'integer' and ${t.usdCents} between 1 and 99999999)`),
     foreignKey({ columns: [t.orgId, t.batchId], foreignColumns: [batches.orgId, batches.id] }),

@@ -84,6 +84,27 @@ test("a re-lock is 409 rate_fixed, and nothing is recorded", async () => {
   assert.deepEqual((await listQuotes(slot[SERVER_CONTEXT_KEY]!.db, ORG, String(r.body.id))).map((q) => q.seq), [1]);
 });
 
+test("review H5a round 1, through the API: a hand-made batch cannot carry a payable, and a payable typed by hand first is taken (422 naming the batch); re-locking an unknown batch is 404", async () => {
+  const hand = async (memo: string) => {
+    const { POST } = await import("../app/api/batches/route.ts");
+    const r = await POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ title: `hand ${memo}`, items: [{ payableId: `h-${memo}`, address: UA, zat: "5", memo }] }) }), undefined);
+    return { status: r.status, body: (await r.json()) as Body & { id?: string } };
+  };
+  const typed = await hand("API-INV-1");
+  assert.equal(typed.status, 201);
+  const ref = await createPayable(slot[SERVER_CONTEXT_KEY]!.db, { orgId: ORG, recipientId: alice, kind: "invoice", usdCents: 100, reference: "API-INV-1" });
+  const taken = await make({ title: "late", payableIds: [ref.id] });
+  assert.deepEqual([taken.status, taken.body.problems!.map((p) => p.code)], [422, ["payable_taken"]]);
+  assert.match(JSON.stringify(taken.body.problems), new RegExp(`already in batch ${typed.body.id}`));
+  const p = await payable(200);
+  const { body } = await make({ title: "first", payableIds: [p] });
+  const reference = body.items![0].memo;
+  const again = await hand(reference);
+  assert.deepEqual([again.status, again.body.code, again.body.problems!.map((x) => x.code).sort()], [422, "batch_invalid", ["memo_taken", "payable_reserved"]]);
+  const missing = await relock("01900000-0000-7000-8000-000000000000");
+  assert.deepEqual([missing.status, missing.body.code], [404, "batch_not_found"]);
+});
+
 test("400 for the shape: no ids, 51 ids, a missing title, an unknown key (the org), not JSON", async () => {
   for (const body of [{ title: "x", payableIds: [] }, { title: "x", payableIds: Array.from({ length: 51 }, () => "p") }, { payableIds: ["p"] }, { title: "x", payableIds: ["p"], orgId: "other" }, "not json"]) {
     const r = await make(body);

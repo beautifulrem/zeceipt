@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   autoIssue,
+  BatchInvalidError,
   batchDigest,
   batchNonce,
   createBatch,
@@ -249,12 +250,13 @@ test("an output already receipted for one batch cannot be receipted for another 
   const org = "org-b2-shared";
   const first = await issuedBatch("shared-1", { org });
   await recordReceipts(db, ring, { orgId: org, batchId: first.rec.id, issued: first.issued });
-  const second = await issuedBatch("shared-2", { org }); // a misconfiguration: two batches broadcast as one tx
+  // The misconfiguration this guarded against (two batches of one org carrying the same outputs, broadcast as one
+  // tx) can no longer be created: memos are unique across the org's batches (review H5a round 1, migration 0018),
+  // so the second batch is refused before it exists. The receipt-level guard stays as defence in depth.
   await assert.rejects(
-    recordReceipts(db, ring, { orgId: org, batchId: second.rec.id, issued: second.issued }),
-    (e: unknown) => e instanceof ReceiptRecordError && e.code === "receipt_mismatch" && e.message.includes(`already has a receipt for batch ${first.rec.id}`),
+    issuedBatch("shared-2", { org }),
+    (e: unknown) => e instanceof BatchInvalidError && e.problems.every((p) => p.code === "memo_taken") && e.problems[0].detail.includes(`already used by batch ${first.rec.id}`),
   );
-  assert.deepEqual(await listReceipts(db, ring, org, second.rec.id), []);
 });
 
 test("autoIssue never writes a receipt (OCK) to a temp file; outDir (tools only) is owner-only", async () => {

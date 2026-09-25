@@ -3,7 +3,7 @@
 // zat = floor(cents × 10^8 / (100 × rate)) at one quote, recorded as the batch's only lock in the same write
 // transaction (BTCPay's fixed payout rate; R80). A payable is in at most one batch (the partial unique index).
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
 import { batchItems, batches, payables, rateQuotes, recipients } from "../../db/schema.ts";
@@ -35,8 +35,18 @@ function readProblems(db: Db, input: PayableBatchInput): BatchProblem[] {
   if (input.payableIds.length === 0) problems.push({ code: "empty_batch", detail: "choose at least one payable" });
   if (input.payableIds.length > MAX_PAYABLES) problems.push({ code: "too_many_recipients", detail: `${input.payableIds.length} payables > limit ${MAX_PAYABLES}` });
   const ids = [...new Set(input.payableIds)];
-  const known = new Set(ids.length ? db.select({ id: payables.id }).from(payables).where(and(eq(payables.orgId, input.orgId), inArray(payables.id, ids))).all().map((r) => r.id) : []);
-  const held = new Map(ids.length ? db.select({ ref: batchItems.payableRef, batchId: batchItems.batchId }).from(batchItems).where(and(eq(batchItems.orgId, input.orgId), inArray(batchItems.payableRef, ids))).all().map((r) => [r.ref!, r.batchId]) : []);
+  const refs = new Map(ids.length ? db.select({ id: payables.id, reference: payables.reference }).from(payables).where(and(eq(payables.orgId, input.orgId), inArray(payables.id, ids))).all().map((r) => [r.id, r.reference]) : []);
+  const known = new Set(refs.keys());
+  // Taken by any line of the org that carries the payable: as a payables line (payable_ref), or a hand-made line with
+  // its id or its reference as the memo (review H5a round 1: the index on payable_ref alone missed those).
+  const references = [...refs.values()];
+  const lines = ids.length ? db.select({ ref: batchItems.payableRef, payableId: batchItems.payableId, memo: batchItems.memo, batchId: batchItems.batchId }).from(batchItems)
+    .where(and(eq(batchItems.orgId, input.orgId), or(inArray(batchItems.payableRef, ids), inArray(batchItems.payableId, ids), references.length ? inArray(batchItems.memo, references) : sql`0`))).all() : [];
+  const held = new Map<string, string>();
+  for (const [id, reference] of refs) {
+    const line = lines.find((l) => l.ref === id || l.payableId === id || l.memo === reference);
+    if (line) held.set(id, line.batchId);
+  }
   const seen = new Set<string>();
   input.payableIds.forEach((id, i) => {
     if (seen.has(id)) problems.push({ code: "payable_repeated", itemIndex: i, detail: "this payable is already chosen above" });
@@ -52,11 +62,11 @@ export function payableBatchProblems(db: ConsoleDb, input: PayableBatchInput): P
   return runSync(() => readProblems(db, input));
 }
 
-/** The partial unique index refused a line: another batch took the payable between our check and our insert. */
+/** A unique index refused a line (the payable, or its reference as a memo): another batch took it after our check. */
 function isTakenConflict(e: unknown): boolean {
   for (let c: unknown = e; c; c = (c as { cause?: unknown }).cause) {
     const { code, message } = c as { code?: unknown; message?: unknown };
-    if (code === "SQLITE_CONSTRAINT_UNIQUE" && typeof message === "string" && message.includes("batch_items.org_id, batch_items.payable_ref")) return true;
+    if (code === "SQLITE_CONSTRAINT_UNIQUE" && typeof message === "string" && /batch_items\.org_id, batch_items\.(payable_ref|memo)/.test(message)) return true;
   }
   return false;
 }

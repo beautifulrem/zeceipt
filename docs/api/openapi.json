@@ -124,7 +124,14 @@
             "$ref": "#/components/responses/Problem"
           },
           "422": {
-            "$ref": "#/components/responses/Problem"
+            "description": "batch_invalid with every problem (code, index, detail), including memo_taken (the memo is already used by another batch of the org: a memo is a payable reference, unique in the org) and payable_reserved (the line carries a payable's id or reference: payables are paid only through POST /api/batches/from-payables)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/Problem"
@@ -1059,7 +1066,7 @@
             "$ref": "#/components/responses/Problem"
           },
           "422": {
-            "description": "batch_invalid with every problem (code, index, detail): title_invalid, payable_unknown, payable_repeated, payable_taken (already in a batch, named in the detail), amount_out_of_range (the conversion is outside 1..2.1e15 zat); checked before the source is asked, and again inside the transaction",
+            "description": "batch_invalid with every problem (code, index, detail): title_invalid, payable_unknown, payable_repeated, payable_taken (already in a batch, named in the detail: as a payables line, or a hand-made line with its id or reference), amount_out_of_range (the conversion is outside 1..2.1e15 zat); checked before the source is asked, and again inside the transaction",
             "content": {
               "application/problem+json": {
                 "schema": {

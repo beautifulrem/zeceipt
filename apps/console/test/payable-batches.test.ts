@@ -113,10 +113,12 @@ test("the schema: a line naming a payable carries its facts, before the lock; ne
   assert.throws(() => line(open.id, { cents: 701 }), /carry an existing payable's reference and cents/, "cents must be the payable's");
   assert.throws(() => line(open.id, { ref: "01900000-0000-7000-8000-000000000000" }), /carry an existing payable's reference and cents/, "the payable must exist");
   assert.throws(() => line(open.id, { cents: null }), /carry an existing payable's reference and cents/, "a payable line without cents (the trigger runs first)");
-  assert.throws(() => line(open.id, { ref: null, idx: 11 }), /CHECK constraint failed: batch_items_usd_cents/, "cents without a payable (the CHECK: both or neither)");
+  assert.throws(() => line(open.id, { ref: null, idx: 11, pid: "hand-11", memo: "CENTS-ONLY" }), /CHECK constraint failed: batch_items_usd_cents/, "cents without a payable (the CHECK: both or neither)");
   assert.throws(() => line(batch.id, {}), /before the batch is locked/, "no payable line after the lock");
   line(open.id, {});
-  assert.throws(() => line(open.id, { idx: 10 }), /UNIQUE constraint failed: batch_items\.org_id, batch_items\.payable_ref/, "one batch per payable (the partial index)");
+  // A second line for the payable carries its reference as memo (0017), so the org-wide memo index (0018) refuses it
+  // first; the partial index on payable_ref stays as a second backstop.
+  assert.throws(() => line(open.id, { idx: 10 }), /UNIQUE constraint failed: batch_items\.org_id, batch_items\.memo/, "one batch per payable");
   for (const set of ["memo = 'X'", "usd_cents = 1", "payable_ref = NULL, usd_cents = NULL"]) {
     assert.throws(() => db.$client.prepare(`UPDATE batch_items SET ${set} WHERE org_id = ? AND batch_id = ? AND idx = 9`).run(ORG, open.id), /its payable, cents and memo are fixed/, set);
   }
@@ -126,4 +128,38 @@ test("the schema: a line naming a payable carries its facts, before the lock; ne
   const loose = await payable(900);
   db.$client.prepare("UPDATE payables SET usd_cents = 901 WHERE id = ?").run(loose.id);
   db.$client.prepare("DELETE FROM payables WHERE id = ?").run(loose.id);
+});
+
+test("review H5a round 1: one obligation cannot sit in a hand-made batch and a payables batch, in either order", async () => {
+  const hand = (memo: string, payableId = `hand-${memo}`) => createBatch(db, { orgId: ORG, network: "regtest", title: `hand ${memo}`, items: [{ payableId, address: UA[0], zat: 5n, memo }] });
+  // Hand-made first: a line typed as "INV-7" before the payable existed; the payable then cannot be batched.
+  const typed = await hand("INV-7");
+  const seven = await createPayable(db, { orgId: ORG, recipientId: alice, kind: "invoice", usdCents: 700, reference: "INV-7" });
+  const early = await make([seven.id]).catch((e: BatchInvalidError) => e.problems);
+  assert.deepEqual((early as { code: string }[]).map((p) => p.code), ["payable_taken"]);
+  assert.match((early as { detail: string }[])[0].detail, new RegExp(`already in batch ${typed.id}`), "names the hand-made batch");
+  // Payables first: a batch from payables, then a hand-made line with the payable's reference or its id.
+  const eight = await payable(800);
+  const { batch } = await make([eight.id]);
+  assert.deepEqual(await codes(hand(eight.reference)), ["memo_taken@0", "payable_reserved@0"]);
+  assert.match(String(await hand(eight.reference).then(() => "created", (e: BatchInvalidError) => e.problems[0].detail)), new RegExp(`already used by batch ${batch.id}`));
+  assert.deepEqual(await codes(hand("OTHER-MEMO", eight.id)), ["payable_reserved@0"], "its id under another memo");
+  // A free payable cannot be paid by hand either: it is paid only through a batch from payables.
+  const nine = await payable(900);
+  assert.deepEqual(await codes(hand(nine.reference)), ["payable_reserved@0"]);
+  // Two hand-made batches cannot share a memo (a memo is a reference, unique in the org).
+  await hand("HAND-ONCE");
+  assert.deepEqual(await codes(hand("HAND-ONCE")), ["memo_taken@0"]);
+  assert.ok(await createBatch(db, { orgId: "org-elsewhere", network: "regtest", title: "other org", items: [{ payableId: "x", address: UA[0], zat: 5n, memo: "HAND-ONCE" }] }), "another org may use it");
+});
+
+test("review H5a round 1: the schema backs it whatever writes the database (a hand-made line with a payable's reference or id; a memo used twice)", async () => {
+  const p = await payable(1_000);
+  const b = await createBatch(db, { orgId: ORG, network: "regtest", title: "raw hand", items: [{ payableId: "raw-0", address: UA[0], zat: 5n, memo: "RAW-HAND-0" }] });
+  const line = (idx: number, pid: string, memo: string) =>
+    db.$client.prepare("INSERT INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, ?, ?, '', ?, 5, ?)").run(ORG, b.id, idx, pid, UA[0], memo);
+  assert.throws(() => line(1, "raw-1", p.reference), /a hand-made line cannot pay a payable/, "its reference");
+  assert.throws(() => line(2, p.id, "RAW-HAND-2"), /a hand-made line cannot pay a payable/, "its id");
+  const other = await createBatch(db, { orgId: ORG, network: "regtest", title: "raw other", items: [{ payableId: "raw-o", address: UA[0], zat: 5n, memo: "RAW-OTHER" }] });
+  assert.throws(() => db.$client.prepare("INSERT INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, 1, 'raw-x', '', ?, 5, 'RAW-HAND-0')").run(ORG, other.id, UA[0]), /UNIQUE constraint failed: batch_items\.org_id, batch_items\.memo/, "a memo used by another batch");
 });

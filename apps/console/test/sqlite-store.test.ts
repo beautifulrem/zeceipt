@@ -53,6 +53,7 @@ test("migrations apply once (one journal row per committed migration); a second 
     "batch_items_frozen_delete",
     "batch_items_frozen_insert",
     "batch_items_frozen_update",
+    "batch_items_manual_not_payable",
     "batch_items_payable_fact",
     "batch_items_payable_fixed",
     "batches_frozen_delete",

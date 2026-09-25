@@ -3,10 +3,10 @@
 // the batch's nonce. A batch is immutable once created here, and frozen by triggers once submitted.
 
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
-import { batchItems, batches, submissions } from "../../db/schema.ts";
+import { batchItems, batches, payables, submissions } from "../../db/schema.ts";
 import { ExecutionError, type Batch, type Network, type PreflightProblem, type PreflightProblemCode } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
 import { isPlainText } from "./text.ts";
@@ -48,7 +48,11 @@ export type BatchProblemCode =
   | "payable_unknown"
   | "payable_repeated"
   | "payable_taken"
-  | "amount_out_of_range";
+  | "amount_out_of_range"
+  // Across batches (review H5a round 1): a memo already used by another batch of the org, and a hand-made line
+  // carrying a payable's id or reference (payables are paid only through a batch made from payables).
+  | "memo_taken"
+  | "payable_reserved";
 export interface BatchProblem extends Omit<PreflightProblem, "code"> {
   code: BatchProblemCode;
 }
@@ -139,6 +143,10 @@ export function createBatch(db: ConsoleDb, input: CreateBatchInput, opts: { maxR
   return runSync(() =>
     db.transaction(
       (tx) => {
+        // Inside the write transaction (BEGIN IMMEDIATE serialises writers), so the answer names the holder; the
+        // org-wide memo index and the 0018 trigger are the backstops whatever writes the database.
+        const taken = acrossBatches(tx, rec.orgId, rec.items);
+        if (taken.length) throw new BatchInvalidError(taken);
         tx.insert(batches).values({ orgId: rec.orgId, id: rec.id, network: rec.network, title: rec.title, createdAt: rec.createdAt, updatedAt: rec.createdAt }).run();
         for (const it of rec.items) {
           tx.insert(batchItems).values({ orgId: rec.orgId, batchId: rec.id, idx: it.idx, payableId: it.payableId, label: it.label, address: it.address, zat: zatToDb(it.zat), memo: it.memo }).run();
@@ -148,6 +156,26 @@ export function createBatch(db: ConsoleDb, input: CreateBatchInput, opts: { maxR
       { behavior: "immediate" },
     ),
   );
+}
+
+/**
+ * A hand-made batch's lines against the rest of the org (review H5a round 1): a memo is a payable reference, unique
+ * across the org's batches (index `batch_items_memo_org`), and a payable is paid only through a batch made from
+ * payables (trigger `batch_items_manual_not_payable`), so one obligation cannot sit in two batches.
+ */
+function acrossBatches(db: Pick<ConsoleDb, "select">, orgId: string, items: { payableId: string; memo: string }[]): BatchProblem[] {
+  const memos = [...new Set(items.map((i) => i.memo))];
+  const ids = [...new Set(items.map((i) => i.payableId))];
+  const heldBy = new Map(db.select({ memo: batchItems.memo, batchId: batchItems.batchId }).from(batchItems).where(and(eq(batchItems.orgId, orgId), inArray(batchItems.memo, memos))).all().map((r) => [r.memo, r.batchId]));
+  const owed = db.select({ id: payables.id, reference: payables.reference }).from(payables)
+    .where(and(eq(payables.orgId, orgId), or(inArray(payables.id, ids), inArray(payables.reference, memos)))).all();
+  const problems: BatchProblem[] = [];
+  items.forEach((it, i) => {
+    if (heldBy.has(it.memo)) problems.push({ code: "memo_taken", itemIndex: i, detail: `memo ${JSON.stringify(it.memo)} is already used by batch ${heldBy.get(it.memo)} (a memo is a payable reference, unique in the organisation)` });
+    const p = owed.find((x) => x.id === it.payableId || x.reference === it.memo);
+    if (p) problems.push({ code: "payable_reserved", itemIndex: i, detail: `this line is payable ${p.reference} (${p.id}); pay payables with a batch made from payables` });
+  });
+  return problems;
 }
 
 export function getBatch(db: ConsoleDb, orgId: string, id: string): Promise<BatchRecord | undefined> {
