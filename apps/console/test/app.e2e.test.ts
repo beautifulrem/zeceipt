@@ -1172,7 +1172,8 @@ test("pages load only from the console itself: every page renders and works with
     for (const path of ["/", "/recipients", "/payables", "/batches/new", "/batches/from-payables", `/batches/${id}`, `/batches/${id}/void`, "/no-such-page"]) {
       await page.goto(`http://${self}${path}`, { waitUntil: "networkidle" });
       assert.deepEqual(await violations(), [], `${path}: no violation`);
-      assert.ok(await page.evaluate(() => getComputedStyle(document.body).backgroundColor !== ""), `${path}: styled`);
+      // The layout's bg-white: only the console's own stylesheet sets it (unstyled, Chrome computes rgba(0, 0, 0, 0)).
+      assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(255, 255, 255)", `${path}: styled by the console's stylesheet`);
     }
     // JavaScript still works under the tight policy (the draft form), and a client-side navigation too.
     await page.goto(`http://${self}/batches/new`, { waitUntil: "networkidle" });
