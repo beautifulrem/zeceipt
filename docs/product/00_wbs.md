@@ -232,7 +232,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 3.4.2 Quality gates
 - 3.4.2.1 ✅ R — 34 Rust tests + 358 TypeScript console tests (and 2 opt-in regtest e2e: the library, PROOF §5c, and the app through HTTP, §5d; the 18 build-and-serve tests, one of them in Chrome, run in CI with `ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1`; the public receipt page's 8 Chrome tests, `packages/verify/test/page.e2e.mjs`, also run in CI), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`.
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds). the development journal.
-- 3.4.2.3 ⬜ R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09.
+- 3.4.2.3 🟡 R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09. First pass done early (slice J1, Trellis `09-25-security-review`, 2026-09-25): `scripts/security_review.sh` runs `cargo audit`, `npm audit` on both lockfiles, gitleaks on the history and the working tree, and the source guards, and exits 1 on any finding. The one real finding (esbuild 0.18.20 under drizzle-kit, GHSA-67mh-4wv8-2f99) is fixed by an npm override; every accepted finding is recorded with its reason (`docs/SECURITY_REVIEW.md`) `[R90]`. The leaf closes with the pre-submission rerun.
 - 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09.
 
 ---
@@ -316,9 +316,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 36 | 3 | 22 | 2 |
+| 3 Engineering | 63 | 36 | 4 | 21 | 2 |
 | 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 116 | 4 | 55 | 10 |
+| **Total** | 185 | 116 | 5 | 54 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

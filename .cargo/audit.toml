@@ -1,0 +1,7 @@
+# cargo audit configuration (slice J1; docs/SECURITY_REVIEW.md). Every ignore names why it is safe.
+[advisories]
+# RUSTSEC-2023-0089, atomic-polyfill is unmaintained (informational, not a vulnerability). It is in Cargo.lock only
+# through reddsa 0.5.2's optional `frost` feature (frost-rerandomized → frost-core → postcard → heapless 0.7 →
+# atomic-polyfill), which no workspace crate enables: `cargo tree --all-features --target all -e all` prints none of
+# them, so it is never compiled. Re-check when reddsa or the zcash crates move.
+ignore = ["RUSTSEC-2023-0089"]

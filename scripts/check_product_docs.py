@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 
 repo = Path(__file__).resolve().parent.parent
+# The policy docs, whose capability sentences must cite requirements.
+POLICY_DOCS = ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md")  # gitleaks:allow (file names)
 root = repo / "docs" / "product"
 files = {p.name: p.read_text(encoding="utf-8") for p in sorted(root.glob("*.md"))}
 errors = []
@@ -383,13 +385,13 @@ for name, text in files.items():
         for rid in set(re.findall(r"\b(?:REQ-[A-Z]+|NFR)-\d+\b", ln)):
             if rid not in id_set:
                 errors.append(f"{name}: cites unknown requirement {rid}")
-            elif name in ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md") and prio.get(rid) in ("S", "C", "W") \
+            elif name in POLICY_DOCS and prio.get(rid) in ("S", "C", "W") \
                     and not re.search(r"planned|cut item|dropped|baseline only|roadmap|Should|Could|Won't", ln):
                 errors.append(f"{name}: states {rid} (priority {prio.get(rid)}) as policy without marking it planned/cut: '{ln[:80]}'")
 
 # capability prose in the policy docs must cite a requirement id (so scope changes cannot leave uncited policy behind)
 cap_re = re.compile(r"\b(blocks?|locks?|records?|exports?|warns?|rejects?|derives?|issues?|persists?|stores?)\b", re.I)
-for name in ("04_ux_flows.md", "05_data_model_api.md", "07_compliance_tax.md"):
+for name in POLICY_DOCS:
     policy_text = files.get(name, "").split("## 5. Product-form observations")[0].split("## 5. Open items")[0]
     for ln in policy_text.splitlines():
         body = ln.strip()

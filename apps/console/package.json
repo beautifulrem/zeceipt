@@ -48,5 +48,10 @@
     "esbuild@0.28.2": true,
     "fsevents": false,
     "unrs-resolver": false
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
   }
 }

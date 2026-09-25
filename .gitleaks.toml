@@ -1,0 +1,8 @@
+# gitleaks configuration (slice J1; docs/SECURITY_REVIEW.md): the default rules, with build outputs and installed
+# dependencies left out of the working-tree scan (they are not our source, and are never committed).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "build outputs and installed dependencies"
+paths = ['''(^|/)node_modules/''', '''(^|/)target/''', '''(^|/)\.next/''', '''(^|/)packages/verify/pkg/''']

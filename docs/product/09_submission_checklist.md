@@ -51,7 +51,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 - [x] `docs/PRE_EVENT_STATE.md`, `docs/PRIOR_ART.md`
 - [x] Commit history inside the window (first commit 2026-09-21 PT; `git log` shows 2026-09-22 00:07 +08:00)
 - [ ] CI green on GitHub (needs push)
-- [ ] In this order (RSK-17; publishing is irreversible): 1. `cargo audit` clean + secrets scan (3.4.2.3, 10-08 → 10-09) → 2. tag v0.1.0 + release notes (4.1.1.4, 10-09) → 3. `npm publish @zeceipt/verify` (4.1.1.3, U, 10-10)
+- [ ] In this order (RSK-17; publishing is irreversible): 1. `scripts/security_review.sh` passes: `cargo audit`, `npm audit`, the secrets scan (3.4.2.3, 10-08 → 10-09; first pass 2026-09-25, `docs/SECURITY_REVIEW.md`) → 2. tag v0.1.0 + release notes (4.1.1.4, 10-09) → 3. `npm publish @zeceipt/verify` (4.1.1.3, U, 10-10)
 - [ ] Demo page hosted (GitHub Pages or zeceipt.xyz)
 
 ## 5. Timeline (authoritative for external milestones)

@@ -21,7 +21,7 @@ test("HKDF-SHA256 as called by the keyring reproduces RFC 5869 Test Case 1", () 
   assert.deepEqual(ring.orgKey("k1", "org-a"), new Keyring([k1]).orgKey("k1", "org-a"));
   assert.notDeepEqual(ring.orgKey("k1", "org-a"), ring.orgKey("k1", "org-b"));
   assert.notDeepEqual(ring.orgKey("k1", "org-a"), ring.orgKey("k2", "org-a"));
-  assert.deepEqual(ring.orgKey("k1", "org-a"), Buffer.from(hkdfSync("sha256", k1.key, "zeceipt/wrap/v1", "org:org-a", 32)));
+  assert.deepEqual(ring.orgKey("k1", "org-a"), Buffer.from(hkdfSync("sha256", k1.key, "zeceipt/wrap/v1", "org:org-a", 32))); // gitleaks:allow (a dummy test key)
 });
 
 test("seal → open round trip; the envelope names the newest kid and carries no plaintext", () => {
