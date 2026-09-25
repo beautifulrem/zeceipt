@@ -22,6 +22,10 @@ export interface PassResult {
   failed: { batchId: string; code: string }[];
   /** Every batch the pass looked at and did not skip (slice I2b): those not in `failed` are not failing now. */
   considered: string[];
+  /** Batches already holding one receipt per line, skipped before the chain (slice I2c). */
+  complete: string[];
+  /** Voided batches, skipped (slice I2c). */
+  voided: string[];
 }
 
 /**
@@ -30,15 +34,22 @@ export interface PassResult {
  */
 export async function receiptPass(opts: { cli?: ZeceiptCliOptions; skip?: ReadonlySet<string> } = {}): Promise<PassResult> {
   const ctx = serverContext();
-  const out: PassResult = { issued: [], existing: [], failed: [], considered: [] };
+  const out: PassResult = { issued: [], existing: [], failed: [], considered: [], complete: [], voided: [] };
   const backend = ctx.backend;
   if (!backend) return out; // external custody: the console does not track payments (and runs no worker)
   const cli = opts.cli ?? issuerCli(ctx.config);
   for (const b of await listBatches(ctx.db, ctx.config.orgId)) {
     if (opts.skip?.has(b.id)) continue;
     out.considered.push(b.id);
-    // Cheap skips before asking the chain (design I2.1.3): voided, or already one receipt per line.
-    if (b.voided || (await countReceipts(ctx.db, ctx.config.orgId, b.id)) >= b.itemCount) continue;
+    // Cheap skips before asking the chain (design I2.1.3): voided, or already one receipt per line; reported (slice I2c).
+    if (b.voided) {
+      out.voided.push(b.id);
+      continue;
+    }
+    if ((await countReceipts(ctx.db, ctx.config.orgId, b.id)) >= b.itemCount) {
+      out.complete.push(b.id);
+      continue;
+    }
     try {
       const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, b.id, { requiredConfirmations: ctx.config.confirmations, approval: approvalCheck(ctx) });
       if (status?.next !== "issue_receipts") continue;
@@ -53,6 +64,9 @@ export async function receiptPass(opts: { cli?: ZeceiptCliOptions; skip?: Readon
   }
   return out;
 }
+
+/** "1 failed pass", "3 failed passes": for the log lines. */
+const passes = (k: number) => `${k} failed ${k === 1 ? "pass" : "passes"}`;
 
 /** Passes to wait after a batch's n-th consecutive failure (slice I2b; R88): 1, 2, 4, 8, 16, then 32 at most. */
 export function backoffPasses(failures: number): number {
@@ -108,7 +122,16 @@ export function startReceiptWorker(opts: {
         const failed = new Map(r.failed.map((f) => [f.batchId, f.code]));
         for (const id of r.issued) {
           const before = failing.get(id)?.failures;
-          log(before ? `receipts: issued for batch ${id} after ${before} failed ${before === 1 ? "pass" : "passes"}` : `receipts: issued for batch ${id}`);
+          log(before ? `receipts: issued for batch ${id} after ${passes(before)}` : `receipts: issued for batch ${id}`);
+        }
+        // A batch that was failing and is now complete or voided by someone else: say so once (slice I2c), then forget it.
+        for (const id of r.complete) {
+          const k = failing.get(id)?.failures;
+          if (k) log(`receipts: batch ${id} was completed elsewhere after ${passes(k)}`);
+        }
+        for (const id of r.voided) {
+          const k = failing.get(id)?.failures;
+          if (k) log(`receipts: batch ${id} was voided after ${passes(k)}; no longer tried`);
         }
         // Looked at and not failing (issued, already complete, not ready, voided): forget it.
         for (const id of r.considered) if (!failed.has(id)) failing.delete(id);
