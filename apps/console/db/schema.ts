@@ -350,3 +350,26 @@ export const approvals = sqliteTable(
     check("approvals_hmac_hex", sql`length(${t.hmac}) = 64 and ${t.hmac} not glob '*[^0-9a-f]*'`),
   ],
 );
+
+/**
+ * The audit trail (slice I4; WBS 3.3.1.4): one row per money-relevant change, written by triggers on the tables that
+ * record it (migration 0021), in the same transaction, so no write path can skip it (Supabase's trigger-based
+ * auditing; BTCPay's per-invoice events; R89). `detail` is a small JSON object of non-secret columns. No foreign key:
+ * a history outlives what it describes. Append-only by trigger.
+ */
+export const auditLog = sqliteTable(
+  "audit_log",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    orgId: text("org_id").notNull(),
+    batchId: text("batch_id").notNull(),
+    at: text("at").notNull(),
+    action: text("action").notNull(),
+    detail: text("detail").notNull(),
+  },
+  (t) => [
+    index("audit_log_batch").on(t.orgId, t.batchId, t.id),
+    check("audit_log_action", sql`length(${t.action}) between 1 and 40`),
+    check("audit_log_detail_json", sql`json_valid(${t.detail}) and json_type(${t.detail}) = 'object'`),
+  ],
+);

@@ -641,6 +641,86 @@
         }
       }
     },
+    "/api/batches/{id}/history": {
+      "get": {
+        "operationId": "getBatchHistory",
+        "summary": "The batch's audit trail, oldest first (slice I4): one event per change, written by database triggers in the same transaction as the change, so no write path can skip it. No actor is recorded (one operator, no sign-in). Refusals that change nothing leave no event.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "batchId",
+                    "events"
+                  ],
+                  "properties": {
+                    "batchId": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "at",
+                          "action",
+                          "detail"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "Increasing in commit order"
+                          },
+                          "at": {
+                            "type": "string",
+                            "description": "ISO 8601 UTC: the time the change's own record carries"
+                          },
+                          "action": {
+                            "type": "string",
+                            "description": "created, locked, quoted (the execution quote), approved, attempt_submitting, attempt_broadcast, attempt_failed_retryable, attempt_unknown_outcome, expiry_recorded, voided, receipt_issued"
+                          },
+                          "detail": {
+                            "type": "object",
+                            "description": "Non-secret fields of the change (seq, rate, source, lockSeq, approver, attempts, state, txid, error, expiresBy, idx, pool, outputIndex, valueZat, title, network); `backfilled: true` for events recorded by migration 0021 from rows that existed before it. `error` is the wallet's own text: render it as plain text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/batches/{id}/receipts": {
       "get": {
         "operationId": "listReceipts",

@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, serverContext, toExecutionBatch, voidBatch, type BootState, type ZeceiptCliOptions } from "../lib/index.ts";
+import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, listAudit, SERVER_CONTEXT_KEY, serverContext, toExecutionBatch, voidBatch, type BootState, type ZeceiptCliOptions } from "../lib/index.ts";
 import { backoffPasses, MAX_BACKOFF_PASSES, receiptPass, startReceiptWorker, type PassResult } from "../lib/server/receipt-worker.ts";
 import * as collection from "../app/api/batches/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
@@ -93,6 +93,12 @@ test("REQ-CON-11: a confirmed batch gets one receipt per item without anyone pre
   assert.equal(receiptsOf(id), 3);
   assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [], considered: [id] }, "complete: skipped before the chain is asked");
   assert.equal(receiptsOf(id), 3);
+  // Slice I4: the trail records one event per receipt, and never a receipt's secret (sealed envelope), memo or recipient.
+  const trail = await listAudit(serverContext().db, "i2-ready", id);
+  assert.deepEqual(trail.filter((e) => e.action === "receipt_issued").map((e) => [e.detail.idx, e.detail.txid]), [[0, TXID], [1, TXID], [2, TXID]]);
+  const rows = serverContext().db.$client.prepare("SELECT sealed, memo_text, recipient FROM receipts WHERE batch_id = ?").all(id) as { sealed: string; memo_text: string; recipient: string }[];
+  const text = JSON.stringify(trail);
+  for (const r of rows) for (const secret of [r.sealed, r.memo_text, r.recipient]) assert.ok(!text.includes(secret), "no receipt secret, memo or recipient in the trail");
 });
 
 test("not ready or not payable: below N, a draft and a voided draft are left alone", async () => {

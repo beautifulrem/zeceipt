@@ -31,6 +31,8 @@ export type { QuoteOptions, RateFailure, RateQuote } from "./rates/kraken.ts";
 export { currentLock, listQuotes, RateRecordError, recordQuote } from "./data/rates.ts";
 export { APPROVER, ApprovalError, approvalHmac, approvalMessage, backendId, recordApproval, validApproval } from "./data/approvals.ts";
 export type { Approval } from "./data/approvals.ts";
+export { listAudit } from "./data/audit.ts";
+export type { AuditEvent } from "./data/audit.ts";
 export type { QuotePurpose, StoredQuote } from "./data/rates.ts";
 export { DEFAULT_MAX_DRIFT_BPS, movedText, pctFromBps, rateDrift } from "./rates/drift.ts";
 export type { Drift } from "./rates/drift.ts";

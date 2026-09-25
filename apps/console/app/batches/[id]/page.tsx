@@ -7,6 +7,8 @@ import { batchLinkability, disclosedReceivers } from "../../../lib/data/linkabil
 import { disclosedText } from "../../../lib/view/linkability.ts";
 import { LinkabilityNote } from "../../components/linkability.tsx";
 import { listReceipts } from "../../../lib/data/receipts.ts";
+import { listAudit } from "../../../lib/data/audit.ts";
+import { eventText } from "../../../lib/view/history.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
 import { approvalCheck, serverContext } from "../../../lib/server/context.ts";
@@ -41,6 +43,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   }
   const view = status ? stateView(status) : unavailable ? STATUS_UNAVAILABLE : undefined;
   const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id);
+  // Slice I4: the audit trail the triggers recorded, oldest first.
+  const history = await listAudit(ctx.db, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);
   const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
   const submitted = await isSubmitted(ctx.db, rec);
@@ -280,6 +284,22 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             ))}
           </ul>
         )}
+      </section>
+
+      <section aria-labelledby="history-heading" className="space-y-2">
+        <h2 id="history-heading" className="text-lg font-semibold">
+          History
+        </h2>
+        <ol className="space-y-1 text-sm">
+          {history.map((e) => (
+            <li key={e.id} className="flex gap-3">
+              <time dateTime={e.at} className="shrink-0 text-slate-500">
+                {e.at.replace("T", " ").slice(0, 19)} UTC
+              </time>
+              <span className="break-all">{eventText(e)}</span>
+            </li>
+          ))}
+        </ol>
       </section>
     </>
   );
