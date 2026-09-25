@@ -67,4 +67,4 @@ Trust boundaries:
 
 **Did we do a good job?** Every row names its evidence. Rows added by a slice were reviewed to 100 (`docs/product/reviews/`), and `docs/SECURITY_REVIEW.md` re-reads the checklist at every run. Open items:
 - sign-in (leaf 3.3.1.2), which closes the local-process row;
-- nothing else open on the page side: the `script-src` policy landed in S4b.
+- **The page policy restricts framing, `<base>`, form targets, plugins and scripts (S4, S4b), but not images, styles or connections.** It has no `default-src`, `img-src`, `style-src` or `connect-src`. Injected markup could not run script, but it could load a remote image or stylesheet, a dangling-markup or CSS leak. React escapes all output, so no injection path is known. Tightening those directives is open, and a Chrome run must confirm the pages still render.

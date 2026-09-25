@@ -17,7 +17,9 @@ export function proxy(req: Request): Response {
   if (refused) return refused;
   const nonce = newNonce();
   const policy = pagePolicy(nonce, process.env.NODE_ENV === "development");
-  // Next reads the nonce from the request's CSP header and puts it on the scripts it renders.
+  // Next reads the nonce from the request's CSP header and puts it on the scripts it renders. (Next 16.3.6 also copies the
+  // response's headers onto the request, so the e2e cannot tell the two paths apart; both are kept, as Next's docs
+  // advise, and http-guard.test.ts pins them equal. Review S4b, R103.)
   const headers = new Headers(req.headers);
   headers.set("content-security-policy", policy);
   const res = NextResponse.next({ request: { headers } });
