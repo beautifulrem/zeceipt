@@ -66,6 +66,8 @@ test("the status table, row by row (design §3.3.1.3.4.2)", () => {
     ["broadcast, interrupted", { submission: sub("broadcast"), chain: unknown("interrupted") }, "needs_attention", "investigate"],
     ["broadcast, not ours", { submission: sub("broadcast"), chain: unknown("not_ours") }, "needs_attention", "investigate"],
     ["broadcast, malformed", { submission: sub("broadcast"), chain: unknown("malformed_txid") }, "needs_attention", "investigate"],
+    // Slice H5c / I1: a void outranks a refused attempt (it is allowed only when nothing can have been sent).
+    ["voided after a refused attempt", { submission: sub("failed_retryable", { error: "refused" }), voidedAt: "2026-09-25T09:00:00.000Z" }, "voided", "none"],
   ];
   for (const [what, f, state, next] of rows) {
     const s = deriveBatchStatus(facts(f));
