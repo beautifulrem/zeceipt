@@ -1,0 +1,163 @@
+// Automatic receipt issuance (slice I2; REQ-CON-11): one pass issues every batch that is ready, through the same
+// idempotent handler as the button (the fixture transaction, the real CLI, the fake Zkool, as receipt-routes.test.ts);
+// what is not ready, voided or failing is left alone or reported by code; the loop runs passes in sequence.
+
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, serverContext, toExecutionBatch, voidBatch, type BootState, type ZeceiptCliOptions } from "../lib/index.ts";
+import { receiptPass, startReceiptWorker, type PassResult } from "../lib/server/receipt-worker.ts";
+import * as collection from "../app/api/batches/route.ts";
+import { FakeZkool } from "./helpers/fake-zkool.ts";
+
+const ROOT = resolve(import.meta.dirname, "../../..");
+const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/debug/zeceipt");
+const TXID = "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2";
+const RAW = join(ROOT, `fixtures/regtest-${TXID}.hex`);
+const UFVK = join(ROOT, "fixtures/regtest-issuer-ufvk.txt");
+const PAYEES = [
+  { payableId: "p-2", label: "R2", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "101000000", memo: "INV-R-002" },
+  { payableId: "p-3", label: "R3", address: "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj", zat: "102000000", memo: "INV-R-003" },
+  { payableId: "p-4", label: "R4", address: "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5", zat: "103000000", memo: "INV-R-004" },
+];
+const HOST = "127.0.0.1:3000";
+const slot = globalThis as { [SERVER_CONTEXT_KEY]?: BootState };
+const dir = mkdtempSync(join(tmpdir(), "zeceipt-i2-"));
+let fake: FakeZkool;
+let cli: ZeceiptCliOptions;
+
+
+/** A fresh context (own org and database), a batch of the fixture's payees, optionally broadcast as the fixture tx. */
+async function scenario(org: string, opts: { broadcast?: "broadcast" | "unknown_outcome" | null } = {}) {
+  slot[SERVER_CONTEXT_KEY]?.db.$client.close();
+  delete slot[SERVER_CONTEXT_KEY];
+  const env: Record<string, string> = {
+    ZECEIPT_CUSTODY_MODE: "hot",
+    ZECEIPT_ZKOOL_URL: fake.url,
+    ZECEIPT_ZKOOL_ACCOUNT: "9",
+    ZECEIPT_DB_PATH: join(dir, `${org}.db`),
+    ZECEIPT_ORG_ID: org,
+    ZECEIPT_NETWORK: "regtest",
+    ZECEIPT_CONFIRMATIONS: "3",
+    ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 7).toString("base64")}`,
+    ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1", // nothing listens: the route export must never reach it in these tests
+    ZECEIPT_BIN: BIN,
+    ZECEIPT_UFVK_FILE: UFVK,
+    ZECEIPT_ISSUER_KEY_FILE: join(dir, "issuer.key"),
+    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+  };
+  const ctx = bootServerContext(env, { migrationsFolder: defaultMigrationsDir() });
+  const headers = { host: HOST, "content-type": "application/json", origin: `http://${HOST}` };
+  const r = await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify({ title: org, items: PAYEES }) }), undefined);
+  assert.equal(r.status, 201);
+  const id = ((await r.json()) as { id: string }).id;
+  const rec = (await getBatch(ctx.db, org, id))!;
+  if (opts.broadcast !== null && opts.broadcast !== undefined) {
+    const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
+    await ctx.store.createIntent({ ...base, state: "submitting" });
+    const next = opts.broadcast === "broadcast" ? { ...base, state: "broadcast" as const, txid: TXID, broadcastAt: new Date().toISOString() } : { ...base, state: "unknown_outcome" as const, error: "lost answer", expiresBy: fake.height + 50 };
+    assert.equal(await ctx.store.update(next, { attempts: 1, states: ["submitting"] }), true);
+  }
+  return id;
+}
+/** Put the fixture tx on the fake chain with `confirmations` confirmations. */
+function onChain(confirmations: number) {
+  fake.mined = fake.mined.filter((t) => t.txid !== TXID);
+  fake.mined.push({ txid: TXID, height: fake.height - confirmations + 1, expiry: fake.height + 40, recipients: [] });
+}
+
+
+before(async () => {
+  assert.ok(existsSync(BIN), `zeceipt binary not found at ${BIN}`);
+  execFileSync(BIN, ["keygen", "--out", join(dir, "issuer.key")]);
+  fake = await new FakeZkool().start();
+  fake.height = fake.scanned = 700;
+  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09" };
+});
+after(async () => {
+  slot[SERVER_CONTEXT_KEY]?.db.$client.close();
+  delete slot[SERVER_CONTEXT_KEY];
+  await fake.stop();
+});
+
+const receiptsOf = (id: string) => slot[SERVER_CONTEXT_KEY]!.db.$client.prepare("SELECT count(*) FROM receipts WHERE batch_id = ?").pluck().get(id) as number;
+
+test("REQ-CON-11: a confirmed batch gets one receipt per item without anyone pressing a button; the next pass records nothing new", async () => {
+  const id = await scenario("i2-ready", { broadcast: "broadcast" });
+  onChain(3);
+  const first = await receiptPass({ cli });
+  assert.deepEqual(first, { issued: [id], existing: [], failed: [] });
+  assert.equal(receiptsOf(id), 3);
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] }, "complete: skipped before the chain is asked");
+  assert.equal(receiptsOf(id), 3);
+});
+
+test("not ready or not payable: below N, a draft and a voided draft are left alone", async () => {
+  const below = await scenario("i2-below", { broadcast: "broadcast" });
+  onChain(2); // 2 of 3
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] });
+  assert.equal(receiptsOf(below), 0);
+  const draft = await scenario("i2-draft");
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] });
+  await voidBatch(slot[SERVER_CONTEXT_KEY]!.db, "i2-draft", draft);
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] });
+});
+
+test("one batch failing is reported by code and does not stop the pass: the other is issued", async () => {
+  const good = await scenario("i2-mixed", { broadcast: "broadcast" });
+  // A second batch of the same org, broadcast "as" the fixture transaction but with its own memos (memos are unique per
+  // org): the transaction does not pay them, so its issuance fails, and nothing is recorded for it.
+  const ctx = serverContext();
+  const headers = { host: HOST, "content-type": "application/json", origin: `http://${HOST}` };
+  const r = await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify({ title: "other", items: PAYEES.map((p) => ({ ...p, payableId: `${p.payableId}-x`, memo: `${p.memo}-X` })) }) }), undefined);
+  const bad = ((await r.json()) as { id: string }).id;
+  const rec = (await getBatch(ctx.db, "i2-mixed", bad))!;
+  const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
+  await ctx.store.createIntent({ ...base, state: "submitting" });
+  await ctx.store.update({ ...base, state: "broadcast", txid: TXID, broadcastAt: new Date().toISOString() }, { attempts: 1, states: ["submitting"] });
+  onChain(3);
+  const out = await receiptPass({ cli });
+  assert.deepEqual(out.issued, [good], "the good batch is issued");
+  assert.equal(out.failed.length, 1);
+  assert.equal(out.failed[0].batchId, bad);
+  assert.match(out.failed[0].code, /^[a-z_]+$/, "a problem code, nothing else");
+  assert.deepEqual([receiptsOf(good), receiptsOf(bad)], [3, 0]);
+});
+
+test("the loop: passes run one after another, never overlapping; a failing pass is logged and the loop goes on; stop ends it", async () => {
+  let active = 0;
+  let maxActive = 0;
+  let passes = 0;
+  const lines: string[] = [];
+  const sleeps: number[] = [];
+  let release!: () => void;
+  const stopped = new Promise<void>((r) => (release = r));
+  const worker = startReceiptWorker({
+    intervalMs: 5_000,
+    pass: async (): Promise<PassResult> => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      passes++;
+      await new Promise((r) => setTimeout(r, 5));
+      active--;
+      if (passes === 2) throw Object.assign(new Error("boom"), { code: "store_busy" });
+      if (passes === 4) release();
+      return { issued: passes === 1 ? ["b-1"] : [], existing: [], failed: passes === 3 ? [{ batchId: "b-2", code: "issuance_failed" }] : [] };
+    },
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+    log: (line) => lines.push(line),
+  });
+  await stopped;
+  await worker.stop();
+  const after = passes;
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(passes, after, "no pass after stop");
+  assert.equal(maxActive, 1, "never two passes at once");
+  assert.ok(sleeps.length >= 3 && sleeps.every((ms) => ms === 5_000), "the interval between passes");
+  assert.deepEqual(lines.slice(0, 3), ["receipts: issued for batch b-1", "receipts: pass failed (store_busy); retrying next pass", "receipts: batch b-2 not issued (issuance_failed); retrying next pass"]);
+});

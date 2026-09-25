@@ -64,6 +64,9 @@ test("a valid configuration is typed, frozen, and defaults applied", () => {
   assert.deepEqual(Buffer.from(c.wrapKeys[1].key.reveal()), Buffer.alloc(32, 0xb2));
   assert.equal(loadConfig({ ...hot, ZECEIPT_ZKOOL_URL: "HTTP://127.0.0.1:9000" }).custody.mode === "hot" && (loadConfig({ ...hot, ZECEIPT_ZKOOL_URL: "HTTP://127.0.0.1:9000" }).custody as { zkool: { url: string } }).zkool.url, "http://127.0.0.1:9000/", "URLs are stored normalised");
   assert.equal(loadConfig({ ...hot, ZECEIPT_CONFIRMATIONS: "12" }).confirmations, 12);
+  // Slice I2 (REQ-CON-11): automatic receipts every 60 s by default; 0 turns them off; at most a day (BTCPay's bound).
+  assert.equal(c.autoReceiptsSeconds, 60);
+  assert.deepEqual([loadConfig({ ...hot, ZECEIPT_AUTO_RECEIPTS_SECONDS: "0" }).autoReceiptsSeconds, loadConfig({ ...hot, ZECEIPT_AUTO_RECEIPTS_SECONDS: "86400" }).autoReceiptsSeconds], [0, 86400]);
   assert.ok(Object.isFrozen(c) && Object.isFrozen(c.issuer) && Object.isFrozen(c.wrapKeys) && Object.isFrozen(c.custody));
   assert.throws(() => ((c as { orgId: string }).orgId = "x"), TypeError);
   // Only ZECEIPT_* variables matter; other process variables are ignored.
@@ -104,7 +107,7 @@ test("every rule, and all problems reported together", () => {
     "ZECEIPT_ZKOOL_ALLOW_REMOTE",
     "ZECEIPT_ZKOOL_URL",
   ]);
-  for (const [k, v] of [["CONFIRMATIONS", "101"], ["CONFIRMATIONS", "3.5"], ["ZKOOL_ACCOUNT", "1e3"], ["DB_PATH", "file:/x.db"], ["ORG_ID", "x".repeat(65)]] as const) {
+  for (const [k, v] of [["CONFIRMATIONS", "101"], ["CONFIRMATIONS", "3.5"], ["AUTO_RECEIPTS_SECONDS", "-1"], ["AUTO_RECEIPTS_SECONDS", "86401"], ["AUTO_RECEIPTS_SECONDS", "1.5"], ["ZKOOL_ACCOUNT", "1e3"], ["DB_PATH", "file:/x.db"], ["ORG_ID", "x".repeat(65)]] as const) {
     assert.deepEqual(problems({ ...hot, [`ZECEIPT_${k}`]: v }), [`ZECEIPT_${k}`], `${k}=${v}`);
   }
   assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_URL: "http://user:pw@127.0.0.1:9000/graphql" }), ["ZECEIPT_ZKOOL_URL"], "credentials in a URL");

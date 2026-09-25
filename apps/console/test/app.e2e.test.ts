@@ -215,6 +215,8 @@ test("submit and status through next start: pays once against a fake wallet, rep
   const s = await start(demoEnv("submit", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_BIN: bin, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1" }));
   try {
     await waitHealthy(s.port, s.child, s.output);
+    // Slice I2 (REQ-CON-11): hot custody starts the automatic receipt worker from register().
+    assert.match(s.output(), /receipts: automatic issuance every 60 s once a batch has \d+ confirmations/);
     const self = `127.0.0.1:${s.port}`;
     const same = { host: self, "content-type": "application/json", origin: `http://${self}`, "sec-fetch-site": "same-origin" };
     const draft = JSON.stringify({ title: "pay", items: [{ payableId: "p1", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000", memo: "PAY-1" }] });
@@ -515,6 +517,7 @@ test("recipients page through next start, posted as a browser without JavaScript
   const s = await start(demoEnv("recipients", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
   try {
     await waitHealthy(s.port, s.child, s.output);
+    assert.ok(!s.output().includes("receipts: automatic issuance"), "external custody runs no receipt worker (slice I2)");
     const self = `127.0.0.1:${s.port}`;
     const same = { host: self, origin: `http://${self}` };
     const page = async () => (await raw(s.port, "GET", "/recipients", { host: self })).body.replaceAll("<!-- -->", "");

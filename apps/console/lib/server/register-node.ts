@@ -5,13 +5,22 @@
 
 import { join } from "node:path";
 import { bootFailureLines, bootServerContext } from "./context.ts";
+import { startReceiptWorker } from "./receipt-worker.ts";
 
 export function registerNode(): void {
+  let ctx: ReturnType<typeof bootServerContext>;
   try {
     // process.cwd() is where Next.js runs (apps/console); bundles have no import.meta.dirname.
-    bootServerContext(process.env, { migrationsFolder: join(process.cwd(), "db", "migrations") });
+    ctx = bootServerContext(process.env, { migrationsFolder: join(process.cwd(), "db", "migrations") });
   } catch (err) {
     for (const line of bootFailureLines(err)) process.stderr.write(`${line}\n`);
     process.exit(1);
+  }
+  // Slice I2 (REQ-CON-11): issue receipts automatically once batches are confirmed. Hot custody only (the console
+  // reads the chain through its wallet backend); started, not awaited, so register() returns and requests are served.
+  const seconds = ctx.config.autoReceiptsSeconds;
+  if (ctx.config.custody.mode === "hot" && seconds > 0) {
+    startReceiptWorker({ intervalMs: seconds * 1000 });
+    process.stdout.write(`receipts: automatic issuance every ${seconds} s once a batch has ${ctx.config.confirmations} confirmations\n`);
   }
 }

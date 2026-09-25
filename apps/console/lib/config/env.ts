@@ -20,6 +20,11 @@ export interface ConsoleConfig {
   orgId: string;
   network: Network;
   confirmations: number;
+  /**
+   * Seconds between automatic receipt passes (slice I2; REQ-CON-11): once a batch has `confirmations`, its receipts are
+   * issued without a person pressing the button. 0 turns it off; it runs only in hot custody.
+   */
+  autoReceiptsSeconds: number;
   /** Deployment wrap keys, in order; the last one seals. Each key is SecretBytes: redacted in every string/JSON/inspect form. */
   wrapKeys: { kid: string; key: SecretBytes }[];
   lightwalletdUrl: string;
@@ -56,6 +61,7 @@ const KNOWN = [
   "ORG_ID",
   "NETWORK",
   "CONFIRMATIONS",
+  "AUTO_RECEIPTS_SECONDS",
   "WRAP_KEYS",
   "LIGHTWALLETD_URL",
   "BIN",
@@ -154,6 +160,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const orgId = field("ORG_ID", z.string().regex(/^[a-z0-9-]{1,64}$/), "must be 1–64 characters of a-z, 0-9 and -");
   const network = field("NETWORK", z.enum(["main", "test", "regtest"]), "must be main, test or regtest");
   const confirmations = field("CONFIRMATIONS", intIn(1, 100), "must be an integer from 1 to 100", { fallback: 3 });
+  // BTCPay's automated payout processors run between 1 minute and 1 day apart (R86); regtest blocks are seconds apart,
+  // so the lower bound here is 1 second, and 0 turns the worker off.
+  const autoReceiptsSeconds = field("AUTO_RECEIPTS_SECONDS", intIn(0, 86_400), "must be an integer from 0 (off) to 86400 seconds", { fallback: 60 });
   const wrapKeys = parseWrapKeys(get("WRAP_KEYS"), problems);
   const lightwalletdUrl = field("LIGHTWALLETD_URL", httpUrl, "must be an http(s) URL without credentials of the lightwalletd/Zaino endpoint");
   const bin = field("BIN", absPath, "must be the absolute path of the zeceipt binary");
@@ -171,6 +180,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     orgId: orgId!,
     network: network!,
     confirmations: confirmations!,
+    autoReceiptsSeconds: autoReceiptsSeconds!,
     wrapKeys: wrapKeys!,
     lightwalletdUrl: lightwalletdUrl!,
     issuer: { bin: bin!, ufvkFile: ufvkFile!, keyFile: keyFile!, keyId: keyId! },
@@ -232,6 +242,7 @@ export function configSummary(c: ConsoleConfig): Record<string, unknown> {
     orgId: c.orgId,
     network: c.network,
     confirmations: c.confirmations,
+    autoReceiptsSeconds: c.autoReceiptsSeconds,
     wrapKeyIds: c.wrapKeys.map((k) => k.kid),
     sealingKeyId: c.wrapKeys[c.wrapKeys.length - 1]?.kid,
     lightwalletdUrl: c.lightwalletdUrl,
