@@ -3,7 +3,7 @@
 // sentence; an uncertain outcome is headed "Outcome unknown", never shown as a failure (Konclave #280).
 
 import { movedText, pctFromBps } from "../rates/drift.ts";
-import { rateText, sourceName } from "./format.ts";
+import { rateText, sourceLabel } from "./format.ts";
 import type { Tone } from "./status.ts";
 
 export interface ActionOutcome {
@@ -25,6 +25,7 @@ interface Body {
   bid?: string;
   pair?: string;
   source?: string;
+  host?: string | null;
   fetchedAt?: string;
   reason?: string;
 }
@@ -100,7 +101,7 @@ export async function receiptsOutcome(res: Response): Promise<ActionOutcome> {
 export async function lockOutcome(res: Response): Promise<ActionOutcome> {
   const b = (await res.json()) as Body;
   if (res.status === 201 && b.rate) {
-    return { tone: "success", headline: "Rate locked", detail: `${rateText(b.rate)} (${sourceName(b.source ?? "")} ${b.pair} bid ${b.rate}, fetched ${String(b.fetchedAt).replace("T", " ").slice(0, 19)} UTC).` };
+    return { tone: "success", headline: "Rate locked", detail: `${rateText(b.rate)} (${sourceLabel(b.source ?? "", b.host ?? undefined)} ${b.pair} bid ${b.rate}, fetched ${String(b.fetchedAt).replace("T", " ").slice(0, 19)} UTC).` };
   }
   if (b.code === "rate_unavailable") {
     return { tone: "warning", headline: "Not locked", detail: sentence(b.detail, `The source's answer was unusable (${b.reason ?? "unknown"}); try again shortly.`) };

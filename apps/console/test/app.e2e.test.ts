@@ -440,7 +440,10 @@ test("rate lock from the batch page, posted as a browser without JavaScript: loc
     assert.equal(locked.status, 200);
     const after = (await page());
     assert.ok(after.includes("1 ZEC = $1,610.95") && after.includes("(bid, exactly 1610.95000)"), "the rate and its exact bid");
-    assert.ok(after.includes("Kraken XZECZUSD · ask 1611.71000 · last trade 1611.35000") && / UTC</.test(after), "its source and time");
+    // Slice N1: this test's ticker is not Kraken, so the page names the host it answered from, never "Kraken".
+    const tickerHost = `127.0.0.1:${(source.address() as { port: number }).port}`;
+    assert.ok(after.includes(`Kraken-format quote from ${tickerHost} XZECZUSD · ask 1611.71000 · last trade 1611.35000`) && / UTC</.test(after), "its source, host and time");
+    assert.ok(!/>Kraken XZECZUSD/.test(after), "a test double is never presented as Kraken");
     assert.ok(after.includes("USD at lock"), "the USD column");
     // 1.01 ZEC → 1627.0595 → $1,627.06; 0.0005 ZEC → 0.805475 → $0.81; total 1.0105 ZEC → 1627.864975 → $1,627.86.
     // The total is rounded once: the sum of the rounded parts would be $1,627.87, a cent off.

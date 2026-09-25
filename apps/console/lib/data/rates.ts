@@ -26,6 +26,8 @@ export interface StoredQuote {
   rate: string;
   fetchedAt: string;
   recordedAt: string;
+  /** The host the quote came from (slice N1); undefined for quotes recorded before migration 0024. */
+  host?: string;
 }
 
 export class RateRecordError extends ExecutionError {
@@ -44,6 +46,8 @@ export function quoteProblem(q: RateQuote): string | undefined {
   if (compareDecimal(q.bid, q.ask) > 0) return "bid is above ask";
   if (q.rate !== q.bid) return "rate must be the bid";
   if (typeof q.fetchedAt !== "string" || !ISO.test(q.fetchedAt)) return "fetchedAt must be ISO 8601 UTC with milliseconds";
+  // A host as `new URL(…).host` gives it: a name or address, and an optional port (slice N1).
+  if (typeof q.host !== "string" || !/^[a-z0-9.-]{1,253}(:\d{1,5})?$|^\[[0-9a-f:.]+\](:\d{1,5})?$/.test(q.host)) return "host must be the quote's host";
   return undefined;
 }
 
@@ -73,7 +77,7 @@ export async function recordQuote(
             .from(rateQuotes)
             .where(and(eq(rateQuotes.orgId, orgId), eq(rateQuotes.batchId, batchId)))
             .get()!;
-          const row = { orgId, batchId, seq: next, purpose, source: quote.source, pair: quote.pair, bid: quote.bid, ask: quote.ask, last: quote.last, rate: quote.rate, fetchedAt: quote.fetchedAt, recordedAt };
+          const row = { orgId, batchId, seq: next, purpose, source: quote.source, pair: quote.pair, bid: quote.bid, ask: quote.ask, last: quote.last, rate: quote.rate, fetchedAt: quote.fetchedAt, recordedAt, sourceHost: quote.host };
           tx.insert(rateQuotes).values(row).run();
           return toStored(row);
         },
@@ -109,5 +113,5 @@ export function listQuotes(db: ConsoleDb, orgId: string, batchId: string): Promi
 }
 
 export function toStored(r: typeof rateQuotes.$inferSelect): StoredQuote {
-  return { seq: r.seq, purpose: r.purpose, source: r.source, pair: r.pair, bid: r.bid, ask: r.ask, last: r.last, rate: r.rate, fetchedAt: r.fetchedAt, recordedAt: r.recordedAt };
+  return { seq: r.seq, purpose: r.purpose, source: r.source, pair: r.pair, bid: r.bid, ask: r.ask, last: r.last, rate: r.rate, fetchedAt: r.fetchedAt, recordedAt: r.recordedAt, ...(r.sourceHost === null ? {} : { host: r.sourceHost }) };
 }

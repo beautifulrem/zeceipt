@@ -18,7 +18,7 @@ const UA = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
   "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
 ];
-const quote = (bid = "31.41592") => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-23T07:00:00.000Z" });
+const quote = (bid = "31.41592") => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-23T07:00:00.000Z", host: "api.kraken.com" });
 
 let dir: string;
 let db: ConsoleDb;
@@ -61,7 +61,7 @@ test("each payable becomes a line: its recipient's name and address, its referen
   assert.deepEqual(batch.items.map((i) => i.zat), [usdCentsToZat(29, "31.41592"), 79_577_488n, usdCentsToZat(99_999_999, "31.41592")]);
   assert.deepEqual(await getBatch(db, ORG, batch.id), batch, "read back exactly");
   assert.equal(rateFixed(batch), true);
-  assert.deepEqual({ ...lock, recordedAt: undefined }, { seq: 1, purpose: "lock", source: "kraken", pair: "XZECZUSD", bid: "31.41592", ask: "31.41592", last: "31.41592", rate: "31.41592", fetchedAt: "2026-09-23T07:00:00.000Z", recordedAt: undefined });
+  assert.deepEqual({ ...lock, recordedAt: undefined }, { seq: 1, purpose: "lock", source: "kraken", pair: "XZECZUSD", bid: "31.41592", ask: "31.41592", last: "31.41592", rate: "31.41592", fetchedAt: "2026-09-23T07:00:00.000Z", recordedAt: undefined, host: "api.kraken.com" });
   assert.deepEqual(await currentLock(db, ORG, batch.id), lock, "the lock of record is the batch's only lock");
   for (const it of batch.items) assert.equal(usdText(it.zat, lock.rate), `$${Math.floor(it.usdCents! / 100).toLocaleString("en-US")}.${String(it.usdCents! % 100).padStart(2, "0")}`, "USD at lock = the payable's dollars");
   assert.equal(rateFixed((await createBatch(db, { orgId: ORG, network: "regtest", title: "hand-made", items: [{ payableId: "x", address: UA[0], zat: 5n, memo: "M" }] }))), false, "a hand-made batch is not fixed");

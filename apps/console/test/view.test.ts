@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { abridgeId, centsText, rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
+import { abridgeId, centsText, rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceLabel, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -159,4 +159,11 @@ test("abridgeId (slice M1b): a UUID by its distinguishing tail, the whole id kep
   // Two UUIDv7 ids made in the same millisecond share their head; their tails differ.
   assert.notEqual(abridgeId("01a0d8bc-4cd6-7afa-b785-b8fd8d637cd9").short, abridgeId("01a0d8bc-4cd6-7c01-9a2b-5f2d3765ed64").short);
   for (const id of ["inv-1", "P-1", "p1-0", "01a0d8bc"]) assert.deepEqual(abridgeId(id), { short: id, whole: id }, id);
+});
+
+test("sourceLabel (slice N1): the source is named only for its own host; another host is named as such; none recorded says so", () => {
+  assert.equal(sourceLabel("kraken", "api.kraken.com"), "Kraken");
+  assert.equal(sourceLabel("kraken", "127.0.0.1:5555"), "Kraken-format quote from 127.0.0.1:5555");
+  assert.equal(sourceLabel("kraken", "kraken.example.org"), "Kraken-format quote from kraken.example.org", "a lookalike is not Kraken");
+  assert.equal(sourceLabel("kraken", undefined), "Kraken format (host not recorded)");
 });

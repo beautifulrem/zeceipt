@@ -109,7 +109,7 @@ export async function createBatchFromPayables(
         }
         // The lock of record: seq 1, after every line (the 0017 triggers require that order).
         const q = input.quote;
-        const lockRow = { orgId: input.orgId, batchId: id, seq: 1, purpose: "lock" as const, source: q.source, pair: q.pair, bid: q.bid, ask: q.ask, last: q.last, rate: q.rate, fetchedAt: q.fetchedAt, recordedAt: at };
+        const lockRow = { orgId: input.orgId, batchId: id, seq: 1, purpose: "lock" as const, source: q.source, pair: q.pair, bid: q.bid, ask: q.ask, last: q.last, rate: q.rate, fetchedAt: q.fetchedAt, recordedAt: at, sourceHost: q.host };
         tx.insert(rateQuotes).values(lockRow).run();
         const batch: BatchRecord = { orgId: input.orgId, id, network: input.network, title: input.title, createdAt: at, items };
         return { batch, lock: toStored(lockRow) };

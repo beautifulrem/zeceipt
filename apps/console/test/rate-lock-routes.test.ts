@@ -76,7 +76,8 @@ test("a lock: 201 with the source's exact strings; GET shows it; a re-lock appen
   assert.equal(first.status, 201);
   assert.equal(first.cache, "no-store");
   const { recordedAt, fetchedAt, ...rest } = first.body;
-  assert.deepEqual(rest, { seq: 1, source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000" });
+  // Slice N1: the host this test double answered from is recorded, so the page never names it Kraken.
+  assert.deepEqual(rest, { seq: 1, source: "kraken", host: new URL(sourceUrl).host, pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000" });
   assert.match(String(fetchedAt), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.match(String(recordedAt), /Z$/);
   assert.deepEqual((await read(id)).rateLock, first.body);

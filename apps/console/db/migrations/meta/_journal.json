@@ -169,6 +169,13 @@
       "when": 1790341087834,
       "tag": "0023_record_address_change",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790343617033,
+      "tag": "0024_quote_host",
+      "breakpoints": true
     }
   ]
 }

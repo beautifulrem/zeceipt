@@ -29,7 +29,7 @@ const K1 = { kid: "k1", key: Buffer.alloc(32, 1) };
 const K2 = { kid: "k2", key: Buffer.alloc(32, 2) };
 const RING = new Keyring([K1]);
 const BACKEND = backendId(9);
-const QUOTE = (bid: string) => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-25T10:00:00.000Z" });
+const QUOTE = (bid: string) => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-25T10:00:00.000Z", host: "api.kraken.com" });
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
   "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",

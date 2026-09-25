@@ -80,6 +80,20 @@ export function sourceName(source: string): string {
   return ({ kraken: "Kraken" } as Record<string, string>)[source] ?? source;
 }
 
+/** Each source's own host: only a quote from it is named as that source (slice N1). */
+const SOURCE_HOSTS: Record<string, string> = { kraken: "api.kraken.com" };
+
+/**
+ * Where a quote came from, truthfully (slice N1; review L2): the source's name only when the quote came from its own
+ * host; "Kraken-format quote from 127.0.0.1:5555" for a proxy, a mirror or a test double; and "(host not recorded)"
+ * for quotes recorded before hosts were (migration 0024), rather than a guess.
+ */
+export function sourceLabel(source: string, host: string | undefined): string {
+  const name = sourceName(source);
+  if (host === undefined) return `${name} format (host not recorded)`;
+  return host === SOURCE_HOSTS[source] ? name : `${name}-format quote from ${host}`;
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**

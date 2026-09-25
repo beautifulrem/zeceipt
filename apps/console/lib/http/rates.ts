@@ -15,7 +15,7 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 
 /** The lock as the API shows it: exact decimal strings, the source, and both times. */
 export function lockJson(q: StoredQuote) {
-  return { seq: q.seq, source: q.source, pair: q.pair, bid: q.bid, ask: q.ask, last: q.last, rate: q.rate, fetchedAt: q.fetchedAt, recordedAt: q.recordedAt };
+  return { seq: q.seq, source: q.source, host: q.host ?? null, pair: q.pair, bid: q.bid, ask: q.ask, last: q.last, rate: q.rate, fetchedAt: q.fetchedAt, recordedAt: q.recordedAt };
 }
 export type LockJson = ReturnType<typeof lockJson>;
 

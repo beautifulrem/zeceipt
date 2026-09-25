@@ -12,7 +12,7 @@ import { eventText } from "../../../lib/view/history.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
 import { approvalCheck, serverContext } from "../../../lib/server/context.ts";
-import { rateText, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
+import { rateText, sourceLabel, usdText, zecText } from "../../../lib/view/format.ts";
 import { Address } from "../../components/address.tsx";
 import { Identifier } from "../../components/identifier.tsx";
 import { paymentMode } from "../../../lib/view/mode.ts";
@@ -175,7 +175,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             </dd>
             <dt className="text-slate-500">Source</dt>
             <dd>
-              {sourceName(lock.source)} {lock.pair} · ask {lock.ask} · last trade {lock.last}
+              {sourceLabel(lock.source, lock.host)} {lock.pair} · ask {lock.ask} · last trade {lock.last}
             </dd>
             <dt className="text-slate-500">Fetched</dt>
             <dd>{lock.fetchedAt.replace("T", " ").slice(0, 19)} UTC</dd>

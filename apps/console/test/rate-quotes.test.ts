@@ -18,7 +18,7 @@ const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
   "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj",
 ];
-const Q: RateQuote = { source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000", fetchedAt: "2026-09-23T03:40:00.123Z" };
+const Q: RateQuote = { source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000", fetchedAt: "2026-09-23T03:40:00.123Z", host: "api.kraken.com" };
 const at = (iso: string) => () => new Date(iso);
 
 let dir: string;
@@ -47,8 +47,8 @@ test("a lock is stored exactly; a re-lock becomes current; the history keeps bot
   const b = await draft("rt");
   assert.equal(await currentLock(db, ORG, b.id), undefined, "never locked");
   const first = await recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: Q, now: at("2026-09-23T03:40:01.000Z") });
-  assert.deepEqual(first, { seq: 1, purpose: "lock", source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000", fetchedAt: "2026-09-23T03:40:00.123Z", recordedAt: "2026-09-23T03:40:01.000Z" });
-  const second = await recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, bid: "1600.5", rate: "1600.5", fetchedAt: "2026-09-23T04:00:00.000Z" }, now: at("2026-09-23T04:00:00.500Z") });
+  assert.deepEqual(first, { seq: 1, purpose: "lock", source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000", fetchedAt: "2026-09-23T03:40:00.123Z", recordedAt: "2026-09-23T03:40:01.000Z", host: "api.kraken.com" });
+  const second = await recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, bid: "1600.5", rate: "1600.5", fetchedAt: "2026-09-23T04:00:00.000Z", host: "api.kraken.com" }, now: at("2026-09-23T04:00:00.500Z") });
   assert.equal(second.seq, 2);
   assert.deepEqual(await currentLock(db, ORG, b.id), second);
   assert.deepEqual((await listQuotes(db, ORG, b.id)).map((q) => [q.seq, q.purpose, q.rate]), [[1, "lock", "1616.24000"], [2, "lock", "1600.5"]]);
@@ -68,6 +68,18 @@ test("once a submission froze the batch, a lock is refused (nothing stored); an 
   assert.equal((await currentLock(db, ORG, b.id))!.seq, 1, "the lock is still the one taken before submission");
 });
 
+test("slice N1: the host round-trips; a quote recorded before migration 0024 (NULL host) reads as none recorded", async () => {
+  const b = await createBatch(db, { orgId: ORG, network: "regtest", title: "hosts", items: [{ payableId: "h-1", address: R[0], zat: 1000n, memo: "HOST-1" }] });
+  const proxied = await recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, host: "127.0.0.1:5555" } });
+  assert.equal(proxied.host, "127.0.0.1:5555");
+  assert.equal((await currentLock(db, ORG, b.id))?.host, "127.0.0.1:5555");
+  db.$client.prepare("INSERT INTO rate_quotes (org_id, batch_id, seq, purpose, source, pair, bid, ask, last, rate, fetched_at, recorded_at) VALUES (?, ?, 2, 'lock', 'kraken', 'XZECZUSD', '1600', '1601', '1600', '1600', '2026-09-23T05:00:00.000Z', '2026-09-23T05:00:00.000Z')").run(ORG, b.id);
+  const legacy = await currentLock(db, ORG, b.id);
+  assert.deepEqual([legacy?.seq, legacy?.host, "host" in legacy!], [2, undefined, false], "no host key at all, rather than a made-up one");
+  await assert.rejects(recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, host: "" } }), { code: "quote_invalid" });
+  await assert.rejects(recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, host: "https://api.kraken.com/x" } }), { code: "quote_invalid" }, "a URL is not a host");
+});
+
 test("invalid quotes and unknown batches never reach the database", async () => {
   const b = await draft("inv");
   const bad: [Partial<RateQuote>, RegExp][] = [
@@ -77,7 +89,7 @@ test("invalid quotes and unknown batches never reach the database", async () => 
     [{ last: "0" }, /last is not a positive decimal/],
     [{ rate: "1616.97000" }, /rate must be the bid/],
     [{ rate: "1616.24" }, /rate must be the bid/], // equal in value, but the record says which string was used
-    [{ fetchedAt: "2026-09-23T03:40:00Z" }, /fetchedAt must be ISO/],
+    [{ fetchedAt: "2026-09-23T03:40:00Z", host: "api.kraken.com" }, /fetchedAt must be ISO/],
   ];
   for (const [patch, re] of bad) {
     await assert.rejects(recordQuote(db, { orgId: ORG, batchId: b.id, purpose: "lock", quote: { ...Q, ...patch } }), (e: unknown) => e instanceof RateRecordError && e.code === "quote_invalid" && re.test(e.message), JSON.stringify(patch));

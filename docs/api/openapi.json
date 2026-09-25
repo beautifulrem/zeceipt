@@ -2092,7 +2092,8 @@
           "last",
           "rate",
           "fetchedAt",
-          "recordedAt"
+          "recordedAt",
+          "host"
         ],
         "properties": {
           "seq": {
@@ -2102,6 +2103,13 @@
           },
           "source": {
             "const": "kraken"
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The host (with any port) the quote was fetched from (slice N1): api.kraken.com for Kraken itself; null for quotes recorded before hosts were. The console names the source only for its own host."
           },
           "pair": {
             "type": "string",

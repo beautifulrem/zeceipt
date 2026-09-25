@@ -27,7 +27,7 @@ test("a quote keeps Kraken's strings exactly, uses the bid as the rate, and our 
     asked = { url: String(url), init };
     return answering(SAMPLE)(url, init);
   };
-  assert.deepEqual(await quote(f), { source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000", fetchedAt: "2026-09-23T03:40:00.123Z" });
+  assert.deepEqual(await quote(f), { source: "kraken", pair: "XZECZUSD", bid: "1616.24000", ask: "1616.97000", last: "1616.34000", rate: "1616.24000", fetchedAt: "2026-09-23T03:40:00.123Z", host: "api.kraken.com" });
   assert.equal(asked!.url, KRAKEN_TICKER_URL);
   assert.equal(asked!.init?.redirect, "error", "a redirect is refused, not followed");
   assert.equal(asked!.init?.cache, "no-store");
@@ -83,4 +83,10 @@ test("live: Kraken answers a usable ZEC/USD quote (ZECEIPT_LIVE_RATES=1)", { ski
   assert.equal(q.pair, "XZECZUSD");
   assert.ok(compareDecimal(q.bid, q.ask) <= 0 && isPositiveDecimal(q.last));
   console.log(JSON.stringify(q));
+});
+
+test("slice N1: the quote names the host it came from, port included, whatever URL is configured", async () => {
+  const q = await fetchZecUsdQuote({ url: "http://127.0.0.1:5555/0/public/Ticker?pair=ZECUSD", fetch: answering(SAMPLE), now: () => NOW });
+  assert.equal(q.host, "127.0.0.1:5555");
+  assert.equal((await fetchZecUsdQuote({ url: "https://rates.example.org/ticker", fetch: answering(SAMPLE), now: () => NOW })).host, "rates.example.org");
 });

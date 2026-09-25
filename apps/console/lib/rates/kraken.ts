@@ -26,6 +26,11 @@ export interface RateQuote {
   rate: string;
   /** ISO 8601 UTC, our clock, when the answer arrived. */
   fetchedAt: string;
+  /**
+   * The host (with any port) the quote was fetched from (slice N1): `api.kraken.com` for Kraken itself. `source` names
+   * the response format; this names who answered, so a proxy or a test double is never presented as Kraken.
+   */
+  host: string;
 }
 
 export type RateFailure = "network" | "http" | "too_large" | "json" | "source_error" | "pair_missing" | "bad_price" | "crossed_book";
@@ -105,5 +110,5 @@ export async function fetchZecUsdQuote(opts: QuoteOptions = {}): Promise<RateQuo
   }
   if (compareDecimal(bid as string, ask as string) > 0) throw new RateUnavailableError("crossed_book", `bid ${bid} is above ask ${ask}`);
   const fetchedAt = (opts.now ?? (() => new Date()))().toISOString();
-  return { source: "kraken", pair: KRAKEN_ZEC_USD_PAIR, bid: bid as string, ask: ask as string, last: last as string, rate: bid as string, fetchedAt };
+  return { source: "kraken", pair: KRAKEN_ZEC_USD_PAIR, bid: bid as string, ask: ask as string, last: last as string, rate: bid as string, fetchedAt, host: new URL(url).host };
 }

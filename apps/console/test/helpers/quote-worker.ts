@@ -4,7 +4,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import { openDb, recordQuote, type RateQuote } from "../../lib/index.ts";
 
 const db = openDb({ path: workerData.path });
-const quote: RateQuote = { source: "kraken", pair: "XZECZUSD", bid: "1616.24", ask: "1616.97", last: "1616.34", rate: "1616.24", fetchedAt: "2026-09-23T03:40:00.123Z" };
+const quote: RateQuote = { source: "kraken", pair: "XZECZUSD", bid: "1616.24", ask: "1616.97", last: "1616.34", rate: "1616.24", fetchedAt: "2026-09-23T03:40:00.123Z", host: "api.kraken.com" };
 
 parentPort!.on("message", async (m: { orgId: string; batchId: string; count: number; gate: SharedArrayBuffer }) => {
   const gate = new Int32Array(m.gate);

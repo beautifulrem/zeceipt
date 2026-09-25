@@ -31,7 +31,7 @@ import {
 
 const ORG = "org-i4";
 const RING = new Keyring([{ kid: "k1", key: Buffer.alloc(32, 9) }]);
-const QUOTE = (bid: string) => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-25T10:00:00.000Z" });
+const QUOTE = (bid: string) => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-25T10:00:00.000Z", host: "api.kraken.com" });
 const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
 
 let dir: string;
@@ -138,8 +138,11 @@ test("the migration backfills a database from before it: every record becomes an
   try {
     migrateDb(legacy, old);
     const rec = await draft(legacy);
-    const lock = await recordQuote(legacy, { orgId: ORG, batchId: rec.id, purpose: "lock", quote: QUOTE("1600.00"), now: () => new Date("2026-09-25T09:01:00.000Z") });
-    await recordApproval(legacy, RING, { rec, lock, backend: backendId(9), now: () => new Date("2026-09-25T09:02:00.000Z") });
+    // The quote as a database from before migration 0024 held it: no source_host column yet (slice N1).
+    legacy.$client.prepare("INSERT INTO rate_quotes (org_id, batch_id, seq, purpose, source, pair, bid, ask, last, rate, fetched_at, recorded_at) VALUES (?, ?, 1, 'lock', 'kraken', 'XZECZUSD', '1600.00', '1600.00', '1600.00', '1600.00', '2026-09-25T10:00:00.000Z', '2026-09-25T09:01:00.000Z')").run(ORG, rec.id);
+    // And its approval, likewise by SQL (the code of today reads columns that database lacks); the backfill copies rows,
+    // it does not verify their HMACs.
+    legacy.$client.prepare("INSERT INTO approvals (org_id, batch_id, seq, approver, approved_at, lock_seq, kid, hmac) VALUES (?, ?, 1, 'operator', '2026-09-25T09:02:00.000Z', 1, 'k1', ?)").run(ORG, rec.id, "ab".repeat(32));
     const store = new SqliteIdempotencyStore(legacy, { orgId: ORG });
     const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: "2026-09-25T09:03:00.000Z", attempts: 1 };
     await store.createIntent({ ...base, state: "submitting" });

@@ -17,7 +17,7 @@ import { payableHolders } from "../lib/data/payable-status.ts";
 
 const ORG = "org-h5c";
 const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
-const quote = (bid: string) => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-25T08:00:00.000Z" });
+const quote = (bid: string) => ({ source: "kraken" as const, pair: "XZECZUSD" as const, bid, ask: bid, last: bid, rate: bid, fetchedAt: "2026-09-25T08:00:00.000Z", host: "api.kraken.com" });
 
 let dir: string;
 let db: ConsoleDb;

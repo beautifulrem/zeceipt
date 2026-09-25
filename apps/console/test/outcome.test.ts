@@ -39,9 +39,15 @@ test("receipts: issued (201 or 200), waiting (202), and problems", async () => {
 
 test("rate lock: the new rate with its source and time; an unusable source says nothing was locked (slice G1c2)", async () => {
   assert.deepEqual(
-    await lockOutcome(json(201, { seq: 1, source: "kraken", pair: "XZECZUSD", bid: "1610.95000", ask: "1611.71000", last: "1611.35000", rate: "1610.95000", fetchedAt: "2026-09-23T03:49:53.281Z", recordedAt: "2026-09-23T03:49:53.282Z" })),
+    await lockOutcome(json(201, { seq: 1, source: "kraken", host: "api.kraken.com", pair: "XZECZUSD", bid: "1610.95000", ask: "1611.71000", last: "1611.35000", rate: "1610.95000", fetchedAt: "2026-09-23T03:49:53.281Z", recordedAt: "2026-09-23T03:49:53.282Z" })),
     { tone: "success", headline: "Rate locked", detail: "1 ZEC = $1,610.95 (Kraken XZECZUSD bid 1610.95000, fetched 2026-09-23 03:49:53 UTC)." },
   );
+  // Slice N1: another host is never named as Kraken; an answer without a host says so.
+  assert.deepEqual(
+    (await lockOutcome(json(201, { seq: 1, source: "kraken", host: "127.0.0.1:5555", pair: "XZECZUSD", bid: "41.47", ask: "41.52", last: "41.50", rate: "41.47", fetchedAt: "2026-09-23T03:49:53.281Z", recordedAt: "2026-09-23T03:49:53.282Z" }))).detail,
+    "1 ZEC = $41.47 (Kraken-format quote from 127.0.0.1:5555 XZECZUSD bid 41.47, fetched 2026-09-23 03:49:53 UTC).",
+  );
+  assert.match((await lockOutcome(json(201, { seq: 1, source: "kraken", host: null, pair: "XZECZUSD", bid: "41.47", ask: "41.52", last: "41.50", rate: "41.47", fetchedAt: "2026-09-23T03:49:53.281Z", recordedAt: "2026-09-23T03:49:53.282Z" }))).detail, /\(Kraken format \(host not recorded\) XZECZUSD/);
   assert.deepEqual(
     await lockOutcome(problem(502, "rate_unavailable", "the ZEC/USD source did not give a usable quote; nothing was locked", { reason: "network" })),
     { tone: "warning", headline: "Not locked", detail: "the ZEC/USD source did not give a usable quote; nothing was locked. The source's answer was unusable (network); try again shortly." },

@@ -50,7 +50,7 @@ const mined = (confirmations: number): TxStatus => ({ state: "mined", height: 10
 const unknown = (cause: Extract<TxStatus, { state: "unknown" }>["cause"]): TxStatus => ({ state: "unknown", cause, reason: cause });
 const KEYRING = new Keyring([{ kid: "k1", key: Buffer.alloc(32, 1) }]);
 const APPROVAL = { keyring: KEYRING, backend: backendId(9) };
-const QUOTE = { source: "kraken", pair: "XZECZUSD", bid: "1600.00", ask: "1601.00", last: "1600.00", rate: "1600.00", fetchedAt: "2026-09-23T11:59:00.000Z" } as const;
+const QUOTE = { source: "kraken", pair: "XZECZUSD", bid: "1600.00", ask: "1601.00", last: "1600.00", rate: "1600.00", fetchedAt: "2026-09-23T11:59:00.000Z", host: "api.kraken.com" } as const;
 const facts = (over: Partial<BatchFacts>): BatchFacts => ({ itemCount: 3, receipts: 0, requiredConfirmations: 2, now: NOW, inFlightMs: 600_000, ...over });
 
 test("the status table, row by row (design §3.3.1.3.4.2)", () => {

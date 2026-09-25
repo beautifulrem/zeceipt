@@ -197,6 +197,8 @@ export const rateQuotes = sqliteTable(
     rate: text("rate").notNull(),
     fetchedAt: text("fetched_at").notNull(),
     recordedAt: text("recorded_at").notNull(),
+    /** The host the quote came from (slice N1; migration 0024); NULL for quotes recorded before. Validated in code. */
+    sourceHost: text("source_host"),
   },
   (t) => [
     primaryKey({ columns: [t.orgId, t.batchId, t.seq] }),

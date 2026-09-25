@@ -26,7 +26,7 @@ test("free, held through a batch from payables, or held by a hand-made line type
   const typed = await createBatch(db, { orgId: ORG, network: "regtest", title: "Typed early", items: [{ payableId: "t-1", address: UA, zat: 5n, memo: "EARLY-1" }] });
   const early = await createPayable(db, { orgId: ORG, recipientId: alice, kind: "invoice", usdCents: 100, reference: "EARLY-1" });
   const [a, free] = [await createPayable(db, { orgId: ORG, recipientId: alice, kind: "bounty", usdCents: 200, reference: "B-1" }), await createPayable(db, { orgId: ORG, recipientId: alice, kind: "salary", usdCents: 300, reference: "S-1" })];
-  const { batch } = await createBatchFromPayables(db, { orgId: ORG, network: "regtest", title: "September", payableIds: [a.id], quote: { source: "kraken", pair: "XZECZUSD", bid: "1600.00", ask: "1600.00", last: "1600.00", rate: "1600.00", fetchedAt: "2026-09-25T00:00:00.000Z" } });
+  const { batch } = await createBatchFromPayables(db, { orgId: ORG, network: "regtest", title: "September", payableIds: [a.id], quote: { source: "kraken", pair: "XZECZUSD", bid: "1600.00", ask: "1600.00", last: "1600.00", rate: "1600.00", fetchedAt: "2026-09-25T00:00:00.000Z", host: "api.kraken.com" } });
   const holders = await payableHolders(db, ORG);
   assert.deepEqual(holders.get(a.id), { batchId: batch.id, title: "September" });
   assert.deepEqual(holders.get(early.id), { batchId: typed.id, title: "Typed early" }, "the memo rule");
