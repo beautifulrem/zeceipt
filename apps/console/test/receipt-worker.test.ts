@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { batchDigest, batchNonce, bootServerContext, defaultMigrationsDir, getBatch, SERVER_CONTEXT_KEY, serverContext, toExecutionBatch, voidBatch, type BootState, type ZeceiptCliOptions } from "../lib/index.ts";
-import { receiptPass, startReceiptWorker, type PassResult } from "../lib/server/receipt-worker.ts";
+import { backoffPasses, MAX_BACKOFF_PASSES, receiptPass, startReceiptWorker, type PassResult } from "../lib/server/receipt-worker.ts";
 import * as collection from "../app/api/batches/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 
@@ -89,21 +89,21 @@ test("REQ-CON-11: a confirmed batch gets one receipt per item without anyone pre
   const id = await scenario("i2-ready", { broadcast: "broadcast" });
   onChain(3);
   const first = await receiptPass({ cli });
-  assert.deepEqual(first, { issued: [id], existing: [], failed: [] });
+  assert.deepEqual(first, { issued: [id], existing: [], failed: [], considered: [id] });
   assert.equal(receiptsOf(id), 3);
-  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] }, "complete: skipped before the chain is asked");
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [], considered: [id] }, "complete: skipped before the chain is asked");
   assert.equal(receiptsOf(id), 3);
 });
 
 test("not ready or not payable: below N, a draft and a voided draft are left alone", async () => {
   const below = await scenario("i2-below", { broadcast: "broadcast" });
   onChain(2); // 2 of 3
-  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] });
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [], considered: [below] });
   assert.equal(receiptsOf(below), 0);
   const draft = await scenario("i2-draft");
-  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] });
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [], considered: [draft] });
   await voidBatch(slot[SERVER_CONTEXT_KEY]!.db, "i2-draft", draft);
-  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [] });
+  assert.deepEqual(await receiptPass({ cli }), { issued: [], existing: [], failed: [], considered: [draft] });
 });
 
 test("one batch failing is reported by code and does not stop the pass: the other is issued", async () => {
@@ -145,7 +145,7 @@ test("the loop: passes run one after another, never overlapping; a failing pass 
       active--;
       if (passes === 2) throw Object.assign(new Error("boom"), { code: "store_busy" });
       if (passes === 4) release();
-      return { issued: passes === 1 ? ["b-1"] : [], existing: [], failed: passes === 3 ? [{ batchId: "b-2", code: "issuance_failed" }] : [] };
+      return { issued: passes === 1 ? ["b-1"] : [], existing: [], failed: passes === 3 ? [{ batchId: "b-2", code: "issuance_failed" }] : [], considered: [] };
     },
     sleep: async (ms) => {
       sleeps.push(ms);
@@ -159,5 +159,72 @@ test("the loop: passes run one after another, never overlapping; a failing pass 
   assert.equal(passes, after, "no pass after stop");
   assert.equal(maxActive, 1, "never two passes at once");
   assert.ok(sleeps.length >= 3 && sleeps.every((ms) => ms === 5_000), "the interval between passes");
-  assert.deepEqual(lines.slice(0, 3), ["receipts: issued for batch b-1", "receipts: pass failed (store_busy); retrying next pass", "receipts: batch b-2 not issued (issuance_failed); retrying next pass"]);
+  assert.deepEqual(lines.slice(0, 3), ["receipts: issued for batch b-1", "receipts: pass failed (store_busy); retrying next pass", "receipts: batch b-2 not issued (issuance_failed); retrying in 1 pass"]);
+});
+
+// Slice I2b (review I2's optional; R88): capped exponential backoff per batch, counted in passes, and a failure logged
+// when it starts or its code changes, never on a repeat.
+test("backoffPasses: 1, 2, 4, 8, 16, then 32 at most", () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 40].map(backoffPasses), [1, 2, 4, 8, 16, 32, 32, 32]);
+  assert.equal(MAX_BACKOFF_PASSES, 32);
+});
+
+/** Run a worker over a scripted pass until `until` passes ran; returns which passes tried `id` and the log. */
+async function scripted(id: string, until: number, outcome: (pass: number) => "issued" | "not_ready" | string) {
+  const lines: string[] = [];
+  const tried: number[] = [];
+  let n = 0;
+  let release!: () => void;
+  const done = new Promise<void>((r) => (release = r));
+  const worker = startReceiptWorker({
+    intervalMs: 60_000,
+    pass: async (skip): Promise<PassResult> => {
+      n++;
+      if (n >= until) release();
+      if (skip.has(id)) return { issued: [], existing: [], failed: [], considered: [] };
+      tried.push(n);
+      const o = outcome(n);
+      if (o === "issued") return { issued: [id], existing: [], failed: [], considered: [id] };
+      if (o === "not_ready") return { issued: [], existing: [], failed: [], considered: [id] };
+      return { issued: [], existing: [], failed: [{ batchId: id, code: o }], considered: [id] };
+    },
+    sleep: async () => {},
+    log: (line) => lines.push(line),
+  });
+  await done;
+  await worker.stop();
+  return { tried: tried.filter((p) => p <= until), lines };
+}
+
+test("a batch that keeps failing is tried after 1, 2, 4, 8, 16, 32, 32 passes, and logged once per code", async () => {
+  const { tried, lines } = await scripted("b-x", 200, (p) => (p < 40 ? "issuance_failed" : "wallet_unavailable"));
+  // Failures at 1, 2, 4, 8, 16, 32 (waits 1, 2, 4, 8, 16, 32), then every 32 passes.
+  assert.deepEqual(tried, [1, 2, 4, 8, 16, 32, 64, 96, 128, 160, 192]);
+  assert.deepEqual(lines, [
+    "receipts: batch b-x not issued (issuance_failed); retrying in 1 pass",
+    "receipts: batch b-x not issued (wallet_unavailable); retrying in 32 passes", // pass 64: the code changed, so it is logged
+  ]);
+});
+
+test("a recovery is logged once with the failed passes, and the record is cleared", async () => {
+  const { tried, lines } = await scripted("b-y", 12, (p) => (p <= 4 ? "issuance_failed" : p === 8 ? "issued" : "not_ready"));
+  assert.deepEqual(tried, [1, 2, 4, 8, 9, 10, 11, 12], "after the recovery it is looked at every pass again");
+  assert.deepEqual(lines, ["receipts: batch b-y not issued (issuance_failed); retrying in 1 pass", "receipts: issued for batch b-y after 3 failed passes"]);
+});
+
+test("a batch that stops failing without being issued (not ready, voided, issued by a person) is forgotten: its next failure is new", async () => {
+  const { tried, lines } = await scripted("b-z", 8, (p) => (p === 1 || p === 2 ? "issuance_failed" : p === 4 ? "not_ready" : "issuance_failed"));
+  // 1 fails (wait 1), 2 fails (wait 2), 4 not failing (forgotten), 5 fails as a first failure (wait 1), 6 (wait 2), 8.
+  assert.deepEqual(tried, [1, 2, 4, 5, 6, 8]);
+  assert.deepEqual(lines, ["receipts: batch b-z not issued (issuance_failed); retrying in 1 pass", "receipts: batch b-z not issued (issuance_failed); retrying in 1 pass"]);
+});
+
+test("receiptPass({skip}): a skipped batch is not looked at, so the wallet is not asked about it; the others are issued", async () => {
+  const id = await scenario("i2b-skip", { broadcast: "broadcast" });
+  onChain(3);
+  const before = fake.requests;
+  assert.deepEqual(await receiptPass({ cli, skip: new Set([id]) }), { issued: [], existing: [], failed: [], considered: [] });
+  assert.equal(fake.requests, before, "no wallet request for a skipped batch");
+  assert.equal(receiptsOf(id), 0);
+  assert.deepEqual((await receiptPass({ cli })).issued, [id], "not skipped: issued");
 });

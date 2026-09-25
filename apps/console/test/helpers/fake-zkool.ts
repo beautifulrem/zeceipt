@@ -34,6 +34,8 @@ export class FakeZkool {
   failCurrentHeight = false;
   ironwoodZat = 1_000_000_000n; // 10 ZEC
   payCalls = 0;
+  /** Every GraphQL request answered (slice I2b: a skipped batch must cost the wallet nothing). */
+  requests = 0;
   mempool: FakeTx[] = [];
   mined: FakeTx[] = [];
   nextPay: PayMode = "ok";
@@ -45,6 +47,7 @@ export class FakeZkool {
       req.on("data", (c) => (body += c));
       req.on("end", async () => {
         const { query, variables } = JSON.parse(body);
+        this.requests++;
         const reply = (data: unknown) => {
           res.setHeader("content-type", "application/json");
           res.end(JSON.stringify(data));
