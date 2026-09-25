@@ -23,3 +23,18 @@ export function zkoolTokenFile(account: number | string, claims: Partial<ZkoolCl
   writeFileSync(path, `${opts.text ?? zkoolToken(account, claims)}\n`, { mode: opts.mode ?? 0o600 });
   return path;
 }
+
+let publicKeyPath: string | undefined;
+/** The public key Zkool would be started with, for this process's tokens (slice S3c); written once. */
+export function zkoolPublicKeyFile(): string {
+  if (!publicKeyPath) {
+    publicKeyPath = join(dir, "zkool-jwt.pub");
+    writeFileSync(publicKeyPath, ZKOOL_PUBLIC_PEM);
+  }
+  return publicKeyPath;
+}
+
+/** A token for `account` signed by another P-256 key: scope right, signature wrong for ZKOOL_PUBLIC_PEM (slice S3c). */
+const other = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+export const foreignZkoolToken = (account: number | string) =>
+  mintZkoolToken(other.privateKey.export({ type: "pkcs8", format: "pem" }).toString(), { exp: Math.floor(Date.now() / 1000) + 30 * 86_400, sub: Number(account), write: true });

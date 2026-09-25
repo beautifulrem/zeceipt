@@ -84,6 +84,25 @@ export function checkZkoolToken(token: string, account: number, now = new Date()
   return { expiresAt };
 }
 
+/** Read Zkool's public key (`--jwt-public-key-file`): an EC P-256 key in PEM, as `DecodingKey::from_ec_pem` takes it. Not secret. */
+export function readZkoolPublicKey(path: string): string {
+  let pem: string;
+  try {
+    pem = readFileSync(path, "utf8");
+  } catch (e) {
+    throw new ZkoolTokenError(`cannot be read (${(e as NodeJS.ErrnoException).code ?? "error"})`);
+  }
+  let key: ReturnType<typeof createPublicKey>;
+  try {
+    if (/PRIVATE KEY/.test(pem)) throw new Error("private");
+    key = createPublicKey(pem);
+  } catch {
+    throw new ZkoolTokenError("does not hold a public key in PEM (the file Zkool was started with, --jwt-public-key-file; never the private key)");
+  }
+  if (key.asymmetricKeyType !== "ec" || key.asymmetricKeyDetails?.namedCurve !== "prime256v1") throw new ZkoolTokenError("does not hold an EC P-256 public key (Zkool accepts ES256 only)");
+  return pem;
+}
+
 /** Read and check the token file. Like OpenSSH with a private key, a file other users can read or write is refused. */
 export function readZkoolToken(path: string, account: number, now = new Date()): { token: string; expiresAt: Date } {
   let mode: number;

@@ -15,7 +15,7 @@ import { HttpProblem, type ProblemJson } from "../lib/http/problem.ts";
 import * as collection from "../app/api/batches/route.ts";
 import * as receiptsRoute from "../app/api/batches/[id]/receipts/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
-import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/debug/zeceipt");
@@ -46,7 +46,7 @@ async function scenario(org: string, opts: { broadcast?: "broadcast" | "unknown_
   const env: Record<string, string> = {
     ZECEIPT_CUSTODY_MODE: "hot",
     ZECEIPT_ZKOOL_URL: fake.url,
-    ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9),
+    ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(),
     ZECEIPT_DB_PATH: join(dir, `${org}.db`),
     ZECEIPT_ORG_ID: org,
     ZECEIPT_NETWORK: "regtest",

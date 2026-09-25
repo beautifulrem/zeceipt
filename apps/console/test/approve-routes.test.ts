@@ -20,7 +20,7 @@ import * as submitRoute from "../app/api/batches/[id]/submit/route.ts";
 import * as voidRoute from "../app/api/batches/[id]/void/route.ts";
 import { approveRequest } from "./helpers/approve.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
-import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const HOST = "127.0.0.1:3000";
 const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
@@ -38,7 +38,7 @@ function boot(extra: Record<string, string | undefined> = {}) {
   slot[SERVER_CONTEXT_KEY]?.db.$client.close();
   delete slot[SERVER_CONTEXT_KEY];
   const env: Record<string, string | undefined> = {
-    ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_DB_PATH: join(dir, "console.db"), ZECEIPT_ORG_ID: "demo-org", ZECEIPT_NETWORK: "regtest",
+    ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(), ZECEIPT_DB_PATH: join(dir, "console.db"), ZECEIPT_ORG_ID: "demo-org", ZECEIPT_NETWORK: "regtest",
     ZECEIPT_CONFIRMATIONS: "3", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 3).toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137",
     ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt", ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt", ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key", ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
     ZECEIPT_RATE_URL: sourceUrl,
@@ -176,7 +176,7 @@ test("the triggers' refusals, raced past the route's checks, are mapped by code 
 });
 
 test("external custody: 409 custody_external (this console never pays, so it takes no approvals)", async () => {
-  boot({ ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_DB_PATH: join(dir, "external.db") });
+  boot({ ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined, ZECEIPT_DB_PATH: join(dir, "external.db") });
   try {
     const id = await draft();
     const r = await approveIt(id, { confirmTotalZat: "1000", lockSeq: 1 });

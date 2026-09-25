@@ -13,7 +13,7 @@ import * as collection from "../app/api/batches/route.ts";
 import * as item from "../app/api/batches/[id]/route.ts";
 import type { ProblemJson } from "../lib/http/problem.ts";
 import { longUa } from "./helpers/ua-encoder.ts";
-import { zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -64,7 +64,7 @@ test("create: 201 with Location; zat as strings; org and network from the deploy
     {
       ZECEIPT_CUSTODY_MODE: "hot",
       ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql",
-      ZECEIPT_ZKOOL_ACCOUNT: "1", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(1),
+      ZECEIPT_ZKOOL_ACCOUNT: "1", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(1), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(),
       ZECEIPT_DB_PATH: join(dir, "routes.db"),
       ZECEIPT_ORG_ID: "demo-org",
       ZECEIPT_NETWORK: "regtest",

@@ -20,7 +20,7 @@ import * as lockRoute from "../app/api/batches/[id]/rate-lock/route.ts";
 import { approve } from "./helpers/approve.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 import { submitProblem } from "../lib/http/submit.ts";
-import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const HOST = "127.0.0.1:3000";
 const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
@@ -40,7 +40,7 @@ before(async () => {
   fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
   await new Promise<void>((r) => source.listen(0, "127.0.0.1", r));
   bootServerContext({
-    ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_DB_PATH: DB, ZECEIPT_ORG_ID: "demo-org", ZECEIPT_NETWORK: "regtest",
+    ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(), ZECEIPT_DB_PATH: DB, ZECEIPT_ORG_ID: "demo-org", ZECEIPT_NETWORK: "regtest",
     ZECEIPT_CONFIRMATIONS: "3", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 3).toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137",
     ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt", ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt", ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key", ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
     ZECEIPT_RATE_URL: `http://127.0.0.1:${(source.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD`,

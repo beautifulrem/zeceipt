@@ -28,7 +28,7 @@ import {
   type Batch,
 } from "../lib/index.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
-import { ZKOOL_PRIVATE_PEM, ZKOOL_PUBLIC_PEM, zkoolToken, zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { foreignZkoolToken, ZKOOL_PRIVATE_PEM, ZKOOL_PUBLIC_PEM, zkoolToken, zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const run = promisify(execFile);
 const NOW = new Date("2026-09-26T00:00:00Z");
@@ -114,7 +114,7 @@ test("boot: every refusal is a ConfigError naming ZECEIPT_ZKOOL_TOKEN_FILE, neve
     ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql", ZECEIPT_ZKOOL_ACCOUNT: "9",
     ZECEIPT_DB_PATH: "/var/lib/zeceipt/c.db", ZECEIPT_ORG_ID: "o", ZECEIPT_NETWORK: "regtest", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 1).toString("base64")}`,
     ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137", ZECEIPT_BIN: "/opt/z", ZECEIPT_UFVK_FILE: "/etc/u", ZECEIPT_ISSUER_KEY_FILE: "/etc/k", ZECEIPT_ISSUER_KEY_ID: "k",
-    ZECEIPT_RECEIPT_HOST: "https://receipts.example",
+    ZECEIPT_RECEIPT_HOST: "https://receipts.example", ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(),
   };
   const admin = zkoolToken(0);
   for (const [name, file] of [["admin", zkoolTokenFile(0)], ["other account", zkoolTokenFile(4)], ["open file", zkoolTokenFile(9, {}, { mode: 0o644 })], ["garbage", zkoolTokenFile(9, {}, { text: "not-a-token" })]] as const) {
@@ -129,7 +129,38 @@ test("boot: every refusal is a ConfigError naming ZECEIPT_ZKOOL_TOKEN_FILE, neve
   }
   const t = loadZkoolToken(loadConfig({ ...base, ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9) }));
   assert.ok(t && t.token.split(".").length === 3);
-  assert.equal(loadZkoolToken(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined })), undefined);
+  assert.equal(loadZkoolToken(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined })), undefined);
+
+  // Slice S3c: the signature, checked at boot as Zkool checks it.
+  const refusedOn = (env: Record<string, string | undefined>) => {
+    try {
+      loadZkoolToken(loadConfig({ ...base, ...env }));
+    } catch (e) {
+      assert.ok(e instanceof ConfigError, String(e));
+      return { variables: e.problems.map((p) => p.variable), message: e.message };
+    }
+    assert.fail("should refuse");
+  };
+  const foreign = foreignZkoolToken(9);
+  const signed = refusedOn({ ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9, {}, { text: foreign }) });
+  assert.deepEqual(signed.variables, ["ZECEIPT_ZKOOL_TOKEN_FILE"]);
+  assert.match(signed.message, /not signed by the key in ZECEIPT_ZKOOL_PUBLIC_KEY_FILE/);
+  assert.ok(!signed.message.includes(foreign.split(".")[2]), "never the token");
+  const keyFile = (text: string) => {
+    const p = join(dir, `key-${Math.random().toString(36).slice(2)}.pem`);
+    writeFileSync(p, text);
+    return p;
+  };
+  for (const [name, file, re] of [
+    ["missing", join(dir, "no-such.pub"), /cannot be read \(ENOENT\)/],
+    ["not PEM", keyFile("hello"), /does not hold a public key in PEM/],
+    ["a private key", keyFile(ZKOOL_PRIVATE_PEM), /never the private key/],
+    ["a P-384 key", keyFile(freshKey("secp384r1").publicKey), /EC P-256 public key/],
+  ] as const) {
+    const r = refusedOn({ ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: file });
+    assert.deepEqual(r.variables, ["ZECEIPT_ZKOOL_PUBLIC_KEY_FILE"], name);
+    assert.match(r.message, re, name);
+  }
 });
 
 test("the client sends the token as a bearer header; without one, or with a bad one, Zkool's filter refuses (ZkoolAuthError); another account's token is Unauthorized", async () => {

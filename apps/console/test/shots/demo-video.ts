@@ -37,6 +37,7 @@ const ISSUER = Number(process.env.ZKOOL_ISSUER ?? 9);
 // harness, which creates and reads the recipients' accounts, an admin token. Paths only: never printed.
 const ZKOOL_TOKEN_FILE = process.env.ZKOOL_TOKEN_FILE ?? join(ARTIFACT_DIR, `zkool-jwt/account-${ISSUER}.jwt`);
 const ZKOOL_ADMIN_TOKEN_FILE = process.env.ZKOOL_ADMIN_TOKEN_FILE ?? join(ARTIFACT_DIR, "zkool-jwt/admin.jwt");
+const ZKOOL_PUBLIC_KEY_FILE = process.env.ZKOOL_PUBLIC_KEY_FILE ?? join(ARTIFACT_DIR, "zkool-jwt/zkool-jwt.pub");
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/release/zeceipt");
 const SIZE = { width: 1280, height: 800 };
 const HOLD = 1500; // ms after each visible change, so a viewer can read it
@@ -84,7 +85,7 @@ const s = await start({
   // The rate is Kraken's live ZEC/USD bid, the console's default source (review L2 round 1: a made-up rate must never
   // be shown as Kraken's). Node reaches it through the environment's proxy; local services bypass it.
   NODE_USE_ENV_PROXY: "1", NO_PROXY: "127.0.0.1,localhost",
-  ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: ZKOOL, ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER), ZECEIPT_ZKOOL_TOKEN_FILE: ZKOOL_TOKEN_FILE, ZECEIPT_DB_PATH: join(dir, "console.db"),
+  ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: ZKOOL, ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER), ZECEIPT_ZKOOL_TOKEN_FILE: ZKOOL_TOKEN_FILE, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: ZKOOL_PUBLIC_KEY_FILE, ZECEIPT_DB_PATH: join(dir, "console.db"),
   ZECEIPT_ORG_ID: "demo", ZECEIPT_NETWORK: "regtest", ZECEIPT_CONFIRMATIONS: "2", ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
   ZECEIPT_WRAP_KEYS: `k1:${WRAP.toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: ZAINO, ZECEIPT_BIN: BIN,
   ZECEIPT_UFVK_FILE: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), ZECEIPT_ISSUER_KEY_FILE: join(ARTIFACT_DIR, "issuer.key"), ZECEIPT_ISSUER_KEY_ID: "2026-09",

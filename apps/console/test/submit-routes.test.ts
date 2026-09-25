@@ -20,7 +20,7 @@ import * as submitRoute from "../app/api/batches/[id]/submit/route.ts";
 import * as statusRoute from "../app/api/batches/[id]/status/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
 import { approve } from "./helpers/approve.ts";
-import { ZKOOL_PUBLIC_PEM, zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { ZKOOL_PUBLIC_PEM, zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -79,7 +79,7 @@ function boot(extra: Record<string, string | undefined> = {}) {
   const env: Record<string, string | undefined> = {
     ZECEIPT_CUSTODY_MODE: "hot",
     ZECEIPT_ZKOOL_URL: fake.url,
-    ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9),
+    ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(),
     ZECEIPT_DB_PATH: join(dir, `ctx-${extra.ZECEIPT_CUSTODY_MODE ?? "hot"}.db`),
     ZECEIPT_ORG_ID: "demo-org",
     ZECEIPT_NETWORK: "regtest",
@@ -343,7 +343,7 @@ test("an unrecognised failure after the backend was reached is indeterminate (50
 });
 
 test("external custody: no backend; submit and status answer 409 custody_external", async () => {
-  const ctx = boot({ ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined });
+  const ctx = boot({ ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined });
   assert.equal(ctx.backend, undefined);
   const b = await createDraft(undefined, { approve: false }); // external custody takes no approvals (approve-routes)
   for (const r of [await read(await submit(b.id!, { confirmTotalZat: "3500" })), await status(b.id!)]) {

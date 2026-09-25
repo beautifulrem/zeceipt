@@ -9,11 +9,11 @@ import { Keyring } from "../crypto/seal.ts";
 import { SecretBytes } from "../crypto/secret.ts";
 import { LOOPBACK_HOSTS } from "../execution/zkool-client.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
-import { readZkoolToken, ZkoolTokenError } from "../execution/zkool-token.ts";
+import { readZkoolPublicKey, readZkoolToken, verifyZkoolToken, ZkoolTokenError } from "../execution/zkool-token.ts";
 import { DEFAULT_MAX_DRIFT_BPS } from "../rates/drift.ts";
 import { KRAKEN_TICKER_URL } from "../rates/kraken.ts";
 
-export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean; tokenFile: string } } | { mode: "external" };
+export type CustodyConfig = { mode: "hot"; zkool: { url: string; account: number; allowRemote: boolean; tokenFile: string; publicKeyFile: string } } | { mode: "external" };
 
 export interface ConsoleConfig {
   custody: CustodyConfig;
@@ -59,6 +59,7 @@ const KNOWN = [
   "ZKOOL_ACCOUNT",
   "ZKOOL_ALLOW_REMOTE",
   "ZKOOL_TOKEN_FILE",
+  "ZKOOL_PUBLIC_KEY_FILE",
   "DB_PATH",
   "ORG_ID",
   "NETWORK",
@@ -149,14 +150,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     // Zkool listens on every interface and serves anyone unless started with --jwt-public-key-file (slice S3, R97): the
     // console holds a token scoped to its account; the file's contents are checked at boot (lib/execution/zkool-token.ts).
     const tokenFile = field("ZKOOL_TOKEN_FILE", absPath, "must be the absolute path of the Zkool token file for this account (required in hot custody; mint it with scripts/zkool-token.ts)");
+    // The public key Zkool was started with (--jwt-public-key-file; not secret): the token's signature is checked at
+    // boot as Zkool checks it, so a token minted with another key fails here, not at the first payment (slice S3c).
+    const publicKeyFile = field("ZKOOL_PUBLIC_KEY_FILE", absPath, "must be the absolute path of the EC P-256 public key Zkool was started with (--jwt-public-key-file; required in hot custody)");
     // Zkool speaks plain HTTP, so its token crosses the wire readable: a non-loopback endpoint needs the explicit
     // opt-in (ZkoolClient enforces the same rule; checking here puts it in the one startup report).
     if (url !== undefined && allowRemote === false && !LOOPBACK_HOSTS.has(new URL(url).hostname)) {
       problems.push({ variable: `${P}ZKOOL_URL`, message: "is not a loopback address; set ZECEIPT_ZKOOL_ALLOW_REMOTE=true to allow a remote Zkool deliberately" });
-    } else if (url !== undefined && account !== undefined && allowRemote !== undefined && tokenFile !== undefined) custody = { mode: "hot", zkool: { url, account, allowRemote, tokenFile } };
+    } else if (url !== undefined && account !== undefined && allowRemote !== undefined && tokenFile !== undefined && publicKeyFile !== undefined) custody = { mode: "hot", zkool: { url, account, allowRemote, tokenFile, publicKeyFile } };
   } else if (mode === "external") {
     // REQ-CON-17: with an external signer the app holds a viewing key only; any hot-wallet endpoint is a misconfiguration.
-    for (const k of ["ZKOOL_URL", "ZKOOL_ACCOUNT", "ZKOOL_ALLOW_REMOTE", "ZKOOL_TOKEN_FILE"]) {
+    for (const k of ["ZKOOL_URL", "ZKOOL_ACCOUNT", "ZKOOL_ALLOW_REMOTE", "ZKOOL_TOKEN_FILE", "ZKOOL_PUBLIC_KEY_FILE"]) {
       if (get(k) !== undefined) problems.push({ variable: P + k, message: "must not be set in external custody (no hot wallet)" });
     }
     custody = { mode: "external" };
@@ -246,8 +250,19 @@ function parseWrapKeys(raw: string | undefined, problems: ConfigProblem[]): Cons
  */
 export function loadZkoolToken(c: ConsoleConfig, now = new Date()): { token: string; expiresAt: Date } | undefined {
   if (c.custody.mode !== "hot") return undefined;
+  let publicKeyPem: string;
   try {
-    return readZkoolToken(c.custody.zkool.tokenFile, c.custody.zkool.account, now);
+    publicKeyPem = readZkoolPublicKey(c.custody.zkool.publicKeyFile);
+  } catch (e) {
+    if (e instanceof ZkoolTokenError) throw new ConfigError([{ variable: `${P}ZKOOL_PUBLIC_KEY_FILE`, message: e.message }]);
+    throw e;
+  }
+  try {
+    const read = readZkoolToken(c.custody.zkool.tokenFile, c.custody.zkool.account, now);
+    if (!verifyZkoolToken(read.token, publicKeyPem, now)) {
+      throw new ZkoolTokenError(`holds a token not signed by the key in ${P}ZKOOL_PUBLIC_KEY_FILE (a token minted for another Zkool, or before its key changed?)`);
+    }
+    return read;
   } catch (e) {
     if (e instanceof ZkoolTokenError) throw new ConfigError([{ variable: `${P}ZKOOL_TOKEN_FILE`, message: e.message }]);
     throw e;
@@ -257,7 +272,7 @@ export function loadZkoolToken(c: ConsoleConfig, now = new Date()): { token: str
 /** Safe to log: no key material, no secrets; file paths and endpoints are not secret. */
 export function configSummary(c: ConsoleConfig): Record<string, unknown> {
   return {
-    custody: c.custody.mode === "hot" ? { mode: "hot", zkoolUrl: c.custody.zkool.url, account: c.custody.zkool.account, allowRemote: c.custody.zkool.allowRemote, tokenFile: c.custody.zkool.tokenFile } : { mode: "external" },
+    custody: c.custody.mode === "hot" ? { mode: "hot", zkoolUrl: c.custody.zkool.url, account: c.custody.zkool.account, allowRemote: c.custody.zkool.allowRemote, tokenFile: c.custody.zkool.tokenFile, publicKeyFile: c.custody.zkool.publicKeyFile } : { mode: "external" },
     dbPath: c.dbPath,
     orgId: c.orgId,
     network: c.network,

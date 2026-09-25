@@ -9,7 +9,7 @@ import { abridgeId, centsText, rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress,
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
-import { zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const STATES: BatchState[] = ["draft", "approved", "submitting", "retryable", "needs_attention", "pending", "confirming", "confirmed", "receipts_partial", "receipts_issued", "expired"];
 const NEXTS: NextAction[] = ["approve", "submit", "wait", "issue_receipts", "resend_expired", "record_expiry", "investigate", "none"];
@@ -127,7 +127,7 @@ test("payment mode: custody apart from the lifecycle, in words; nothing secret",
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
     ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
   };
-  const hot = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql", ZECEIPT_ZKOOL_ACCOUNT: "4", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(4) }));
+  const hot = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql", ZECEIPT_ZKOOL_ACCOUNT: "4", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(4), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile() }));
   assert.deepEqual(hot, { custody: "Hot wallet: the seed lives only in Zkool; this console holds a viewing key", wallet: "Zkool, account 4", network: "Regtest (local test chain)", confirmations: "3 confirmations before receipts" });
   const ext = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "external" }));
   assert.match(ext.custody, /never pays/);

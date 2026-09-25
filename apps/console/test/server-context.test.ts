@@ -21,7 +21,7 @@ import {
   type ServerContext,
 } from "../lib/index.ts";
 import { HEALTH_CONTENT_TYPE, healthResponse } from "../lib/server/health.ts";
-import { zkoolTokenFile } from "./helpers/zkool-token.ts";
+import { zkoolPublicKeyFile, zkoolTokenFile } from "./helpers/zkool-token.ts";
 
 const KEY = Buffer.alloc(32, 0x5c);
 const KEY_B64 = KEY.toString("base64");
@@ -29,7 +29,7 @@ const dir = mkdtempSync(join(tmpdir(), "zeceipt-ctx-"));
 const env = (name: string, extra: Record<string, string | undefined> = {}): Record<string, string | undefined> => ({
   ZECEIPT_CUSTODY_MODE: "hot",
   ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql",
-  ZECEIPT_ZKOOL_ACCOUNT: "1", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(1),
+  ZECEIPT_ZKOOL_ACCOUNT: "1", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(1), ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: zkoolPublicKeyFile(),
   ZECEIPT_DB_PATH: join(dir, `${name}.db`),
   ZECEIPT_ORG_ID: "demo-org",
   ZECEIPT_NETWORK: "regtest",

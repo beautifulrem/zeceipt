@@ -35,6 +35,7 @@ const ISSUER = Number(process.env.ZKOOL_ISSUER ?? 9);
 // harness, which creates and reads the recipients' accounts, an admin token. Paths only: never printed.
 const ZKOOL_TOKEN_FILE = process.env.ZKOOL_TOKEN_FILE ?? join(ARTIFACT_DIR, `zkool-jwt/account-${ISSUER}.jwt`);
 const ZKOOL_ADMIN_TOKEN_FILE = process.env.ZKOOL_ADMIN_TOKEN_FILE ?? join(ARTIFACT_DIR, "zkool-jwt/admin.jwt");
+const ZKOOL_PUBLIC_KEY_FILE = process.env.ZKOOL_PUBLIC_KEY_FILE ?? join(ARTIFACT_DIR, "zkool-jwt/zkool-jwt.pub");
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/release/zeceipt");
 
 async function zkool<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
@@ -104,7 +105,7 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     ...baseEnv(),
     ZECEIPT_CUSTODY_MODE: "hot",
     ZECEIPT_ZKOOL_URL: ZKOOL,
-    ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER), ZECEIPT_ZKOOL_TOKEN_FILE: ZKOOL_TOKEN_FILE,
+    ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER), ZECEIPT_ZKOOL_TOKEN_FILE: ZKOOL_TOKEN_FILE, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: ZKOOL_PUBLIC_KEY_FILE,
     ZECEIPT_DB_PATH: join(dir, "console.db"),
     ZECEIPT_ORG_ID: "regtest-demo",
     ZECEIPT_NETWORK: "regtest",
