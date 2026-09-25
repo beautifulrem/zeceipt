@@ -753,7 +753,7 @@ What the log shows:
 - **Approval and the audit trail on the live chain (slices I3, I4; 2026-09-25).** Run `console-http-e2e-20260925134853.json` (tx `16532b36…0c88`):
   - the rate was locked with the page's form at 1600.00 from the run's local fake ticker (deterministic, offline; since slice N1 the page names such a quote by its host, never as Kraken's);
   - the batch was approved with the page's Approve form at lock 1, and the status became `approved` before Pay;
-  - the Pay form was posted twice: paid at height 48056, confirmed (2) at 48059, the only issuer transaction since the pre-pay height, with the mempool empty;
+  - the Pay form was posted twice: broadcast at tip 48056, mined at 48058, confirmed (2) at tip 48059 (the heights are the chain tip when the status was read, except "mined"); the only issuer transaction since the pre-pay height, with the mempool empty;
   - `GET /api/batches/{id}/history` held exactly `created, locked, approved, quoted, attempt_submitting, attempt_broadcast, expiry_recorded, receipt_issued ×3`: the approval at lock 1, the guard's execution quote, one attempt for two posts of the Pay form (the second replayed the record and changed nothing the trail tracks), the broadcast event naming the transaction, and one receipt event per line (outputs 3, 2, 1), each naming the transaction;
   - three receipts verified by the CLI with the issuer's signature required, and three receipt pages VALID in Chrome with no request carrying a receipt.
 
