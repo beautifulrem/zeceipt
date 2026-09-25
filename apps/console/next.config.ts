@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { MAX_BODY_BYTES } from "./lib/http/body.ts";
+import { BASE_POLICY } from "./lib/http/csp.ts";
 
 /**
  * Sent on every response (slice S4, R98). A framed console page posts same-origin, so the request guard cannot
@@ -8,7 +9,8 @@ import { MAX_BODY_BYTES } from "./lib/http/body.ts";
  * (a `script-src` needs nonces). No `Referer` carries a console URL out.
  */
 export const SECURITY_HEADERS = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+  // Pages (through proxy.ts) send BASE_POLICY plus a per-response script-src (slice S4b).
+  { key: "Content-Security-Policy", value: BASE_POLICY },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "no-referrer" },

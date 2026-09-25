@@ -80,7 +80,7 @@ Six criteria (rules §8) `[R1]`:
 
 | Criterion | Where it is answered |
 |---|---|
-| Functionality — how well it works, code quality | 449 tests (47 Rust, 402 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow, implementation review 100/100 (journal) |
+| Functionality — how well it works, code quality | 450 tests (47 Rust, 403 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow, implementation review 100/100 (journal) |
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
 | Novelty | first per-output receipts on Ironwood; format + vectors; `docs/PRIOR_ART.md` states exactly what is new vs Glasspane/ZIP 311 |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4) |

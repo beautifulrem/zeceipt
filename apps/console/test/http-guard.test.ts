@@ -71,6 +71,13 @@ test("proxy.ts: pages and static files pass through it; /api/ is outside it (rou
   for (const url of ["/api/health", "/api/batches", "/api/batches/x", "/api/batches/x/submit"]) {
     assert.equal(unstable_doesMiddlewareMatch({ config: mod.config, url }), false, url);
   }
-  assert.equal(mod.proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "127.0.0.1:3000" } })), undefined);
+  // An allowed page request goes on, with this response's script policy (slice S4b): on the response, and on the
+  // request Next renders from (where it reads the nonce).
+  const passed = mod.proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "127.0.0.1:3000" } }));
+  assert.notEqual(passed.status, 403);
+  assert.equal(passed.headers.get("x-middleware-next"), "1", "the request continues to the page");
+  const csp = passed.headers.get("content-security-policy") ?? "";
+  assert.match(csp, /^frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'nonce-[A-Za-z0-9+/]{22}==' 'strict-dynamic'$/);
+  assert.equal(passed.headers.get("x-middleware-request-content-security-policy"), csp, "Next renders with the same nonce");
   assert.equal(mod.proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "evil.example" } }))?.status, 403);
 });

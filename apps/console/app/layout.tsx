@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import "./globals.css";
 
 export const metadata = { title: "Zeceipt payout console" };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Every page renders per request, so each gets its own script nonce (slice S4b; /_not-found was static before).
+  await connection();
   return (
     <html lang="en">
       <body className="bg-white text-slate-900 antialiased">

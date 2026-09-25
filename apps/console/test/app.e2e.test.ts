@@ -1058,7 +1058,15 @@ test("no response can be framed: security headers on pages, API, static files, 4
       ["404", await raw(s.port, "GET", "/no-such-page", { host: self })],
     ];
     for (const [name, r] of responses) {
-      for (const { key, value } of SECURITY_HEADERS) assert.equal(r.headers[key.toLowerCase()], value, `${name}: ${key} (status ${r.status})`);
+      // Responses through proxy.ts (pages, static files, 404s) carry S4's policy plus a per-response script-src (S4b);
+      // API responses carry S4's policy as next.config sends it.
+      const viaProxy = !/^(health|API)/.test(name);
+      for (const { key, value } of SECURITY_HEADERS) {
+        const got = String(r.headers[key.toLowerCase()]);
+        if (key === "Content-Security-Policy" && viaProxy) {
+          assert.ok(got.startsWith(`${value}; script-src 'self' 'nonce-`) && got.endsWith("' 'strict-dynamic'"), `${name}: ${key} (status ${r.status}): ${got}`);
+        } else assert.equal(got, value, `${name}: ${key} (status ${r.status})`);
+      }
     }
     assert.deepEqual(responses.map(([, r]) => r.status), [200, 200, 200, 200, 403, 200, 404]);
 
@@ -1085,5 +1093,54 @@ test("no response can be framed: security headers on pages, API, static files, 4
     s.child.kill("SIGTERM");
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     await fake.stop();
+  }
+});
+
+// Slice S4b (R103): pages run only the scripts Next rendered for that response.
+test("pages run only their own scripts: a fresh nonce per response on every script tag, the JavaScript draft form works with no violation, an injected script is blocked (slice S4b)", { skip: !BROWSER }, async () => {
+  const s = await start(demoEnv("nonce", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined }));
+  const { chromium } = await import("playwright-core");
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const nonces: string[] = [];
+    for (const path of ["/", "/", "/batches/new", "/no-such-page"]) {
+      const r = await raw(s.port, "GET", path, { host: self });
+      const csp = String(r.headers["content-security-policy"] ?? "");
+      const nonce = /script-src 'self' 'nonce-([A-Za-z0-9+/=]+)' 'strict-dynamic'/.exec(csp)?.[1];
+      assert.ok(nonce, `${path}: a script policy with a nonce: ${csp}`);
+      assert.match(csp, /frame-ancestors 'none'/, `${path}: S4's policy still applies`);
+      assert.doesNotMatch(csp, /unsafe-eval|unsafe-inline/, `${path}: nothing unsafe under next start`);
+      const tags = [...r.body.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]);
+      assert.ok(tags.length > 0, `${path}: the page has scripts`);
+      for (const t of tags) assert.ok(t.includes(`nonce="${nonce}"`), `${path}: every script tag carries this response's nonce: ${t.slice(0, 120)}`);
+      nonces.push(nonce!);
+    }
+    assert.equal(new Set(nonces).size, nonces.length, "a fresh nonce for every response");
+
+    const page = await browser.newPage();
+    await page.addInitScript(() => {
+      (window as unknown as { __csp: string[] }).__csp = [];
+      document.addEventListener("securitypolicyviolation", (e) => (window as unknown as { __csp: string[] }).__csp.push(`${e.violatedDirective} ${e.blockedURI}`));
+    });
+    await page.goto(`http://${self}/batches/new`, { waitUntil: "networkidle" });
+    // The client-side form works: removing a line is JavaScript.
+    await page.getByLabel("Line 1 Payee").fill("Alice");
+    await page.getByLabel("Line 2 Payee").fill("Bob");
+    await page.getByRole("button", { name: "Remove line 1" }).click();
+    assert.equal(await page.getByLabel("Line 1 Payee").inputValue(), "Bob", "hydrated: the form's JavaScript runs");
+    assert.deepEqual(await page.evaluate(() => (window as unknown as { __csp: string[] }).__csp), [], "no violation from the console's own scripts");
+    // Markup injected into the page (what an XSS would do) cannot run script: an inline handler has no nonce. The
+    // handler runs in the page's own context; page.evaluate itself goes through DevTools, which CSP does not govern,
+    // so a script created directly by evaluate would prove nothing.
+    await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", '<img src="data:," onerror="window.__injected = true">'));
+    await page.waitForFunction(() => (window as unknown as { __csp: string[] }).__csp.some((v) => v.startsWith("script-src")));
+    assert.equal(await page.evaluate(() => (window as unknown as { __injected?: boolean }).__injected === true), false, "an injected inline handler is blocked");
+    assertNoKey(s.output());
+  } finally {
+    await browser.close();
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   }
 });
