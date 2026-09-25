@@ -1,5 +1,6 @@
 // PayoutBackend for Zkool GraphQL (primary execution backend, REQ-CON-7; measured in PROOF §5b/§5c).
 
+import { orchardReceiverHex } from "./address.ts";
 import { estimateIronwoodFeeZat } from "./fee.ts";
 import { batchDigest, type Expect, type IdempotencyStore, type SubmissionRecord, type SubmissionState } from "./idempotency.ts";
 import { decimalToZat } from "./money.ts";
@@ -423,9 +424,20 @@ export class ZkoolBackend implements PayoutBackend {
   }
 }
 
+/**
+ * Does a mined transaction pay every item: an output to the item's Orchard receiver, with its memo and value? Receivers,
+ * not address strings (review S5 round 1): Zkool stores each output it recovers with the OVK as an Orchard-only unified
+ * address rebuilt from the note (zkool2 `memo.rs`, `UnifiedAddress::from_receivers(Some(address), None, None)`), not the
+ * recipient's address, so a recipient whose address also holds a Sapling or transparent receiver never matched by
+ * string, and a mined payment went unseen. The console's "same place" rule (slices H1, H6) is the Orchard receiver.
+ */
 function paysEveryItem(tx: ZkoolTx, batch: Batch): boolean {
   if (!(tx.height > 0)) return false;
-  return batch.items.every((it) => tx.outputs.some((o) => o.address === it.address && o.memo === it.memo && safeZat(o.value) === it.zat));
+  const receiver = (a: string | null) => (a === null ? undefined : orchardReceiverHex(a, batch.network));
+  return batch.items.every((it) => {
+    const want = receiver(it.address);
+    return want !== undefined && tx.outputs.some((o) => receiver(o.address) === want && o.memo === it.memo && safeZat(o.value) === it.zat);
+  });
 }
 
 function safeZat(v: string): bigint | null {

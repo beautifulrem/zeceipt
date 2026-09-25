@@ -22,7 +22,9 @@ import {
   isPreBuildRefusal,
   type Batch,
 } from "../lib/index.ts";
-import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { orchardReceiverHex } from "../lib/execution/address.ts";
+import { FakeZkool, zkoolStoredAddress } from "./helpers/fake-zkool.ts";
+import { item, ua } from "./helpers/ua-encoder.ts";
 
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -672,4 +674,58 @@ test("a transaction paying only some lines, or the same memos to another address
   const r = await backend().submit(b, "n-s5-partial");
   assert.equal(r.via, "fresh");
   assert.equal(fake.payCalls, calls + 1, "paid once");
+});
+
+// Review S5 round 1: Zkool reports a recovered output's address as an Orchard-only UA rebuilt from the note, so a
+// recipient whose UA also holds a Sapling (or transparent) receiver — what most wallets hand out — never matched by
+// string. Matching is by Orchard receiver; the fake now reports what Zkool reports.
+const withSapling = (address: string) => {
+  const orchard = Buffer.from(orchardReceiverHex(address, "regtest")!, "hex");
+  return ua("uregtest", [item(0x02, 43, 5), [0x03, orchard.length, ...orchard]]);
+};
+const mrBatch = (id: string): Batch => ({ ...batch(id), items: batch(id).items.map((i) => ({ ...i, address: withSapling(i.address) })) });
+
+test("multi-receiver recipients: the fake reports Zkool's Orchard-only form, and the addresses differ as strings (the precondition)", () => {
+  const b = mrBatch("mr-pre");
+  for (const it of b.items) {
+    assert.notEqual(zkoolStoredAddress(it.address), it.address);
+    assert.equal(orchardReceiverHex(zkoolStoredAddress(it.address), "regtest"), orchardReceiverHex(it.address, "regtest"));
+  }
+});
+
+test("multi-receiver recipients: a restored database and an edited record adopt the mined payment; nothing is paid twice (review S5 round 1)", async () => {
+  const b = mrBatch("mr-restore");
+  const paid = await backend().submit(b, "n-mr-restore");
+  fake.mine();
+  const calls = fake.payCalls;
+  assert.deepEqual(await backend().submit(b, "n-mr-restore"), { txid: paid.txid, replayed: true, via: "reconciled" }, "restored store");
+  const be = backend();
+  await be.submit(b, "n-mr-restore");
+  const rec = (await be.store.get("n-mr-restore"))!;
+  await be.store.update({ ...rec, state: "failed_retryable", txid: undefined, broadcastAt: undefined }, { attempts: rec.attempts, states: ["broadcast"] });
+  assert.deepEqual(await be.submit(b, "n-mr-restore"), { txid: paid.txid, replayed: true, via: "reconciled" }, "edited record");
+  assert.equal(fake.payCalls, calls, "no second pay call");
+});
+
+test("multi-receiver recipients: two mined payments are ambiguous; nothing is paid (review S5 round 1)", async () => {
+  const b = mrBatch("mr-twice");
+  const recipients = b.items.map((i) => ({ address: i.address, amount: `${i.zat / 100_000_000n}.${(i.zat % 100_000_000n).toString().padStart(8, "0")}`, memo: i.memo }));
+  fake.mined.push({ txid: "e".repeat(64), height: fake.height, expiry: fake.height + 40, recipients }, { txid: "f".repeat(64), height: fake.height, expiry: fake.height + 40, recipients });
+  const calls = fake.payCalls;
+  await assert.rejects(backend().submit(b, "n-mr-twice"), (e: { code?: string }) => e.code === "already_paid_ambiguous");
+  assert.equal(fake.payCalls, calls);
+});
+
+test("multi-receiver recipients: an uncertain outcome that was mined is found, before and after its expiry bound; never paid again (review S5 round 1)", async () => {
+  for (const [name, extra] of [["mined, just after", 0], ["mined, scanned past the expiry bound", 60]] as const) {
+    const b = mrBatch(`mr-uncertain-${extra}`);
+    const be = backend();
+    fake.nextPay = "drop-after-broadcast";
+    await assert.rejects(be.submit(b, `n-mr-uncertain-${extra}`), UnknownOutcomeError, name);
+    fake.mine(extra);
+    const calls = fake.payCalls;
+    const r = await be.submit(b, `n-mr-uncertain-${extra}`);
+    assert.deepEqual([r.replayed, r.via], [true, "reconciled"], name);
+    assert.equal(fake.payCalls, calls, `${name}: never paid again`);
+  }
 });

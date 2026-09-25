@@ -779,6 +779,21 @@ Then the same run as §5d, through the console with `ZECEIPT_ZKOOL_TOKEN_FILE` (
 
 The library test (§5c) passed the same way, paying with the issuer's scoped token (`test/regtest.e2e.test.ts`).
 
+## 5f. regtest — a database that forgot a payment, and recipients with more than one receiver (2026-09-26, slice S5)
+
+**The defect review S5 round 1 found.** The console matched a mined payment to its batch by address *string*. Zkool reports each output it recovers with the OVK as an Orchard-only unified address rebuilt from the note (zkool2 `memo.rs`: `UnifiedAddress::from_receivers(Some(address), None, None)`), not the address that was paid. So for a recipient whose address also holds a Sapling or transparent receiver, a mined payment never matched. The same matching drives the reconciliation after an unknown outcome. **Every version before this fix could therefore pay such a batch a second time once the attempt's expiry bound passed.** All earlier live runs used Zkool's own Ironwood-only accounts, whose address *is* the Orchard-only form, and the fake Zkool echoed the paid string, so nothing showed.
+
+**The fix.** Payments are matched by Orchard receiver, the console's "same place" rule from H1 and H6. The fake now reports what Zkool reports.
+
+**The live run.** `ZECEIPT_REGTEST=1 node --test test/regtest.http.e2e.test.ts` wrote `raw/tools/regtest/console-http-e2e-20260925175359.json`:
+- the first recipient is a Zkool account with pools 10, whose address holds Sapling and Orchard-typecode receivers (asserted);
+- the batch was paid, tx `0179c497…9e03`, confirmed at 50855;
+- receipts were issued and verified;
+- then the run's database was set back to "unpaid" by hand, as a backup restored from before the payment would be, and Pay was asked again through the API: 202, `replayed: true`, `via: "reconciled"`, the same txid;
+- the issuer's transactions since the pre-pay height: exactly that one; the mempool: empty.
+
+**The negative control, live.** The same run with the old string match (reverted for one run, then restored): the "restored" Pay made a **second payment**. The test failed with `f90b5285…` sent as `fresh` next to the batch's `c0dc96d5…`. That batch was paid twice on regtest, which is the defect this section records.
+
 ## 6. testnet — placeholder
 
 To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.

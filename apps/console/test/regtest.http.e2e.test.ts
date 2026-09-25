@@ -21,7 +21,8 @@ import { join, resolve } from "node:path";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
 import http from "node:http";
 import { serveStatic } from "./helpers/static-site.ts";
-import { decimalToZat } from "../lib/index.ts";
+import Database from "better-sqlite3";
+import { checkUnifiedAddress, decimalToZat } from "../lib/index.ts";
 
 const ENABLED = process.env.ZECEIPT_REGTEST === "1";
 const ROOT = resolve(APP, "../..");
@@ -73,17 +74,21 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
   assert.deepEqual([bare.status, await bare.text()], [500, "Unhandled rejection: AuthError"], "Zkool must be started with --jwt-public-key-file (REGTEST_RUNBOOK)");
   step("zkool_refuses_no_token", { status: bare.status });
 
-  // Fresh recipients (Ironwood only), as in PROOF §5c.
+  // Fresh recipients, as in PROOF §5c. The first holds a Sapling and an Ironwood receiver (pools 10), as most wallets'
+  // addresses hold more than one: Zkool reports a sent output as an Orchard-only address rebuilt from the note, so the
+  // console must match payments by receiver, never by string (review S5 round 1).
   const birth = await zebraHeight();
   const recipients: { id: number; ua: string }[] = [];
   for (let i = 0; i < 3; i++) {
     const { createAccount: id } = await zkool<{ createAccount: number }>("mutation($new: NewAccount!) { createAccount(newAccount: $new) }", {
-      new: { name: `http-${stamp}-${i + 1}`, key: "", passphrase: "", aindex: 0, birth, pools: 8, useInternal: false },
+      new: { name: `http-${stamp}-${i + 1}`, key: "", passphrase: "", aindex: 0, birth, pools: i === 0 ? 10 : 8, useInternal: false },
     });
     const { addressByAccount } = await zkool<{ addressByAccount: { ua: string } }>("query($id: Int!) { addressByAccount(idAccount: $id) { ua } }", { id });
     recipients.push({ id, ua: addressByAccount.ua });
   }
-  step("recipients", { accounts: recipients.map((r) => r.id), birth });
+  const firstReceivers = checkUnifiedAddress(recipients[0].ua, "regtest");
+  assert.deepEqual(firstReceivers.ok && firstReceivers.receivers.map((r) => r.typecode), [2, 3], "the first recipient's address holds Sapling and Orchard-typecode receivers");
+  step("recipients", { accounts: recipients.map((r) => r.id), birth, firstRecipientReceivers: ["sapling", "orchard"] });
 
   // A wrap key made for this run, and a database removed afterwards: the run's receipts (bearer OCKs) never
   // outlive it, sealed or not (review E3 round 1).
@@ -278,6 +283,23 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     }
     assert.ok(!site.seen.some((x) => needles.some((n) => x.url.includes(n) || x.headers.includes(n))), "the page's host never saw a receipt");
     step("page", { host: site.base, requestsToHost: site.seen.length, pages });
+
+    // 8. A database that forgot the payment (a backup restored from before it, slice S5): the submission is set back to
+    //    retryable by hand, and Pay is asked again. The wallet's mined history is read first; the transaction pays every
+    //    line by receiver (the first recipient's address holds two), so it is adopted and nothing is paid twice.
+    const edit = new Database(join(dir, "console.db"));
+    try {
+      assert.equal(edit.prepare("UPDATE submissions SET state = 'failed_retryable', txid = NULL, broadcast_at = NULL, expires_by = NULL WHERE batch_id = ?").run(id).changes, 1);
+    } finally {
+      edit.close();
+    }
+    const restored = await raw(s.port, "POST", `/api/batches/${id}/submit`, { host: self, origin: `http://${self}`, "content-type": "application/json" }, JSON.stringify({ confirmTotalZat: batch.totalZat }));
+    const restoredBody = JSON.parse(restored.body) as { txid?: string; replayed?: boolean; via?: string };
+    assert.equal(restored.status, 202, restored.body);
+    assert.deepEqual([restoredBody.txid, restoredBody.replayed, restoredBody.via], [txid, true, "reconciled"], "adopted from the wallet's history");
+    assert.deepEqual((await issuerTxsSince(heightBeforePay)).map((t) => t.txid), [txid], "still exactly one transaction");
+    assert.deepEqual(await zebraRpc<string[]>("getrawmempool"), [], "and nothing waiting to be mined");
+    step("restored_database", { replayed: restoredBody.replayed, via: restoredBody.via, sameTxid: restoredBody.txid === txid, issuerTransactionsSince: 1 });
 
     // Nothing secret was written: not the receipt links, not the wrap key.
     const transcript = JSON.stringify({ version: 1, stamp, zkool: ZKOOL, endpoint: ZAINO, issuerAccount: ISSUER, log }, null, 2);

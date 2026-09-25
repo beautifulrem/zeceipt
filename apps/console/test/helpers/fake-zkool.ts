@@ -7,6 +7,21 @@ import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { verifyZkoolToken, type ZkoolClaims } from "../../lib/execution/zkool-token.ts";
+import { checkUnifiedAddress, TYPECODE } from "../../lib/execution/address.ts";
+import { ua } from "./ua-encoder.ts";
+
+/**
+ * The address Zkool reports for an output it recovered with the OVK: an Orchard-only unified address rebuilt from the
+ * note (zkool2 `memo.rs`: `UnifiedAddress::from_receivers(Some(address), None, None)`), never the address that was
+ * paid (review S5 round 1: the fake used to echo the paid string, which hid a matching bug).
+ */
+export function zkoolStoredAddress(address: string): string {
+  const hrp = address.slice(0, address.lastIndexOf("1"));
+  const network = hrp === "u" ? "main" : hrp === "utest" ? "test" : "regtest";
+  const r = checkUnifiedAddress(address, network);
+  const orchard = r.ok ? r.receivers.find((x) => x.typecode === TYPECODE.orchard) : undefined;
+  return orchard ? ua(hrp, [[TYPECODE.orchard, orchard.data.length, ...orchard.data]]) : address;
+}
 
 export interface FakeTx { txid: string; height: number; expiry: number; recipients: { address: string; amount: string; memo: string }[] }
 
@@ -106,7 +121,7 @@ export class FakeZkool {
                   height: t.height,
                   value: "-0",
                   fee: "0.00020000",
-                  outputs: t.recipients.map((r, i) => ({ pool: 3, vout: i, value: r.amount, address: r.address, memo: r.memo })),
+                  outputs: t.recipients.map((r, i) => ({ pool: 3, vout: i, value: r.amount, address: zkoolStoredAddress(r.address), memo: r.memo })),
                 })),
               },
             });
