@@ -77,7 +77,7 @@ test("proxy.ts: pages and static files pass through it; /api/ is outside it (rou
   assert.notEqual(passed.status, 403);
   assert.equal(passed.headers.get("x-middleware-next"), "1", "the request continues to the page");
   const csp = passed.headers.get("content-security-policy") ?? "";
-  assert.match(csp, /^frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'nonce-[A-Za-z0-9+/]{22}==' 'strict-dynamic'$/);
+  assert.match(csp, /^frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; default-src 'self'; script-src 'self' 'nonce-([A-Za-z0-9+/]{22}==)' 'strict-dynamic'; style-src 'self' 'nonce-\1'; img-src 'self' data:; font-src 'self'; connect-src 'self'$/);
   assert.equal(passed.headers.get("x-middleware-request-content-security-policy"), csp, "Next renders with the same nonce");
   assert.equal(mod.proxy(new Request("http://127.0.0.1:3000/", { headers: { host: "evil.example" } }))?.status, 403);
 });

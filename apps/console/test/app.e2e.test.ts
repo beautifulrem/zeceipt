@@ -1064,7 +1064,7 @@ test("no response can be framed: security headers on pages, API, static files, 4
       for (const { key, value } of SECURITY_HEADERS) {
         const got = String(r.headers[key.toLowerCase()]);
         if (key === "Content-Security-Policy" && viaProxy) {
-          assert.ok(got.startsWith(`${value}; script-src 'self' 'nonce-`) && got.endsWith("' 'strict-dynamic'"), `${name}: ${key} (status ${r.status}): ${got}`);
+          assert.ok(got.startsWith(`${value}; default-src 'self'; script-src 'self' 'nonce-`) && got.endsWith("; connect-src 'self'"), `${name}: ${key} (status ${r.status}): ${got}`);
         } else assert.equal(got, value, `${name}: ${key} (status ${r.status})`);
       }
     }
@@ -1137,6 +1137,61 @@ test("pages run only their own scripts: a fresh nonce per response on every scri
     await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", '<img src="data:," onerror="window.__injected = true">'));
     await page.waitForFunction(() => (window as unknown as { __csp: string[] }).__csp.some((v) => v.startsWith("script-src")));
     assert.equal(await page.evaluate(() => (window as unknown as { __injected?: boolean }).__injected === true), false, "an injected inline handler is blocked");
+    assertNoKey(s.output());
+  } finally {
+    await browser.close();
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
+// Slice S4c: a page loads images, styles, fonts and connections only from the console itself.
+test("pages load only from the console itself: every page renders and works with no violation; injected remote images and stylesheets are blocked (slice S4c)", { skip: !BROWSER }, async () => {
+  const s = await start(demoEnv("tight", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined }));
+  const { chromium } = await import("playwright-core");
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const json = { host: self, origin: `http://${self}`, "content-type": "application/json" };
+    const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    const created = await raw(s.port, "POST", "/api/batches", json, JSON.stringify({ title: "Tight", items: [{ payableId: "T-1", label: "Tess", address: UA, zat: "1000000", memo: "TIGHT-1" }] }));
+    const id = (JSON.parse(created.body) as { id: string }).id;
+    const page = await browser.newPage();
+    // Playwright reports a request when Chrome starts it, before CSP refuses it; what matters is how it ends.
+    const outsideAnswered: string[] = [];
+    const outsideRefused: string[] = [];
+    const isOutside = (u: string) => !u.startsWith(`http://${self}`) && !u.startsWith("data:");
+    page.on("response", (r) => { if (isOutside(r.url())) outsideAnswered.push(r.url()); });
+    page.on("requestfailed", (r) => { if (isOutside(r.url())) outsideRefused.push(`${r.url()} ${r.failure()?.errorText}`); });
+    await page.addInitScript(() => {
+      (window as unknown as { __csp: string[] }).__csp = [];
+      document.addEventListener("securitypolicyviolation", (e) => (window as unknown as { __csp: string[] }).__csp.push(`${e.violatedDirective} ${e.blockedURI}`));
+    });
+    const violations = () => page.evaluate(() => (window as unknown as { __csp: string[] }).__csp);
+    for (const path of ["/", "/recipients", "/payables", "/batches/new", "/batches/from-payables", `/batches/${id}`, `/batches/${id}/void`, "/no-such-page"]) {
+      await page.goto(`http://${self}${path}`, { waitUntil: "networkidle" });
+      assert.deepEqual(await violations(), [], `${path}: no violation`);
+      assert.ok(await page.evaluate(() => getComputedStyle(document.body).backgroundColor !== ""), `${path}: styled`);
+    }
+    // JavaScript still works under the tight policy (the draft form), and a client-side navigation too.
+    await page.goto(`http://${self}/batches/new`, { waitUntil: "networkidle" });
+    await page.getByLabel("Line 1 Payee").fill("Alice");
+    await page.getByLabel("Line 2 Payee").fill("Bob");
+    await page.getByRole("button", { name: "Remove line 1" }).click();
+    assert.equal(await page.getByLabel("Line 1 Payee").inputValue(), "Bob");
+    await page.getByRole("link", { name: "Recipients" }).click();
+    await page.waitForURL(`http://${self}/recipients`);
+    assert.deepEqual(await violations(), [], "no violation after using the form and navigating");
+    // Injected markup cannot load anything from elsewhere.
+    await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", '<img src="https://evil.example/leak.png"><link rel="stylesheet" href="https://evil.example/leak.css">'));
+    await page.waitForFunction(() => (window as unknown as { __csp: string[] }).__csp.length >= 2);
+    const v = await violations();
+    assert.ok(v.some((x) => /^img-src https:\/\/evil\.example\/leak\.png/.test(x)), JSON.stringify(v));
+    assert.ok(v.some((x) => /^style-src-elem https:\/\/evil\.example\/leak\.css/.test(x)), JSON.stringify(v));
+    await page.waitForTimeout(300);
+    assert.deepEqual(outsideAnswered, [], "nothing from outside the console was answered");
+    assert.deepEqual(outsideRefused.sort(), ["https://evil.example/leak.css csp", "https://evil.example/leak.png csp"], "Chrome refused both for the policy (its failure text is \"csp\", measured)");
     assertNoKey(s.output());
   } finally {
     await browser.close();

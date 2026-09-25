@@ -16,7 +16,14 @@ export function newNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-/** A page's whole policy: S4's directives and the script directive. `next dev` alone gets 'unsafe-eval' (fast refresh). */
+/**
+ * A page's whole policy: S4's directives, the script directive (S4b), and everything a page loads coming from the console
+ * itself (S4c): images (and `data:`), styles (the nonced stylesheet), fonts and connections (Server Actions). Injected
+ * markup can then neither run script nor fetch anything from elsewhere. `next dev` alone gets 'unsafe-eval' and inline
+ * styles (fast refresh and its overlay).
+ */
 export function pagePolicy(nonce: string, dev: boolean): string {
-  return `${BASE_POLICY}; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`;
+  const script = `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`;
+  const style = dev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`;
+  return `${BASE_POLICY}; default-src 'self'; ${script}; ${style}; img-src 'self' data:; font-src 'self'; connect-src 'self'`;
 }

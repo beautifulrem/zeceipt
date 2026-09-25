@@ -17,8 +17,8 @@ test("next.config sends the security headers on every path: no framing (CSP and 
 test("page policy (slice S4b): S4's directives plus a script-src with this response's nonce and strict-dynamic; 'unsafe-eval' only under next dev; nonces are fresh", async () => {
   const { BASE_POLICY, newNonce, pagePolicy } = await import("../lib/http/csp.ts");
   assert.equal(BASE_POLICY, SECURITY_HEADERS.find((h) => h.key === "Content-Security-Policy")!.value, "next.config sends the same base");
-  assert.equal(pagePolicy("abc=", false), `${BASE_POLICY}; script-src 'self' 'nonce-abc=' 'strict-dynamic'`);
-  assert.equal(pagePolicy("abc=", true), `${BASE_POLICY}; script-src 'self' 'nonce-abc=' 'strict-dynamic' 'unsafe-eval'`);
+  assert.equal(pagePolicy("abc=", false), `${BASE_POLICY}; default-src 'self'; script-src 'self' 'nonce-abc=' 'strict-dynamic'; style-src 'self' 'nonce-abc='; img-src 'self' data:; font-src 'self'; connect-src 'self'`);
+  assert.equal(pagePolicy("abc=", true), `${BASE_POLICY}; default-src 'self'; script-src 'self' 'nonce-abc=' 'strict-dynamic' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'`);
   const nonces = new Set(Array.from({ length: 1000 }, newNonce));
   assert.equal(nonces.size, 1000);
   for (const n of nonces) assert.match(n, /^[A-Za-z0-9+/]{22}==$/, "128 bits, base64");
