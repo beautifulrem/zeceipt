@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { request as httpRequest } from "node:http";
+import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 
@@ -42,12 +42,12 @@ export async function start(env: Record<string, string>) {
 
 /** A raw HTTP/1.1 request (fetch cannot set Host); a stream body is sent chunked, with no Content-Length. */
 export function raw(port: number, method: string, path: string, headers: Record<string, string>, body?: string | Iterable<Buffer>) {
-  return new Promise<{ status: number; type: string | undefined; location?: string; body: string }>((ok, fail) => {
+  return new Promise<{ status: number; type: string | undefined; location?: string; headers: IncomingHttpHeaders; body: string }>((ok, fail) => {
     const r = httpRequest({ host: "127.0.0.1", port, method, path, headers, timeout: 20_000 }, (res) => {
       let b = "";
       res.setEncoding("utf8");
       res.on("data", (d) => (b += d));
-      res.on("end", () => ok({ status: res.statusCode ?? 0, type: res.headers["content-type"], location: res.headers.location, body: b }));
+      res.on("end", () => ok({ status: res.statusCode ?? 0, type: res.headers["content-type"], location: res.headers.location, headers: res.headers, body: b }));
       res.on("error", fail);
     });
     r.on("error", fail);

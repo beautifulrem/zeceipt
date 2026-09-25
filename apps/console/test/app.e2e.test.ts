@@ -1026,3 +1026,63 @@ test("npm start binds 127.0.0.1 only: healthy on loopback, refused on this machi
     await within(exited, 10_000, "npm start shutdown").catch(() => process.kill(-child.pid!, "SIGKILL"));
   }
 });
+
+// Slice S4 (R98): a framed console page posts same-origin, so the request guard cannot stop clickjacking; every
+// response refuses to be framed (CSP frame-ancestors, and X-Frame-Options for older browsers), then Chrome proves it.
+test("no response can be framed: security headers on pages, API, static files, 404s and refusals; a hostile origin's iframe of a batch page is blocked in Chrome (slice S4)", { skip: !BROWSER }, async () => {
+  const { SECURITY_HEADERS } = await import("../next.config.ts");
+  const fake = (await new FakeZkool().start()).requireTokens(ZKOOL_PUBLIC_PEM);
+  const s = await start(demoEnv("frames", { ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_ZKOOL_TOKEN_FILE: zkoolTokenFile(9) }));
+  const hostile = http.createServer();
+  const { chromium } = await import("playwright-core");
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const created = await raw(s.port, "POST", "/api/batches", { host: self, origin: `http://${self}`, "content-type": "application/json" }, JSON.stringify({ title: "Framed", items: [
+      { payableId: "F-1", label: "Frank", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1000000", memo: "FRAME-1" },
+    ] }));
+    assert.equal(created.status, 201, created.body);
+    const id = (JSON.parse(created.body) as { id: string }).id;
+    const home = await raw(s.port, "GET", "/", { host: self });
+    const asset = /\/_next\/static\/[^"]+\.(?:js|css)/.exec(home.body)?.[0];
+    assert.ok(asset, "a static asset linked from the home page");
+    const responses: [string, Awaited<ReturnType<typeof raw>>][] = [
+      ["page", home],
+      ["batch page", await raw(s.port, "GET", `/batches/${id}`, { host: self })],
+      ["health", await raw(s.port, "GET", "/api/health", { host: self })],
+      ["API read", await raw(s.port, "GET", `/api/batches/${id}`, { host: self })],
+      ["API refusal (cross-site write)", await raw(s.port, "POST", "/api/batches", { host: self, origin: "http://evil.example", "content-type": "application/json" }, "{}")],
+      ["static file", await raw(s.port, "GET", asset!, { host: self })],
+      ["404", await raw(s.port, "GET", "/no-such-page", { host: self })],
+    ];
+    for (const [name, r] of responses) {
+      for (const { key, value } of SECURITY_HEADERS) assert.equal(r.headers[key.toLowerCase()], value, `${name}: ${key} (status ${r.status})`);
+    }
+    assert.deepEqual(responses.map(([, r]) => r.status), [200, 200, 200, 200, 403, 200, 404]);
+
+    // A hostile page on another origin frames the batch page (where Approve and Pay live).
+    hostile.on("request", (_req, res) => res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>win a prize</title><iframe id="f" src="http://${self}/batches/${id}" width="800" height="600"></iframe>`));
+    await new Promise<void>((r) => hostile.listen(0, "localhost", r));
+    const page = await browser.newPage();
+    const refusals: string[] = [];
+    page.on("console", (m) => refusals.push(m.text()));
+    await page.goto(`http://localhost:${(hostile.address() as { port: number }).port}/`, { waitUntil: "load" });
+    await page.waitForTimeout(1_000);
+    const frame = page.frames().find((f) => f !== page.mainFrame());
+    assert.ok(frame, "the iframe exists");
+    assert.ok(!frame!.url().startsWith(`http://${self}`) || (await frame!.content().catch(() => "")).indexOf("Framed") === -1, `the console did not render in the frame (${frame!.url()})`);
+    assert.equal(await frame!.getByRole("button").count().catch(() => 0), 0, "no button to click in the frame");
+    assert.ok(refusals.some((t) => /frame-ancestors|X-Frame-Options/i.test(t)), `Chrome names the refusal: ${JSON.stringify(refusals)}`);
+    // The same page opened directly still works: the headers refuse framing only.
+    await page.goto(`http://${self}/batches/${id}`);
+    await page.getByRole("heading", { name: "Framed" }).waitFor({ timeout: 10_000 });
+    assertNoKey(s.output());
+  } finally {
+    await browser.close();
+    hostile.close();
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+    await fake.stop();
+  }
+});
