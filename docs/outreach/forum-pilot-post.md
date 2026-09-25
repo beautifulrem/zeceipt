@@ -18,6 +18,7 @@ If your team pays contributors in shielded ZEC, you can already keep amounts and
 **It does not prove**:
 - who is showing it: a receipt is a bearer document. For an interactive check, bind a challenge.
 - anything about the transaction's other outputs, or about balances;
+- which organisation holds the signing key, unless the key id names a domain and that domain lists the key when you check it (then it vouches for the key now, not for when the receipt was made);
 - spend authority (full ZIP 311 is a roadmap item).
 
 **What it costs** (the spec's §9): a receipt reveals that output's address, so receipts to the same address are linkable; pay each contributor at a fresh address from their wallet (the console warns before paying an address an earlier receipt disclosed). And disclosure is permanent: a receipt cannot be revoked.
@@ -31,6 +32,7 @@ Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the 
   - a real wallet (zcash-devtool) builds an Ironwood transaction, Zebra mines it and Zaino indexes it;
   - receipts are issued from the sender's UFVK and verified over gRPC and offline;
   - a three-recipient batch paid through Zkool yields exactly one receipt per payment output, with change excluded.
+- **An issuer binding** (spec §7). Give your signing key an id that names your domain, such as `2026-09@pay.example.org`, and serve the small file `zeceipt well-known` prints at `https://<your domain>/.well-known/zeceipt.json`. `zeceipt verify --check-issuer` and the receipt page's "Check with <domain>" then show whether your domain lists the key. The check never changes whether a receipt is valid, and it runs only when asked, because it tells your domain that someone is checking.
 - **A receipt page that sends the receipt nowhere.** The link carries the receipt in the URL fragment, which browsers never send to a server. The page verifies in the browser (WASM), and a Chrome test checks that no request, header or storage entry holds the receipt. To check the chain, it asks a node for the transaction only when you click, and a public node then sees which txid you asked for; a raw-transaction file avoids even that.
 - **A payout console** (Next.js, self-hosted, loopback only):
   - payables in USD, converted at a locked ZEC/USD rate;
@@ -38,11 +40,12 @@ Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the 
   - an approval bound by HMAC to the exact lines, rate and paying account;
   - a rate check before paying;
   - receipts issued automatically after N confirmations;
-  - an append-only history of each batch, recipient and payable.
+  - an append-only history of each batch, recipient and payable;
+  - no double payment after a database restore: before paying, it checks the wallet's own history and adopts a payment already made.
 
-  It drives Zkool: the seed stays in the wallet, and the console holds a viewing key. Shown end to end on regtest.
+  It drives Zkool: the seed stays in the wallet, and the console holds a viewing key and a Zkool token for its own account only. It refuses to pay through a Zkool that answers requests without a token. Shown on regtest end to end: batches made on the form, and batches made from USD payables at Kraken's live rate with receipts issued automatically.
 
-Evidence for each item: `docs/PROOF.md` §1, §2, §2b, §2c, §5, §5b, §5c and §5d [after the push].
+Evidence for each item: `docs/PROOF.md` §1, §2, §2b–§2e, §5 and §5b–§5g [after the push].
 
 ## What does not exist yet
 
