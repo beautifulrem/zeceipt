@@ -9,6 +9,7 @@ import { Keyring } from "../crypto/seal.ts";
 import { SecretBytes } from "../crypto/secret.ts";
 import { LOOPBACK_HOSTS } from "../execution/zkool-client.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
+import { isIssuerKeyId } from "../issuance/key-id.ts";
 import { readZkoolPublicKey, readZkoolToken, verifyZkoolToken, ZkoolTokenError } from "../execution/zkool-token.ts";
 import { DEFAULT_MAX_DRIFT_BPS } from "../rates/drift.ts";
 import { KRAKEN_TICKER_URL } from "../rates/kraken.ts";
@@ -178,7 +179,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const bin = field("BIN", absPath, "must be the absolute path of the zeceipt binary");
   const ufvkFile = field("UFVK_FILE", absPath, "must be the absolute path of the issuer's UFVK file");
   const keyFile = field("ISSUER_KEY_FILE", absPath, "must be the absolute path of the issuer signing key file");
-  const keyId = field("ISSUER_KEY_ID", z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), "must be 1–64 characters of A-Z, a-z, 0-9, ., _ and -");
+  const keyId = field("ISSUER_KEY_ID", z.string().refine(isIssuerKeyId), "must be 1–64 characters of A-Z, a-z, 0-9, ., _ and -, optionally followed by @<domain> (an ASCII lowercase domain whose well-known file binds the key, spec §7)");
   const rateUrl = field("RATE_URL", rateUrlSchema, "must be the https URL of a Kraken-format ZEC/USD ticker (http only on a loopback host), without credentials or fragment", { fallback: KRAKEN_TICKER_URL });
   const rateMaxDriftBps = field("RATE_MAX_DRIFT_BPS", intIn(1, 2000), "must be an integer number of basis points from 1 to 2000 (300 = 3%)", { fallback: DEFAULT_MAX_DRIFT_BPS });
   const receiptHost = field("RECEIPT_HOST", receiptHostUrl, "must be the https URL of the site you control that serves the public receipt page (http only on a loopback host), without credentials, query or fragment");

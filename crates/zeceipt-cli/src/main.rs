@@ -12,7 +12,7 @@ use clap::{Args, Parser, Subcommand};
 use rand::rngs::OsRng;
 use serde_json::json;
 use zeceipt_core::zeceipt_types::ed25519_dalek::SigningKey;
-use zeceipt_core::zeceipt_types::{AuditPack, Network, Receipt, TypesError};
+use zeceipt_core::zeceipt_types::{binding, AuditPack, Network, Receipt, TypesError};
 use zeceipt_core::{CoreError, IssueOptions, OutgoingKeys};
 use zeceipt_lwd::{Client, LwdError};
 
@@ -60,6 +60,23 @@ enum Cmd {
         #[arg(long, default_value = "issuer.key")]
         out: PathBuf,
     },
+    /// Print the well-known file that binds issuer keys to a domain (spec §7). Serve it at
+    /// https://<domain>/.well-known/zeceipt.json; only public keys are written.
+    WellKnown {
+        /// Issuer secret key file from `keygen`; only its public key is printed.
+        #[arg(long)]
+        key_file: PathBuf,
+        /// `<label>@<domain>`: the domain is where the file is served, and receipts signed
+        /// with this key id claim it.
+        #[arg(long)]
+        key_id: String,
+        /// A note shown with the key (for example "retired 2026-12").
+        #[arg(long)]
+        note: Option<String>,
+        /// An existing file to add the key to (same domain; an entry with this key id is replaced).
+        #[arg(long)]
+        merge: Option<PathBuf>,
+    },
     /// List the shielded outputs of a transaction.
     Inspect {
         #[command(flatten)]
@@ -91,7 +108,8 @@ enum Cmd {
         /// Issuer secret key file from `keygen`; receipts are unsigned without it.
         #[arg(long)]
         key_file: Option<PathBuf>,
-        /// Key id published in the issuer's well-known file.
+        /// Key id, signed into each receipt. `<label>@<domain>` claims a domain whose well-known
+        /// file may bind the key (spec §7; see `well-known`).
         #[arg(long)]
         key_id: Option<String>,
         /// Also issue receipts for change outputs (outputs paying one of the issuer's own addresses).
@@ -194,6 +212,49 @@ async fn run() -> anyhow::Result<ExitCode> {
             println!(
                 "{}",
                 json!({"issuer_pubkey": hex::encode(key.verifying_key().to_bytes()), "key_file": out})
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+        Cmd::WellKnown {
+            key_file,
+            key_id,
+            note,
+            merge,
+        } => {
+            let claim = binding::claim(&key_id).ok_or_else(|| {
+                anyhow!(
+                    "--key-id must be <label>@<domain> with an ASCII lowercase domain (spec §7)"
+                )
+            })?;
+            let mut file = match &merge {
+                Some(p) => {
+                    let text = std::fs::read_to_string(p)
+                        .with_context(|| format!("reading --merge {}", p.display()))?;
+                    let f: binding::WellKnownFile =
+                        serde_json::from_str(&text).with_context(|| {
+                            format!("--merge {} is not a zeceipt.json", p.display())
+                        })?;
+                    if f.version != binding::FILE_VERSION {
+                        return Err(anyhow!(
+                            "--merge {}: version is not {}",
+                            p.display(),
+                            binding::FILE_VERSION
+                        ));
+                    }
+                    f
+                }
+                None => binding::WellKnownFile::new(),
+            };
+            let key = read_secret(&key_file)?;
+            file.put(binding::WellKnownKey {
+                key_id,
+                pubkey: hex::encode(key.verifying_key().to_bytes()),
+                note,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&file)?);
+            eprintln!(
+                "serve this at {} over HTTPS, without redirects; send Access-Control-Allow-Origin: * so the receipt page can read it",
+                claim.url()
             );
             Ok(ExitCode::SUCCESS)
         }

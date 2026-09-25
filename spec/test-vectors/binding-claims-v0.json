@@ -1,0 +1,127 @@
+{
+  "cases": [
+    {
+      "claim": {
+        "domain": "pay.example.org",
+        "label": "2026-09",
+        "url": "https://pay.example.org/.well-known/zeceipt.json"
+      },
+      "key_id": "2026-09@pay.example.org",
+      "why": "a claim"
+    },
+    {
+      "claim": {
+        "domain": "sub.pay.example.org",
+        "label": "k.1_a-b",
+        "url": "https://sub.pay.example.org/.well-known/zeceipt.json"
+      },
+      "key_id": "k.1_a-b@sub.pay.example.org",
+      "why": "label characters; a subdomain"
+    },
+    {
+      "claim": {
+        "domain": "xn--bcher-kva.example",
+        "label": "2026-09",
+        "url": "https://xn--bcher-kva.example/.well-known/zeceipt.json"
+      },
+      "key_id": "2026-09@xn--bcher-kva.example",
+      "why": "an internationalised name as its A-label"
+    },
+    {
+      "claim": null,
+      "key_id": "2026-09",
+      "why": "no @: a plain key id, no claim"
+    },
+    {
+      "claim": null,
+      "key_id": "@example.org",
+      "why": "empty label"
+    },
+    {
+      "claim": null,
+      "key_id": "a@b@example.org",
+      "why": "two @"
+    },
+    {
+      "claim": null,
+      "key_id": "a b@example.org",
+      "why": "a space in the label"
+    },
+    {
+      "claim": null,
+      "key_id": "a@Example.org",
+      "why": "an uppercase domain"
+    },
+    {
+      "claim": null,
+      "key_id": "a@localhost",
+      "why": "one label"
+    },
+    {
+      "claim": null,
+      "key_id": "a@example.org:443",
+      "why": "a port"
+    },
+    {
+      "claim": null,
+      "key_id": "a@127.0.0.1",
+      "why": "an IP literal"
+    },
+    {
+      "claim": null,
+      "key_id": "a@-bad.example.org",
+      "why": "a label starting with -"
+    },
+    {
+      "claim": null,
+      "key_id": "a@bad-.example.org",
+      "why": "a label ending with -"
+    },
+    {
+      "claim": null,
+      "key_id": "a@exa_mple.org",
+      "why": "an underscore in the domain"
+    },
+    {
+      "claim": null,
+      "key_id": "a@example..org",
+      "why": "an empty domain label"
+    },
+    {
+      "claim": null,
+      "key_id": "a@example.org.",
+      "why": "a trailing dot"
+    },
+    {
+      "claim": null,
+      "key_id": "a@pаy.example.org",
+      "why": "a Cyrillic а: a lookalike of pay.example.org"
+    },
+    {
+      "claim": null,
+      "key_id": "a@bücher.example",
+      "why": "Unicode: only the xn-- form claims"
+    },
+    {
+      "claim": null,
+      "key_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@example.org",
+      "why": "a 65-character label"
+    },
+    {
+      "claim": {
+        "domain": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddd.example",
+        "label": "a",
+        "url": "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddd.example/.well-known/zeceipt.json"
+      },
+      "key_id": "a@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.ddddddddddddddddddddddddddddddddddddddddddddddddddddd.example",
+      "why": "a 253-character domain (the limit)"
+    },
+    {
+      "claim": null,
+      "key_id": "a@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddd.example",
+      "why": "a 254-character domain"
+    }
+  ],
+  "format": "zeceipt-v0 issuer key-id claims (spec §7)",
+  "note": "claim is null when the key id claims no domain; such a key id is never looked up"
+}

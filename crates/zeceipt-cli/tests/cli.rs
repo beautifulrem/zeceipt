@@ -506,3 +506,80 @@ fn only_to_allow_list_and_ufvk_file() {
     ]);
     assert_eq!(code, 3, "stderr: {err}");
 }
+
+/// `well-known` (spec §7): the file binding a key to the domain its key id claims. Only the public
+/// key is written; a second key for the same domain merges; a key id without a valid ASCII domain,
+/// or a merge across domains, is refused (exit 3).
+#[test]
+fn well_known_prints_the_binding_file() {
+    let dir = std::env::temp_dir().join(format!("zeceipt-wellknown-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let key = dir.join("issuer.key");
+    let (c, o, _) = run(&["keygen", "--out", key.to_str().unwrap()]);
+    assert_eq!(c, 0);
+    let pubkey = serde_json::from_str::<serde_json::Value>(o.trim()).unwrap()["issuer_pubkey"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let secret = std::fs::read_to_string(&key).unwrap();
+
+    let (c, o, err) = run(&[
+        "well-known",
+        "--key-file",
+        key.to_str().unwrap(),
+        "--key-id",
+        "2026-09@pay.example.org",
+    ]);
+    assert_eq!(c, 0, "{err}");
+    assert!(
+        err.contains("https://pay.example.org/.well-known/zeceipt.json"),
+        "{err}"
+    );
+    assert!(
+        !o.contains(secret.trim()) && !err.contains(secret.trim()),
+        "never the secret key"
+    );
+    let file: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    assert_eq!(
+        file,
+        serde_json::json!({"version": "zeceipt-v0", "keys": [{"key_id": "2026-09@pay.example.org", "pubkey": pubkey}]})
+    );
+
+    let first = dir.join("zeceipt.json");
+    std::fs::write(&first, o.trim()).unwrap();
+    let (c, o, err) = run(&[
+        "well-known",
+        "--key-file",
+        key.to_str().unwrap(),
+        "--key-id",
+        "2026-10@pay.example.org",
+        "--note",
+        "current",
+        "--merge",
+        first.to_str().unwrap(),
+    ]);
+    assert_eq!(c, 0, "{err}");
+    let merged: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    assert_eq!(merged["keys"].as_array().unwrap().len(), 2);
+    assert_eq!(merged["keys"][1]["note"], "current");
+
+    for (key_id, needle) in [
+        ("2026-09", "<label>@<domain>"),
+        ("2026-09@p\u{0430}y.example.org", "<label>@<domain>"),
+        ("2026-09@other.example.org", "its own domain only"),
+    ] {
+        let (c, _, err) = run(&[
+            "well-known",
+            "--key-file",
+            key.to_str().unwrap(),
+            "--key-id",
+            key_id,
+            "--merge",
+            first.to_str().unwrap(),
+        ]);
+        assert_eq!(c, 3, "{key_id}: {err}");
+        assert!(err.contains(needle), "{key_id}: {err}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

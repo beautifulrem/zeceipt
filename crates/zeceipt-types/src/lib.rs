@@ -14,6 +14,8 @@ use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
+pub mod binding;
+
 /// Format identifier. Also the domain prefix of the canonical signing string.
 pub const VERSION: &str = "zeceipt-v0";
 
@@ -126,7 +128,7 @@ pub struct Receipt {
     /// Optional verifier-supplied challenge (ZIP 311 `msg`), base64url.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub challenge: Option<String>,
-    /// Optional key identifier published in the issuer's well-known file.
+    /// Optional key identifier; `<label>@<domain>` claims a domain whose well-known file may bind the key (spec §7, [`binding`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub issuer_key_id: Option<String>,
     /// Issuer ed25519 public key, 32 bytes hex.

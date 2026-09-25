@@ -22,13 +22,13 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CORE-7 | M | Audit pack: list of receipts with declared total; verifier recomputes a lower-bound total. | `verify-pack` returns `verified_total_zat` and the lower-bound note. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
 | REQ-CORE-8 | M | Regtest network support for local proofs. | `--regtest` issue/verify on a Zebra regtest tx. | ✅ PROOF §5 | kept (done) |
 | REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4.5 / roadmap | dropped |
-| REQ-CORE-10 | S | Issuer key binding file format (`/.well-known/zeceipt.json`) with key ids and validity intervals; verifier upgrade-only semantics. | A receipt with unknown key id renders "issuer binding unknown", never invalid. | ⬜ REQ-INT-3 | dropped |
+| REQ-CORE-10 | S | Issuer key binding (spec §7): a key id `<label>@<domain>` claims a domain, whose `/.well-known/zeceipt.json` lists key ids and public keys; verifier upgrade-only semantics. | A receipt whose key is not confirmed renders "not listed" or "issuer binding unknown", never invalid. | 🟡 the claim rule, the file format and the outcome logic (`zeceipt-types::binding`, shared vectors; slice W2a); lookups ⬜ (W2b, W3) | dropped |
 
 ## 2. CLI (`zeceipt`)
 
 | ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
 |---|---|---|---|---|---|
-| REQ-CLI-1 | M | Subcommands: keygen, inspect, issue, verify, pack, verify-pack, find-ironwood. | `--help` lists all; each exercised in tests or PROOF. | ✅ `cli.rs` tests, PROOF | kept (done) |
+| REQ-CLI-1 | M | Subcommands: keygen, well-known, inspect, issue, verify, pack, verify-pack, find-ironwood. | `--help` lists all; each exercised in tests or PROOF. | ✅ `cli.rs` tests, PROOF | kept (done) |
 | REQ-CLI-2 | M | Exit codes: 0 valid, 1 invalid, 2 pending, 3 usage. | Tests assert 0/1/3; pending path returns 2 on NotFound. | ✅ `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` | kept (done) |
 | REQ-CLI-3 | M | Failure stage reported in JSON using the REQ-CORE-5 stage names plus the CLI-only stages `parse`, `tx` and `network`. | Each stage asserted. | ✅ same | kept (done) |
 | REQ-CLI-4 | M | Offline mode with `--raw-tx-file` / `--raw-tx-dir`. | Pack verification offline passes. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
@@ -93,14 +93,14 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 |---|---|---|---|---|---|
 | REQ-INT-1 | S | Konclave adapter: from its CSV/ledger rows and a txid, issue receipts and write back a `receipt_url` column. | Sample Konclave CSV processed on regtest. | ⬜ | dropped |
 | REQ-INT-2 | S | OpenZcash column-compatible export plus `receipt_url`; demo branch showing a "verified" badge. | Columns match `[R5]` list. | ⬜ | dropped |
-| REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `keys publish` writes the file; verify shows "binding confirmed". | ⬜ | dropped |
+| REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `well-known` writes the file; verify shows "binding confirmed". | 🟡 generator built (`zeceipt well-known`, slice W2a); verify ⬜ (W2b) | dropped |
 | REQ-INT-4 | S | Format feedback posted to zips #387 and the forum with a link to vectors. | Post URL recorded. | ⬜ | dropped |
 
 ## 7. Non-functional requirements
 
 | ID | Requirement | Acceptance criterion | Status | Solo branch (`11_plan.md` §1.1) |
 |---|---|---|---|---|
-| NFR-1 Security | No spending keys, seeds or mnemonics accepted by the shipped crates, CLI or verifier; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. Carve-out: `scripts/zkool_regtest_tracer.py` is a regtest-only harness that reads a throwaway regtest mnemonic from a file outside the repository to drive a local wallet backend (marker `# key-material-allowed` in its first lines). | CI step `source guards` (`scripts/check_source_guards.py`) scans all five crates' non-test code, the console library `apps/console/lib/**/*.ts` and `apps/console/db/**/*.ts` and the console app (`app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`) (no carve-out possible) and every `scripts/**/*.py` and `*.sh` for the whole words seed/mnemonic/spending and fails on a hit unless the file carries the header marker and the line is tagged; clippy `-D warnings`; attribute present in all five crates. | ✅ guard output, verified by `check_product_docs.py` against a live run: `source guards: 6 crate files + 116 console lib/db/app files + 3 browser verifier files + 7 scripts scanned (carve-out files: 1)` (1 carve-out file with 2 tagged lines) | kept |
+| NFR-1 Security | No spending keys, seeds or mnemonics accepted by the shipped crates, CLI or verifier; `#![forbid(unsafe_code)]` in every crate; no `unwrap` outside tests. Carve-out: `scripts/zkool_regtest_tracer.py` is a regtest-only harness that reads a throwaway regtest mnemonic from a file outside the repository to drive a local wallet backend (marker `# key-material-allowed` in its first lines). | CI step `source guards` (`scripts/check_source_guards.py`) scans all five crates' non-test code, the console library `apps/console/lib/**/*.ts` and `apps/console/db/**/*.ts` and the console app (`app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`) (no carve-out possible) and every `scripts/**/*.py` and `*.sh` for the whole words seed/mnemonic/spending and fails on a hit unless the file carries the header marker and the line is tagged; clippy `-D warnings`; attribute present in all five crates. | ✅ guard output, verified by `check_product_docs.py` against a live run: `source guards: 7 crate files + 117 console lib/db/app files + 3 browser verifier files + 7 scripts scanned (carve-out files: 1)` (1 carve-out file with 2 tagged lines) | kept |
 | NFR-2 Privacy | Only per-output OCKs are disclosed; UFVK/OVK never leave the issuer; hosted verifier discloses which txid it fetches. | Spec §9; demo copy. | ✅ | kept |
 | NFR-3 Reliability | Endpoint failover; `pending` distinct from `invalid`; idempotent issuance. | lwd tests; CLI exit 2 path. | ✅ (console idempotency ⬜) | kept |
 | NFR-4 Performance | Browser verify < 1 s after wasm load for a transaction up to 20 KB; CLI issue < 5 s per tx on public nodes. Measured in Chrome 153 on `demo/index.html`: 7.28 ms per verify at 9,166 bytes and 6.05 ms at 15,478 bytes (the Zkool batch fixture, now the largest committed, 77 % of 20 KB) — flat in transaction size because exactly one output is trial-decrypted; more than 130× inside the 1 s budget; the last 23 % to 20 KB is not measured. Node: init 13.9 ms. CLI issue = fetch (1.15 s measured, `inspect` over gRPC) + trial-decrypt/sign (offline `issue --regtest` 0.00 s wall) < 5 s. PROOF §2b. | ✅ measured at 9 KB and 15 KB in Chrome; the last 23 % to 20 KB bounded, not measured (WBS 3.4.2.4 note) | kept |
@@ -125,7 +125,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CORE-7 | ✅ | 3.1.3.3 | test `audit_pack_round_trip`; CLI test `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CORE-8 | ✅ | 3.1.2.4 | PROOF §5 (regtest) `[R37]` |
 | REQ-CORE-9 | ⬜ | 3.3.4.5 | Should 8 prototype (`11_plan.md` §1); first item in the cut order |
-| REQ-CORE-10 | ⬜ | 3.3.3.3 | `05_data_model_api.md` §4 well-known file |
+| REQ-CORE-10 | 🟡 | 3.3.3.3 | `05_data_model_api.md` §4 well-known file; `crates/zeceipt-types/src/binding.rs` tests; `spec/test-vectors/binding-claims-v0.json` |
 | REQ-CLI-1 | ✅ | 3.2.1.1 | `crates/zeceipt-cli/tests/cli.rs`; PROOF §2 |
 | REQ-CLI-2 | ✅ | 3.2.1.2 | tests `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` |
 | REQ-CLI-3 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` |
@@ -171,7 +171,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-SOL-5 | ⬜ | 3.3.2.4 | `[R33]` asset ids known; quote/min amount to measure |
 | REQ-INT-1 | ⬜ | 3.3.3.1 | `[R10]` CSV format |
 | REQ-INT-2 | ⬜ | 3.3.3.2 | `[R5]` columns; `05` §3.1 |
-| REQ-INT-3 | ⬜ | 3.3.3.3 | `05` §4 well-known contract |
+| REQ-INT-3 | 🟡 | 3.3.3.3 | `05` §4 well-known contract; `well_known_prints_the_binding_file` (`cli.rs`) |
 | REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 post planned 2026-09-27 |
 | NFR-1 | ✅ | 3.4.2.1 | CI source guards; clippy `-D warnings`; `forbid(unsafe_code)` in all five crates |
 | NFR-2 | ✅ | 3.2.3.3 | spec §9; demo page node disclosure (PROOF §2b) |

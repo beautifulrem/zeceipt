@@ -19,3 +19,6 @@ rand.workspace = true
 
 [[example]]
 name = "gen_vectors"
+
+[[example]]
+name = "gen_binding_vectors"
