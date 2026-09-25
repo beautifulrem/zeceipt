@@ -8,7 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { item, ua } from "./helpers/ua-encoder.ts";
-import { createRecipient, getRecipient, listRecipients, migrateDb, openDb, RecipientInvalidError, type ConsoleDb, type RecipientInput } from "../lib/index.ts";
+import { createRecipient, getRecipient, listRecipients, migrateDb, openDb, recipientProblems, RecipientInvalidError, type ConsoleDb, type RecipientInput } from "../lib/index.ts";
 
 const ORG = "org-h1";
 const R = [
@@ -50,6 +50,15 @@ test("create and read back: defaults are unknown KYC, no tax flag, ZEC settlemen
   assert.deepEqual([full.kycStatus, full.taxFlag, full.settlementPref], ["verified", "us_1099", "usdc_sol"]);
   assert.equal(await getRecipient(db, ORG, "01900000-0000-7000-8000-000000000000"), undefined);
   assert.equal(await getRecipient(db, "other-org", r.id), undefined, "scoped to the org");
+});
+
+test("slice H7: a display name with invisible characters is refused; other spaces and non-Latin names are fine", async () => {
+  for (const displayName of ["Ali\u200bce", "\u202eecilA", "Alice\u0085", "Al\u00adice"]) {
+    const codes = recipientProblems({ orgId: ORG, network: "regtest", displayName, address: R[0] });
+    assert.deepEqual(codes.map((p) => p.code), ["name_invalid"], JSON.stringify(displayName));
+    assert.match(codes[0].detail, /invisible characters/);
+  }
+  for (const displayName of ["Jean\u00a0Dupont", "李雷", "فاطمة", "Zoë 🦓"]) assert.deepEqual(recipientProblems({ orgId: ORG, network: "regtest", displayName, address: R[0] }), [], displayName);
 });
 
 test("REQ-CON-2: an invalid unified address is rejected, with every problem listed together", async () => {

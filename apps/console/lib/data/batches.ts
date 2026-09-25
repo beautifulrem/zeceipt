@@ -9,7 +9,7 @@ import { runSync } from "../../db/errors.ts";
 import { batchItems, batches, batchVoids, payables, submissions } from "../../db/schema.ts";
 import { ExecutionError, type Batch, type Network, type PreflightProblem, type PreflightProblemCode } from "../execution/types.ts";
 import { batchProblems } from "../execution/validate.ts";
-import { isPlainText } from "./text.ts";
+import { hasInvisible, hasOtherSpace, isPlainText } from "./text.ts";
 
 export interface BatchItemInput {
   payableId: string;
@@ -56,7 +56,9 @@ export type BatchProblemCode =
   // Across batches (review H5a round 1): a memo already used by another batch of the org, and a hand-made line
   // carrying a payable's id or reference (payables are paid only through a batch made from payables).
   | "memo_taken"
-  | "payable_reserved";
+  | "payable_reserved"
+  // Slice H7: a hand-typed memo with invisible characters or another space (it is a reference the recipient reads).
+  | "memo_invisible";
 export interface BatchProblem extends Omit<PreflightProblem, "code"> {
   code: BatchProblemCode;
 }
@@ -74,6 +76,9 @@ function recordProblems(input: CreateBatchInput): BatchProblem[] {
     // Well-formedness of payable ids is preflight's rule (`payable_malformed`), so it is not reported twice.
     if (!plainText(it.payableId, 1, false)) problems.push({ code: "payable_id_invalid", itemIndex: i, detail: `payable id must be 1–${LIMIT} characters of plain text` });
     if (!plainText(it.label ?? "", 0)) problems.push({ code: "label_invalid", itemIndex: i, detail: `label must be at most ${LIMIT} characters of plain text` });
+    // Slice H7: at creation only (preflight stays as it was, so a draft made earlier can still be paid). NUL is
+    // preflight's own `memo_malformed` (ZIP 302), so it is not reported twice.
+    if (!it.memo.includes("\u0000") && (hasInvisible(it.memo) || hasOtherSpace(it.memo))) problems.push({ code: "memo_invisible", itemIndex: i, detail: "memo must not contain invisible characters or any space but the ordinary one: it is the reference the recipient reads" });
   });
   return problems;
 }
@@ -167,7 +172,7 @@ export const liveLine = sql`not exists (select 1 from batch_voids v where v.org_
 
 /**
  * A hand-made batch's lines against the rest of the org (review H5a round 1): a memo is a payable reference, unique
- * across the org's batches (index `batch_items_memo_org`), and a payable is paid only through a batch made from
+ * across the org's live batches (`memo_claims`, 0019, which replaced 0018's index), and a payable is paid only through a batch made from
  * payables (trigger `batch_items_manual_not_payable`), so one obligation cannot sit in two batches.
  */
 function acrossBatches(db: Pick<ConsoleDb, "select">, orgId: string, items: { payableId: string; memo: string }[]): BatchProblem[] {

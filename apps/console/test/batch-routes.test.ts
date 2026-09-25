@@ -123,6 +123,14 @@ test("422 batch_invalid for an item address longer than the console stores, not 
   assert.equal((await read(await handleList())).body.batches!.length, before);
 });
 
+test("slice H7: a memo with invisible characters or another space is 422 batch_invalid with memo_invisible at its index; nothing written", async () => {
+  const before = (await read(await handleList())).body.batches!.length;
+  const x = await read(await handleCreate(post(draft({ items: [{ payableId: "h7-1", address: R[0], zat: "1", memo: "INV\u00a01" }, { payableId: "h7-2", address: R[1], zat: "1", memo: "\u202eINV-2" }] }))));
+  assert.equal(x.status, 422);
+  assert.deepEqual(x.body.problems!.map((p) => `${p.code}@${p.index}`), ["memo_invisible@0", "memo_invisible@1"]);
+  assert.equal((await read(await handleList())).body.batches!.length, before);
+});
+
 test("400: schema problems give paths and zod messages, never the submitted values; tenant fields are refused", async () => {
   const secretish = "SHOULD-NOT-ECHO-12345";
   const x = await read(

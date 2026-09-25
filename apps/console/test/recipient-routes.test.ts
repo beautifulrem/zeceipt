@@ -82,6 +82,14 @@ test("an address longer than the console stores is 422 address_malformed, not a 
   assert.equal((await list()).recipients.length, before);
 });
 
+test("slice H7: a display name with invisible characters is 422 name_invalid on displayName; nothing saved", async () => {
+  const before = (await list()).recipients.length;
+  const r = await create({ displayName: "Ali\u200bce", address: R[0] });
+  assert.equal(r.status, 422);
+  assert.deepEqual(r.body.problems!.map((p) => [p.code, p.field]), [["name_invalid", "displayName"]]);
+  assert.equal((await list()).recipients.length, before);
+});
+
 test("a malformed body is 400 body_invalid: wrong types, unknown enum values, and a network or org named in the body", async () => {
   for (const body of [{ displayName: "x" }, { displayName: "x", address: R[0], kycStatus: "maybe" }, { displayName: "x", address: R[0], network: "main" }, { displayName: "x", address: R[0], orgId: "other" }, "not json"]) {
     const r = await create(body);

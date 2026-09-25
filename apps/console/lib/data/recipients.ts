@@ -10,7 +10,7 @@ import { recipients } from "../../db/schema.ts";
 import { checkUnifiedAddress, orchardReceiverHex } from "../execution/address.ts";
 import { ExecutionError, type Network } from "../execution/types.ts";
 import { newUuidV7 } from "./batches.ts";
-import { isPlainText } from "./text.ts";
+import { hasInvisible, isPlainText } from "./text.ts";
 
 export const KYC_STATUSES = ["unknown", "verified", "not_required"] as const;
 export const TAX_FLAGS = ["none", "us_1099", "non_us"] as const;
@@ -73,6 +73,9 @@ function canonicalAddress(a: string): string | undefined {
 export function recipientProblems(input: RecipientInput): RecipientProblem[] {
   const problems: RecipientProblem[] = [];
   if (!isPlainText(input.displayName, 1, 200) || input.displayName.trim() === "") problems.push({ code: "name_invalid", field: "displayName", detail: "display name must be 1–200 characters of plain text, not only spaces" });
+  // Slice H7: a name that renders differently from what it holds could pass for another (R78); other spaces are fine
+  // in a name, which is a label, not a key (H4 tells two "Alice"s apart by address).
+  else if (hasInvisible(input.displayName)) problems.push({ code: "name_invalid", field: "displayName", detail: "display name must not contain invisible characters (zero-width characters, bidirectional controls, soft hyphens, variation selectors, control characters)" });
   const address = canonicalAddress(input.address);
   if (address === undefined) {
     problems.push({ code: "address_case", field: "address", detail: "the address mixes upper and lower case (a unified address is all one case)" });

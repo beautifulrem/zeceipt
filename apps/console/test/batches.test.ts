@@ -26,6 +26,7 @@ import {
   type ConsoleDb,
 } from "../lib/index.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { batchProblems } from "../lib/execution/validate.ts";
 
 const R = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -248,6 +249,17 @@ test("the freeze needs the store's org and the backend's batch id to match the b
   // A submission recorded under another org does not freeze this org's batch: the pairing is the caller's job.
   db.$client.prepare("UPDATE batches SET title = 'still editable' WHERE org_id = ? AND id = ?").run(ORG, rec.id);
   assert.equal((await getBatch(db, ORG, rec.id))?.title, "still editable");
+});
+
+test("slice H7: a hand-typed memo with invisible characters or another space is refused at creation; a draft made before still passes preflight", async () => {
+  const ok = items("h7");
+  for (const memo of ["INV-1\u200b", "\u202eINV-1", "INV\u00a01", "INV-1\u0085"]) {
+    await assert.rejects(createBatch(db, { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], memo }] }), (e: unknown) => e instanceof BatchInvalidError && e.problems.map((p) => `${p.code}@${p.itemIndex}`).join() === "memo_invisible@0", JSON.stringify(memo));
+  }
+  assert.ok(await createBatch(db, { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], memo: "INV 1 (September) 請求書" }] }), "ordinary text, other scripts and ordinary spaces");
+  // AC3: a draft made before this rule, with a lookalike memo, is not refused by preflight (it can still be paid).
+  const legacy = toExecutionBatch({ orgId: ORG, id: newBatchId(), network: "regtest", title: "old", createdAt: "2026-09-20T00:00:00.000Z", items: [{ idx: 0, ...ok[0], label: "", memo: "OLD\u200b-1" }] });
+  assert.deepEqual(batchProblems(legacy, { maxRecipients: 50 }), [], "preflight is unchanged");
 });
 
 test("createBatch refuses text that cannot round-trip (lone surrogates) and console fields out of bounds, writing nothing", async () => {

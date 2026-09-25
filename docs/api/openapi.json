@@ -124,7 +124,7 @@
             "$ref": "#/components/responses/Problem"
           },
           "422": {
-            "description": "batch_invalid with every problem (code, index, detail), including memo_taken (the memo is already used by another batch of the org: a memo is a payable reference, unique in the org) and payable_reserved (the line carries a payable's id or reference: payables are paid only through POST /api/batches/from-payables)",
+            "description": "batch_invalid with every problem (code, index, detail), including memo_taken (the memo is already used by another batch of the org: a memo is a payable reference, unique in the org) and payable_reserved (the line carries a payable's id or reference: payables are paid only through POST /api/batches/from-payables); memo_invisible (slice H7): the memo holds invisible characters (Unicode Default_Ignorable_Code_Point, control characters, the braille blank) or a space other than U+0020",
             "content": {
               "application/problem+json": {
                 "schema": {
