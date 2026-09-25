@@ -269,8 +269,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 5.1 Materials
 #### 5.1.1 Videos
-- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-04 → 10-07.
-- 5.1.1.2 ⬜ R — Technical demo 2–3 min (outline `11_plan.md` §5; recorded by the Rust engineer, who narrates the stack). 0.75 pd, 2026-10-04 → 10-07.
+- 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-04 → 10-07. Footage for the 0:20–1:30 beats is recorded by a script on the live regtest chain (slice L2, `apps/console/test/shots/demo-video.ts`); narration, editing and upload remain.
+- 5.1.1.2 ⬜ R — Technical demo 2–3 min (outline `11_plan.md` §5; recorded by the Rust engineer, who narrates the stack). 0.75 pd, 2026-10-04 → 10-07. The console and receipt-page parts (tamper rejection in the browser, the regtest walk-through) can reuse the scripted footage (slice L2); the CLI and wasm internals are still to be recorded.
 - 5.1.1.3 ⬜ PM — Weekly update video 1 (60 s, 09-28). 0.125 pd, 2026-09-27 → 09-28.
 - 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-08 → 10-09.
 - 5.1.1.5 ⬜ PM — Weekly update video 2 (60 s, 10-05). 0.125 pd, 2026-10-04 → 10-07.

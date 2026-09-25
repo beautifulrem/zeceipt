@@ -29,6 +29,10 @@ The payout console: a Next.js 16 App Router app (`app/`, booted by `instrumentat
 | `lib/http/problem.ts`, `guard.ts`, `route.ts`, `body.ts`, `batches.ts`; `proxy.ts`; `app/api/**` | RFC 9457 problems; the one request-guard rule (loopback `Host`; no cross-site writes), applied to pages and static files by `proxy.ts` and to every API route by `guarded()`; the capped JSON reader; the batch handlers (create, list, get) |
 | `instrumentation.ts`, `app/layout.tsx`, `app/page.tsx`, `next.config.ts` | Next.js entry points: `register()` (Node.js runtime only) calls `registerNode`; the root layout and a placeholder `/` |
 
+## Demo footage
+
+`ZECEIPT_REGTEST=1 node test/shots/demo-video.ts [out-dir]` (after `next build`, with the regtest services running as in `docs/REGTEST_RUNBOOK.md`) records the pitch's console beats on the live regtest chain in Chrome (slice L2): three silent segments (payables to Pay; receipts and history; a receipt link VALID, then tampered, INVALID) and `shots.json` with each step's timing, into `../raw/demo/<stamp>/`, outside the repository. Receipt links and keys are never written.
+
 ## Configuration and custody modes
 
 The console reads its configuration only from `ZECEIPT_*` environment variables, through `lib/config/env.ts` (`loadConfig`; the one module allowed to read them). Startup fails listing every problem, naming the variable and never echoing the value. `.env.example` documents each variable. Unknown `ZECEIPT_*` variables are refused as likely typos.

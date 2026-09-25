@@ -124,6 +124,8 @@ Pitch (≤ 3:00):
 - 2:40 Business: seats for grant programs and DAOs + verification API; roadmap: ZIP 311 alignment, Solana attestation/confidential balances.
 - 2:50 Team and founder-market fit (two sentences, U to supply).
 
+Footage for the pitch's 0:20–1:30 beats (console, receipt link, tamper) is recorded by `apps/console/test/shots/demo-video.ts` on the live regtest chain (slice L2): three silent segments and a shot list with timings, re-runnable after any UI change; narration and editing stay the person's.
+
 Technical demo (2–3:00): v6 transaction parse → UFVK → external OVK → per-output OCK → `try_output_recovery_with_ock` inside wasm → tamper rejection → why not a viewing key (all-or-nothing vs per-output) → hot-custody vs external-signer modes → Solana attestation write → trade-off: outputs-only now, spend-authority later → regtest proof walk-through.
 
 Weekly updates: 2026-09-28 and 2026-10-05, 60 s each, posted on X tagging @colosseum.
