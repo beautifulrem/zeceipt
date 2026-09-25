@@ -1,8 +1,10 @@
 # gitleaks configuration (slice J1; docs/SECURITY_REVIEW.md): the default rules, with build outputs and installed
-# dependencies left out of the working-tree scan (they are not our source, and are never committed).
+# dependencies left out (none of them is tracked: `git ls-files` lists no file under these paths, so the history scan
+# loses nothing). A committed directory is never excluded here: `packages/verify/pkg/` (the committed WASM package) is
+# scanned (review J1 round 1); a false positive there is fingerprinted in .gitleaksignore like any other.
 [extend]
 useDefault = true
 
 [[allowlists]]
 description = "build outputs and installed dependencies"
-paths = ['''(^|/)node_modules/''', '''(^|/)target/''', '''(^|/)\.next/''', '''(^|/)packages/verify/pkg/''']
+paths = ['''(^|/)node_modules/''', '''(^|/)target/''', '''(^|/)\.next/''']

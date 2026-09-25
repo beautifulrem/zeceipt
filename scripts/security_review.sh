@@ -52,6 +52,16 @@ if need gitleaks "brew install gitleaks"; then
   run gitleaks-history gitleaks git --redact --no-banner --config .gitleaks.toml --report-path "$reports/gitleaks-history.json" .
   run gitleaks-tree gitleaks dir --redact --no-banner --config .gitleaks.toml --report-path "$reports/gitleaks-tree.json" .
 fi
+# An exclusion may cover only untracked paths: excluding committed files would hide them from both scans (review J1 round 1).
+run gitleaks-exclusions-untracked python3 -c '
+import re, subprocess, sys
+paths = re.findall(r"\x27\x27\x27(.*?)\x27\x27\x27", open(".gitleaks.toml").read())
+tracked = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True).stdout.splitlines()
+hits = [(p, f) for p in paths for f in tracked if re.search(p, f)]
+for p, f in hits[:20]:
+    print(f"excluded but tracked: {f} (by {p})")
+sys.exit(1 if hits else 0)
+'
 
 # 4. The repository's own guards: no key material in code, no secrets in logs (NFR-1, NFR-6).
 run source-guards python3 scripts/check_source_guards.py

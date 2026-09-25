@@ -16,13 +16,16 @@ Run it with one command: `scripts/security_review.sh`. It needs `cargo-audit` (`
 | npm, `apps/console` (full tree) | npm audit; GitHub Advisory Database | Before: 4 moderate, all GHSA-67mh-4wv8-2f99 (esbuild ≤ 0.24.2: "enables any website to send any requests to the development server and read the response"), through drizzle-kit 0.31.11 → the deprecated `@esbuild-kit/esm-loader` → esbuild 0.18.20. The production tree (`--omit=dev`) had 0. | **Fixed.** `overrides` pins `@esbuild-kit/core-utils`'s esbuild to `^0.25.12`, deduped with drizzle-kit's own (the override targets the binary-bearing package, not its wrapper). Upstream: drizzle-orm issue #5145 is fixed only in the 1.0 beta, which changes the migrations folder format this repository's checkers rely on. After: `npm audit` 0; a fresh `npm ci` has no esbuild 0.18; `drizzle-kit generate` reports "No schema changes". |
 | npm, `packages/verify` | npm audit | 0 | — |
 | Secrets, git history (234 commits) | gitleaks 8.30.1, default rules | 3 `generic-api-key` hits | **False positives.** A test's HKDF call over a dummy key and a fixed salt (`apps/console/test/seal.test.ts`), and the doc checker's tuple of product file names (`scripts/check_product_docs.py`, twice). The historic findings are in `.gitleaksignore` by fingerprint (commit-bound, so stable); the current lines carry `gitleaks:allow` (the checker's tuple became one `POLICY_DOCS` constant). |
-| Secrets, working tree (untracked files included) | gitleaks 8.30.1 (`.gitleaks.toml`: the default rules, with `node_modules/`, `target/`, `.next/` and `packages/verify/pkg/` left out) | Same false positives, now allowed | As above. |
+| Secrets, working tree (untracked files included) | gitleaks 8.30.1 (`.gitleaks.toml`: the default rules, with `node_modules/`, `target/` and `.next/` left out; none of them is tracked. Round 1 also left out `packages/verify/pkg/`, which **is** committed, so a secret there went unseen by both scans; review J1 round 1 found it, and it is scanned since, clean) | Same false positives, now allowed | As above. |
+| Exclusions cover only untracked paths | `scripts/security_review.sh` `gitleaks-exclusions-untracked` (every `.gitleaks.toml` allowlist path matched against `git ls-files`) | passed | Added in round 2, after the reviewer found a committed directory excluded. |
 | Key material in code, secrets in logs | `scripts/check_source_guards.py` (NFR-1, NFR-6) | passed | — |
 
 **Negative controls** (each made the runner exit 1, and was then restored):
 - an untracked file holding a dummy AWS-style access key id, reported by `gitleaks-tree`;
 - the cargo ignore removed, reported by `cargo-audit` on the warning;
-- the console's pre-override `package.json` and lockfile, reported by `npm-audit:apps/console`.
+- the console's pre-override `package.json` and lockfile, reported by `npm-audit:apps/console`;
+- (round 2) the same dummy key in an untracked file under the committed `packages/verify/pkg/`, reported by `gitleaks-tree`. In round 1 it went unseen, which is the reviewer's control;
+- (round 2) `packages/verify/pkg/` put back into `.gitleaks.toml`'s allowlist, reported by the new `gitleaks-exclusions-untracked` check: an exclusion may cover only paths with no tracked file.
 
 ## Manual checklist
 
