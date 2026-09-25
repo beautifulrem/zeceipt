@@ -43,9 +43,16 @@ interface ApiProblemBody {
 }
 
 const CHOICE_CODES = new Set(["empty_batch", "too_many_recipients"]);
+// A payable taken by another batch, or gone, is not offered when the page re-renders (only free payables are), so
+// its problem cannot sit under its checkbox: it goes at the top, naming the payable (review H5b: a page loaded before
+// another batch took a payable was refused silently).
+const NOT_OFFERED = new Set(["payable_taken", "payable_unknown"]);
 
-/** Where each part of an API answer goes; `posted` is the id list that was sent (so an index finds its payable). */
-export function fromPayablesFormErrors(body: ApiProblemBody, posted: string[]): Pick<FromPayablesFormState, "top" | "title" | "choice" | "byPayable"> {
+/**
+ * Where each part of an API answer goes; `posted` is the id list that was sent (so an index finds its payable), and
+ * `references` names the posted payables that still exist (id → reference).
+ */
+export function fromPayablesFormErrors(body: ApiProblemBody, posted: string[], references: Record<string, string> = {}): Pick<FromPayablesFormState, "top" | "title" | "choice" | "byPayable"> {
   const out = { top: [] as string[], title: [] as string[], choice: [] as string[], byPayable: {} as Record<string, string[]> };
   if (body.code === "rate_unavailable") {
     out.top.push(SOURCE_DOWN);
@@ -57,7 +64,9 @@ export function fromPayablesFormErrors(body: ApiProblemBody, posted: string[]): 
   }
   for (const p of body.problems ?? []) {
     const id = p.index === undefined ? undefined : posted[p.index];
-    if (id !== undefined) (out.byPayable[id] ??= []).push(p.detail);
+    if (id !== undefined && NOT_OFFERED.has(p.code)) {
+      out.top.push(references[id] ? `${references[id]}: ${p.detail}. It is no longer offered.` : "A chosen payable no longer exists, so it is no longer offered.");
+    } else if (id !== undefined) (out.byPayable[id] ??= []).push(p.detail);
     else if (p.code === "title_invalid") out.title.push(ENTER_TITLE);
     else if (CHOICE_CODES.has(p.code)) out.choice.push(p.detail);
     else out.top.push(p.detail);

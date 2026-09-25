@@ -705,6 +705,10 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     assert.equal(payables.match(/>Free</g)?.length, 1);
     const left = await get("/batches/from-payables");
     assert.ok(left.includes(`value="${ids[2]}"`) && !left.includes(`value="${ids[0]}"`), "the chooser offers only the free one");
+    // Review H5b: a page loaded before another batch took a payable. The refusal must be visible, naming the payable.
+    const stale = (await choose(page, "Stale", [ids[0], ids[2]])).body.replaceAll("<!-- -->", "");
+    assert.ok(/role="alert"[^>]*>[\s\S]*CH-1: this payable is already in batch [0-9a-f-]{36}\. It is no longer offered\./.test(stale), "the stale choice is explained at the top");
+    assert.equal((await get("/payables")).match(/>Free</g)?.length, 1, "nothing was made");
     assert.equal((await choose(left, "Evil", [ids[2]], { host: self, origin: "http://evil.example" })).status, 403);
   } finally {
     s.child.kill("SIGTERM");

@@ -5,7 +5,9 @@
 
 import { redirect } from "next/navigation";
 import { createFromPayablesFrom, payableBatchesProblem } from "../../../lib/http/payable-batches.ts";
+import { getPayable } from "../../../lib/data/payables.ts";
 import { answer } from "../../../lib/http/route.ts";
+import { serverContext } from "../../../lib/server/context.ts";
 import { CHOOSE_ONE, fromPayablesFormErrors, readFromPayablesForm, type FromPayablesFormState } from "../../../lib/view/from-payables-form.ts";
 
 export async function createBatchFromPayablesAction(prev: FromPayablesFormState, form: FormData): Promise<FromPayablesFormState> {
@@ -15,7 +17,14 @@ export async function createBatchFromPayablesAction(prev: FromPayablesFormState,
   if (values.payableIds.length === 0) return { ...next, choice: [CHOOSE_ONE] };
   const res = await answer(() => createFromPayablesFrom({ title: values.title, payableIds: values.payableIds }), payableBatchesProblem);
   if (res.status !== 201) {
-    return { ...next, ...fromPayablesFormErrors((await res.json()) as Parameters<typeof fromPayablesFormErrors>[0], values.payableIds) };
+    // The posted payables' references, so a problem about one no longer offered can name it (review H5b).
+    const { config, db } = serverContext();
+    const references: Record<string, string> = {};
+    for (const id of values.payableIds) {
+      const p = await getPayable(db, config.orgId, id).catch(() => undefined);
+      if (p) references[id] = p.reference;
+    }
+    return { ...next, ...fromPayablesFormErrors((await res.json()) as Parameters<typeof fromPayablesFormErrors>[0], values.payableIds, references) };
   }
   const { id } = (await res.json()) as { id: string };
   // Outside any try: redirect throws. 303 for a no-JS post, a client navigation otherwise (R64).
