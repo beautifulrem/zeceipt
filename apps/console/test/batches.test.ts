@@ -257,9 +257,13 @@ test("slice H7: a hand-typed memo with invisible characters or another space is 
     await assert.rejects(createBatch(db, { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], memo }] }), (e: unknown) => e instanceof BatchInvalidError && e.problems.map((p) => `${p.code}@${p.itemIndex}`).join() === "memo_invisible@0", JSON.stringify(memo));
   }
   assert.ok(await createBatch(db, { orgId: ORG, network: "regtest", title: "t", items: [{ ...ok[0], memo: "INV 1 (September) 請求書" }] }), "ordinary text, other scripts and ordinary spaces");
-  // AC3: a draft made before this rule, with a lookalike memo, is not refused by preflight (it can still be paid).
-  const legacy = toExecutionBatch({ orgId: ORG, id: newBatchId(), network: "regtest", title: "old", createdAt: "2026-09-20T00:00:00.000Z", items: [{ idx: 0, ...ok[0], label: "", memo: "OLD\u200b-1" }] });
-  assert.deepEqual(batchProblems(legacy, { maxRecipients: 50 }), [], "preflight is unchanged");
+  // AC3 (review H7): a draft line written before this rule, with a lookalike memo, inserted with raw SQL as an older
+  // console would have; read back through getBatch, it passes preflight, so the draft can still be paid.
+  const draft = await createBatch(db, { orgId: ORG, network: "regtest", title: "old", items: [{ ...ok[0], memo: "OLD-0" }] });
+  db.$client.prepare("INSERT INTO batch_items (org_id, batch_id, idx, payable_id, label, address, zat, memo) VALUES (?, ?, 1, 'old-1', '', ?, 5, ?)").run(ORG, draft.id, ok[0].address, "OLD\u200b-1");
+  const legacy = (await getBatch(db, ORG, draft.id))!;
+  assert.equal(legacy.items[1].memo, "OLD\u200b-1", "read back as written");
+  assert.deepEqual(batchProblems(toExecutionBatch(legacy), { maxRecipients: 50 }), [], "preflight is unchanged");
 });
 
 test("createBatch refuses text that cannot round-trip (lone surrogates) and console fields out of bounds, writing nothing", async () => {
