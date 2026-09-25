@@ -6,6 +6,7 @@ import { serverContext } from "../../lib/server/context.ts";
 import { centsText, recipientLabel, shortAddress } from "../../lib/view/format.ts";
 import { AccessNotice } from "../components/panels.tsx";
 import { PayableForm } from "./payable-form.tsx";
+import { TABLE_CLASS } from "../../lib/view/table.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -66,33 +67,33 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
       {list.length === 0 ? (
         <p className="text-sm">{filter ? `No ${KIND[filter].one.toLowerCase()} payables.` : "No payables yet."}</p>
       ) : (
-        <table className="w-full text-left text-sm">
+        <table className={TABLE_CLASS}>
           <caption className="sr-only">Payables{filter ? `: ${KIND[filter].many}` : ""}</caption>
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="py-2">Reference</th>
-              <th className="py-2">Recipient</th>
-              <th className="py-2">Kind</th>
-              <th className="py-2 pr-6 text-right">Amount</th>
-              <th className="py-2">Source</th>
-              <th className="py-2">Created (UTC)</th>
-              <th className="py-2">Status</th>
+              <th>Reference</th>
+              <th>Recipient</th>
+              <th>Kind</th>
+              <th className="text-right">Amount</th>
+              <th>Source</th>
+              <th>Created (UTC)</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {list.map((p) => (
               <tr key={p.id} className="border-b border-slate-100 align-top">
-                <td className="py-2">
+                <td>
                   <code>{p.reference}</code>
                 </td>
-                <td className="py-2">
+                <td>
                   {byId.get(p.recipientId)?.displayName}
                   {/* Names need not be unique: the address prefix tells two "Alice"s apart (review H4). */}
                   <div className="font-mono text-xs text-slate-500">{shortAddress(byId.get(p.recipientId)?.address ?? "")}</div>
                 </td>
-                <td className="py-2">{KIND[p.kind].one}</td>
-                <td className="py-2 pr-6 text-right tabular-nums">{centsText(p.usdCents)}</td>
-                <td className="py-2">
+                <td>{KIND[p.kind].one}</td>
+                <td className="text-right tabular-nums">{centsText(p.usdCents)}</td>
+                <td>
                   {p.sourceUrl ? (
                     <a href={p.sourceUrl} rel="noopener noreferrer" className="text-sky-700 underline">
                       {hostOf(p.sourceUrl)}
@@ -101,8 +102,8 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                     "—"
                   )}
                 </td>
-                <td className="py-2 tabular-nums">{p.createdAt.slice(0, 10)}</td>
-                <td className="py-2">
+                <td className="tabular-nums">{p.createdAt.slice(0, 10)}</td>
+                <td>
                   {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
                   {holders.has(p.id) ? (
                     <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="text-sky-700 underline">

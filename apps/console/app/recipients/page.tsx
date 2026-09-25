@@ -7,6 +7,7 @@ import { Address } from "../components/address.tsx";
 import { LinkabilityNote } from "../components/linkability.tsx";
 import { AccessNotice } from "../components/panels.tsx";
 import { RecipientForm } from "./recipient-form.tsx";
+import { TABLE_CLASS } from "../../lib/view/table.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +34,11 @@ export default async function RecipientsPage() {
       {list.length === 0 ? (
         <p className="text-sm">No recipients yet.</p>
       ) : (
-        <table className="w-full text-left text-sm">
+        <table className={TABLE_CLASS}>
           <caption className="sr-only">Recipients</caption>
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="py-2">Name</th>
+              <th>Name</th>
               <th>Address</th>
               <th>KYC</th>
               <th>Tax</th>
@@ -47,7 +48,7 @@ export default async function RecipientsPage() {
           <tbody>
             {list.map((r) => (
               <tr key={r.id} className="border-b border-slate-100 align-top">
-                <td className="py-2">
+                <td>
                   {r.displayName}
                   {r.duplicateOf.length > 0 && (
                     <p className="text-xs text-amber-800">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
@@ -61,12 +62,12 @@ export default async function RecipientsPage() {
                     </p>
                   )}
                 </td>
-                <td className="py-2">
+                <td>
                   <Address value={r.address} />
                 </td>
-                <td className="py-2">{KYC[r.kycStatus]}</td>
-                <td className="py-2">{TAX[r.taxFlag]}</td>
-                <td className="py-2">{SETTLE[r.settlementPref]}</td>
+                <td>{KYC[r.kycStatus]}</td>
+                <td>{TAX[r.taxFlag]}</td>
+                <td>{SETTLE[r.settlementPref]}</td>
               </tr>
             ))}
           </tbody>

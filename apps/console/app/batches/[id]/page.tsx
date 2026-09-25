@@ -20,6 +20,7 @@ import { ZecAmount } from "../../components/amount.tsx";
 import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
 import { ApproveForm, IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
+import { TABLE_CLASS } from "../../../lib/view/table.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -226,11 +227,11 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         <h2 id="items-heading" className="text-lg font-semibold">
           Items
         </h2>
-        <table className="w-full text-left text-sm">
+        <table className={TABLE_CLASS}>
           <caption className="sr-only">Items of this batch</caption>
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
-              <th className="py-2">Payable</th>
+              <th>Payable</th>
               <th>Payee</th>
               <th>Address</th>
               <th>Memo</th>
@@ -241,7 +242,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           <tbody>
             {rec.items.map((i) => (
               <tr key={i.idx} className="border-b border-slate-100">
-                <td className="py-2">{i.payableId}</td>
+                <td>{i.payableId}</td>
                 <td>{i.label || "—"}</td>
                 <td>
                   <Address value={i.address} />
@@ -256,7 +257,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4} className="py-2 text-right font-semibold">
+              <td colSpan={4} className="text-right font-semibold">
                 Total
               </td>
               <td className="text-right font-semibold">

@@ -18,7 +18,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
   const [lines, setLines] = useState<EditableLine[]>(() => editableLines(initial, errors));
   return (
     <>
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-left text-sm" data-form-grid>
         <caption className="sr-only">Payment lines</caption>
         <thead className="text-slate-500">
           <tr>
