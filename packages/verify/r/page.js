@@ -1,9 +1,10 @@
 // Public receipt page: reads the receipt from location.hash (spec §2.1) and verifies it here.
 // The DOM is written with textContent only, so nothing from a receipt is ever parsed as HTML.
-// Nothing is stored; the only request outside this site is the transaction lookup the user
-// asks for (fetchRawTx), which carries the txid and nothing else.
-import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, GRPC_WEB_ENDPOINTS } from "../src/index.js";
-import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome } from "./view.js";
+// Nothing is stored; a request outside this site is made only when the user asks: the transaction
+// lookup (fetchRawTx, which carries the txid and nothing else) and the issuer check (checkIssuerBinding,
+// a GET of the claimed domain's well-known file, spec §7, which carries nothing from the receipt).
+import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, issuerClaim, checkIssuerBinding, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, bindingOffer, bindingText } from "./view.js";
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
@@ -22,6 +23,9 @@ function clearOutcome() {
   show("outcome", false);
   $("outcome").className = "";
   $("source-status").textContent = "";
+  show("binding-row", false);
+  show("binding", false);
+  $("binding").textContent = "";
 }
 
 function render() {
@@ -64,6 +68,18 @@ function verifyNow() {
     $("inclusion").textContent = view.inclusion.text;
     $("issuer").replaceChildren(...view.issuer.map((line) => { const li = document.createElement("li"); li.textContent = line; return li; }));
     $("challenge-line").textContent = view.challenge;
+    // The issuer check (spec §7) is offered only for a valid, signed receipt whose key id claims a domain; it runs
+    // only on a click, because the request tells that domain one of its receipts is being checked.
+    const claim = issuerClaim(current.link).claim;
+    show("binding", false);
+    $("binding").textContent = "";
+    if (claim) {
+      const offer = bindingOffer(claim.domain);
+      $("check-issuer").textContent = offer.button;
+      $("check-issuer").disabled = false;
+      $("binding-note").textContent = offer.note;
+    }
+    show("binding-row", Boolean(claim));
     // Green only when a node reports the transaction mined in the main chain. From a file the page
     // cannot tell (the verifier checks one output, not the whole transaction), so it is amber like
     // pending and fork; the words carry the meaning, the colour only follows them.
@@ -114,6 +130,20 @@ $("rawfile").addEventListener("change", async (ev) => {
   const text = (await f.text()).trim();
   if (mine !== generation) return;
   transactionLoaded(text, { kind: "file" }, `Transaction loaded from ${f.name}.`);
+});
+
+$("check-issuer").addEventListener("click", async () => {
+  if (!current) return;
+  const mine = generation;
+  $("check-issuer").disabled = true;
+  $("binding").textContent = "Checking…";
+  show("binding", true);
+  const b = bindingText(await checkIssuerBinding(current.link));
+  if (mine !== generation) return;
+  $("binding").textContent = b.text;
+  // Green only when the domain vouches; amber otherwise, never red: the payment is proven either way.
+  $("binding").className = b.state === "confirmed" ? "ok" : "pending";
+  $("check-issuer").disabled = false;
 });
 
 $("verify").addEventListener("click", verifyNow);

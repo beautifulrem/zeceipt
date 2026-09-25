@@ -11,7 +11,7 @@
   to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS; test/verify.mjs
   fails if an endpoint's origin is missing here).
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://*/.well-known/zeceipt.json">
 <title>Zeceipt — shielded payment receipt</title>
 <link rel="stylesheet" href="page.css">
 <script type="module" src="page.js"></script>
@@ -57,6 +57,8 @@
     <p id="inclusion"></p>
     <h3>3. The issuer</h3>
     <ul id="issuer"></ul>
+    <p id="binding-row" hidden><button id="check-issuer" type="button"></button> <span id="binding-note" class="muted"></span></p>
+    <p id="binding" role="status" hidden></p>
     <p id="challenge-line"></p>
   </div>
 </section>
@@ -69,11 +71,11 @@
 <h2>What it does not prove</h2>
 <ul>
   <li>Who is showing you the receipt, unless it is bound to a challenge you sent.</li>
-  <li>Which organisation holds the issuer key.</li>
+  <li>Which organisation holds the issuer key, unless the key id names a domain and that domain lists the key when you check it; even then, it vouches for the key now, not for when the receipt was made.</li>
   <li>How many confirmations the transaction has: check the depth on an explorer or your own node.</li>
   <li>Anything about other outputs, other transactions or balances.</li>
 </ul>
-<p class="muted">Privacy: the only request this page makes outside this site is the transaction lookup you choose, and that node learns which transaction you looked up. The page stores nothing.</p>
+<p class="muted">Privacy: this page makes a request outside this site only when you ask. The transaction lookup tells the node which transaction you looked up. The issuer check tells the named domain that one of its receipts is being checked. The page stores nothing.</p>
 </main>
 </body>
 </html>

@@ -47,8 +47,9 @@ pub fn is_public(ip: IpAddr) -> bool {
             let special = match s[0] {
                 // 2001::/23, IETF protocol assignments (Teredo 2001::/32 among them); 2001:db8::/32, documentation
                 0x2001 => s[1] < 0x0200 || s[1] == 0x0db8,
-                0x2002 => true,              // 2002::/16, 6to4
-                x => (x & 0xfff0) == 0x3ff0, // 3fff::/20, documentation
+                0x2002 => true,          // 2002::/16, 6to4
+                0x3fff => s[1] < 0x1000, // 3fff::/20, documentation (review W3a: exactly /20, not 3ff0::/12)
+                _ => false,
             };
             (s[0] & 0xe000) == 0x2000 && !special // 2000::/3, global unicast
         }
@@ -167,6 +168,8 @@ mod tests {
             "::ffff:93.184.215.14",
             "2001:200::1", // just past 2001::/23: an APNIC allocation
             "2a00:1450:4001::1",
+            "3ff0::1",      // below 3fff::/20: global unicast by range
+            "3fff:1000::1", // just past 3fff::/20
         ] {
             assert!(is_public(public.parse().unwrap()), "{public}");
         }

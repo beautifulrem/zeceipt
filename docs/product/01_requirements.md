@@ -22,7 +22,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-CORE-7 | M | Audit pack: list of receipts with declared total; verifier recomputes a lower-bound total. | `verify-pack` returns `verified_total_zat` and the lower-bound note. | ✅ `inspect_issue_pack_and_verify_pack_offline` | kept (done) |
 | REQ-CORE-8 | M | Regtest network support for local proofs. | `--regtest` issue/verify on a Zebra regtest tx. | ✅ PROOF §5 | kept (done) |
 | REQ-CORE-9 | S | Spend-authority proof (ZIP 311 `spends` half) via a wallet-side signer. | A receipt carries a rerandomized spend-auth signature verifiable per ZIP 311. | ⬜ WBS 3.3.4.5 / roadmap | dropped |
-| REQ-CORE-10 | S | Issuer key binding (spec §7): a key id `<label>@<domain>` claims a domain, whose `/.well-known/zeceipt.json` lists key ids and public keys; verifier upgrade-only semantics. | A receipt whose key is not confirmed renders "not listed" or "issuer binding unknown", never invalid. | 🟡 the claim rule, the file format and the outcome logic (`zeceipt-types::binding`, shared vectors; W2a); the CLI lookup (W2b); the page ⬜ (W3) | dropped |
+| REQ-CORE-10 | S | Issuer key binding (spec §7): a key id `<label>@<domain>` claims a domain, whose `/.well-known/zeceipt.json` lists key ids and public keys; verifier upgrade-only semantics. | A receipt whose key is not confirmed renders "not listed" or "issuer binding unknown", never invalid. | ✅ the claim rule, the file format and the outcome logic (`zeceipt-types::binding`, shared vectors; W2a); the CLI (W2b), the verify package (W3a) and the receipt page (W3b) render confirmed / not listed / unknown, never invalid | kept |
 
 ## 2. CLI (`zeceipt`)
 
@@ -47,7 +47,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | REQ-WEB-4 | M | Fetch raw tx over gRPC-web from public nodes with failover; page states that the node learns the txid. | Fetch of a mainnet txid succeeds from `zjs.zec.rocks`. | ✅ PROOF §2b | kept (done) |
 | REQ-WEB-5 | M | Committed package must not drift from the format: node guard verifies committed vectors (all Network×Pool) through the committed wasm. | `node packages/verify/test/verify.mjs` ALL OK in CI. | ✅ CI step | kept (done) |
 | REQ-WEB-6 | M | Signature-only check API for integrators. | `checkSignature()` returns signed/valid/pubkey. | ✅ `check_signature` export | kept (done) |
-| REQ-WEB-7 | S | Receipt page renders the three-part outcome (cryptographic validity, chain inclusion, issuer binding). | Page shows the mined height when fetched from a node and states that confirmation depth must be checked elsewhere; issuer binding rendered, as unknown until a binding lookup exists (a "confirmed" binding is REQ-CORE-10's obligation, dropped in the solo branch; de-duplicated 2026-09-25, slice K1). | ✅ mined height shown + depth disclaimer (PROOF §2b); the three parts rendered, binding unknown (PROOF §2c) | kept (leaf 3.3.6.2) |
+| REQ-WEB-7 | S | Receipt page renders the three-part outcome (cryptographic validity, chain inclusion, issuer binding). | Page shows the mined height when fetched from a node and states that confirmation depth must be checked elsewhere; issuer binding rendered: unknown unless the key id claims a domain and the user checks it (the lookup and its outcomes are REQ-CORE-10's; de-duplicated 2026-09-25, slice K1). | ✅ mined height shown + depth disclaimer (PROOF §2b); the three parts rendered, binding unknown (PROOF §2c); a claimed domain checked on click, confirmed / not listed / unknown (PROOF §2e, slice W3b) | kept (leaf 3.3.6.2) |
 | REQ-WEB-8 | C | Publish `@zeceipt/verify` to npm with working links. | Package resolvable; README links live. | 👤 user action | kept (user action, outside the budget) |
 
 ## 4. Payout console (`apps/console`)
@@ -93,7 +93,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 |---|---|---|---|---|---|
 | REQ-INT-1 | S | Konclave adapter: from its CSV/ledger rows and a txid, issue receipts and write back a `receipt_url` column. | Sample Konclave CSV processed on regtest. | ⬜ | dropped |
 | REQ-INT-2 | S | OpenZcash column-compatible export plus `receipt_url`; demo branch showing a "verified" badge. | Columns match `[R5]` list. | ⬜ | dropped |
-| REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `well-known` writes the file; verify shows "binding confirmed". | 🟡 generator (`zeceipt well-known`, W2a) and CLI verify (`--check-issuer`, `--issuer-file`: confirmed / not listed / unknown, W2b) built; the page is REQ-WEB-7's (W3) | dropped |
+| REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `well-known` writes the file; verify shows "binding confirmed". | ✅ generator (`zeceipt well-known`, W2a); CLI verify (`--check-issuer`, `--issuer-file`, W2b) shows confirmed / not listed / unknown | kept |
 | REQ-INT-4 | S | Format feedback posted to zips #387 and the forum with a link to vectors. | Post URL recorded. | ⬜ | dropped |
 
 ## 7. Non-functional requirements
@@ -125,7 +125,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-CORE-7 | ✅ | 3.1.3.3 | test `audit_pack_round_trip`; CLI test `inspect_issue_pack_and_verify_pack_offline` |
 | REQ-CORE-8 | ✅ | 3.1.2.4 | PROOF §5 (regtest) `[R37]` |
 | REQ-CORE-9 | ⬜ | 3.3.4.5 | Should 8 prototype (`11_plan.md` §1); first item in the cut order |
-| REQ-CORE-10 | 🟡 | 3.3.3.3 | `05_data_model_api.md` §4 well-known file; `crates/zeceipt-types/src/binding.rs` tests; `spec/test-vectors/binding-claims-v0.json` |
+| REQ-CORE-10 | ✅ | 3.3.3.3 | `05_data_model_api.md` §4 well-known file; `crates/zeceipt-types/src/binding.rs` tests; `spec/test-vectors/binding-claims-v0.json` |
 | REQ-CLI-1 | ✅ | 3.2.1.1 | `crates/zeceipt-cli/tests/cli.rs`; PROOF §2 |
 | REQ-CLI-2 | ✅ | 3.2.1.2 | tests `usage_errors_exit_3_and_help_exits_0`, `failure_stages_and_exit_1` |
 | REQ-CLI-3 | ✅ | 3.2.1.2 | test `failure_stages_and_exit_1` |
@@ -140,7 +140,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-WEB-4 | ✅ | 3.2.3.2 | PROOF §2b (fetch from `zjs.zec.rocks`); `packages/verify/src/index.js` |
 | REQ-WEB-5 | ✅ | 3.2.3.4 | `packages/verify/test/verify.mjs`; CI node guard |
 | REQ-WEB-6 | ✅ | 3.2.3.1 | `check_signature` export in `crates/zeceipt-wasm/src/lib.rs` |
-| REQ-WEB-7 | ✅ | 3.3.6.2 | mined height shown (PROOF §2b); chain status mined/mempool/fork from the node (F2a, `[R67]`); the receipt page renders all three parts, with binding shown as unknown (PROOF §2c); a confirmed binding is REQ-CORE-10's (slice K1) |
+| REQ-WEB-7 | ✅ | 3.3.6.2 | mined height shown (PROOF §2b); chain status mined/mempool/fork from the node (F2a, `[R67]`); the receipt page renders all three parts, with binding shown as unknown (PROOF §2c), and checks a claimed domain on click (PROOF §2e, W3b; REQ-CORE-10) |
 | REQ-WEB-8 | 👤 | 4.1.1.3 | npm publish after links resolve |
 | REQ-CON-1 | ⬜ | 3.3.1.2 | auth/session + role matrix |
 | REQ-CON-2 | ✅ | 3.3.1.3 | `lib/data/recipients.ts` and `lib/http/recipients.ts` (slice H1 `[R75]`). An invalid UA (a wrong network, a bad checksum, a malformed payload, MUST-understand metadata, over 1,000 characters, or no Orchard receiver) gives 422 `recipient_invalid`, and the same address in a batch gives 422 `batch_invalid`. Receiver bytes are checked for type and length only; an address with an invalid encoding inside (say an Orchard `pk_d` off the curve) is refused by Zkool while planning, which the console maps to `payment_rejected` with nothing sent (`isPreBuildRefusal`) `[R76]`; `lib/execution/address.ts` is checked against the official zcash-test-vectors (`test/address-vectors.test.ts`). A duplicate (the same Orchard receiver) is flagged in `duplicateOf`; `test/recipients.test.ts`, `test/recipient-routes.test.ts`; the page `/recipients` (H2): the list with the duplicate flag ("Pays the same Orchard receiver as …") and an add form with each problem under its field, values kept, no JavaScript needed; `test/app.e2e.test.ts` (the recipients test), `test/recipient-form.test.ts` |
@@ -171,7 +171,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-SOL-5 | ⬜ | 3.3.2.4 | `[R33]` asset ids known; quote/min amount to measure |
 | REQ-INT-1 | ⬜ | 3.3.3.1 | `[R10]` CSV format |
 | REQ-INT-2 | ⬜ | 3.3.3.2 | `[R5]` columns; `05` §3.1 |
-| REQ-INT-3 | 🟡 | 3.3.3.3 | `05` §4 well-known contract; `well_known_prints_the_binding_file`, `verify_reports_the_issuer_binding_and_never_changes_validity` (`cli.rs`); `wellknown.rs` tests; PROOF §2d |
+| REQ-INT-3 | ✅ | 3.3.3.3 | `05` §4 well-known contract; `well_known_prints_the_binding_file`, `verify_reports_the_issuer_binding_and_never_changes_validity` (`cli.rs`); `wellknown.rs` tests; PROOF §2d |
 | REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 post planned 2026-09-27 |
 | NFR-1 | ✅ | 3.4.2.1 | CI source guards; clippy `-D warnings`; `forbid(unsafe_code)` in all five crates |
 | NFR-2 | ✅ | 3.2.3.3 | spec §9; demo page node disclosure (PROOF §2b) |

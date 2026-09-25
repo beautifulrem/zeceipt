@@ -28,7 +28,10 @@ const TAMPERED = variant(BEARER, (o) => { o.label += " (edited)"; });
 const UNSIGNED_HTML = variant(BEARER, (o) => { delete o.signature; delete o.issuer_pubkey; delete o.issuer_key_id; o.label = "x <b>bold</b> y"; });
 
 // Everything that must never appear in a request: each test receipt's payload and OCK.
-const SECRETS = [BEARER, BOUND, TAMPERED, UNSIGNED_HTML, REGTEST].flatMap((j) => [b64(j), JSON.parse(j).ock]);
+const CLAIMED = read(path.join(root, "demo/fixtures/binding-receipt.json")); // key id 2026-09@pay.example.org (W3b)
+const WELL_KNOWN = read(path.join(root, "demo/fixtures/binding-well-known.json"));
+const WELL_KNOWN_OTHER = read(path.join(root, "demo/fixtures/binding-well-known-other.json"));
+const SECRETS = [BEARER, BOUND, TAMPERED, UNSIGNED_HTML, REGTEST, CLAIMED].flatMap((j) => [b64(j), JSON.parse(j).ock]);
 
 // ---- a static host ----
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".wasm": "application/wasm", ".json": "application/json" };
@@ -103,7 +106,7 @@ async function ready(page) { await page.waitForFunction(() => /verification runs
 async function verified(page) { await page.waitForSelector("#outcome:not([hidden])"); }
 
 /** No recorded request may carry a payload or an OCK, and nothing may be stored or blocked. */
-async function assertPrivate({ page, requests, errors }) {
+async function assertPrivate({ page, requests, errors }, { issuerChecks = 0 } = {}) {
   await new Promise((r) => setTimeout(r, 50)); // let the last allHeaders() settle
   for (const r of requests) {
     for (const s of SECRETS) {
@@ -112,7 +115,14 @@ async function assertPrivate({ page, requests, errors }) {
   }
   for (const s of served) for (const secret of SECRETS) assert.ok(!s.url.includes(secret) && !s.headers.includes(secret), `the host saw a receipt secret: ${s.url.slice(0, 80)}`);
   const foreign = requests.filter((r) => !r.url.startsWith(base));
-  for (const r of foreign) {
+  // The issuer check (spec §7, W3b): a GET of the claimed domain's well-known file, only as many as the test clicked.
+  const checks = foreign.filter((r) => /^https:\/\/[^/]+\/\.well-known\/zeceipt\.json$/.test(r.url));
+  assert.equal(checks.length, issuerChecks, `issuer checks: ${checks.map((r) => r.url).join(" ")}`);
+  for (const r of checks) {
+    assert.equal(r.method, "GET");
+    assert.ok(!/"referer"/i.test(r.headers) && !/"cookie"/i.test(r.headers), "no Referer or cookie on the issuer check");
+  }
+  for (const r of foreign.filter((x) => !checks.includes(x))) {
     assert.match(r.url, /\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/GetTransaction$/, `unexpected outside request ${r.url}`);
     assert.ok(!/"referer"/i.test(r.headers), "no Referer on the node request");
   }
@@ -265,5 +275,86 @@ test("what a result proves is on screen before the verifier has loaded", { skip:
   release();
   await ready(s.page);
   assert.ok(await visible(s.page, "receipt"));
+  await s.context.close();
+});
+
+// ---- the issuer check (spec §7, slice W3b) ----
+const WK = "https://pay.example.org/.well-known/zeceipt.json";
+async function claimedVerified(s) {
+  await s.page.goto(`${base}/r/#${b64(CLAIMED)}`);
+  await ready(s.page);
+  await s.page.click("#fetch");
+  await verified(s.page);
+  assert.equal(await text(s.page, "#headline"), "VALID");
+}
+
+test("issuer check: offered only after a valid result, named, and nothing is asked of the domain before the click; confirmed by the domain's file", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.context.route(WK, (route) => route.fulfill({ status: 200, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: WELL_KNOWN }));
+  await s.page.goto(`${base}/r/#${b64(CLAIMED)}`);
+  await ready(s.page);
+  assert.equal(await visible(s.page, "binding-row"), false, "not offered before a result");
+  await s.page.click("#fetch");
+  await verified(s.page);
+  assert.equal(await text(s.page, "#check-issuer"), "Check with pay.example.org");
+  assert.match(await text(s.page, "#binding-note"), /tells pay\.example\.org that one of its receipts is being checked/);
+  assert.equal(s.requests.filter((r) => r.url === WK).length, 0, "no request to the domain before the click");
+  await s.page.click("#check-issuer");
+  await s.page.waitForFunction(() => /^Confirmed/.test(document.getElementById("binding").textContent));
+  assert.match(await text(s.page, "#binding"), /^Confirmed: pay\.example\.org lists this key\. It vouches for the key now/);
+  assert.equal(await s.page.getAttribute("#binding", "class"), "ok");
+  assert.equal(await text(s.page, "#headline"), "VALID", "the verdict is unchanged");
+  await assertPrivate(s, { issuerChecks: 1 });
+  await s.context.close();
+});
+
+// A missing CORS header is not tested here: Playwright's route.fulfill bypasses Chrome's CORS check (measured: a
+// fulfilled response without Access-Control-Allow-Origin was read). CORS is the browser's; the page's handling of a
+// rejected fetch is the redirect case below.
+test("issuer check: not listed, a redirect and a 404 each leave the receipt VALID and say why", { skip: !RUN }, async () => {
+  for (const [name, fulfill, want] of [
+    ["another key", { status: 200, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: WELL_KNOWN_OTHER }, /^Not listed: pay\.example\.org does not list this key\. The payment above is still proven/],
+    ["a redirect", { status: 302, headers: { location: "https://evil.example/zeceipt.json", "access-control-allow-origin": "*" }, body: "" }, /^Unknown: pay\.example\.org: the request failed/],
+    ["a 404", { status: 404, headers: { "access-control-allow-origin": "*" }, body: "" }, /^Unknown: pay\.example\.org answered HTTP 404/],
+  ]) {
+    const s = await openPage();
+    await s.context.route(WK, (route) => route.fulfill(fulfill));
+    await claimedVerified(s);
+    await s.page.click("#check-issuer");
+    await s.page.waitForFunction(() => !/Checking/.test(document.getElementById("binding").textContent));
+    assert.match(await text(s.page, "#binding"), want, name);
+    assert.equal(await s.page.getAttribute("#binding", "class"), "pending", `${name}: amber, never red`);
+    assert.equal(await text(s.page, "#headline"), "VALID", `${name}: the verdict is unchanged`);
+    assert.equal(s.requests.filter((r) => r.url.startsWith("https://evil.example")).length, 0, `${name}: a redirect is never followed`);
+    await s.context.close();
+  }
+});
+
+test("issuer check: not offered for a plain key id or an unsigned receipt", { skip: !RUN }, async () => {
+  for (const receipt of [BEARER, UNSIGNED_HTML]) {
+    const s = await openPage();
+    await s.page.goto(`${base}/r/#${b64(receipt)}`);
+    await ready(s.page);
+    await s.page.click("#fetch");
+    await verified(s.page);
+    assert.equal(await visible(s.page, "binding-row"), false);
+    await assertPrivate(s);
+    await s.context.close();
+  }
+});
+
+test("the page's CSP admits only the well-known path on other hosts (measured in Chrome)", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.context.route("https://evil.example/**", (route) => route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*" }, body: "{}" }));
+  await s.page.goto(`${base}/r/`);
+  await ready(s.page);
+  const tryFetch = (u) => s.page.evaluate(async (url) => { try { await fetch(url); return "sent"; } catch { return "refused"; } }, u);
+  assert.equal(await tryFetch("https://evil.example/other"), "refused", "another path");
+  assert.equal(await tryFetch("https://evil.example/.well-known/zeceipt.json"), "sent", "the well-known path");
+  const withQuery = await tryFetch("https://evil.example/.well-known/zeceipt.json?leak=1");
+  assert.equal(await tryFetch("http://evil.example/.well-known/zeceipt.json"), "refused", "plain http");
+  const violations = await s.page.evaluate(() => window.__csp);
+  assert.ok(violations.some((v) => /connect-src https:\/\/evil\.example\/other/.test(v)), JSON.stringify(violations));
+  console.log(`CSP measurement: the well-known path with a query string was ${withQuery}`);
   await s.context.close();
 });

@@ -81,6 +81,26 @@ export function issuerLines(result) {
   ];
 }
 
+/** The check offered when a signed, valid receipt's key id claims a domain (spec §7): the button, and what it costs. */
+export function bindingOffer(domain) {
+  return {
+    button: `Check with ${domain}`,
+    note: `This asks ${domain} for the keys it vouches for, which tells ${domain} that one of its receipts is being checked.`,
+  };
+}
+
+/** The outcome of the check, in words. It never changes whether the receipt is valid. */
+export function bindingText(b) {
+  switch (b?.state) {
+    case "confirmed":
+      return { state: "confirmed", text: `Confirmed: ${b.domain} lists this key. It vouches for the key now; this does not say when the receipt was made.` };
+    case "not_listed":
+      return { state: "not_listed", text: `Not listed: ${b.domain} does not list this key. The payment above is still proven; ${b.domain} just does not vouch for who signed it.` };
+    default:
+      return { state: "unknown", text: `Unknown: ${b?.reason ?? "the check did not complete"}. The payment above is still proven.` };
+  }
+}
+
 /** Whether the receipt proves anything about who is presenting it. */
 export function challengeLine(result) {
   return result.challenge_checked

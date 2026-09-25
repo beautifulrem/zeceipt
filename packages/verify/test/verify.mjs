@@ -167,6 +167,14 @@ const connect = (/connect-src ([^;]+)/.exec(csp)?.[1] ?? "").split(/\s+/);
 const origins = [...new Set(Object.values(GRPC_WEB_ENDPOINTS).flat().map((u) => new URL(u).origin))];
 check("receipt page CSP connect-src covers every public gRPC-web endpoint", origins.every((o) => connect.includes(o)), `missing: ${origins.filter((o) => !connect.includes(o)).join(" ")}`);
 check("receipt page CSP is default-deny with WebAssembly allowed", /default-src 'none'/.test(csp) && /script-src 'self' 'wasm-unsafe-eval'/.test(csp) && /form-action 'none'/.test(csp) && /base-uri 'none'/.test(csp));
+check("receipt page CSP admits the well-known path on any HTTPS host, not https: (spec §7, slice W3b)", connect.includes("https://*/.well-known/zeceipt.json") && !connect.includes("https:") && !connect.includes("*"));
+check("receipt page states both requests it can make, each only when asked", /only when you ask/.test(pageHtml) && /issuer check tells the named domain/.test(pageHtml));
+check("issuer check copy: the offer names the domain and what the request tells it",
+  pageView.bindingOffer("pay.example.org").button === "Check with pay.example.org" && /tells pay\.example\.org that one of its receipts is being checked/.test(pageView.bindingOffer("pay.example.org").note));
+check("issuer check copy: confirmed is 'now'; not listed and unknown keep the payment proven",
+  /vouches for the key now; this does not say when the receipt was made/.test(pageView.bindingText({ state: "confirmed", domain: "d.example" }).text)
+  && /still proven/.test(pageView.bindingText({ state: "not_listed", domain: "d.example" }).text)
+  && /^Unknown: x\. The payment above is still proven\.$/.test(pageView.bindingText({ state: "unknown", reason: "x" }).text));
 const pageJs = fs.readFileSync(path.join(here, "../r/page.js"), "utf8");
 check("receipt page writes the DOM with textContent only (no innerHTML/outerHTML/insertAdjacentHTML)", !/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(pageJs));
 check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|document\.cookie/.test(pageJs));

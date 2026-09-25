@@ -187,6 +187,28 @@ The node guard also checks:
 
 The source guards now scan `packages/verify/src` and `r/` too; an OCK in a `console.log` there fails them.
 
+## 2e. synthetic — the receipt page's issuer check in Chrome (2026-09-26, slice W3b)
+
+`ZECEIPT_BROWSER_E2E=1 node --test packages/verify/test/page.e2e.mjs` passes 12/12, 4 of them new.
+
+The fixture receipt claims `pay.example.org`, from key id `2026-09@pay.example.org`, signed with a throwaway key that was deleted. The domain's well-known file is served by interception in the browser.
+
+| Case | What the page shows |
+|---|---|
+| Before a result | No check is offered |
+| After VALID | "Check with pay.example.org", and a note that the check tells pay.example.org one of its receipts is being checked. No request goes to the domain before the click |
+| Clicked, the domain's file | "Confirmed: pay.example.org lists this key. It vouches for the key now; this does not say when the receipt was made." (green) |
+| Another key's file | "Not listed: pay.example.org does not list this key. The payment above is still proven…" (amber) |
+| A redirect | "Unknown: pay.example.org: the request failed…" (amber); the redirect target is never requested |
+| A 404 | "Unknown: pay.example.org answered HTTP 404" (amber) |
+| A plain key id, or unsigned | No check is offered |
+
+In every case the headline stays VALID. The check is a single GET with no `Referer` and no cookie, and no receipt payload or OCK is in any request (the privacy assertions of §2c).
+
+**CSP, measured.** `https://evil.example/other` is refused, and the well-known path is admitted. The well-known path with a query string is also admitted, and plain `http:` is refused. Admitting the query is the recorded cost of this widening (THREAT_MODEL).
+
+**Not covered by this test:** a missing `Access-Control-Allow-Origin`. Playwright's interception bypasses Chrome's CORS check. The page's handling of a rejected fetch is the redirect case.
+
 ## 2d. mainnet-read — the issuer binding lookup over the internet (2026-09-26, slice W2b)
 
 `zeceipt verify --check-issuer` on a receipt issued from the synthetic fixture with a throwaway key and the key id `2026-09@example.org`:
