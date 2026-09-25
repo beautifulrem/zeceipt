@@ -14,7 +14,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP, NEXT, baseEnv, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
-import { decimalToZat } from "../lib/index.ts";
+import { checkUnifiedAddress, decimalToZat } from "../lib/index.ts";
 
 const ENABLED = process.env.ZECEIPT_REGTEST === "1";
 const ROOT = resolve(APP, "../..");
@@ -67,7 +67,9 @@ test("regtest, payables to receipts: USD payables → batch at Kraken's live rat
     const { addressByAccount } = await zkool<{ addressByAccount: { ua: string } }>("query($id: Int!) { addressByAccount(idAccount: $id) { ua } }", { id });
     accounts.push({ id, ua: addressByAccount.ua });
   }
-  step("accounts", { accounts: accounts.map((a) => a.id), birth });
+  const first = checkUnifiedAddress(accounts[0].ua, "regtest");
+  assert.deepEqual(first.ok && first.receivers.map((r) => r.typecode), [2, 3], "the first recipient's address holds Sapling and Orchard-typecode receivers");
+  step("accounts", { accounts: accounts.map((a) => a.id), birth, firstRecipientReceivers: ["sapling", "orchard"] });
 
   const WRAP = randomBytes(32);
   const dir = mkdtempSync(join(tmpdir(), "zeceipt-regtest-payables-"));
@@ -158,7 +160,9 @@ test("regtest, payables to receipts: USD payables → batch at Kraken's live rat
     assert.equal(history.filter((a) => a === "receipt_issued").length, 3);
     const issuerTxs = (await zkool<{ transactionsByAccount: { txid: string; height: number }[] }>("query($id: Int!) { transactionsByAccount(idAccount: $id, height: 0) { txid height } }", { id: ISSUER })).transactionsByAccount.filter((t) => t.height > heightBeforePay || t.height <= 0);
     assert.deepEqual(issuerTxs.map((t) => t.txid), [paid.txid], "exactly one transaction");
-    step("receipts_by_worker", { count: receipts.length, workerLine: true, history, confirmedHeight: issuerTxs[0].height });
+    const mempool = await zebraRpc<string[]>("getrawmempool");
+    assert.deepEqual(mempool, [], "and nothing waiting to be mined (no unmined second payment)");
+    step("receipts_by_worker", { count: receipts.length, workerLine: true, history, confirmedHeight: issuerTxs[0].height, mempool: mempool.length });
 
     // 5. Each receipt verified with the CLI against the chain (stdin), and each recipient's wallet holds its reference.
     const verdicts = [];

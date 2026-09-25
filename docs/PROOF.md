@@ -801,15 +801,15 @@ The library test (§5c) passed the same way, paying with the issuer's scoped tok
 
 `ZECEIPT_REGTEST=1 NO_PROXY='127.0.0.1,localhost' node --test test/regtest.payables.e2e.test.ts`, run from `apps/console` against the stack of §5e. Zkool enforces tokens, and Kraken is reached through the machine's proxy (`NODE_USE_ENV_PROXY=1`). This is what §5d does not show: nobody presses Issue, and the rate is Kraken's own.
 
-The transcript is `raw/tools/regtest/console-payables-e2e-20260925180636.json`. The first run, `…180533.json`, gave the same result at a rate of 1535.89.
+The transcript is `raw/tools/regtest/console-payables-e2e-20260925181051.json`. Two earlier runs passed the same way at Kraken's 1535.89 and 1537.01 (`…180533.json` and `…180636.json`). This third run adds the receiver and mempool assertions asked for by review P2 round 1.
 
 | Step | What happened |
 |---|---|
-| Recipients | Three fresh Zkool accounts, 116–118. The first holds Sapling and Ironwood receivers |
+| Recipients | Three fresh Zkool accounts, 119–121. The first account's address holds Sapling and Orchard-typecode receivers, asserted by decoding it (`firstRecipientReceivers: ["sapling", "orchard"]`) |
 | Payables | Recipients and three USD bounties made through the API: $25.00, $33.00 and $41.50, with references `PAY-<stamp>-1…3` |
-| Batch | Made from the payables. The rate was locked at creation from **Kraken**: `host: api.kraken.com`, bid 1537.01, fetched 2026-09-25T18:06:38Z, rate fixed. The lines are 1626534, 2147025 and 2700047 zat, each `floor(cents × 10⁸ / (100 × rate))`, recomputed in the test and checked with Python `fractions`. The page names Kraken |
-| Approve, pay | Approved at the total and lock 1. One payment, tx `32ba2538…b77f`; a second submit replayed it |
-| Receipts | The receipt worker (`ZECEIPT_AUTO_RECEIPTS_SECONDS=2`, 2 confirmations) issued all three on its own, logging `receipts: issued for batch <id>`, 12 s after the payment. The batch is `receipts_issued`. The history is `created, locked, approved, quoted, attempt_submitting, attempt_broadcast, expiry_recorded, receipt_issued ×3`. The issuer's transactions since the pre-pay height: exactly that one, mined at 50991 |
+| Batch | Made from the payables. The rate was locked at creation from **Kraken**: `host: api.kraken.com`, bid 1538.57, fetched 2026-09-25T18:10:53Z, rate fixed. The lines are 1624885, 2144848 and 2697309 zat, each `floor(cents × 10⁸ / (100 × rate))`. The test recomputes them, and Python `fractions` confirms them (the dropped fractions are 0.45, 0.79 and 0.84 zat, so floor and half-up differ on two of the three). The page names Kraken |
+| Approve, pay | Approved at the total and lock 1. One payment, tx `57ef128c…5f0b`; a second submit replayed it |
+| Receipts | The receipt worker (`ZECEIPT_AUTO_RECEIPTS_SECONDS=2`, 2 confirmations) issued all three on its own, logging `receipts: issued for batch <id>`, 10 s after the payment. The test only polls `GET /receipts`, which never issues. The batch is `receipts_issued`. The history is `created, locked, approved, quoted, attempt_submitting, attempt_broadcast, expiry_recorded, receipt_issued ×3`. The issuer's mined transactions since the pre-pay height: exactly that one, at 51039. The mempool is empty, so no second payment is waiting |
 | Verified | Each receipt link through `zeceipt verify --require-signature` against the chain: VALID, with its memo and value |
 | Recipients | Each account holds its exact amount, with its payable's reference as the memo |
 
