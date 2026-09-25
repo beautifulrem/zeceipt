@@ -1,8 +1,8 @@
 // Screenshots of approval before payment (slice I3, PRD AC4), re-runnable. Run after `next build` from apps/console:
 // `node test/shots/approve.ts [dir]`. Two shots of one batch page, as a person checks it by eye: locked and waiting
 // for approval (the button names the total and the rate; no Pay yet), then approved (Pay appears, the lifecycle
-// marks Approved). Hot custody against the fake Zkool and a fake ticker: nothing is paid.
-import http from "node:http";
+// marks Approved). Hot custody against the fake Zkool: nothing is paid. The rate is Kraken's live bid (review L2 round 1:
+// never a made-up rate shown as Kraken's), so the amounts differ between runs; run with the environment's proxy.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,14 +11,12 @@ import { FakeZkool } from "../helpers/fake-zkool.ts";
 
 const OUT = process.argv[2] ?? join(import.meta.dirname, "../../../../docs/product/screenshots");
 const dir = mkdtempSync(join(tmpdir(), "i3-shot-"));
-const ticker = http.createServer((_req, res) => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: ["41.52", "1", "1"], b: ["41.47", "1", "1"], c: ["41.50", "0.1"] } } })));
-await new Promise<void>((r) => ticker.listen(0, "127.0.0.1", r));
 const fake = await new FakeZkool().start();
 const env = {
   ...baseEnv(), ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: fake.url, ZECEIPT_ZKOOL_ACCOUNT: "9", ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
   ZECEIPT_DB_PATH: join(dir, "c.db"), ZECEIPT_ORG_ID: "shot", ZECEIPT_NETWORK: "regtest", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 4).toString("base64")}`,
   ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137", ZECEIPT_BIN: "/opt/x", ZECEIPT_UFVK_FILE: "/etc/x", ZECEIPT_ISSUER_KEY_FILE: "/etc/y", ZECEIPT_ISSUER_KEY_ID: "k",
-  ZECEIPT_RATE_URL: `http://127.0.0.1:${(ticker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD`,
+  NODE_USE_ENV_PROXY: "1", NO_PROXY: "127.0.0.1,localhost",
 };
 const s = await start(env as Record<string, string>);
 const { chromium } = await import("playwright-core");
@@ -46,6 +44,5 @@ try {
   s.child.kill("SIGTERM");
   await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   await fake.stop();
-  ticker.close();
   rmSync(dir, { recursive: true, force: true });
 }

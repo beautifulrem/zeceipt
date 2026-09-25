@@ -15,12 +15,12 @@
 
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import http from "node:http";
 import { mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP, baseEnv, raw, start, waitHealthy, within } from "../helpers/app-server.ts";
 import { serveStatic } from "../helpers/static-site.ts";
+import { englishChrome } from "../helpers/english-chrome.ts";
 
 if (process.env.ZECEIPT_REGTEST !== "1") {
   console.log("demo footage needs the live regtest chain: set ZECEIPT_REGTEST=1 (docs/REGTEST_RUNBOOK.md)");
@@ -34,7 +34,6 @@ const ZAINO = process.env.ENDPOINT ?? "http://127.0.0.1:8137";
 const ZEBRA_RPC = process.env.ZEBRA_RPC ?? "http://127.0.0.1:18232/";
 const ISSUER = Number(process.env.ZKOOL_ISSUER ?? 9);
 const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/release/zeceipt");
-const RATE = "41.47"; // a fixed demo rate, labelled as such in shots.json
 const SIZE = { width: 1280, height: 800 };
 const HOLD = 1500; // ms after each visible change, so a viewer can read it
 const KEY = 3000; // ms on the beats the pitch narrates (approval, payment, VALID, INVALID)
@@ -75,18 +74,19 @@ for (const [i, [name, reference, usdCents]] of PEOPLE.entries()) {
 const WRAP = randomBytes(32);
 const dir = mkdtempSync(join(tmpdir(), "zeceipt-demo-"));
 const site = await serveStatic(join(ROOT, "packages/verify"));
-const ticker = http.createServer((_req, res) => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: ["41.52", "1", "1"], b: [RATE, "1", "1"], c: ["41.50", "0.1"] } } })));
-await new Promise<void>((r) => ticker.listen(0, "127.0.0.1", r));
 const s = await start({
   ...baseEnv(),
+  // The rate is Kraken's live ZEC/USD bid, the console's default source (review L2 round 1: a made-up rate must never
+  // be shown as Kraken's). Node reaches it through the environment's proxy; local services bypass it.
+  NODE_USE_ENV_PROXY: "1", NO_PROXY: "127.0.0.1,localhost",
   ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: ZKOOL, ZECEIPT_ZKOOL_ACCOUNT: String(ISSUER), ZECEIPT_DB_PATH: join(dir, "console.db"),
   ZECEIPT_ORG_ID: "demo", ZECEIPT_NETWORK: "regtest", ZECEIPT_CONFIRMATIONS: "2", ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
   ZECEIPT_WRAP_KEYS: `k1:${WRAP.toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: ZAINO, ZECEIPT_BIN: BIN,
   ZECEIPT_UFVK_FILE: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), ZECEIPT_ISSUER_KEY_FILE: join(ARTIFACT_DIR, "issuer.key"), ZECEIPT_ISSUER_KEY_ID: "2026-09",
-  ZECEIPT_RECEIPT_HOST: site.base, ZECEIPT_RATE_URL: `http://127.0.0.1:${(ticker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD`,
+  ZECEIPT_RECEIPT_HOST: site.base,
 });
-const { chromium } = await import("playwright-core");
-const browser = await chromium.launch({ channel: "chrome", headless: true });
+const chrome = await englishChrome();
+const browser = chrome.browser;
 const shots: { segment: string; file: string; steps: { atMs: number; step: string }[] }[] = [];
 const secrets: string[] = [WRAP.toString("base64")];
 
@@ -125,6 +125,7 @@ try {
   }
 
   let batchId = "";
+  let lock = { rate: "", source: "", fetchedAt: "" };
   await segment("console", "1-console.webm", async (page, step) => {
     await page.goto(`${base}/recipients`);
     await page.getByText(PEOPLE[4][0]).first().waitFor();
@@ -140,6 +141,9 @@ try {
     await page.waitForURL(/\/batches\/[0-9a-f-]{36}$/);
     batchId = page.url().split("/").at(-1)!;
     await page.getByRole("button", { name: /^Approve paying/ }).waitFor();
+    lock = (JSON.parse((await raw(s.port, "GET", `/api/batches/${batchId}`, { host: self })).body) as { rateLock: { rate: string; source: string; fetchedAt: string } }).rateLock;
+    assert.equal(lock.source, "kraken");
+    assert.ok(await page.getByText(`Kraken XZECZUSD`).first().isVisible(), "the page names the source the quote came from");
     await step("the batch: converted at the locked rate (fixed for a batch made from payables); approval comes first");
     await page.getByRole("button", { name: /^Approve paying/ }).click();
     await page.getByRole("button", { name: /^Pay / }).waitFor();
@@ -209,7 +213,8 @@ try {
   const index = {
     version: 1,
     stamp,
-    note: `regtest only (a private, consensus-valid chain; PROOF §5). Rate: a fixed demo rate of ${RATE} USD per ZEC. No receipt link, OCK or key is in this file.`,
+    note: "regtest only (a private, consensus-valid chain; PROOF §5). The rate is Kraken's live ZEC/USD bid when the batch was made. No receipt link, OCK or key is in this file.",
+    rate: lock,
     batch: { recipients: recipients.length, txid },
     segments: shots,
   };
@@ -219,10 +224,9 @@ try {
   for (const f of readdirSync(OUT)) console.log(`${f}\t${statSync(join(OUT, f)).size} bytes`);
   console.log(`footage in ${OUT}`);
 } finally {
-  await browser.close();
+  await chrome.close();
   s.child.kill("SIGTERM");
   await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   rmSync(dir, { recursive: true, force: true });
   await site.close();
-  ticker.close();
 }
