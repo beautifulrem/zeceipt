@@ -111,6 +111,41 @@ export class ZkoolClient {
     return body.data;
   }
 
+  /** Whether this client holds a token (hot custody, slice S3). */
+  get hasToken(): boolean {
+    return this.#token !== undefined;
+  }
+
+  /**
+   * Does Zkool answer a request that carries no token (slice S3b)? Started with `--jwt-public-key-file` it refuses
+   * it in its HTTP filter (500 "Unhandled rejection: AuthError", measured, R97); started without, it serves anyone
+   * on every interface, and our token protects nothing. `{ currentHeight }` reads no account.
+   */
+  async servesWithoutToken(): Promise<boolean> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(this.url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "{ currentHeight }" }),
+        redirect: "error",
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (e) {
+      throw new ZkoolTransportError(`request to ${this.url} failed: ${(e as Error).message}`, { cause: e });
+    }
+    const text = await res.text().catch(() => "");
+    if (res.status === 500 && text.startsWith("Unhandled rejection: AuthError")) return false;
+    if (res.ok) {
+      try {
+        if (Number.isInteger((JSON.parse(text) as { data?: { currentHeight?: unknown } }).data?.currentHeight)) return true;
+      } catch {
+        // not JSON: fall through
+      }
+    }
+    throw new ZkoolTransportError(`unexpected answer from ${this.url} to a request without a token (HTTP ${res.status})`);
+  }
+
   async currentHeight(): Promise<number> {
     return (await this.request<{ currentHeight: number }>("{ currentHeight }")).currentHeight;
   }

@@ -153,6 +153,11 @@ export class ZkoolBackend implements PayoutBackend {
         detail: `needs ${totalZat + feeEstimateZat} zat (payments ${totalZat} + fee estimate ${feeEstimateZat}), Ironwood spendable ${spendableZat}`,
       });
     }
+    // A token protects nothing if Zkool does not ask for one (slice S3b): a Zkool that serves a request without it
+    // serves anyone who can reach it (every interface, R97), so nothing is paid through it.
+    if (this.client.hasToken && (await this.client.servesWithoutToken())) {
+      problems.push({ code: "zkool_unauthenticated", detail: "Zkool answered a request without a token: anyone who can reach it can pay from this wallet; restart it with --jwt-public-key-file" });
+    }
     // The token must outlive the attempt (slice S3): an expiry during `pay` would be refused by Zkool's HTTP filter
     // (nothing sent, ZkoolAuthError), but refusing here names the cause before anything is attempted.
     const expiresAt = this.client.tokenExpiresAt;

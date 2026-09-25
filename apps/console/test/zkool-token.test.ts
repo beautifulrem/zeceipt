@@ -24,6 +24,7 @@ import {
   ZkoolBackend,
   ZkoolClient,
   ZkoolTokenError,
+  ZkoolTransportError,
   type Batch,
 } from "../lib/index.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
@@ -213,4 +214,45 @@ test("the mint script: a new 0600 file, the claims asked for, never the token on
   ] as const) {
     await assert.rejects(run(process.execPath, [script, "--key", key, ...args]), (e: { code: number; stderr: string }) => e.code === 2 && re.test(e.stderr));
   }
+});
+
+// Slice S3b: a token protects nothing if Zkool does not ask for one.
+test("servesWithoutToken: false when Zkool refuses a request without a token, true when it serves it; any other answer throws (slice S3b)", async () => {
+  const token = zkoolToken(9);
+  assert.equal(await new ZkoolClient({ url: fake.url, token, timeoutMs: 2_000 }).servesWithoutToken(), false);
+  assert.equal(fake.lastAuthorization, undefined, "the probe carries no authorization header");
+  const open = await new FakeZkool().start();
+  try {
+    assert.equal(await new ZkoolClient({ url: open.url, token, timeoutMs: 2_000 }).servesWithoutToken(), true);
+  } finally {
+    await open.stop();
+  }
+  const odd: typeof fetch = async () => new Response("boom", { status: 500 });
+  await assert.rejects(new ZkoolClient({ url: fake.url, token, timeoutMs: 2_000, fetch: odd }).servesWithoutToken(), ZkoolTransportError);
+  const html: typeof fetch = async () => new Response("<html>", { status: 200 });
+  await assert.rejects(new ZkoolClient({ url: fake.url, token, timeoutMs: 2_000, fetch: html }).servesWithoutToken(), ZkoolTransportError);
+});
+
+test("a console with a token never pays through a Zkool that serves requests without one: zkool_unauthenticated, nothing paid (slice S3b)", async () => {
+  const open = await new FakeZkool().start();
+  try {
+    const b = backend(new ZkoolClient({ url: open.url, token: zkoolToken(9), tokenExpiresAt: new Date(Date.now() + 3_600_000), timeoutMs: 2_000 }));
+    const pre = await b.preflight(batch("s3b-open"));
+    assert.deepEqual(pre.problems.map((p) => p.code), ["zkool_unauthenticated"]);
+    assert.match(pre.problems[0].detail ?? "", /anyone who can reach it can pay from this wallet; restart it with --jwt-public-key-file/);
+    await assert.rejects(b.submit(batch("s3b-open"), "n-s3b-open"), PreflightFailedError);
+    assert.equal(open.payCalls, 0, "no pay call");
+    assert.equal((await b.store.get("n-s3b-open"))?.state, "failed_retryable");
+    // A client without a token (library use; never the console in hot custody) is not probed.
+    const before = open.requests;
+    await backend(new ZkoolClient({ url: open.url, timeoutMs: 2_000 })).preflight(batch("s3b-none"));
+    assert.equal(open.requests - before, 2, "sync and balance only, no probe");
+  } finally {
+    await open.stop();
+  }
+  // Against a Zkool that asks for tokens, the same client pays.
+  const calls = fake.payCalls;
+  const r = await backend(new ZkoolClient({ url: fake.url, token: zkoolToken(9), tokenExpiresAt: new Date(Date.now() + 3_600_000), timeoutMs: 2_000 })).submit(batch("s3b-closed"), "n-s3b-closed");
+  assert.equal(r.via, "fresh");
+  assert.equal(fake.payCalls, calls + 1);
 });

@@ -777,7 +777,10 @@ Then the same run as §5d, through the console with `ZECEIPT_ZKOOL_TOKEN_FILE` (
 - confirmed at 2, 3 receipts issued and verified; each recipient's own account holds its memo;
 - each link VALID on the receipt page.
 
-The library test (§5c) passed the same way, paying with the issuer's scoped token (`test/regtest.e2e.test.ts`).
+The library test (§5c) passed the same way, paying with the issuer's scoped token (`test/regtest.e2e.test.ts`). Since slice S3b, every payment first sends one request without the token and pays only if Zkool refuses it. The live runs of §5f paid, so this Zkool refused the probe each time. Measured directly on 2026-09-26 with `ZkoolClient.servesWithoutToken()` and the console's token:
+- this Zkool, started with the key, gave `false`;
+- the same Zkool restarted without `--jwt-public-key-file` gave `true`, which is what preflight turns into `zkool_unauthenticated`;
+- restarted with the key again, it gave `false` (PID 62872, still running).
 
 ## 5f. regtest — a database that forgot a payment, and recipients with more than one receiver (2026-09-26, slice S5)
 

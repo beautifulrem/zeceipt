@@ -37,7 +37,9 @@ export type PreflightProblemCode =
   | "duplicate_payable"
   | "insufficient_funds"
   /** The Zkool token expires before an attempt could finish (slice S3): nothing is sent; mint a new one and restart. */
-  | "zkool_token_expiring";
+  | "zkool_token_expiring"
+  /** Zkool served a request that carried no token (slice S3b): it is open to anyone who can reach it; nothing is sent. */
+  | "zkool_unauthenticated";
 
 export interface PreflightProblem {
   code: PreflightProblemCode;

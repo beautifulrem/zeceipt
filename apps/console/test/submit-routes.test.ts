@@ -151,6 +151,25 @@ test("a submission edited back to failed_retryable after the batch was paid and 
   assert.equal((await status(b.id!)).body.detail?.txid, first.body.txid);
 });
 
+test("a Zkool that serves requests without a token: 422 preflight_failed naming zkool_unauthenticated, sent_nothing, no pay (slice S3b)", async () => {
+  const b = await createDraft();
+  const key = fake.publicKeyPem;
+  fake.publicKeyPem = undefined; // Zkool restarted without --jwt-public-key-file
+  try {
+    const calls = fake.payCalls;
+    const r = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+    assert.equal(r.status, 422);
+    assert.equal(r.body.code, "preflight_failed");
+    assert.deepEqual((r.body as { problems?: { code: string }[] }).problems?.map((p) => p.code), ["zkool_unauthenticated"]);
+    assert.equal(r.body.thisRequest, "sent_nothing");
+    assert.equal(fake.payCalls, calls, "no pay call");
+  } finally {
+    fake.publicKeyPem = key;
+  }
+  const paid = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.equal(paid.status, 202, "once Zkool asks for tokens again, the same batch pays");
+});
+
 test("confirmation: missing, malformed or mismatched totals are refused before any wallet call", async () => {
   const b = await createDraft();
   const calls = fake.payCalls;
