@@ -747,21 +747,33 @@ test("voiding a draft from the batch page through next start, as a browser witho
     assert.ok((await get(`/batches/${b.id}/void`)).includes("This batch was voided on") && !(await get(`/batches/${b.id}/void`)).includes("Void this batch</button>"), "its confirmation page offers nothing");
     assert.equal((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, JSON.stringify({ title: "again", items: [{ payableId: "p-again", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1", memo: "VOID-PAGE-1" }] }))).status, 201, "its memo is free again");
 
-    // A batch an attempt may have sent (recorded as the execution library records a broadcast): nothing is offered.
+    // A batch an attempt may have sent, recorded as the execution library records a broadcast: nothing is offered.
+    const recordBroadcast = async (id: string, txid: string) => {
+      const side = openDb({ path: join(dir, "void-page.db") });
+      try {
+        const rec = (await getBatch(side, "demo-org", id))!;
+        const store = new SqliteIdempotencyStore(side, { orgId: "demo-org" });
+        const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
+        await store.createIntent({ ...base, state: "submitting" });
+        await store.update({ ...base, state: "broadcast", txid }, { attempts: 1, states: ["submitting"] });
+      } finally {
+        side.$client.close();
+      }
+    };
     const paid = await hand("VOID-PAGE-PAID");
-    const side = openDb({ path: join(dir, "void-page.db") });
-    try {
-      const rec = (await getBatch(side, "demo-org", paid.id))!;
-      const store = new SqliteIdempotencyStore(side, { orgId: "demo-org" });
-      const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
-      await store.createIntent({ ...base, state: "submitting" });
-      await store.update({ ...base, state: "broadcast", txid: "cd".repeat(32) }, { attempts: 1, states: ["submitting"] });
-    } finally {
-      side.$client.close();
-    }
+    await recordBroadcast(paid.id, "cd".repeat(32));
     assert.ok(!(await get(`/batches/${paid.id}`)).includes("Void this draft…"), "a sent batch's page has no void link");
     const paidConfirm = await get(`/batches/${paid.id}/void`);
     assert.ok(paidConfirm.includes("A payment attempt may have sent this batch, so it cannot be voided.") && !paidConfirm.includes("Void this batch</button>"), "and its confirmation page no button");
+
+    // Review H5d: a stale confirmation page for a batch PAID in between (AC1): refused in words; nothing voided.
+    const d = await hand("VOID-PAGE-3");
+    const beforePay = await get(`/batches/${d.id}/void`);
+    await recordBroadcast(d.id, "ef".repeat(32));
+    const refused = (await confirm(beforePay, `/batches/${d.id}/void`)).body.replaceAll("<!-- -->", "");
+    assert.ok(/role="alert"[^>]*>[\s\S]*Not voided:[\s\S]*may have sent this batch/.test(refused), "the refusal, in words");
+    const dJson = JSON.parse((await raw(s.port, "GET", `/api/batches/${d.id}`, { host: self })).body) as { voided: unknown };
+    assert.equal(dJson.voided, null, "nothing was voided");
 
     // A stale confirmation page: the batch is voided through the API in between; the page's post is refused in words.
     const c = await hand("VOID-PAGE-2");
