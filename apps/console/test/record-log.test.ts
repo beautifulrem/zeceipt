@@ -123,3 +123,25 @@ test("the migration backfills a database from before it: a created event per rec
     legacy.$client.close();
   }
 });
+
+// Review I4b round 1: an address change inside the kept prefix abridges to the same text; it must still name the
+// address (migration 0023: then the full previous and current addresses, marked "full").
+test("an address change that abridges alike records the full addresses; one that abridges differently, the short forms", async () => {
+  const r = await recipient();
+  const same = `${UA.slice(0, 60)}${"q".repeat(UA.length - 60)}`; // the reviewer's probe: the same first 60 characters
+  assert.equal(shortAddress(same), shortAddress(UA), "the two abridge alike");
+  sql("UPDATE recipients SET address = ?, updated_at = '2026-09-25T13:00:00.000Z' WHERE id = ?", same, r.id);
+  sql("UPDATE recipients SET address = ?, updated_at = '2026-09-25T13:01:00.000Z' WHERE id = ?", UA2, r.id);
+  const [, alike, differ] = await listRecordLog(db, ORG, "recipient", r.id);
+  assert.deepEqual(alike.detail, { fields: { address: { previous: UA, current: same, full: true } } });
+  assert.deepEqual(differ.detail, { fields: { address: { previous: shortAddress(same), current: shortAddress(UA2) } } });
+});
+
+test("no changed event ever names no field (every change so far in this database)", () => {
+  const rows = db.$client.prepare("SELECT detail FROM record_log WHERE action = 'changed'").all() as { detail: string }[];
+  assert.ok(rows.length >= 5, "the tests above made changes");
+  for (const { detail } of rows) {
+    const fields = Object.entries((JSON.parse(detail) as { fields: Record<string, unknown> }).fields).filter(([, v]) => v !== null);
+    assert.ok(fields.length > 0, `a change naming no field: ${detail}`);
+  }
+});

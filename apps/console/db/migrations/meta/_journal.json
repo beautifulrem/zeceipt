@@ -162,6 +162,13 @@
       "when": 1790340614807,
       "tag": "0022_record_log",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790341087834,
+      "tag": "0023_record_address_change",
+      "breakpoints": true
     }
   ]
 }
