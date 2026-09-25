@@ -77,8 +77,8 @@ after(async () => {
 });
 
 /** A fresh browser context that records requests, CSP violations and page errors. */
-async function openPage({ height = 3491284n, nodeHex = SYNTH_HEX, holdWasm = null } = {}) {
-  const context = await browser.newContext();
+async function openPage({ height = 3491284n, nodeHex = SYNTH_HEX, holdWasm = null, using = browser, contextOptions = {} } = {}) {
+  const context = await using.newContext(contextOptions);
   const requests = [];
   const errors = [];
   await context.addInitScript(() => {
@@ -106,7 +106,7 @@ async function ready(page) { await page.waitForFunction(() => /verification runs
 async function verified(page) { await page.waitForSelector("#outcome:not([hidden])"); }
 
 /** No recorded request may carry a payload or an OCK, and nothing may be stored or blocked. */
-async function assertPrivate({ page, requests, errors }, { issuerChecks = 0 } = {}) {
+async function assertPrivate({ page, requests, errors }, { issuerChecks = 0, expectedErrors = [] } = {}) {
   await new Promise((r) => setTimeout(r, 50)); // let the last allHeaders() settle
   for (const r of requests) {
     for (const s of SECRETS) {
@@ -131,7 +131,8 @@ async function assertPrivate({ page, requests, errors }, { issuerChecks = 0 } = 
     idb: (await indexedDB.databases()).length, caches: (await caches.keys()).length, csp: window.__csp,
   }));
   assert.deepEqual(stored, { local: 0, session: 0, cookie: "", idb: 0, caches: 0, csp: [] });
-  assert.deepEqual(errors, []);
+  // Chrome logs a refused request (CORS, a redirect with redirect: "error") to the console; a test names those it expects.
+  assert.deepEqual(errors.filter((e) => !expectedErrors.some((re) => re.test(e))), []);
 }
 
 test("a bearer receipt opened by its link: summary first, then VALID with the three parts; nothing leaves the browser", { skip: !RUN }, async () => {
@@ -308,9 +309,9 @@ test("issuer check: offered only after a valid result, named, and nothing is ask
   await s.context.close();
 });
 
-// A missing CORS header is not tested here: Playwright's route.fulfill bypasses Chrome's CORS check (measured: a
-// fulfilled response without Access-Control-Allow-Origin was read). CORS is the browser's; the page's handling of a
-// rejected fetch is the redirect case below.
+// A missing CORS header is not tested with interception: Playwright's route.fulfill bypasses Chrome's CORS check
+// (measured: a fulfilled response without Access-Control-Allow-Origin was read). The last test in this file runs it
+// against a real HTTPS origin instead (slice W3c).
 test("issuer check: not listed, a redirect and a 404 each leave the receipt VALID and say why", { skip: !RUN }, async () => {
   for (const [name, fulfill, want] of [
     ["another key", { status: 200, headers: { "content-type": "application/json", "access-control-allow-origin": "*" }, body: WELL_KNOWN_OTHER }, /^Not listed: pay\.example\.org does not list this key\. The payment above is still proven/],
@@ -357,4 +358,53 @@ test("the page's CSP admits only the well-known path on other hosts (measured in
   assert.ok(violations.some((v) => /connect-src https:\/\/evil\.example\/other/.test(v)), JSON.stringify(violations));
   console.log(`CSP measurement: the well-known path with a query string was ${withQuery}`);
   await s.context.close();
+});
+
+// ---- the issuer check against a real cross-origin HTTPS server (slice W3c, review W3b's optional) ----
+// route.fulfill bypasses Chrome's CORS check, so here Chrome's own network stack does the work: a second Chrome maps
+// pay.example.org to a local HTTPS server (--host-resolver-rules; --no-proxy-server, or a system proxy would take the
+// request), with a certificate made for this run in a temporary directory (never committed) that the context accepts.
+test("issuer check against a real HTTPS origin: no CORS header is unknown, the header confirms, a real redirect is not followed", { skip: !RUN }, async () => {
+  const { spawnSync } = await import("node:child_process");
+  const https = await import("node:https");
+  const os = await import("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeceipt-cors-"));
+  const made = spawnSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes", "-keyout", path.join(dir, "key.pem"), "-out", path.join(dir, "cert.pem"), "-days", "1", "-subj", "/CN=pay.example.org", "-addext", "subjectAltName=DNS:pay.example.org"], { encoding: "utf8" });
+  assert.equal(made.status, 0, made.stderr);
+  let mode = "no-cors";
+  const hits = [];
+  const origin = https.createServer({ key: fs.readFileSync(path.join(dir, "key.pem")), cert: fs.readFileSync(path.join(dir, "cert.pem")) }, (req, res) => {
+    hits.push(req.url);
+    if (mode === "redirect") return void res.writeHead(302, { location: "/.well-known/elsewhere.json", "access-control-allow-origin": "*" }).end();
+    res.writeHead(200, { "content-type": "application/json", ...(mode === "cors" ? { "access-control-allow-origin": "*" } : {}) }).end(WELL_KNOWN);
+  });
+  await new Promise((r) => origin.listen(0, "127.0.0.1", r));
+  const real = await chromium.launch({ channel: "chrome", args: [`--host-resolver-rules=MAP pay.example.org:443 127.0.0.1:${origin.address().port}`, "--no-proxy-server"] });
+  try {
+    const refused = [/blocked by CORS policy: No 'Access-Control-Allow-Origin' header/, /Failed to load resource: net::ERR_FAILED/];
+    const redirected = [/redirect/i, /Failed to load resource/, /Failed to fetch/];
+    for (const [m, want, cls, expectedErrors] of [
+      ["no-cors", /^Unknown: pay\.example\.org: the request failed/, "pending", refused],
+      ["cors", /^Confirmed: pay\.example\.org lists this key/, "ok", []],
+      ["redirect", /^Unknown: pay\.example\.org: the request failed/, "pending", redirected],
+    ]) {
+      mode = m;
+      hits.length = 0;
+      const s = await openPage({ using: real, contextOptions: { ignoreHTTPSErrors: true } });
+      await claimedVerified(s);
+      await s.page.click("#check-issuer");
+      await s.page.waitForFunction(() => !/Checking/.test(document.getElementById("binding").textContent));
+      assert.match(await text(s.page, "#binding"), want, m);
+      assert.equal(await s.page.getAttribute("#binding", "class"), cls, m);
+      assert.equal(await text(s.page, "#headline"), "VALID", `${m}: the verdict is unchanged`);
+      assert.deepEqual(hits, ["/.well-known/zeceipt.json"], `${m}: exactly one request reached the domain, and a redirect was not followed`);
+      await assertPrivate(s, { issuerChecks: 1, expectedErrors });
+      if (m === "no-cors") assert.ok(s.errors.some((e) => refused[0].test(e)), "Chrome's own CORS refusal happened");
+      await s.context.close();
+    }
+  } finally {
+    await real.close();
+    origin.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

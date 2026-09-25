@@ -207,7 +207,12 @@ In every case the headline stays VALID. The check is a single GET with no `Refer
 
 **CSP, measured.** `https://evil.example/other` is refused, and the well-known path is admitted. The well-known path with a query string is also admitted, and plain `http:` is refused. Admitting the query is the recorded cost of this widening (THREAT_MODEL).
 
-**Not covered by this test:** a missing `Access-Control-Allow-Origin`. Playwright's interception bypasses Chrome's CORS check. The page's handling of a rejected fetch is the redirect case.
+**Against a real origin (slice W3c).** Playwright's interception bypasses Chrome's CORS check, so a 13th test launches a second Chrome with `--host-resolver-rules=MAP pay.example.org:443 127.0.0.1:<port>` and `--no-proxy-server`. `pay.example.org` then reaches a local HTTPS server whose certificate is made for the run in a temporary directory; the context accepts it.
+- **Without `Access-Control-Allow-Origin`:** Chrome's own CORS policy blocks the read ("…has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header…"), and the page says "Unknown: pay.example.org: the request failed…".
+- **With the header:** Confirmed.
+- **A real 302:** Unknown, and the server sees exactly one request.
+
+In each case the headline stays VALID. Without `--no-proxy-server`, the machine's system proxy took the request and the mapping never applied (measured).
 
 ## 2d. mainnet-read — the issuer binding lookup over the internet (2026-09-26, slice W2b)
 
