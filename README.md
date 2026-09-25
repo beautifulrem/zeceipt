@@ -47,12 +47,21 @@ Receipt links: with `--host`, `zeceipt issue` prints each receipt as `https://<h
 `apps/console` is a self-hosted web console (Next.js, SQLite, loopback only) for a treasurer who pays contributors in shielded ZEC:
 
 1. Record recipients (their shielded addresses, checked as unified addresses) and payables in US dollars.
-2. Make a batch from payables: the ZEC/USD rate is quoted from Kraken and fixed for the batch, and each line converts exactly.
+2. Make a batch from payables: the ZEC/USD rate is quoted from Kraken and fixed for the batch, and each line is its dollars at that rate, floored to the zatoshi, so the payer never overpays.
 3. Approve it: the approval is bound by HMAC to the exact lines, rate and paying account, so any change needs a new one.
 4. Pay: one Ironwood transaction for the whole batch through Zkool (the seed stays in the wallet; the console holds a viewing key), never twice, with the rate re-checked before paying.
 5. Receipts: one per payment, issued automatically once the payment has the configured confirmations, each a link its recipient can verify in the browser.
 
 Each batch, recipient and payable keeps an append-only history of its changes. The console also warns before paying an address an earlier receipt disclosed.
+
+**Security** ([`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), "The payout console"; each control has a test):
+- **Local only.** It listens on 127.0.0.1 and answers only loopback `Host`s, with no cross-site writes. Its pages cannot be framed, and they run and load only the console's own scripts and resources (a per-response CSP nonce).
+- **The wallet.** The console talks to Zkool with a token scoped to its own account. It refuses to start with an admin, foreign, read-only or expired token, or one Zkool's key did not sign, and it refuses to pay through a Zkool that answers requests without a token.
+- **Payments.** One transaction per batch, never twice. A database restored from a backup adopts a mined payment rather than paying again.
+- **Secrets.** Receipts are sealed at rest, and wrap keys never reach a log.
+- **What it does not do yet:** sign-in. In hot custody, anything on the machine that can reach the port can pay.
+
+`scripts/security_review.sh` runs `cargo audit`, `npm audit`, gitleaks and the source guards (results in [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md)).
 
 What the live chain shows (a local regtest chain, `docs/PROOF.md` §5c–§5g):
 - **A batch made on the console's form:** its rate locked from the run's local test quote source, approved, paid once in one Ironwood transaction for two posts of the Pay form, receipts issued from the page and verified against the chain, and the audit trail read back (§5d).
