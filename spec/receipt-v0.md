@@ -51,7 +51,7 @@ Inputs: the issuer's outgoing viewing key(s) (derived from a UFVK), the raw tran
 For each output in the pool bundle:
 1. `ock = PRF^ock(ovk, cv, cmx, ephemeralKey)` using the pool's domain (`IronwoodDomain` / `OrchardDomain` / `SaplingDomain`).
 2. If `try_output_recovery_with_ovk` succeeds, the output was sent by this key; emit a receipt with that `ock`.
-3. Change outputs (internal scope OVK) are skipped unless explicitly requested.
+3. Change outputs are skipped unless explicitly requested. An output is change when its recovered recipient is an address of the issuer's own full viewing key, in either ZIP 32 scope. Which OVK opened it is not a signal: wallets differ (one encrypts change with the external OVK, another with a key the UFVK does not expose; `docs/PROOF.md` §5b). With a bare OVK, change cannot be recognised, and every opened output is issued.
 
 ## 4. Verification
 
@@ -102,7 +102,7 @@ An organisation may publish `https://<org-domain>/.well-known/zeceipt.json` (sig
 
 - Disclosing an OCK reveals that output's diversified address; repeated receipts to the same address are linkable. Issuers should pay each recipient at a fresh diversified address.
 - Disclosure is permanent; there is no revocation.
-- Hosted verifiers request the txid from a public node; a CLI can fetch by block range or over Tor.
+- Hosted verifiers request the txid from a public node. A CLI can instead use a self-hosted node (`--endpoint`) or a raw transaction file, offline (`--raw-tx-file`). Fetching by block range or over Tor is planned, not implemented.
 
 ## 10. Pools and transaction versions
 
