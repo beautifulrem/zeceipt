@@ -618,3 +618,58 @@ test("beforePay, resubmitExpired: the explicit re-send is judged too; a refusal 
   assert.equal(fake.payCalls, pays + 1);
   fake.mine();
 });
+
+// Slice S5 (R99): the wallet's mined history decides before the database does. A database restored from a backup
+// taken before a payment, or a record edited back to retryable, must never pay a batch twice.
+test("a database restored from before a payment adopts the mined transaction instead of paying again (slice S5)", async () => {
+  const b = batch("s5-restore");
+  const first = backend();
+  const paid = await first.submit(b, "n-s5-restore");
+  fake.mine();
+  const calls = fake.payCalls;
+  const restored = backend(); // a fresh store: the backup never saw the payment
+  const again = await restored.submit(b, "n-s5-restore");
+  assert.deepEqual(again, { txid: paid.txid, replayed: true, via: "reconciled" });
+  assert.equal(fake.payCalls, calls, "no second pay call");
+  const rec = await restored.store.get("n-s5-restore");
+  assert.equal(rec?.state, "broadcast");
+  assert.equal(rec?.txid, paid.txid);
+  assert.deepEqual(await restored.submit(b, "n-s5-restore"), { txid: paid.txid, replayed: true, via: "record" }, "then the record replays it");
+});
+
+test("a record edited from broadcast back to failed_retryable adopts the mined transaction; nothing is paid (slice S5)", async () => {
+  const b = batch("s5-edited");
+  const be = backend();
+  const paid = await be.submit(b, "n-s5-edited");
+  fake.mine();
+  const rec = (await be.store.get("n-s5-edited"))!;
+  assert.equal(await be.store.update({ ...rec, state: "failed_retryable", txid: undefined, broadcastAt: undefined }, { attempts: rec.attempts, states: ["broadcast"] }), true);
+  const calls = fake.payCalls;
+  assert.deepEqual(await be.submit(b, "n-s5-edited"), { txid: paid.txid, replayed: true, via: "reconciled" });
+  assert.equal(fake.payCalls, calls, "no second pay call");
+  assert.equal((await be.store.get("n-s5-edited"))?.state, "broadcast");
+});
+
+test("two mined transactions already pay the batch: nothing is paid, a person decides (already_paid_ambiguous, slice S5)", async () => {
+  const b = batch("s5-twice");
+  const recipients = b.items.map((i) => ({ address: i.address, amount: `${i.zat / 100_000_000n}.${(i.zat % 100_000_000n).toString().padStart(8, "0")}`, memo: i.memo }));
+  fake.mined.push({ txid: "a".repeat(64), height: fake.height, expiry: fake.height + 40, recipients }, { txid: "b".repeat(64), height: fake.height, expiry: fake.height + 40, recipients });
+  const calls = fake.payCalls;
+  const be = backend();
+  await assert.rejects(be.submit(b, "n-s5-twice"), (e: { code?: string; message: string }) => e.code === "already_paid_ambiguous" && /2 mined transactions pay this batch.*nothing was paid/.test(e.message));
+  assert.equal(fake.payCalls, calls, "no pay call");
+  assert.equal((await be.store.get("n-s5-twice"))?.state, "failed_retryable");
+});
+
+test("a transaction paying only some lines, or the same memos to another address, is not this batch: it pays (slice S5)", async () => {
+  const b = batch("s5-partial");
+  const dec = (z: bigint) => `${z / 100_000_000n}.${(z % 100_000_000n).toString().padStart(8, "0")}`;
+  fake.mined.push(
+    { txid: "c".repeat(64), height: fake.height, expiry: fake.height + 40, recipients: b.items.slice(0, 2).map((i) => ({ address: i.address, amount: dec(i.zat), memo: i.memo })) },
+    { txid: "d".repeat(64), height: fake.height, expiry: fake.height + 40, recipients: b.items.map((i) => ({ address: R[(R.indexOf(i.address) + 1) % R.length], amount: dec(i.zat), memo: i.memo })) },
+  );
+  const calls = fake.payCalls;
+  const r = await backend().submit(b, "n-s5-partial");
+  assert.equal(r.via, "fresh");
+  assert.equal(fake.payCalls, calls + 1, "paid once");
+});

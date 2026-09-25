@@ -179,6 +179,10 @@ export function submitProblem(e: unknown, reachedBackend: boolean, status: strin
     const reason = (e as { reason?: unknown }).reason;
     return new HttpProblem(502, "rate_unavailable", `the ZEC/USD source did not give a usable quote, so the rate could not be checked; this request sent nothing; ${check}`, { ...nothing, reason: typeof reason === "string" ? reason : "unknown" });
   }
+  // Two mined transactions of the account already pay this batch (slice S5): nothing was paid; a person decides.
+  if ((e as { code?: unknown } | null)?.code === "already_paid_ambiguous") {
+    return new HttpProblem(409, "already_paid_ambiguous", `${(e as Error).message}; ${check}`, nothing);
+  }
   if (e instanceof UnknownOutcomeError) {
     return new HttpProblem(502, "outcome_unknown", `the wallet's answer was lost or unusable, so this request may have paid; ${check}. Submitting again is safe: it looks for the payment on chain and never pays twice`, maybe);
   }

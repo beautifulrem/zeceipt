@@ -135,6 +135,22 @@ test("pays once: 202 with a txid, a replay returns the same txid with Idempotent
   assert.deepEqual([confirmed.body.state, confirmed.body.next, confirmed.body.detail?.txid], ["confirmed", "issue_receipts", first.body.txid]);
 });
 
+test("a submission edited back to failed_retryable after the batch was paid and mined: the route answers the mined txid, replayed; no second pay (slice S5)", async () => {
+  const b = await createDraft();
+  const first = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.equal(first.status, 202);
+  fake.mine();
+  // What a restored backup or a hand edit leaves: the database says nothing was paid.
+  const db = slot[SERVER_CONTEXT_KEY]!.db.$client;
+  assert.equal(db.prepare("UPDATE submissions SET state = 'failed_retryable', txid = NULL, broadcast_at = NULL, expires_by = NULL WHERE batch_id = ?").run(b.id).changes, 1);
+  const calls = fake.payCalls;
+  const again = await read(await submit(b.id!, { confirmTotalZat: "3500" }));
+  assert.equal(again.status, 202);
+  assert.deepEqual([again.body.txid, again.body.replayed, again.body.via, again.headers.get("idempotent-replayed")], [first.body.txid, true, "reconciled", "true"]);
+  assert.equal(fake.payCalls, calls, "no second pay call");
+  assert.equal((await status(b.id!)).body.detail?.txid, first.body.txid);
+});
+
 test("confirmation: missing, malformed or mismatched totals are refused before any wallet call", async () => {
   const b = await createDraft();
   const calls = fake.payCalls;

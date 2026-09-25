@@ -300,6 +300,25 @@ export class ZkoolBackend implements PayoutBackend {
       await this.save({ ...rec, state: "failed_retryable", error: `preflight: ${pre.problems.map((p) => p.code).join(",")}` }, rec, ["submitting"]);
       throw new PreflightFailedError(pre.problems);
     }
+    // The wallet's history decides before the database does (slice S5, R99): a database restored from a backup taken
+    // before this batch was paid, or a record edited back to retryable, would otherwise pay it twice. Whatever the
+    // record says, a mined transaction of this account that already pays every line is adopted, never paid again.
+    let paid: Awaited<ReturnType<ZkoolBackend["reconcile"]>>;
+    try {
+      paid = await this.reconcile(batch, { intentHeight: 0 });
+    } catch (e) {
+      await this.save({ ...rec, state: "failed_retryable", error: `history check error: ${(e as Error).message}` }, rec, ["submitting"]);
+      throw e;
+    }
+    if (paid.kind === "found") {
+      const adopted: SubmissionRecord = { ...rec, state: "broadcast", txid: paid.txid, broadcastAt: rec.broadcastAt ?? this.now().toISOString(), intentHeight: pre.height, error: undefined };
+      if (!(await this.save(adopted, rec, ["submitting"]))) throw new SubmissionInFlightError(rec.nonce, 0);
+      return { txid: paid.txid, replayed: true, via: "reconciled" };
+    }
+    if (paid.kind === "ambiguous") {
+      await this.save({ ...rec, state: "failed_retryable", error: `not paid: ${paid.detail}` }, rec, ["submitting"]);
+      throw new ExecutionError("already_paid_ambiguous", `${paid.detail}; nothing was paid; a person must decide which one pays this batch`);
+    }
     const intentRec: SubmissionRecord = { ...rec, intentHeight: pre.height };
     // Losing this race means a resolver judged this attempt stale; do not pay behind its back.
     if (!(await this.save(intentRec, rec, ["submitting"]))) throw new SubmissionInFlightError(rec.nonce, 0);
