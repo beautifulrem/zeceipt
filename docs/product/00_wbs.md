@@ -247,7 +247,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-08 → 10-09.
 #### 4.1.2 Community and design test
 - 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-10-08 → 10-09.
-- 4.1.2.2 ⬜ PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24.
+- 4.1.2.2 🟡 PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24. Drafted 2026-09-25 (slice L1, Trellis `09-25-forum-post-draft`): `docs/outreach/forum-pilot-post.md`, every claim tied to PROOF, links marked for after the push `[R92]`. Posting is the user's action, after the repository is public (4.1.1.1).
 - 4.1.2.3 👤 ⬜ U — Decide on contacting Konclave's author (default yes).
 - 4.1.2.4 ⬜ PM — ZecHub Discord announcement with demo link. 0.25 pd, 2026-09-27 → 09-28.
 
@@ -317,8 +317,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
 | 3 Engineering | 63 | 39 | 1 | 21 | 2 |
-| 4 Launch/GTM | 16 | 0 | 0 | 12 | 4 |
+| 4 Launch/GTM | 16 | 0 | 1 | 11 | 4 |
 | 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 119 | 2 | 54 | 10 |
+| **Total** | 185 | 119 | 3 | 53 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

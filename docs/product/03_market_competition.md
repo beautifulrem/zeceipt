@@ -28,8 +28,9 @@ Legend: ● has it · ○ partial · — none. Columns are the capabilities a ju
 
 | Product | Live pool | Batch payouts | USD-denominated | Approvals | Per-payment verifiable receipt | Audit pack / lower-bound | Accounting export | Active | Ref |
 |---|---|---|---|---|---|---|---|---|---|
-| **Zeceipt (this)** | Ironwood (+Orchard/Sapling) | console ⬜ | console ⬜ | console ⬜ | ● (OCK, signed, challenge) | ● | planned (OpenZcash/QBO/Xero) | yes | PROOF |
+| **Zeceipt (this)** | Ironwood (+Orchard/Sapling) | ● console: one transaction per batch, never twice | ● payables in USD at a fixed lock | ○ one approver, HMAC-bound; two approvers dropped (REQ-CON-22) | ● (OCK, signed, challenge) | ● | dropped in the solo branch (REQ-CON-14) | yes | PROOF §5d; `01` REQ-CON-3/-4/-5/-7 |
 | Konclave | Ironwood | ● one tx N memos | — | ● FROST t-of-n | — (self-attested ledger) | — | ○ CSV ledger | yes, users | `[R10]` |
+| Laminar | n/a (prepares intents; the wallet signs) | ● CSV → ZIP-321 intents (proposed) | — | — | ○ "Receipt Bundle": hash-linked intent manifest, integrity only; discloses nothing by default | — | — | RFC and ZCG grant application 2026 ($50k, 12 weeks); delivery **unverified** | `[R92]` |
 | ZBooks | Orchard-era | ○ ZIP-321 QR | — | ● M-of-N | — | — | ○ CSV/P&L | dormant 2026-07-30 | `[R11]` |
 | zecpay | Orchard-era | ● URI | ● rate lock | — | ○ SHA-256 batch receipt (not chain-verifiable) | — | — | dormant 2026-03-20 | `[R12]` |
 | Zwage | unknown | ● | ● | ○ | — | — | ● Form 8949 | offline (404) | `[R14]` |
