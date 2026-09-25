@@ -7,7 +7,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Field | Content / decision | Status |
 |---|---|---|
 | Product name | Zeceipt (confirm) | 👤 |
-| Description | ≤ 500 words; draft in §2 (500 words, rewritten in slice D8) | 🟡 add public-chain actuals and team |
+| Description | ≤ 500 words; draft in §2: 425 words of text plus three placeholders budgeted at 10 + 20 + 40 words, 495 in total when filled (count: whitespace-separated tokens from **Problem.** to the end of **Team.**) | 🟡 fill the placeholders within their budgets |
 | Blockchains and tools integrated | Zcash: Ironwood, Orchard and Sapling; lightwalletd and Zaino gRPC; Zkool GraphQL; Zebra on regtest | ✅ Solana and NEAR Intents were dropped with the solo branch (`11_plan.md` §1.1), which forfeits accelerator eligibility `[R1]` |
 | Track | Zcash | ✅ |
 | Category | **Developer Infrastructure**: the solo branch replaced the baseline on 2026-09-24, since no second person was confirmed (`11_plan.md` §1.1, RSK-19), and its rule forces this category. Payments & Remittance would have been the primary otherwise | ✅ by rule |
@@ -27,9 +27,9 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 
 Sources, not part of the submitted text: the ledger figures `[R105]`, the FPF quarter `[R4]`, Ironwood's activation `[R20]`; each other claim maps to evidence in `.trellis/tasks/09-26-submission-description/implement.md`.
 
-**Problem.** Organisations that pay contributors in shielded Zcash cannot prove a single payment. Today they can only hand over a viewing key, which exposes every payment the wallet ever made, or a spreadsheet the auditor has to trust. OpenZcash mirrors ZCG's ledger of 1,016 disbursements, $23.3M of them paid, and not one row is checked against the chain.
+**Problem.** Organisations that pay contributors in shielded Zcash cannot prove a single payment. Today they can only hand over a viewing key, which exposes every payment the wallet ever made, or a spreadsheet the auditor has to trust. OpenZcash mirrors ZCG's ledger of 1,016 disbursements, 825 of them marked paid (budgeted at $23.3M), and not one row is checked against the chain.
 
-**What Zeceipt does.** Every output an organisation pays becomes a receipt: a small, optionally signed envelope holding that output's Outgoing Cipher Key. Anyone holding the receipt (recipient, auditor or public ledger) recovers exactly that payment from the chain in a browser: recipient, amount, memo. They receive no viewing key and see no other payment. This is the outputs half of ZIP 311, implemented for the Ironwood pool (live since 2026-07-28), for Orchard, and for Sapling.
+**What Zeceipt does.** Every output an organisation pays becomes a receipt: a small, optionally signed envelope holding that output's Outgoing Cipher Key. Anyone holding the receipt recovers exactly that payment from the chain in a browser: recipient, amount, memo. They receive no viewing key and see no other payment. It uses ZIP 311's output disclosure, without its spend-authority requirement, for the Ironwood pool (live since 2026-07-28), Orchard and Sapling.
 
 It ships as:
 - a specified format with deterministic test vectors;
@@ -37,24 +37,24 @@ It ships as:
 - a browser verifier compiled to WebAssembly, packaged for npm (publishing pending);
 - a receipt page that keeps the receipt in the browser.
 
-Receipts compose into audit packs whose totals are stated as lower bounds. An issuer can bind its signing key to its domain with a small well-known file; the CLI and the page confirm it on request.
+Receipts compose into audit packs whose totals are lower bounds. An issuer can bind its signing key to its domain with a well-known file; the CLI and the page check it on request.
 
-**The payout console.** A self-hosted console turns USD payables into shielded batches at Kraken's rate, approved by the operator and paid through Zkool in one transaction. Receipts are issued automatically after confirmation. Its audit trail is append-only. It never holds a spending key: receipts come from a viewing key, and its Zkool token is scoped to its own account. A database restored from a backup adopts a mined payment rather than paying it again. Its pages can't be framed and run only their own scripts.
+**The payout console.** A self-hosted console turns USD payables into shielded batches at Kraken's rate, approved by the operator and paid through Zkool in one transaction. Receipts are issued automatically after confirmation. It never holds a spending key: the seed stays in Zkool, receipts come from a viewing key, and its Zkool token can pay only from its own account. A database restored from a backup adopts a mined payment rather than paying it again. Its pages can't be framed and run only their own scripts.
 
 **Proof.**
 - Mainnet v6 transactions parsed and fetched over gRPC.
-- On a Zebra regtest chain: a consensus-valid transaction issued from the sender's viewing key, and the console end to end. That covers USD payables batched at Kraken's live rate, receipts issued automatically and verified, and a restored database adopting the payment.
+- On a Zebra regtest chain: a consensus-valid Ironwood transaction, with receipts issued from the sender's viewing key and verified over gRPC and offline; and the console end to end, from USD payables at Kraken's live rate to verified receipts.
 - Tampered receipts fail closed at a named stage.
-- 450 automated tests (47 Rust, 403 TypeScript), including the official Orchard note-encryption vectors, and Chrome tests of the receipt page and the console.
-- [Add public-chain receipts and the pilot organisation.]
+- 450 automated tests (47 Rust, 403 TypeScript), including the official Orchard note-encryption vectors, plus opt-in Chrome suites for the console and the receipt page.
+- [Public-chain receipts and the pilot organisation: ≤ 10 words.]
 
-**Market and impact.** First users are Zcash grant programs and DAOs; FPF's Q1 2026 report lists 62 milestone payouts and 129 ZecHub bounty payments, processed by hand. Then payroll users, such as Konclave's. The category is wider: private payments are shipping across chains in 2026, and per-payment proof lets them be audited one payment at a time.
+**Market.** First users are Zcash grant programs and DAOs: FPF's Q1 2026 report lists 62 milestone payouts and 129 ZecHub bounty payments. Then payroll teams, such as Konclave's users.
 
-**Business.** An open-source core; planned revenue from issuer seats, hosted receipt pages and audit packs, and a verification API. Execution tools (Konclave, ZBooks, Zallet) are integration targets, not competitors.
+**Business.** An open-source core; planned revenue from issuer seats, hosted receipt pages and audit packs, and a verification API.
 
-**Traction by submission.** [Replace with actuals: receipts on a public chain, the issuing organisation, public verifications.]
+**Traction.** [Actuals: public receipts, the issuing organisation, public verifications: ≤ 20 words.]
 
-**Team.** [Two founder-market-fit sentences from the team; roles.]
+**Team.** [Founder-market fit and roles: ≤ 40 words.]
 
 ## 3. Videos
 

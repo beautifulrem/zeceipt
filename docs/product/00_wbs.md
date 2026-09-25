@@ -50,7 +50,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 ### 1.3 Demand and users
 #### 1.3.1 Evidence of demand
 - 1.3.1.1 ✅ PM — Forum thread on viewing keys for accounting. `[R3]`.
-- 1.3.1.2 ✅ PM — FPF/ZCG disbursement volumes and manual process. `[R4]` `[R6]`.
+- 1.3.1.2 ✅ PM — FPF/ZCG disbursement volumes and processing cadence. `[R4]` `[R6]`.
 - 1.3.1.3 ✅ PM — ZCG #437 receipts SDK application as demand signal. `[R8]`.
 - 1.3.1.4 ✅ PM — Konclave live payroll user (Zcash Brazil). `[R10]`.
 #### 1.3.2 Personas and JTBD
@@ -278,7 +278,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
 - 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04 → 10-07.
 - 5.1.2.3 👤 ⬜ U — Team members with background context; team location.
-- 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale; forced to Developer Infrastructure if the solo branch activates (RSK-19). `09_submission_checklist.md` §1. 0.25 pd, 2026-10-04 → 10-07.
+- 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale. Dropped with the solo branch, which forces Developer Infrastructure (`11_plan.md` §1.1, RSK-19); recorded in `09_submission_checklist.md` §1 (slice D8). 0.25 pd, 2026-10-04 → 10-07.
 - 5.1.2.5 ⬜ PM — Logo / graphic: simple wordmark + receipt glyph (SVG) for the form. 0.25 pd, 2026-10-04 → 10-07.
 
 ### 5.2 Process

@@ -10,7 +10,7 @@ An organisation that pays in shielded ZEC can hand each recipient, auditor or pu
 
 Zcash's shielded pools already publish, for every output, an `out_ciphertext` encrypted under a per-output **Outgoing Cipher Key** derived from the sender's outgoing viewing key. Disclosing that one key lets a verifier recover that one output and nothing else. This is the `outputs` half of [ZIP 311](https://zips.z.cash/zip-0311); Zeceipt implements it for the v6/Ironwood pool (plus Orchard and Sapling), wraps it in a signed, challenge-bindable envelope, and ships an issuer/verifier CLI, the Rust library behind it, a browser verifier (WASM; packaged for npm as `@zeceipt/verify`, not yet published), and a self-hosted **payout console** that pays a batch of contributors in one shielded transaction and issues a receipt per payment.
 
-It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority signature, which needs the spending key. Zeceipt never touches spending keys; issuer attribution is an application-layer ed25519 signature.
+It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority signature, which needs the spending key. Zeceipt never touches spending keys; issuer attribution is an application-layer ed25519 signature. For the same reason it does not meet two of ZIP 311's other requirements: that only a sender of the transaction can create a disclosure (anyone with the sender's viewing key, or an earlier receipt, can), and that disclosures are non-malleable (a receipt holder can re-sign one with their own key, which attributes it to that key only). `docs/outreach/zips-387-comment.md` sets out the trade.
 
 ## Quick start
 

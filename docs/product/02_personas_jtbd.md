@@ -11,7 +11,7 @@ Why now: the Ironwood pool activated on 2026-07-28 and the Orchard pool is seale
 ## P1 — Grant-program operations (primary buyer)
 
 - Who: the FPF/ZCG staff who pay milestones and bounties; Zcash Foundation grants; ZecHub DAO bounty admin.
-- Evidence: 62 milestone payouts and 129 bounty payments in one quarter, processed manually within four hours of notification `[R4]`; the ZCG decision-support prototype lists payment requests/approvals, KYC and writeback as not implemented `[R6]`; OpenZcash mirrors a 1,015-row spreadsheet whose rows are not chain-verified `[R5]`.
+- Evidence: 62 milestone payouts and 129 bounty payments in one quarter, processed weekly within four hours of notification `[R4]`; the ZCG decision-support prototype lists payment requests/approvals, KYC and writeback as not implemented `[R6]`; OpenZcash mirrors a 1,015-row spreadsheet whose rows are not chain-verified `[R5]`.
 - Jobs: (1) pay approved USD amounts in shielded ZEC at a recorded rate; (2) prove publicly that each row was paid without exposing the treasury wallet; (3) produce year-end per-recipient USD totals; (4) answer "did you pay me?" without a viewing key.
 - Pains: state scattered across sheet, forum, GitHub, wallet; no receipt to give recipients; public ledger is trust-me.
 - Success: every published row has a receipt link; a Zeceipt audit pack replaces viewing-key hand-offs.
