@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { payableHolders } from "../../lib/data/payable-status.ts";
 import { listPayables, PAYABLE_KINDS, type PayableKind } from "../../lib/data/payables.ts";
 import { listRecipients } from "../../lib/data/recipients.ts";
 import { serverContext } from "../../lib/server/context.ts";
@@ -34,7 +35,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   const { config, db } = serverContext();
   const kind = (await searchParams).kind;
   const filter = isKind(kind) ? kind : undefined;
-  const [all, recipients] = await Promise.all([listPayables(db, config.orgId), listRecipients(db, config.orgId)]);
+  const [all, recipients, holders] = await Promise.all([listPayables(db, config.orgId), listRecipients(db, config.orgId), payableHolders(db, config.orgId)]);
   const list = filter ? all.filter((p) => p.kind === filter) : all;
   const byId = new Map(recipients.map((r) => [r.id, r]));
   const tab = (k: PayableKind | undefined, label: string) => (
@@ -50,6 +51,11 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Payables</h1>
         <p className="text-sm text-slate-500">What this org owes, in US dollars. Each reference becomes its payment&apos;s memo, so it is unique.</p>
+        <p className="text-sm">
+          <Link href="/batches/from-payables" className="text-sky-700 underline">
+            Make a batch from payables
+          </Link>
+        </p>
       </header>
       <nav aria-label="Filter by kind">
         <ul className="flex gap-3 text-sm">
@@ -70,6 +76,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
               <th className="py-2 pr-6 text-right">Amount</th>
               <th className="py-2">Source</th>
               <th className="py-2">Created (UTC)</th>
+              <th className="py-2">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -95,6 +102,16 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                   )}
                 </td>
                 <td className="py-2 tabular-nums">{p.createdAt.slice(0, 10)}</td>
+                <td className="py-2">
+                  {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
+                  {holders.has(p.id) ? (
+                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="text-sky-700 underline">
+                      In batch {holders.get(p.id)!.title}
+                    </Link>
+                  ) : (
+                    "Free"
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

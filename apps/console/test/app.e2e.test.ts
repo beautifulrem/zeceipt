@@ -655,6 +655,64 @@ test("a batch made from payables through next start: USD at lock equals each pay
   }
 });
 
+test("choosing payables through next start, as a browser without JavaScript: 303 to the new batch; statuses; nothing chosen, a source failure and a cross-site post refused with values kept (slice H5b)", { skip: !RUN }, async () => {
+  // A ticker this test controls, so the source can fail on demand.
+  let tickerUp = true;
+  const ticker = http.createServer((_req, res) => {
+    if (!tickerUp) return void res.writeHead(503).end("down");
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ error: [], result: { XZECZUSD: { a: ["1601.00", "1", "1"], b: ["1600.00", "1", "1"], c: ["1600.00", "0.1"] } } }));
+  });
+  await new Promise<void>((r) => ticker.listen(0, "127.0.0.1", r));
+  const s = await start(demoEnv("choose-payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_RATE_URL: `http://127.0.0.1:${(ticker.address() as { port: number }).port}/0/public/Ticker?pair=ZECUSD` }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const get = async (path: string) => (await raw(s.port, "GET", path, { host: self })).body.replaceAll("<!-- -->", "");
+    const choose = async (html: string, title: string, ids: string[], headers: Record<string, string> = same) => {
+      const m = multipart([...formFields(html, "Make batch at today"), ["title", title], ...ids.map((id) => ["payableIds", id] as [string, string])]);
+      return raw(s.port, "POST", "/batches/from-payables", { ...headers, "content-type": m.type }, m.body);
+    };
+    const post = async (path: string, body: unknown) => JSON.parse((await raw(s.port, "POST", path, { ...same, "content-type": "application/json" }, JSON.stringify(body))).body) as { id: string };
+
+    assert.ok((await get("/")).includes('href="/batches/from-payables"') && (await get("/payables")).includes('href="/batches/from-payables"'), "linked from the batch list and the payables page");
+    assert.ok((await get("/batches/from-payables")).includes("No payables to pay."), "the empty state");
+    const alice = await post("/api/recipients", { displayName: "Alice", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w" });
+    const ids = [];
+    for (const [ref, cents] of [["CH-1", 123_456], ["CH-2", 29], ["CH-3", 5_000]] as const) ids.push((await post("/api/payables", { recipientId: alice.id, kind: "invoice", usdCents: cents, reference: ref })).id);
+    const page = await get("/batches/from-payables");
+    for (const id of ids) assert.ok(page.includes(`value="${id}"`), "every free payable offered");
+    assert.ok(!/<input[^>]*type="checkbox"[^>]*checked/.test(page), "nothing pre-selected (GOV.UK checkboxes)");
+    assert.ok(page.includes("<legend") && page.includes("Payables to pay") && page.includes("Select up to 50."), "a fieldset with a legend and hint");
+
+    const none = await choose(page, "Nothing", []);
+    assert.equal(none.status, 200);
+    assert.ok(none.body.includes("Choose at least one payable.") && none.body.includes('value="Nothing"'), "nothing chosen: the error, the title kept");
+
+    tickerUp = false;
+    const down = (await choose(page, "Down", [ids[0]])).body.replaceAll("<!-- -->", "");
+    assert.ok(down.includes("did not give a usable quote, so nothing was made") && /value="[^"]*"[^>]*checked=""|checked=""[^>]*value="/.test(down), "the source down: said at the top, the choice kept");
+    tickerUp = true;
+    assert.equal((await get("/payables")).match(/>Free</g)?.length, 3, "nothing was made");
+
+    const made = await choose(page, "Chosen two", [ids[0], ids[1]]);
+    assert.equal(made.status, 303, made.body.slice(0, 300));
+    assert.match(String(made.location), /^\/batches\/[0-9a-f-]{36}$/);
+    const batchPage = await get(String(made.location));
+    assert.ok(batchPage.includes("Chosen two") && batchPage.includes("$1,234.56") && batchPage.includes("$0.29") && !batchPage.includes("CH-3"), "the batch holds the two chosen lines");
+    const payables = await get("/payables");
+    assert.equal(payables.match(/In batch Chosen two/g)?.length, 2, "both chosen payables show their batch");
+    assert.equal(payables.match(/>Free</g)?.length, 1);
+    const left = await get("/batches/from-payables");
+    assert.ok(left.includes(`value="${ids[2]}"`) && !left.includes(`value="${ids[0]}"`), "the chooser offers only the free one");
+    assert.equal((await choose(left, "Evil", [ids[2]], { host: self, origin: "http://evil.example" })).status, 403);
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+    await new Promise((r) => ticker.close(r));
+  }
+});
+
 test("create-draft form through next start, posted as a browser without JavaScript: 303 to the new batch; errors next to their lines with values kept", { skip: !RUN }, async () => {
   const s = await start(demoEnv("draft-form"));
   try {

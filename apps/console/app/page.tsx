@@ -16,9 +16,14 @@ export default async function Home() {
       <AccessNotice />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Batches</h1>
-        <Link href="/batches/new" className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white">
-          New batch
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/batches/from-payables" className="text-sm text-sky-700 underline">
+            New batch from payables
+          </Link>
+          <Link href="/batches/new" className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white">
+            New batch
+          </Link>
+        </div>
       </div>
       <ModePanel mode={paymentMode(config)} />
       {batches.length === 0 ? (
