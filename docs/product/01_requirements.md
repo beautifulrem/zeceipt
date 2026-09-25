@@ -172,7 +172,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-INT-1 | ⬜ | 3.3.3.1 | `[R10]` CSV format |
 | REQ-INT-2 | ⬜ | 3.3.3.2 | `[R5]` columns; `05` §3.1 |
 | REQ-INT-3 | ✅ | 3.3.3.3 | `05` §4 well-known contract; `well_known_prints_the_binding_file`, `verify_reports_the_issuer_binding_and_never_changes_validity` (`cli.rs`); `wellknown.rs` tests; PROOF §2d |
-| REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 post planned 2026-09-27 |
+| REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 comment drafted (`docs/outreach/zips-387-comment.md`, slice Z1); posting is the user's |
 | NFR-1 | ✅ | 3.4.2.1 | CI source guards; clippy `-D warnings`; `forbid(unsafe_code)` in all five crates |
 | NFR-2 | ✅ | 3.2.3.3 | spec §9; demo page node disclosure (PROOF §2b) |
 | NFR-3 | ✅ | 3.2.2.3 | lwd unit tests; exit 2 path; console idempotency with 3.3.6.1 |
