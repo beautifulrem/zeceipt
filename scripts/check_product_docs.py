@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row and the reserve total equals buffer + below-the-line cuts; solo kept prices equal WBS prices unless marked reduced (and lower); solo rows, scaling, kept total and Buffer = Capacity − Kept recomputed; baseline and per-owner capacities derived from the stated date range; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves; NFR-1's evidence quotes the source guard's live summary line; the tracer task's review line lists every committed review record
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row and the reserve total equals buffer + below-the-line cuts; solo kept prices equal WBS prices unless marked reduced (and lower); solo rows, scaling, kept total and Buffer = Capacity − Kept recomputed; baseline and per-owner capacities derived from the stated date range; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves; a requirement traced to a ✅ leaf is ✅ or 👤; NFR-1's evidence quotes the source guard's live summary line; the tracer task's review line lists every committed review record
 Exit 1 on any failure.
 """
 import re
@@ -56,7 +56,8 @@ for i in matrix_ids:
 _req_glyphs = ("✅", "🟡", "⬜", "👤", "❌")
 _matrix_status = {r[0]: r[1] for r in matrix_rows}
 for line in req_defs.splitlines():
-    m = re.match(r"^\| ((?:REQ|NFR)-[A-Z0-9-]+) \|", line)
+    # NFR rows carry a name after the id ("| NFR-8 Compliance data |"); slice K1 found them skipped before
+    m = re.match(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)(?: [^|]*)? \|", line)
     if not m or m.group(1) not in _matrix_status:
         continue
     cell = next((c.strip() for c in line.split("|")[2:] if c.strip().startswith(_req_glyphs)), "")
@@ -311,6 +312,11 @@ dropped_ids = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_dropped))
 solo_cells = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\|.*\| ((?:kept|reduced|dropped)[^|]*)\|$", req_defs, re.M))
 done_ids = {m.group(1) for m in leaf_re.finditer(wbs) if "✅" in m.group(2)[:12]}
 kept_ids |= done_ids  # delivered work cannot be dropped by a branch
+# a requirement cannot stay open under a done leaf (slice K1): the leaf's ✅ says its work is delivered, so the
+# requirement it carries is ✅ too, or a user action (👤); anything left over belongs to another requirement or leaf
+for rid, status, leaf, _ev in matrix_rows:
+    if leaf in done_ids and status not in ("✅", "👤"):
+        errors.append(f"01_requirements.md §8: {rid} is {status} but its leaf {leaf} is ✅; mark it ✅ with evidence, or move what remains to the requirement or leaf that owns it")
 for rid, val in solo_col.items():
     cell = solo_cells.get(rid, "")
     cited = re.findall(r"\b(\d\.\d\.\d\.\d)\b", cell)
