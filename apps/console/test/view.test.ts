@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BatchState, BatchStatus, NextAction } from "../lib/data/status.ts";
-import { centsText, rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
+import { abridgeId, centsText, rateText, SHORT_ADDRESS_DATA_CHARS, shortAddress, sourceName, usdText, zecParts, zecText } from "../lib/view/format.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { LIFECYCLE_STEPS, NEXT_TEXT, STATUS_UNAVAILABLE, stateView, stepsFor } from "../lib/view/status.ts";
 import { loadConfig } from "../lib/index.ts";
@@ -152,4 +152,11 @@ test("USD beside an amount: exact to the cent at the locked rate, rounded half u
 test("a rate source is named from its recorded id; an unknown id shows as itself (review G1c2)", () => {
   assert.equal(sourceName("kraken"), "Kraken");
   assert.equal(sourceName("coingecko"), "coingecko");
+});
+
+test("abridgeId (slice M1b): a UUID by its distinguishing tail, the whole id kept; any other id whole", () => {
+  assert.deepEqual(abridgeId("01a0d8bc-4cd6-7afa-b785-b8fd8d637cd9"), { short: "…b8fd8d637cd9", whole: "01a0d8bc-4cd6-7afa-b785-b8fd8d637cd9" });
+  // Two UUIDv7 ids made in the same millisecond share their head; their tails differ.
+  assert.notEqual(abridgeId("01a0d8bc-4cd6-7afa-b785-b8fd8d637cd9").short, abridgeId("01a0d8bc-4cd6-7c01-9a2b-5f2d3765ed64").short);
+  for (const id of ["inv-1", "P-1", "p1-0", "01a0d8bc"]) assert.deepEqual(abridgeId(id), { short: id, whole: id }, id);
 });

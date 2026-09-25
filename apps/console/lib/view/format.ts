@@ -79,3 +79,14 @@ export function rateText(rate: string): string {
 export function sourceName(source: string): string {
   return ({ kraken: "Kraken" } as Record<string, string>)[source] ?? source;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * An id for a table (slice M1b): a UUID by its last 12 characters, "…b8fd8d637cd9", and any other id whole. UUIDv7's
+ * head is a millisecond timestamp (RFC 9562 §5.7), shared by ids made together; the final group is random, so it tells
+ * them apart. The whole id stays one click away where it is shown (`Identifier`).
+ */
+export function abridgeId(id: string): { short: string; whole: string } {
+  return UUID.test(id) ? { short: `…${id.slice(-12)}`, whole: id } : { short: id, whole: id };
+}

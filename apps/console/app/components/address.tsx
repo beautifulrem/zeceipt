@@ -8,7 +8,7 @@ export function Address({ value }: { value: string }) {
   if (short === value) return <code>{value}</code>;
   return (
     <details>
-      <summary className="cursor-pointer" title={value}>
+      <summary className="cursor-pointer whitespace-nowrap" title={value}>
         <code>{short}</code>
       </summary>
       <code className="block max-w-xs break-all text-xs">{value}</code>

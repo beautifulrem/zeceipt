@@ -14,6 +14,7 @@ import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/z
 import { approvalCheck, serverContext } from "../../../lib/server/context.ts";
 import { rateText, sourceName, usdText, zecText } from "../../../lib/view/format.ts";
 import { Address } from "../../components/address.tsx";
+import { Identifier } from "../../components/identifier.tsx";
 import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { ZecAmount } from "../../components/amount.tsx";
@@ -242,16 +243,18 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           <tbody>
             {rec.items.map((i) => (
               <tr key={i.idx} className="border-b border-slate-100">
-                <td>{i.payableId}</td>
+                <td>
+                  <Identifier value={i.payableId} />
+                </td>
                 <td>{i.label || "—"}</td>
                 <td>
                   <Address value={i.address} />
                 </td>
                 <td>{i.memo}</td>
-                <td className="text-right">
+                <td className="whitespace-nowrap text-right">
                   <ZecAmount zat={i.zat} />
                 </td>
-                {lock && <td className="text-right">{usdText(i.zat, lock.rate)}</td>}
+                {lock && <td className="whitespace-nowrap text-right">{usdText(i.zat, lock.rate)}</td>}
               </tr>
             ))}
           </tbody>
@@ -260,10 +263,10 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               <td colSpan={4} className="text-right font-semibold">
                 Total
               </td>
-              <td className="text-right font-semibold">
+              <td className="whitespace-nowrap text-right font-semibold">
                 <ZecAmount zat={total} />
               </td>
-              {lock && <td className="text-right font-semibold">{usdText(total, lock.rate)}</td>}
+              {lock && <td className="whitespace-nowrap text-right font-semibold">{usdText(total, lock.rate)}</td>}
             </tr>
           </tfoot>
         </table>
