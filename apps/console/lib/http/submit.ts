@@ -72,6 +72,8 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
     const backend = backendOrConflict(ctx);
     inFlightMs = backend.inFlightMs;
     const rec = await batchOr404(ctx, id);
+    // A voided batch can never be paid (slice H5c): refused before the backend, so nothing was sent.
+    if (rec.voidedAt !== undefined) throw new HttpProblem(409, "batch_voided", `the batch was voided on ${rec.voidedAt.slice(0, 10)}: it can never be paid; this request sent nothing`);
     const parsed = SubmitBody.safeParse(await readBody());
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => ({ path: i.path.map(String).join("."), message: i.message }));
@@ -150,6 +152,11 @@ export function submitProblem(e: unknown, reachedBackend: boolean, status: strin
   const check = "the batch's own state is at the status route";
   if (e instanceof HttpProblem) return e.withExtra(reachedBackend ? maybe : nothing);
   if (e instanceof ContextNotReadyError) return new HttpProblem(503, "not_ready", "the console has not finished starting; this request sent nothing", nothing);
+  // A void that landed between the check above and this attempt (slice H5c, review H5c round 1). The 0019 triggers
+  // refuse it only on writes that come before any pay: creating the attempt, claiming it back to `submitting`, or
+  // recording the guard's execution quote. The write after a pay sets `broadcast`, which they ignore, and a void is
+  // itself refused while an attempt may have sent. So this refusal means nothing was sent.
+  if (voidedRefusal(e)) return new HttpProblem(409, "batch_voided", `the batch was voided while this request ran: it can never be paid; this request sent nothing; ${check}`, nothing);
   // The execution quote's source failed (slice G2b1; by code: the library loads twice under Next, E1).
   if ((e as { code?: unknown } | null)?.code === "rate_unavailable") {
     const reason = (e as { reason?: unknown }).reason;
@@ -181,6 +188,16 @@ export function submitProblem(e: unknown, reachedBackend: boolean, status: strin
   }
   // Unrecognised: indeterminate once the backend was reached (a 500 is indeterminate, as Stripe says).
   return new HttpProblem(500, "internal", reachedBackend ? `the console could not complete this request and it may have paid; ${check}` : "the console could not complete this request; this request sent nothing", reachedBackend ? maybe : nothing);
+}
+
+/** The 0019 triggers' refusal of a write for a voided batch (raw, or mapped to `batch_voided`), anywhere in the cause chain. */
+export function voidedRefusal(e: unknown): boolean {
+  for (let c: unknown = e; c; c = (c as { cause?: unknown }).cause) {
+    const { message, code } = c as { message?: unknown; code?: unknown };
+    // The raw trigger text (the store's writes), or recordQuote's mapping of it (the guard's execution quote).
+    if (code === "batch_voided" || (typeof message === "string" && message.includes("batch is voided: final"))) return true;
+  }
+  return false;
 }
 
 /** Status reads never pay: a busy store is a plain 503, an unreachable wallet a 502; anything else is the fixed 500 (`guarded`). */

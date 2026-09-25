@@ -21,12 +21,14 @@ export type LockJson = ReturnType<typeof lockJson>;
 
 const frozen = () => new HttpProblem(409, "batch_frozen", "the batch has a payment attempt that may have paid; its rate can no longer be locked");
 const fixed = () => new HttpProblem(409, "rate_fixed", FIXED_DETAIL);
+const voided = () => new HttpProblem(409, "batch_voided", "the batch is voided: its rate can no longer be locked; nothing was locked");
 
 /** `POST /api/batches/:id/rate-lock`: 201 with the new current lock. */
 export async function lockRateResponse(id: string): Promise<Response> {
   const { config, db, quote } = serverContext();
   const rec = UUID_V7.test(id) ? await getBatch(db, config.orgId, id) : undefined;
   if (!rec) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
+  if (rec.voidedAt !== undefined) throw voided();
   if (rateFixed(rec)) throw fixed();
   if (await rateLockFrozen(db, rec)) throw frozen();
   const q = await quote();
@@ -49,6 +51,7 @@ export function ratesProblem(e: unknown): Response | undefined {
   }
   if (code === "batch_frozen") return frozen().response;
   if (code === "rate_fixed") return fixed().response;
+  if (code === "batch_voided") return voided().response;
   if (code === "store_busy") return problem(503, "store_busy", "the database is busy; nothing was locked; retry shortly", {}, { "Retry-After": "1" });
   return undefined;
 }

@@ -18,6 +18,7 @@ import * as statusRoute from "../app/api/batches/[id]/status/route.ts";
 import * as voidRoute from "../app/api/batches/[id]/void/route.ts";
 import * as lockRoute from "../app/api/batches/[id]/rate-lock/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { submitProblem } from "../lib/http/submit.ts";
 
 const HOST = "127.0.0.1:3000";
 const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
@@ -104,6 +105,41 @@ test("AC3, the recovery path: a batch from payables whose rate moved is refused,
   assert.equal(paid.status, 202, JSON.stringify(paid.body));
   assert.equal(fake.payCalls, calls + 1, "paid once, from the new batch");
   assert.deepEqual((await status(first.body.id!)).body.state, "voided");
+});
+
+test("review H5c round 1: a voided batch refuses Lock and Pay with 409 batch_voided, sending nothing (never a 500)", async () => {
+  tick = ticker("1600.00");
+  const lock = async (id: string) => json(await lockRoute.POST(new Request(`http://${HOST}/api/batches/${id}/rate-lock`, { method: "POST", headers }), params(id)));
+  const quotes = (id: string) => slot[SERVER_CONTEXT_KEY]!.db.$client.prepare("SELECT count(*) FROM rate_quotes WHERE batch_id = ?").pluck().get(id) as number;
+  // Locked, then voided: the reviewer's probe (both answered 500).
+  const a = await hand("VOIDED-LOCKED");
+  assert.equal((await lock(a.body.id!)).status, 201);
+  assert.equal((await voidIt(a.body.id!)).status, 200);
+  const calls = fake.payCalls;
+  const relock = await lock(a.body.id!);
+  assert.deepEqual([relock.status, relock.body.code, quotes(a.body.id!)], [409, "batch_voided", 1], "refused before quoting");
+  const pay = await submit(a.body.id!, "1000");
+  assert.deepEqual([pay.status, pay.body.code, pay.body.thisRequest], [409, "batch_voided", "sent_nothing"]);
+  // A refused attempt, then voided: submit took retry() into the trigger and answered 500 "may_have_sent" (my own probe).
+  const b = await hand("VOIDED-RETRY");
+  assert.equal((await lock(b.body.id!)).status, 201);
+  fake.nextPay = "refused";
+  assert.equal((await submit(b.body.id!, "1000")).body.code, "payment_rejected");
+  assert.equal((await voidIt(b.body.id!)).status, 200);
+  const retry = await submit(b.body.id!, "1000");
+  assert.deepEqual([retry.status, retry.body.code, retry.body.thisRequest], [409, "batch_voided", "sent_nothing"]);
+  assert.equal(fake.payCalls, calls + 1, "only the refused attempt ever reached the wallet");
+});
+
+test("the race: a void that lands mid-submit is refused by the triggers before any pay, and said as sent_nothing", async () => {
+  const status = "/api/batches/x/status";
+  for (const e of [new Error("batch is voided: final"), Object.assign(new Error("the batch is voided: its rate can no longer be locked"), { code: "batch_voided" }), new Error("wrapped", { cause: new Error("batch is voided: final") })]) {
+    const r = submitProblem(e, true, status).response;
+    const body = (await r.json()) as { code: string; thisRequest: string };
+    assert.deepEqual([r.status, body.code, body.thisRequest], [409, "batch_voided", "sent_nothing"], e.message);
+  }
+  const other = (await submitProblem(new Error("something else"), true, status).response.json()) as { thisRequest: string };
+  assert.equal(other.thisRequest, "may_have_sent", "anything else stays indeterminate");
 });
 
 test("503 store_busy with Retry-After while another process holds the write lock; nothing voided", async () => {

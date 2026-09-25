@@ -283,7 +283,7 @@
             "$ref": "#/components/responses/Problem"
           },
           "409": {
-            "description": "payment_rejected, submission_in_flight (with Retry-After: 5; an attempt counts as running for up to 10 minutes), nonce_conflict, custody_external",
+            "description": "payment_rejected, submission_in_flight (with Retry-After: 5; an attempt counts as running for up to 10 minutes), nonce_conflict, custody_external; batch_voided: the batch is voided (slice H5c), so it can never be paid (sent_nothing)",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -692,7 +692,7 @@
             "$ref": "#/components/responses/Problem"
           },
           "409": {
-            "description": "batch_frozen: the batch has a submission that may have paid; rate_fixed: the batch was made from payables, so its amounts were converted at its lock, which cannot be re-taken",
+            "description": "batch_frozen: the batch has a submission that may have paid; rate_fixed: the batch was made from payables, so its amounts were converted at its lock, which cannot be re-taken; batch_voided: the batch is voided (slice H5c), so nothing was locked",
             "content": {
               "application/problem+json": {
                 "schema": {

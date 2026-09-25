@@ -29,7 +29,7 @@ export interface StoredQuote {
 }
 
 export class RateRecordError extends ExecutionError {
-  constructor(code: "batch_unknown" | "batch_frozen" | "quote_invalid" | "rate_fixed", detail: string) {
+  constructor(code: "batch_unknown" | "batch_frozen" | "quote_invalid" | "rate_fixed" | "batch_voided", detail: string) {
     super(code, detail);
   }
 }
@@ -83,6 +83,8 @@ export async function recordQuote(
   } catch (e) {
     if (e instanceof Error && FROZEN.test(e.message)) throw new RateRecordError("batch_frozen", "the batch has a payment attempt that may have paid; its rate can no longer be locked");
     if (e instanceof Error && FIXED.test(e.message)) throw new RateRecordError("rate_fixed", FIXED_DETAIL);
+    // A void between the route's check and this insert (slice H5c): the rate_quotes_not_voided trigger.
+    if (e instanceof Error && /batch is voided: final/.test(e.message)) throw new RateRecordError("batch_voided", "the batch is voided: its rate can no longer be locked");
     throw e;
   }
 }
