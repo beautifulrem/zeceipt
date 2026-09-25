@@ -88,7 +88,7 @@ fn main() {
     // Shareable URL forms (spec §2) for the first vector's signed receipt: the fragment
     // form issuers emit, and the v0 path form verifiers still accept.
     let first = base.clone().sign(&key).unwrap();
-    let host = "https://zeceipt.xyz";
+    let host = "https://receipts.example";
     let fragment_url = first.to_url(host).unwrap();
     let url_forms = json!({
         "vector": cases[0].0,

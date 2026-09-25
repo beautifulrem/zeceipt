@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { baseEnv, raw, start, waitHealthy, within } from "../helpers/app-server.ts";
 const OUT = process.argv[2] ?? join(import.meta.dirname, "../../../../docs/product/screenshots/h4-payables.png");
 const dir = mkdtempSync(join(tmpdir(), "h4-shot-"));
-const env = { ...baseEnv(), ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_DB_PATH: join(dir, "c.db"), ZECEIPT_ORG_ID: "shot", ZECEIPT_NETWORK: "regtest", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 4).toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137", ZECEIPT_BIN: "/opt/x", ZECEIPT_UFVK_FILE: "/etc/x", ZECEIPT_ISSUER_KEY_FILE: "/etc/y", ZECEIPT_ISSUER_KEY_ID: "k" };
+const env = { ...baseEnv(), ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_DB_PATH: join(dir, "c.db"), ZECEIPT_ORG_ID: "shot", ZECEIPT_NETWORK: "regtest", ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 4).toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137", ZECEIPT_BIN: "/opt/x", ZECEIPT_UFVK_FILE: "/etc/x", ZECEIPT_ISSUER_KEY_FILE: "/etc/y", ZECEIPT_ISSUER_KEY_ID: "k", ZECEIPT_RECEIPT_HOST: "https://receipts.example" };
 const s = await start(env as Record<string, string>);
 const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ channel: "chrome" });

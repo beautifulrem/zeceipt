@@ -45,7 +45,7 @@ before(async () => {
     ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt",
     ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
-    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
     ZECEIPT_RATE_URL: sourceUrl,
   }, { migrationsFolder: defaultMigrationsDir() });
 });

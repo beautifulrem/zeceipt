@@ -81,7 +81,7 @@ async function issuedBatch(title: string, opts: { broadcast?: string | null; org
     txid: TXID,
     status: { state: "mined", height: 626, confirmations: 3, tip: 628 },
     requiredConfirmations: 1,
-    cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, keyId: "2026-09", challenge: `ch-${title}` },
+    cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: `ch-${title}` },
   });
   assert.equal(out.state, "issued");
   return { rec, issued: out as Extract<AutoIssueResult, { state: "issued" }> };
@@ -131,7 +131,7 @@ test("recording is idempotent: a second run (even with new receipts) keeps the f
     txid: TXID,
     status: { state: "mined", height: 626, confirmations: 3, tip: 628 },
     requiredConfirmations: 1,
-    cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, keyId: "2026-09", challenge: "another-challenge" },
+    cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "another-challenge" },
   });
   assert.deepEqual(await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued: reissued as Extract<AutoIssueResult, { state: "issued" }> }), { inserted: [], existing: [0, 1, 2] });
   assert.deepEqual((await listReceipts(db, ring, orgOf(rec), rec.id)).map((r) => r.receipt), before.map((r) => r.receipt), "the first receipts stay");
@@ -231,7 +231,7 @@ test("key rotation: rewrap under a new key, retire the old one, every receipt st
   const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: "t", attempts: 1 };
   await store.createIntent({ ...base, state: "submitting" });
   await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
-  const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, keyId: "2026-09", challenge: "rot" } });
+  const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "rot" } });
   await recordReceipts(db, new Keyring([k1]), { orgId: org, batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
   const before = await listReceipts(db, new Keyring([k1]), org, rec.id);
   const both = new Keyring([k1, k2]);
@@ -283,7 +283,7 @@ test("autoIssue never writes a receipt (OCK) to a temp file; outDir (tools only)
   const org = "org-b2-files";
   const rec = await createBatch(db, { orgId: org, network: "regtest", title: "files", items: PAYEES });
   const outDir = join(dir, "out-files");
-  const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, outDir, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, keyId: "2026-09", challenge: "files" } });
+  const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, outDir, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "files" } });
   assert.equal(out.state, "issued");
   assert.deepEqual(await temps(), before, "no zeceipt-verify-* temp directory was created");
   assert.equal((await stat(outDir)).mode & 0o777, 0o700);

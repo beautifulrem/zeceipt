@@ -407,9 +407,9 @@ mod tests {
         let r = sample();
         let payload = URL_SAFE_NO_PAD.encode(r.to_json().unwrap().as_bytes());
         // The payload is in the fragment (spec §2); the host's trailing slash is trimmed.
-        let url = r.to_url("https://zeceipt.xyz/").unwrap();
-        assert_eq!(url, format!("https://zeceipt.xyz/r#{payload}"));
-        assert_eq!(r.to_url("https://zeceipt.xyz").unwrap(), url);
+        let url = r.to_url("https://receipts.example/").unwrap();
+        assert_eq!(url, format!("https://receipts.example/r#{payload}"));
+        assert_eq!(r.to_url("https://receipts.example").unwrap(), url);
         assert_eq!(Receipt::parse(&url).unwrap(), r);
         // A page mounted under a path prefix, `location.hash`, and the bare payload.
         assert_eq!(
@@ -425,7 +425,7 @@ mod tests {
     fn v0_path_links_still_parse() {
         let r = sample();
         let payload = URL_SAFE_NO_PAD.encode(r.to_json().unwrap().as_bytes());
-        let path = format!("https://zeceipt.xyz/r/{payload}");
+        let path = format!("https://receipts.example/r/{payload}");
         assert_eq!(Receipt::parse(&path).unwrap(), r);
         assert_eq!(Receipt::parse(&format!("{path}?utm=x")).unwrap(), r);
         // An empty fragment leaves the path payload in charge.
@@ -435,10 +435,10 @@ mod tests {
     #[test]
     fn links_without_a_payload_are_rejected() {
         for input in [
-            "https://zeceipt.xyz/r#",
-            "https://zeceipt.xyz/r/",
+            "https://receipts.example/r#",
+            "https://receipts.example/r/",
             "#",
-            "https://zeceipt.xyz/r/?x=1",
+            "https://receipts.example/r/?x=1",
         ] {
             assert!(
                 matches!(Receipt::parse(input), Err(TypesError::Url)),
@@ -448,7 +448,7 @@ mod tests {
         // The fragment must be exactly the payload (spec §2.1): trailing text is refused.
         let payload = URL_SAFE_NO_PAD.encode(sample().to_json().unwrap().as_bytes());
         for suffix in ["&k=v", "?x", "#extra"] {
-            let input = format!("https://zeceipt.xyz/r#{payload}{suffix}");
+            let input = format!("https://receipts.example/r#{payload}{suffix}");
             assert!(
                 matches!(Receipt::parse(&input), Err(TypesError::Url)),
                 "{suffix}"
@@ -456,7 +456,7 @@ mod tests {
         }
         // Text that is not a receipt payload fails at decoding, also as `Url`.
         assert!(matches!(
-            Receipt::parse("https://zeceipt.xyz/r#not a payload"),
+            Receipt::parse("https://receipts.example/r#not a payload"),
             Err(TypesError::Url)
         ));
     }

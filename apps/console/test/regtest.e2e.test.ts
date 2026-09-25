@@ -126,6 +126,7 @@ test("regtest: 3-recipient batch, one nonce submitted twice → one tx; pending 
       keyFile: join(ARTIFACT_DIR, "issuer.key"),
       keyId: "2026-09",
       challenge: `auditor-${stamp}`,
+      host: "https://receipts.example",
     },
   });
   assert.equal(issued.state, "issued");

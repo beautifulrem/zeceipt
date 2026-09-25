@@ -43,7 +43,7 @@ const demoEnv = (name: string, extra: Record<string, string | undefined> = {}) =
     ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt",
     ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
-    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
     ZECEIPT_RATE_URL: defaultTickerUrl,
     // No receipt worker unless a test is about it (review I2 round 1): its passes would race the assertions.
     ZECEIPT_AUTO_RECEIPTS_SECONDS: "0",
@@ -861,7 +861,7 @@ test("the linkability warning through next start (REQ-CON-6, slice H6): after re
       await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
       const keyFile = join(dir, "linkability-issuer.key");
       execFileSync(BIN, ["keygen", "--out", keyFile]);
-      const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, keyId: "2026-09", challenge: "h6e2e" } });
+      const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "h6e2e" } });
       await recordReceipts(side, new Keyring([{ kid: "k1", key: KEY }]), { orgId: "demo-org", batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
     } finally {
       side.$client.close();

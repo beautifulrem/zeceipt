@@ -7,6 +7,8 @@ Every claim in the README is backed by an entry here. Entries are labelled by ev
 - **regtest**: a consensus-valid transaction built by a real wallet and mined by a real Zebra node on a private regtest chain, indexed by Zaino, issued through the UFVK path and read back over gRPC (§5). Everything a public-chain proof shows except "exists on a public chain".
 - **testnet** / **mainnet-write**: a transaction we sent on a public chain. Not yet recorded — blocked on a faucet claim (see §4, §6).
 
+Links in outputs recorded before 2026-09-25 are on `https://zeceipt.xyz`, then the CLI's default host. That domain is not registered (WBS 4.1.1.2), and since slice S2 neither the CLI nor the console has a default host: the page a host serves reads the link's fragment, so the operator names a host they control (`docs/THREAT_MODEL.md`, the link host). The recorded outputs are kept as they were produced.
+
 ## 1. mainnet-read — v6 parsing and Ironwood enumeration (2026-09-22)
 
 ```

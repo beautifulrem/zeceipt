@@ -22,6 +22,7 @@ const hot: Record<string, string> = {
   ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
   ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
   ZECEIPT_ISSUER_KEY_ID: "2026-09",
+  ZECEIPT_RECEIPT_HOST: "https://receipts.example",
 };
 const external = (() => {
   const e = { ...hot, ZECEIPT_CUSTODY_MODE: "external" };
@@ -101,6 +102,7 @@ test("every rule, and all problems reported together", () => {
     "ZECEIPT_LIGHTWALLETD_URL",
     "ZECEIPT_NETWORK",
     "ZECEIPT_ORG_ID",
+    "ZECEIPT_RECEIPT_HOST",
     "ZECEIPT_UFVK_FILE",
     "ZECEIPT_WRAP_KEYS",
     "ZECEIPT_ZKOOL_ACCOUNT",
@@ -116,13 +118,24 @@ test("every rule, and all problems reported together", () => {
   assert.deepEqual(problems({ ...hot, ZECEIPT_ZKOOL_URL: "http://10.0.0.5:9000/graphql", ZECEIPT_ZKOOL_ALLOW_REMOTE: "true" }), [], "remote Zkool with the opt-in");
   assert.deepEqual(problems({ ...hot, ZECEIPT_DB_PATH: "/var/lib/a\nb.db" }), ["ZECEIPT_DB_PATH"], "control character in a path");
   const missing = problems({});
-  assert.ok(missing.includes("ZECEIPT_CUSTODY_MODE") && missing.includes("ZECEIPT_WRAP_KEYS") && missing.includes("ZECEIPT_DB_PATH"));
+  assert.ok(missing.includes("ZECEIPT_CUSTODY_MODE") && missing.includes("ZECEIPT_WRAP_KEYS") && missing.includes("ZECEIPT_DB_PATH") && missing.includes("ZECEIPT_RECEIPT_HOST"));
 });
 
-test("receipt host: https (http only on loopback), no credentials, query or fragment; a path prefix kept, the trailing slash dropped; default the CLI's", () => {
+test("receipt host: required, no default (slice S2); https (http only on loopback), no credentials, query or fragment; a path prefix kept, the trailing slash dropped", () => {
   const host = (v: string | undefined) => loadConfig({ ...hot, ZECEIPT_RECEIPT_HOST: v }).receiptHost;
-  assert.equal(host(undefined), "https://zeceipt.xyz", "unset: the CLI's default");
-  assert.equal(host(""), "https://zeceipt.xyz", "empty counts as unset");
+  // The page the host serves can read the link's fragment: only the operator knows a host they control, in either custody mode.
+  for (const env of [hot, external]) {
+    for (const unset of [undefined, ""]) {
+      try {
+        loadConfig({ ...env, ZECEIPT_RECEIPT_HOST: unset });
+        assert.fail("should refuse");
+      } catch (e) {
+        assert.ok(e instanceof ConfigError);
+        assert.deepEqual(e.problems.map((p) => p.variable), ["ZECEIPT_RECEIPT_HOST"], `${env.ZECEIPT_CUSTODY_MODE} ${JSON.stringify(unset)}`);
+        assert.match(e.problems[0].message, /^is required \(must be the https URL of the site you control that serves the public receipt page/);
+      }
+    }
+  }
   assert.equal(host("https://receipts.example.org"), "https://receipts.example.org");
   assert.equal(host("https://Receipts.Example.org/"), "https://receipts.example.org", "normalised; trailing / dropped");
   assert.equal(host("https://user.github.io/zeceipt/"), "https://user.github.io/zeceipt", "a path prefix (a project site) is kept");

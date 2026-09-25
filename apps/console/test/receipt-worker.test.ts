@@ -47,7 +47,7 @@ async function scenario(org: string, opts: { broadcast?: "broadcast" | "unknown_
     ZECEIPT_BIN: BIN,
     ZECEIPT_UFVK_FILE: UFVK,
     ZECEIPT_ISSUER_KEY_FILE: join(dir, "issuer.key"),
-    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
   };
   const ctx = bootServerContext(env, { migrationsFolder: defaultMigrationsDir() });
   const headers = { host: HOST, "content-type": "application/json", origin: `http://${HOST}` };
@@ -75,7 +75,7 @@ before(async () => {
   execFileSync(BIN, ["keygen", "--out", join(dir, "issuer.key")]);
   fake = await new FakeZkool().start();
   fake.height = fake.scanned = 700;
-  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09" };
+  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), host: "https://receipts.example", keyId: "2026-09" };
 });
 after(async () => {
   slot[SERVER_CONTEXT_KEY]?.db.$client.close();

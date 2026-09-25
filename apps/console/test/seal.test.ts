@@ -10,7 +10,7 @@ import { Keyring, openSealed, seal, SealError, sealedKid, SecretBytes } from "..
 const k1 = { kid: "k1", key: Buffer.alloc(32, 1) };
 const k2 = { kid: "k2", key: Buffer.alloc(32, 2) };
 const ctx = { purpose: "receipt", txid: "ab".repeat(32), pool: "ironwood", index: 2 };
-const secret = Buffer.from('{"ock":"AAAA","url":"https://zeceipt.xyz/r/eyJ..."}');
+const secret = Buffer.from('{"ock":"AAAA","url":"https://receipts.example/r/eyJ..."}');
 
 test("HKDF-SHA256 as called by the keyring reproduces RFC 5869 Test Case 1", () => {
   const okm = hkdfSync("sha256", Buffer.alloc(22, 0x0b), Buffer.from("000102030405060708090a0b0c", "hex"), Buffer.from("f0f1f2f3f4f5f6f7f8f9", "hex"), 42);
@@ -29,7 +29,7 @@ test("seal → open round trip; the envelope names the newest kid and carries no
   const env = seal(ring, "org-a", ctx, secret);
   assert.equal(sealedKid(env), "k2");
   assert.deepEqual(openSealed(ring, "org-a", ctx, env), secret);
-  for (const needle of ["ock", "AAAA", "zeceipt.xyz", "eyJ"]) assert.ok(!env.includes(needle), needle);
+  for (const needle of ["ock", "AAAA", "receipts.example", "eyJ"]) assert.ok(!env.includes(needle), needle);
   const parsed = JSON.parse(env);
   assert.deepEqual(Object.keys(parsed).sort(), ["ct", "iv", "kid", "tag", "v"]);
   assert.equal(Buffer.from(parsed.iv, "base64url").length, 12);

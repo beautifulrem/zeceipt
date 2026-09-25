@@ -172,7 +172,7 @@ test("with the real fixture transaction and real receipts: confirmed → receipt
       txid: TXID,
       status: { state: "mined", height: 626, confirmations: 2, tip: 627 },
       requiredConfirmations: 2,
-      cli: { bin: BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, keyId: "2026-09", challenge: "b3" },
+      cli: { bin: BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "b3" },
     });
     await recordReceipts(db, new Keyring([{ kid: "k1", key: Buffer.alloc(32, 7) }]), { orgId: org, batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
     const done = await read();

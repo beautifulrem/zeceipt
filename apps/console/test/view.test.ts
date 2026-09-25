@@ -124,7 +124,7 @@ test("payment mode: custody apart from the lifecycle, in words; nothing secret",
     ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt",
     ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt",
     ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key",
-    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
   };
   const hot = paymentMode(loadConfig({ ...base, ZECEIPT_CUSTODY_MODE: "hot", ZECEIPT_ZKOOL_URL: "http://127.0.0.1:9000/graphql", ZECEIPT_ZKOOL_ACCOUNT: "4" }));
   assert.deepEqual(hot, { custody: "Hot wallet: the seed lives only in Zkool; this console holds a viewing key", wallet: "Zkool, account 4", network: "Regtest (local test chain)", confirmations: "3 confirmations before receipts" });

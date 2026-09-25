@@ -101,9 +101,11 @@ enum Cmd {
         /// shielded receiver, so any unified address containing the paid receiver matches.
         #[arg(long = "only-to", value_name = "ADDRESS")]
         only_to: Vec<String>,
-        /// Public host used to build shareable URLs.
-        #[arg(long, default_value = "https://zeceipt.xyz")]
-        host: String,
+        /// Site that serves the receipt page; each receipt's link is `<host>/r#<payload>`. No
+        /// default: the page that host serves can read the fragment, so only a host you control
+        /// is safe. Without it receipts are still issued, with `"url": null`.
+        #[arg(long)]
+        host: Option<String>,
         /// Write one JSON file per receipt into this directory.
         #[arg(long)]
         out_dir: Option<PathBuf>,
@@ -308,6 +310,11 @@ async fn run() -> anyhow::Result<ExitCode> {
             if let Some(dir) = &out_dir {
                 std::fs::create_dir_all(dir)?;
             }
+            if host.is_none() {
+                eprintln!(
+                    "no --host: receipts carry no link; pass --host with the site you control that serves the receipt page"
+                );
+            }
             let mut items = Vec::new();
             for ((r, rec), hits) in receipts.into_iter().zip(matched) {
                 if let Some(dir) = &out_dir {
@@ -321,7 +328,7 @@ async fn run() -> anyhow::Result<ExitCode> {
                 }
                 items.push(json!({
                     "receipt": r,
-                    "url": r.to_url(&host)?,
+                    "url": host.as_deref().map(|h| r.to_url(h)).transpose()?,
                     "recovered": recovered_json(&rec, keys.can_detect_change()),
                     "matched_only_to": hits,
                 }));

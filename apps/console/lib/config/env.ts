@@ -85,10 +85,11 @@ const httpUrl = z.url({ protocol: /^https?$/ }).refine((s) => {
   }
 }).transform((s) => new URL(s).href); // stored normalised (scheme case, trailing whitespace, default path)
 // The public receipt page's base URL (GitLab's `external_url` pattern: the console is reached on loopback,
-// the page lives elsewhere). https, or http only on loopback (a local demo): the fragment never travels, but
-// the page's scripts do. No credentials (links are shared); no query or fragment (`/r#…` is appended). A path
-// prefix is allowed; the trailing "/" is dropped, as the CLI's to_url does.
-export const DEFAULT_RECEIPT_HOST = "https://zeceipt.xyz";
+// the page lives elsewhere). Required, with no default (slice S2, R96): the page that host serves can read the
+// link's fragment, which holds the receipt, so only the operator knows a safe value. https, or http only on
+// loopback (a local demo): the fragment never travels, but the page's scripts do. No credentials (links are
+// shared); no query or fragment (`/r#…` is appended). A path prefix is allowed; the trailing "/" is dropped, as
+// the CLI's to_url does.
 const receiptHostUrl = z.string().refine((s) => {
   try {
     const u = new URL(s);
@@ -171,7 +172,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const keyId = field("ISSUER_KEY_ID", z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), "must be 1–64 characters of A-Z, a-z, 0-9, ., _ and -");
   const rateUrl = field("RATE_URL", rateUrlSchema, "must be the https URL of a Kraken-format ZEC/USD ticker (http only on a loopback host), without credentials or fragment", { fallback: KRAKEN_TICKER_URL });
   const rateMaxDriftBps = field("RATE_MAX_DRIFT_BPS", intIn(1, 2000), "must be an integer number of basis points from 1 to 2000 (300 = 3%)", { fallback: DEFAULT_MAX_DRIFT_BPS });
-  const receiptHost = field("RECEIPT_HOST", receiptHostUrl, "must be the https URL of the public receipt page's site (http only on a loopback host), without credentials, query or fragment", { fallback: DEFAULT_RECEIPT_HOST });
+  const receiptHost = field("RECEIPT_HOST", receiptHostUrl, "must be the https URL of the site you control that serves the public receipt page (http only on a loopback host), without credentials, query or fragment");
 
   if (problems.length) throw new ConfigError(problems);
   const config: ConsoleConfig = {

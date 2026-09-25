@@ -46,7 +46,7 @@ before(async () => {
   const base = { nonce: batchNonce(receipted), batchId: receipted.id, batchDigest: batchDigest(toExecutionBatch(receipted)), createdAt: "t", attempts: 1 };
   await store.createIntent({ ...base, state: "submitting" });
   await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
-  const out = await autoIssue({ batch: toExecutionBatch(receipted), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, keyId: "2026-09", challenge: "h6" } });
+  const out = await autoIssue({ batch: toExecutionBatch(receipted), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "h6" } });
   assert.equal(out.state, "issued");
   await recordReceipts(db, new Keyring([{ kid: "k1", key: Buffer.alloc(32, 0x11) }]), { orgId: ORG, batchId: receipted.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
 });

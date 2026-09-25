@@ -27,7 +27,7 @@ before(() => {
   bootServerContext({
     ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_DB_PATH: DB, ZECEIPT_ORG_ID: "org-rr", ZECEIPT_NETWORK: "regtest",
     ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 5).toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:1",
-    ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt", ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt", ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key", ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_BIN: "/opt/zeceipt/bin/zeceipt", ZECEIPT_UFVK_FILE: "/etc/zeceipt/ufvk.txt", ZECEIPT_ISSUER_KEY_FILE: "/etc/zeceipt/issuer.key", ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
   }, { migrationsFolder: defaultMigrationsDir() });
 });
 after(() => {

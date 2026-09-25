@@ -19,7 +19,7 @@ const s = await start({
   ...baseEnv(), NODE_USE_ENV_PROXY: "1", NO_PROXY: "127.0.0.1,localhost",
   ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_DB_PATH: join(dir, "c.db"), ZECEIPT_ORG_ID: "shot", ZECEIPT_NETWORK: "regtest",
   ZECEIPT_WRAP_KEYS: `k1:${Buffer.alloc(32, 4).toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: "http://127.0.0.1:8137", ZECEIPT_BIN: "/opt/x",
-  ZECEIPT_UFVK_FILE: "/etc/x", ZECEIPT_ISSUER_KEY_FILE: "/etc/y", ZECEIPT_ISSUER_KEY_ID: "k",
+  ZECEIPT_UFVK_FILE: "/etc/x", ZECEIPT_ISSUER_KEY_FILE: "/etc/y", ZECEIPT_ISSUER_KEY_ID: "k", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
 });
 const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ channel: "chrome" });

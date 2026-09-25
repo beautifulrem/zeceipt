@@ -251,11 +251,14 @@ fn issue_prints_fragment_links_and_verify_takes_both_forms() {
         ovk.trim(),
         "--label",
         "link-test",
+        "--host",
+        "https://receipts.example",
     ]);
     assert_eq!(c, 0, "stderr: {err}");
+    assert!(!err.contains("no --host"), "{err}");
     let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
     let url = v["receipts"][0]["url"].as_str().unwrap().to_string();
-    assert!(url.starts_with("https://zeceipt.xyz/r#ey"), "{url}");
+    assert!(url.starts_with("https://receipts.example/r#ey"), "{url}");
     let path_form = url.replacen("/r#", "/r/", 1);
     for link in [&url, &path_form] {
         let (c, o, err) = run(&["verify", link, "--raw-tx-file", &raw]);
@@ -264,6 +267,43 @@ fn issue_prints_fragment_links_and_verify_takes_both_forms() {
         assert_eq!(v["valid"], true);
         assert_eq!(v["value_zat"], 250_000_000);
     }
+}
+
+/// `--host` has no default (slice S2): the page a host serves can read the link's fragment,
+/// so a default the operator does not control could collect every receipt. Without it the
+/// receipts are still issued and written, with no link, and stderr says why.
+#[test]
+fn issue_without_host_prints_no_link() {
+    let raw = fixture("synthetic-ironwood.hex");
+    let ovk = std::fs::read_to_string(fixture("synthetic-ovk.hex")).unwrap();
+    let dir = std::env::temp_dir().join(format!("zeceipt-nohost-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let (c, o, err) = run(&[
+        "issue",
+        "--raw-tx-file",
+        &raw,
+        "--ovk",
+        ovk.trim(),
+        "--out-dir",
+        dir.to_str().unwrap(),
+    ]);
+    assert_eq!(c, 0, "stderr: {err}");
+    assert!(
+        err.contains("no --host: receipts carry no link; pass --host with the site you control"),
+        "{err}"
+    );
+    let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    let receipts = v["receipts"].as_array().unwrap();
+    assert!(!receipts.is_empty());
+    for r in receipts {
+        assert!(
+            r.as_object().unwrap().contains_key("url"),
+            "the key stays: {r}"
+        );
+        assert!(r["url"].is_null(), "{r}");
+    }
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), receipts.len());
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A consensus-valid regtest transaction (mined by Zebra) with a receipt issued

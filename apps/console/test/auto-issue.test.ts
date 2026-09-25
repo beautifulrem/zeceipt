@@ -34,7 +34,7 @@ before(async () => {
   assert.ok(existsSync(BIN), `zeceipt binary not found at ${BIN} (cargo build -p zeceipt-cli, or set ZECEIPT_BIN)`);
   dir = await mkdtemp(join(tmpdir(), "zeceipt-autoissue-"));
   execFileSync(BIN, ["keygen", "--out", join(dir, "issuer.key")]);
-  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09", challenge: "console-test-nonce" };
+  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), host: "https://receipts.example", keyId: "2026-09", challenge: "console-test-nonce" };
 });
 after(async () => rm(dir, { recursive: true, force: true }));
 
@@ -62,7 +62,7 @@ test("issues exactly one verified receipt per batch item; change and non-batch o
   assert.equal((await readdir(outDir)).length, 3);
 });
 
-test("links are <host>/r#<payload> on the configured receipt page (slice F3); without a host, the CLI's default", async () => {
+test("links are <host>/r#<payload> on the configured receipt page (slice F3); --host is always passed (slice S2)", async () => {
   const one: Batch = { ...batch, items: [batch.items[0]] };
   const withHost = await autoIssue({ batch: one, txid: TXID, status: mined(1), requiredConfirmations: 1, cli: { ...cli, host: "https://user.github.io/zeceipt" } });
   assert.equal(withHost.state, "issued");
@@ -70,8 +70,8 @@ test("links are <host>/r#<payload> on the configured receipt page (slice F3); wi
   const link = new URL(withHost.receipts[0].url);
   assert.equal(`${link.origin}${link.pathname}`, "https://user.github.io/zeceipt/r");
   assert.deepEqual(JSON.parse(Buffer.from(link.hash.slice(1), "base64url").toString("utf8")), withHost.receipts[0].receipt, "the fragment is the receipt");
-  const byDefault = await autoIssue({ batch: one, txid: TXID, status: mined(1), requiredConfirmations: 1, cli });
-  assert.equal(byDefault.state === "issued" && new URL(byDefault.receipts[0].url).origin, "https://zeceipt.xyz");
+  const fixture = await autoIssue({ batch: one, txid: TXID, status: mined(1), requiredConfirmations: 1, cli });
+  assert.equal(fixture.state === "issued" && new URL(fixture.receipts[0].url).origin, "https://receipts.example", "the fixture's host, never a built-in one");
 });
 
 test("a batch naming only some recipients gets receipts for those only (allow-list)", async () => {

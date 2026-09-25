@@ -55,7 +55,7 @@ async function scenario(org: string, opts: { broadcast?: "broadcast" | "unknown_
     ZECEIPT_BIN: BIN,
     ZECEIPT_UFVK_FILE: UFVK,
     ZECEIPT_ISSUER_KEY_FILE: join(dir, "issuer.key"),
-    ZECEIPT_ISSUER_KEY_ID: "2026-09",
+    ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
   };
   const ctx = bootServerContext(env, { migrationsFolder: defaultMigrationsDir() });
   const headers = { host: HOST, "content-type": "application/json", origin: `http://${HOST}` };
@@ -82,7 +82,7 @@ before(async () => {
   execFileSync(BIN, ["keygen", "--out", join(dir, "issuer.key")]);
   fake = await new FakeZkool().start();
   fake.height = fake.scanned = 700;
-  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09" };
+  cli = { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), host: "https://receipts.example", keyId: "2026-09" };
 });
 after(async () => {
   slot[SERVER_CONTEXT_KEY]?.db.$client.close();
@@ -101,8 +101,8 @@ test("below the threshold: 202 waiting (pending, not invalid); nothing recorded"
 test("the route and the page issue with the deployment's CLI options: its receipt host, its lightwalletd, no challenge (slice F3)", async () => {
   await scenario("org-cli");
   const config = slot[SERVER_CONTEXT_KEY]!.config;
-  assert.equal(config.receiptHost, "https://zeceipt.xyz", "unset: the CLI's default");
-  assert.deepEqual(issuerCli(config), { bin: BIN, endpoint: "http://127.0.0.1:1/", ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09", host: "https://zeceipt.xyz" });
+  assert.equal(config.receiptHost, "https://receipts.example", "the configured host (required: slice S2)");
+  assert.deepEqual(issuerCli(config), { bin: BIN, endpoint: "http://127.0.0.1:1/", ufvkFile: UFVK, keyFile: join(dir, "issuer.key"), keyId: "2026-09", host: "https://receipts.example" });
   assert.equal(issuerCli({ ...config, receiptHost: "http://127.0.0.1:8787" }).host, "http://127.0.0.1:8787");
 });
 
@@ -190,7 +190,7 @@ test("the route export: guarded, wired to the config's issuer; a draft is refuse
       ZECEIPT_BIN: BIN,
       ZECEIPT_UFVK_FILE: UFVK,
       ZECEIPT_ISSUER_KEY_FILE: join(dir, "issuer.key"),
-      ZECEIPT_ISSUER_KEY_ID: "2026-09",
+      ZECEIPT_ISSUER_KEY_ID: "2026-09", ZECEIPT_RECEIPT_HOST: "https://receipts.example",
     },
     { migrationsFolder: defaultMigrationsDir() },
   );

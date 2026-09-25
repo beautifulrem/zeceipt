@@ -39,7 +39,7 @@ fn issue_then_verify_then_tamper() {
     assert_eq!(recovered.memo, MemoView::Text("INV-2026-0142 pay".into()));
 
     // Round trip through JSON and URL like a real recipient would.
-    let url = receipt.to_url("https://zeceipt.xyz").unwrap();
+    let url = receipt.to_url("https://receipts.example").unwrap();
     let parsed = Receipt::parse(&url).unwrap();
     let v = verify(&parsed, &tx, b"auditor-nonce-7", true).unwrap();
     assert_eq!(v.recovered.value_zat, 250_000_000);
