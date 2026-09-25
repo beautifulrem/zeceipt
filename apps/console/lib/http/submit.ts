@@ -20,7 +20,7 @@
 import { z } from "zod";
 import { batchNonce, getBatch, toExecutionBatch, type BatchRecord } from "../data/batches.ts";
 import { validApproval } from "../data/approvals.ts";
-import { currentLock, recordQuote } from "../data/rates.ts";
+import { currentLock, recordQuote, type StoredQuote } from "../data/rates.ts";
 import { movedText, pctFromBps, rateDrift } from "../rates/drift.ts";
 import { getBatchStatus } from "../data/status.ts";
 import { StoreBusyError } from "../execution/idempotency.ts";
@@ -92,9 +92,11 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
     reachedBackend = true;
     const beforePay = async () => {
       try {
-        // Slice I3: approval first (no network call), then the rate guard's fresh quote.
-        await approvalGuard(ctx, rec);
-        await rateGuard(ctx, rec.id);
+        // Slice I3: approval first (no network call), then the rate guard's fresh quote. The lock is read once, so both
+        // judge the same lock (review I3 round 1: a re-lock between two reads could split them).
+        const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
+        await approvalGuard(ctx, rec, lock);
+        await rateGuard(ctx, rec.id, lock);
       } catch (e) {
         refusedBeforePay = true;
         throw e;
@@ -118,10 +120,9 @@ export async function submitBatch(id: string, readBody: () => Promise<unknown>):
 /**
  * The approval guard (slice I3; design I3.1.5): every attempt that will pay needs a valid approval, for this backend,
  * of exactly the lines this attempt pays (`rec`, the record handed to the backend) at the batch's current lock, read
- * here so a re-lock since the request began is seen. Runs before any pay, so a refusal is `sent_nothing`.
+ * in `beforePay` so a re-lock since the request began is seen. Runs before any pay, so a refusal is `sent_nothing`.
  */
-async function approvalGuard(ctx: ServerContext, rec: BatchRecord): Promise<void> {
-  const lock = await currentLock(ctx.db, ctx.config.orgId, rec.id);
+async function approvalGuard(ctx: ServerContext, rec: BatchRecord, lock: StoredQuote | undefined): Promise<void> {
   if (!lock) return; // the rate guard refuses with `rate_not_locked`: locking comes before approving
   const check = approvalCheck(ctx);
   if (!(await validApproval(ctx.db, check.keyring, rec, lock, check.backend))) {
@@ -135,8 +136,7 @@ async function approvalGuard(ctx: ServerContext, rec: BatchRecord): Promise<void
  * a retry: while its record is `failed_retryable`, which can be re-locked). A move beyond `rateMaxDriftBps`
  * refuses. It runs before any pay, so every refusal is `sent_nothing`.
  */
-async function rateGuard(ctx: ServerContext, batchId: string): Promise<void> {
-  const lock = await currentLock(ctx.db, ctx.config.orgId, batchId);
+async function rateGuard(ctx: ServerContext, batchId: string, lock: StoredQuote | undefined): Promise<void> {
   if (!lock) throw new HttpProblem(409, "rate_not_locked", "lock the batch's ZEC/USD rate before paying (POST /api/batches/{id}/rate-lock); this request sent nothing");
   const quote = await ctx.quote();
   const exec = await recordQuote(ctx.db, { orgId: ctx.config.orgId, batchId, purpose: "execution", quote });
