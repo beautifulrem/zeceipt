@@ -49,7 +49,11 @@ Receipt links: with `--host`, `zeceipt issue` prints each receipt as `https://<h
 
 Each batch, recipient and payable keeps an append-only history of its changes. The console also warns before paying an address an earlier receipt disclosed.
 
-What the live chain shows (a local regtest chain, `docs/PROOF.md` §5c, §5d): a batch made on the console's form, its rate locked (from the run's local test quote source), approved, paid once in one Ironwood transaction for two posts of the Pay form, receipts issued from the page and verified against the chain, and the audit trail read back. Batches made from USD payables, the live Kraken quote and automatic issuance are covered by the console's tests, not yet by a live run in PROOF. Running it: [`apps/console/README.md`](apps/console/README.md).
+What the live chain shows (a local regtest chain, `docs/PROOF.md` §5c–§5g):
+- **A batch made on the console's form:** its rate locked from the run's local test quote source, approved, paid once in one Ironwood transaction for two posts of the Pay form, receipts issued from the page and verified against the chain, and the audit trail read back (§5d).
+- **A batch made from USD payables at Kraken's live bid:** fixed at creation, each line floored to the zatoshi, approved and paid once. The receipt worker issued all three receipts on its own, with no one pressing Issue, and each verified on chain. Each recipient's wallet holds its payable's reference as the memo (§5g).
+- **A database set back to "unpaid" after a payment** adopts the mined transaction instead of paying again, including for a recipient whose address holds more than one receiver (§5f).
+- **The wallet refuses the console's requests without its token** (§5e). Running it: [`apps/console/README.md`](apps/console/README.md).
 
 ## Crates
 
@@ -78,7 +82,12 @@ Does not prove: who is presenting it (use a challenge for interactive proofs), a
 
 Working and tested: envelope v0 with committed test vectors (`spec/test-vectors/receipt-v0.json`); Ironwood, Orchard and Sapling recovery (official Orchard note-encryption vectors from `zcash-test-vectors`, Ironwood/Orchard/Sapling round trips, tamper cases); CLI with exit codes 0/1/2/3; lightwalletd gRPC client verified live against `zec.rocks`; offline issue → verify → tamper matrix reproduced by CLI and in Chrome with the committed WASM package (`packages/verify/pkg`). A **consensus-valid regtest Ironwood transaction** (Zebra + Zaino + zcash-devtool, all from source) is issued from the sender's UFVK and verified over gRPC and offline (`docs/PROOF.md` §5; fixture and CLI test committed). CI workflow is committed but this repository has not been pushed to a remote yet, so it has not run on GitHub. Security self-review: `scripts/security_review.sh` (`cargo audit`, `npm audit`, gitleaks over the history and the tree, the source guards; results in `docs/SECURITY_REVIEW.md`).
 
-The payout console works end to end on a local regtest chain (`docs/PROOF.md` §5c, §5d): a batch locked, approved, paid once in one transaction, its receipts issued and verified, and its audit trail. Batches from USD payables, the live Kraken quote and automatic issuance are tested but not yet shown in a live run.
+The payout console works end to end on a local regtest chain (`docs/PROOF.md` §5c–§5g):
+- batches made on the form, and batches made from USD payables at Kraken's live rate;
+- each approved and paid once in one transaction;
+- receipts issued from the page or by the worker on its own, and verified;
+- the audit trail;
+- a restored database that does not pay twice.
 
 Pending: receipts on a public chain (the testnet run is prepared and waits on faucet funds, `docs/PROOF.md` §4; mainnet follows), and publishing `@zeceipt/verify` to npm. Dropped for this hackathon: the Solana attestation program. Out of scope for v0: the spend-authority proof (full ZIP 311).
 
