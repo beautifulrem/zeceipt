@@ -48,7 +48,7 @@ test("migrations apply once (one journal row per committed migration); a second 
   assert.equal((db.$client.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get() as { n: number }).n, journal.entries.length);
   const names = (type: string) =>
     (db.$client.prepare(`SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all(type) as { name: string }[]).map((r) => r.name);
-  assert.deepEqual(names("table"), ["approvals", "audit_log", "batch_items", "batch_voids", "batches", "memo_claims", "payables", "rate_quotes", "receipts", "recipients", "submission_claims", "submission_txids", "submissions"]);
+  assert.deepEqual(names("table"), ["approvals", "audit_log", "batch_items", "batch_voids", "batches", "memo_claims", "payables", "rate_quotes", "receipts", "recipients", "record_log", "submission_claims", "submission_txids", "submissions"]);
   assert.deepEqual(names("trigger"), [
     "approvals_frozen",
     "approvals_lock_exists",
@@ -100,6 +100,14 @@ test("migrations apply once (one journal row per committed migration); a second 
     "receipts_own_broadcast",
     "receipts_sealed_valid_insert",
     "receipts_sealed_valid_update",
+    "record_log_no_delete",
+    "record_log_no_update",
+    "record_payables_delete",
+    "record_payables_insert",
+    "record_payables_update",
+    "record_recipients_delete",
+    "record_recipients_insert",
+    "record_recipients_update",
     "submission_txids_fixed",
     "submission_txids_keep",
     "submission_txids_no_delete",

@@ -373,3 +373,28 @@ export const auditLog = sqliteTable(
     check("audit_log_detail_json", sql`json_valid(${t.detail}) and json_type(${t.detail}) = 'object'`),
   ],
 );
+
+/**
+ * The trail of recipients and payables (slice I4b; WBS 3.3.1.4): created, changed ({previous, current} per changed
+ * field, Bill.com's shape) and deleted, written by triggers in the same transaction (migration 0022). A payee's changed
+ * address is the classic accounts-payable fraud (FBI IC3's BEC advice; R91). The address appears abridged, as the pages
+ * show it. No foreign key: a history outlives what it describes. Append-only by trigger.
+ */
+export const recordLog = sqliteTable(
+  "record_log",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    orgId: text("org_id").notNull(),
+    kind: text("kind", { enum: ["recipient", "payable"] }).notNull(),
+    recordId: text("record_id").notNull(),
+    at: text("at").notNull(),
+    action: text("action", { enum: ["created", "changed", "deleted"] }).notNull(),
+    detail: text("detail").notNull(),
+  },
+  (t) => [
+    index("record_log_record").on(t.orgId, t.kind, t.recordId, t.id),
+    check("record_log_kind", sql`${t.kind} in ('recipient', 'payable')`),
+    check("record_log_action", sql`${t.action} in ('created', 'changed', 'deleted')`),
+    check("record_log_detail_json", sql`json_valid(${t.detail}) and json_type(${t.detail}) = 'object'`),
+  ],
+);

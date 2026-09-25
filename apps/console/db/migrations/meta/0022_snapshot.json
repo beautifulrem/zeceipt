@@ -1,0 +1,1512 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "04959bc1-0af4-41b4-9d4a-d0abae0d86c2",
+  "prevId": "0426442f-043e-4807-a421-0ceac3dc0fea",
+  "tables": {
+    "approvals": {
+      "name": "approvals",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "approver": {
+          "name": "approver",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lock_seq": {
+          "name": "lock_seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kid": {
+          "name": "kid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hmac": {
+          "name": "hmac",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "approvals_org_id_batch_id_batches_org_id_id_fk": {
+          "name": "approvals_org_id_batch_id_batches_org_id_id_fk",
+          "tableFrom": "approvals",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "org_id",
+            "batch_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "approvals_org_id_batch_id_seq_pk": {
+          "columns": [
+            "org_id",
+            "batch_id",
+            "seq"
+          ],
+          "name": "approvals_org_id_batch_id_seq_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "approvals_seq": {
+          "name": "approvals_seq",
+          "value": "typeof(\"approvals\".\"seq\") = 'integer' and \"approvals\".\"seq\" >= 1"
+        },
+        "approvals_lock_seq": {
+          "name": "approvals_lock_seq",
+          "value": "typeof(\"approvals\".\"lock_seq\") = 'integer' and \"approvals\".\"lock_seq\" >= 1"
+        },
+        "approvals_approver": {
+          "name": "approvals_approver",
+          "value": "length(\"approvals\".\"approver\") between 1 and 64"
+        },
+        "approvals_approved_at": {
+          "name": "approvals_approved_at",
+          "value": "typeof(\"approvals\".\"approved_at\") = 'text' and length(\"approvals\".\"approved_at\") = 24 and \"approvals\".\"approved_at\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'"
+        },
+        "approvals_kid": {
+          "name": "approvals_kid",
+          "value": "length(\"approvals\".\"kid\") between 1 and 32 and \"approvals\".\"kid\" not glob '*[^A-Za-z0-9_-]*'"
+        },
+        "approvals_hmac_hex": {
+          "name": "approvals_hmac_hex",
+          "value": "length(\"approvals\".\"hmac\") = 64 and \"approvals\".\"hmac\" not glob '*[^0-9a-f]*'"
+        }
+      }
+    },
+    "audit_log": {
+      "name": "audit_log",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "at": {
+          "name": "at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "audit_log_batch": {
+          "name": "audit_log_batch",
+          "columns": [
+            "org_id",
+            "batch_id",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_log_action": {
+          "name": "audit_log_action",
+          "value": "length(\"audit_log\".\"action\") between 1 and 40"
+        },
+        "audit_log_detail_json": {
+          "name": "audit_log_detail_json",
+          "value": "json_valid(\"audit_log\".\"detail\") and json_type(\"audit_log\".\"detail\") = 'object'"
+        }
+      }
+    },
+    "batch_items": {
+      "name": "batch_items",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idx": {
+          "name": "idx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payable_id": {
+          "name": "payable_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zat": {
+          "name": "zat",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payable_ref": {
+          "name": "payable_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "usd_cents": {
+          "name": "usd_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "batch_items_payable_unique": {
+          "name": "batch_items_payable_unique",
+          "columns": [
+            "org_id",
+            "batch_id",
+            "payable_id"
+          ],
+          "isUnique": true
+        },
+        "batch_items_memo_unique": {
+          "name": "batch_items_memo_unique",
+          "columns": [
+            "org_id",
+            "batch_id",
+            "memo"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "batch_items_org_id_batch_id_batches_org_id_id_fk": {
+          "name": "batch_items_org_id_batch_id_batches_org_id_id_fk",
+          "tableFrom": "batch_items",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "org_id",
+            "batch_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "batch_items_org_id_batch_id_idx_pk": {
+          "columns": [
+            "org_id",
+            "batch_id",
+            "idx"
+          ],
+          "name": "batch_items_org_id_batch_id_idx_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "batch_items_payable_ref": {
+          "name": "batch_items_payable_ref",
+          "value": "(\"batch_items\".\"payable_ref\" is null) = (\"batch_items\".\"usd_cents\" is null)"
+        },
+        "batch_items_usd_cents": {
+          "name": "batch_items_usd_cents",
+          "value": "\"batch_items\".\"usd_cents\" is null or (typeof(\"batch_items\".\"usd_cents\") = 'integer' and \"batch_items\".\"usd_cents\" between 1 and 99999999)"
+        },
+        "batch_items_idx": {
+          "name": "batch_items_idx",
+          "value": "\"batch_items\".\"idx\" >= 0"
+        },
+        "batch_items_payable_len": {
+          "name": "batch_items_payable_len",
+          "value": "length(\"batch_items\".\"payable_id\") between 1 and 200"
+        },
+        "batch_items_label_len": {
+          "name": "batch_items_label_len",
+          "value": "length(\"batch_items\".\"label\") <= 200"
+        },
+        "batch_items_address": {
+          "name": "batch_items_address",
+          "value": "length(\"batch_items\".\"address\") between 1 and 1000 and \"batch_items\".\"address\" = lower(\"batch_items\".\"address\")"
+        },
+        "batch_items_zat": {
+          "name": "batch_items_zat",
+          "value": "typeof(\"batch_items\".\"zat\") = 'integer' and \"batch_items\".\"zat\" between 1 and 2100000000000000"
+        },
+        "batch_items_memo_bytes": {
+          "name": "batch_items_memo_bytes",
+          "value": "length(cast(\"batch_items\".\"memo\" as blob)) between 1 and 512"
+        }
+      }
+    },
+    "batch_voids": {
+      "name": "batch_voids",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "voided_at": {
+          "name": "voided_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "batch_voids_org_id_batch_id_batches_org_id_id_fk": {
+          "name": "batch_voids_org_id_batch_id_batches_org_id_id_fk",
+          "tableFrom": "batch_voids",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "org_id",
+            "batch_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "batch_voids_org_id_batch_id_pk": {
+          "columns": [
+            "org_id",
+            "batch_id"
+          ],
+          "name": "batch_voids_org_id_batch_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "batch_voids_voided_at": {
+          "name": "batch_voids_voided_at",
+          "value": "typeof(\"batch_voids\".\"voided_at\") = 'text' and length(\"batch_voids\".\"voided_at\") = 24 and \"batch_voids\".\"voided_at\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'"
+        }
+      }
+    },
+    "batches": {
+      "name": "batches",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "network": {
+          "name": "network",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "batches_org_id_id_pk": {
+          "columns": [
+            "org_id",
+            "id"
+          ],
+          "name": "batches_org_id_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "batches_id_uuid": {
+          "name": "batches_id_uuid",
+          "value": "length(\"batches\".\"id\") = 36 and \"batches\".\"id\" glob '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'"
+        },
+        "batches_network": {
+          "name": "batches_network",
+          "value": "\"batches\".\"network\" in ('main', 'test', 'regtest')"
+        },
+        "batches_title_len": {
+          "name": "batches_title_len",
+          "value": "length(\"batches\".\"title\") between 1 and 200"
+        }
+      }
+    },
+    "memo_claims": {
+      "name": "memo_claims",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "memo": {
+          "name": "memo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "memo_claims_batch": {
+          "name": "memo_claims_batch",
+          "columns": [
+            "org_id",
+            "batch_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "memo_claims_org_id_batch_id_batches_org_id_id_fk": {
+          "name": "memo_claims_org_id_batch_id_batches_org_id_id_fk",
+          "tableFrom": "memo_claims",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "org_id",
+            "batch_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "memo_claims_org_id_memo_pk": {
+          "columns": [
+            "org_id",
+            "memo"
+          ],
+          "name": "memo_claims_org_id_memo_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "payables": {
+      "name": "payables",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "recipient_id": {
+          "name": "recipient_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "usd_cents": {
+          "name": "usd_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "payables_recipient": {
+          "name": "payables_recipient",
+          "columns": [
+            "org_id",
+            "recipient_id"
+          ],
+          "isUnique": false
+        },
+        "payables_reference_unique": {
+          "name": "payables_reference_unique",
+          "columns": [
+            "org_id",
+            "reference"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "payables_org_id_recipient_id_recipients_org_id_id_fk": {
+          "name": "payables_org_id_recipient_id_recipients_org_id_id_fk",
+          "tableFrom": "payables",
+          "tableTo": "recipients",
+          "columnsFrom": [
+            "org_id",
+            "recipient_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "payables_org_id_id_pk": {
+          "columns": [
+            "org_id",
+            "id"
+          ],
+          "name": "payables_org_id_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "payables_id_uuid": {
+          "name": "payables_id_uuid",
+          "value": "length(\"payables\".\"id\") = 36 and \"payables\".\"id\" glob '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'"
+        },
+        "payables_kind": {
+          "name": "payables_kind",
+          "value": "\"payables\".\"kind\" in ('milestone', 'invoice', 'bounty', 'salary')"
+        },
+        "payables_usd_cents": {
+          "name": "payables_usd_cents",
+          "value": "typeof(\"payables\".\"usd_cents\") = 'integer' and \"payables\".\"usd_cents\" between 1 and 99999999"
+        },
+        "payables_reference": {
+          "name": "payables_reference",
+          "value": "typeof(\"payables\".\"reference\") = 'text' and length(\"payables\".\"reference\") between 1 and 100 and \"payables\".\"reference\" = trim(\"payables\".\"reference\")"
+        },
+        "payables_source_url": {
+          "name": "payables_source_url",
+          "value": "\"payables\".\"source_url\" is null or (typeof(\"payables\".\"source_url\") = 'text' and length(\"payables\".\"source_url\") <= 2000 and (\"payables\".\"source_url\" glob 'https://?*' or \"payables\".\"source_url\" glob 'http://?*'))"
+        },
+        "payables_created_at": {
+          "name": "payables_created_at",
+          "value": "typeof(\"payables\".\"created_at\") = 'text' and length(\"payables\".\"created_at\") = 24 and \"payables\".\"created_at\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'"
+        }
+      }
+    },
+    "rate_quotes": {
+      "name": "rate_quotes",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pair": {
+          "name": "pair",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bid": {
+          "name": "bid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ask": {
+          "name": "ask",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last": {
+          "name": "last",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate": {
+          "name": "rate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "rate_quotes_org_id_batch_id_batches_org_id_id_fk": {
+          "name": "rate_quotes_org_id_batch_id_batches_org_id_id_fk",
+          "tableFrom": "rate_quotes",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "org_id",
+            "batch_id"
+          ],
+          "columnsTo": [
+            "org_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "rate_quotes_org_id_batch_id_seq_pk": {
+          "columns": [
+            "org_id",
+            "batch_id",
+            "seq"
+          ],
+          "name": "rate_quotes_org_id_batch_id_seq_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "rate_quotes_seq": {
+          "name": "rate_quotes_seq",
+          "value": "typeof(\"rate_quotes\".\"seq\") = 'integer' and \"rate_quotes\".\"seq\" >= 1"
+        },
+        "rate_quotes_purpose": {
+          "name": "rate_quotes_purpose",
+          "value": "\"rate_quotes\".\"purpose\" in ('lock', 'execution')"
+        },
+        "rate_quotes_source": {
+          "name": "rate_quotes_source",
+          "value": "\"rate_quotes\".\"source\" in ('kraken')"
+        },
+        "rate_quotes_pair": {
+          "name": "rate_quotes_pair",
+          "value": "length(\"rate_quotes\".\"pair\") between 1 and 32"
+        },
+        "rate_quotes_bid": {
+          "name": "rate_quotes_bid",
+          "value": "typeof(\"rate_quotes\".\"bid\") = 'text' and length(\"rate_quotes\".\"bid\") between 1 and 34 and \"rate_quotes\".\"bid\" glob '[0-9]*' and \"rate_quotes\".\"bid\" not glob '*[^0-9.]*' and \"rate_quotes\".\"bid\" not glob '*.*.*' and \"rate_quotes\".\"bid\" not glob '*.'"
+        },
+        "rate_quotes_ask": {
+          "name": "rate_quotes_ask",
+          "value": "typeof(\"rate_quotes\".\"ask\") = 'text' and length(\"rate_quotes\".\"ask\") between 1 and 34 and \"rate_quotes\".\"ask\" glob '[0-9]*' and \"rate_quotes\".\"ask\" not glob '*[^0-9.]*' and \"rate_quotes\".\"ask\" not glob '*.*.*' and \"rate_quotes\".\"ask\" not glob '*.'"
+        },
+        "rate_quotes_last": {
+          "name": "rate_quotes_last",
+          "value": "typeof(\"rate_quotes\".\"last\") = 'text' and length(\"rate_quotes\".\"last\") between 1 and 34 and \"rate_quotes\".\"last\" glob '[0-9]*' and \"rate_quotes\".\"last\" not glob '*[^0-9.]*' and \"rate_quotes\".\"last\" not glob '*.*.*' and \"rate_quotes\".\"last\" not glob '*.'"
+        },
+        "rate_quotes_rate_is_bid": {
+          "name": "rate_quotes_rate_is_bid",
+          "value": "\"rate_quotes\".\"rate\" = \"rate_quotes\".\"bid\""
+        },
+        "rate_quotes_fetched_at": {
+          "name": "rate_quotes_fetched_at",
+          "value": "typeof(\"rate_quotes\".\"fetched_at\") = 'text' and length(\"rate_quotes\".\"fetched_at\") = 24 and \"rate_quotes\".\"fetched_at\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'"
+        },
+        "rate_quotes_recorded_at": {
+          "name": "rate_quotes_recorded_at",
+          "value": "typeof(\"rate_quotes\".\"recorded_at\") = 'text' and length(\"rate_quotes\".\"recorded_at\") = 24 and \"rate_quotes\".\"recorded_at\" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'"
+        }
+      }
+    },
+    "receipts": {
+      "name": "receipts",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "txid": {
+          "name": "txid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pool": {
+          "name": "pool",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "output_index": {
+          "name": "output_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idx": {
+          "name": "idx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value_zat": {
+          "name": "value_zat",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "recipient": {
+          "name": "recipient",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "memo_text": {
+          "name": "memo_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sealed": {
+          "name": "sealed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sealed_kid": {
+          "name": "sealed_kid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "receipts_item_unique": {
+          "name": "receipts_item_unique",
+          "columns": [
+            "org_id",
+            "batch_id",
+            "idx"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "receipts_org_id_batch_id_idx_batch_items_org_id_batch_id_idx_fk": {
+          "name": "receipts_org_id_batch_id_idx_batch_items_org_id_batch_id_idx_fk",
+          "tableFrom": "receipts",
+          "tableTo": "batch_items",
+          "columnsFrom": [
+            "org_id",
+            "batch_id",
+            "idx"
+          ],
+          "columnsTo": [
+            "org_id",
+            "batch_id",
+            "idx"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "receipts_org_id_txid_pool_output_index_pk": {
+          "columns": [
+            "org_id",
+            "txid",
+            "pool",
+            "output_index"
+          ],
+          "name": "receipts_org_id_txid_pool_output_index_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "receipts_txid_hex": {
+          "name": "receipts_txid_hex",
+          "value": "length(\"receipts\".\"txid\") = 64 and \"receipts\".\"txid\" not glob '*[^0-9a-f]*'"
+        },
+        "receipts_pool": {
+          "name": "receipts_pool",
+          "value": "\"receipts\".\"pool\" in ('sapling', 'orchard', 'ironwood')"
+        },
+        "receipts_output_index": {
+          "name": "receipts_output_index",
+          "value": "typeof(\"receipts\".\"output_index\") = 'integer' and \"receipts\".\"output_index\" >= 0"
+        },
+        "receipts_value": {
+          "name": "receipts_value",
+          "value": "typeof(\"receipts\".\"value_zat\") = 'integer' and \"receipts\".\"value_zat\" between 1 and 2100000000000000"
+        },
+        "receipts_recipient": {
+          "name": "receipts_recipient",
+          "value": "length(\"receipts\".\"recipient\") between 1 and 1000"
+        },
+        "receipts_sealed": {
+          "name": "receipts_sealed",
+          "value": "length(\"receipts\".\"sealed\") > 0 and length(\"receipts\".\"sealed_kid\") between 1 and 64"
+        }
+      }
+    },
+    "recipients": {
+      "name": "recipients",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "network": {
+          "name": "network",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kyc_status": {
+          "name": "kyc_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tax_flag": {
+          "name": "tax_flag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "settlement_pref": {
+          "name": "settlement_pref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "recipients_address": {
+          "name": "recipients_address",
+          "columns": [
+            "org_id",
+            "address"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "recipients_org_id_id_pk": {
+          "columns": [
+            "org_id",
+            "id"
+          ],
+          "name": "recipients_org_id_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "recipients_id_uuid": {
+          "name": "recipients_id_uuid",
+          "value": "length(\"recipients\".\"id\") = 36 and \"recipients\".\"id\" glob '[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'"
+        },
+        "recipients_name_len": {
+          "name": "recipients_name_len",
+          "value": "length(\"recipients\".\"display_name\") between 1 and 200"
+        },
+        "recipients_network": {
+          "name": "recipients_network",
+          "value": "\"recipients\".\"network\" in ('main', 'test', 'regtest')"
+        },
+        "recipients_address": {
+          "name": "recipients_address",
+          "value": "length(\"recipients\".\"address\") between 1 and 1000 and \"recipients\".\"address\" = lower(\"recipients\".\"address\") and ((\"recipients\".\"network\" = 'main' and \"recipients\".\"address\" glob 'u1*') or (\"recipients\".\"network\" = 'test' and \"recipients\".\"address\" glob 'utest1*') or (\"recipients\".\"network\" = 'regtest' and \"recipients\".\"address\" glob 'uregtest1*'))"
+        },
+        "recipients_kyc": {
+          "name": "recipients_kyc",
+          "value": "\"recipients\".\"kyc_status\" in ('unknown', 'verified', 'not_required')"
+        },
+        "recipients_tax": {
+          "name": "recipients_tax",
+          "value": "\"recipients\".\"tax_flag\" in ('none', 'us_1099', 'non_us')"
+        },
+        "recipients_settlement": {
+          "name": "recipients_settlement",
+          "value": "\"recipients\".\"settlement_pref\" in ('zec', 'usdc_sol')"
+        },
+        "recipients_notes_len": {
+          "name": "recipients_notes_len",
+          "value": "length(\"recipients\".\"notes\") <= 1000"
+        }
+      }
+    },
+    "record_log": {
+      "name": "record_log",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "at": {
+          "name": "at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "record_log_record": {
+          "name": "record_log_record",
+          "columns": [
+            "org_id",
+            "kind",
+            "record_id",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "record_log_kind": {
+          "name": "record_log_kind",
+          "value": "\"record_log\".\"kind\" in ('recipient', 'payable')"
+        },
+        "record_log_action": {
+          "name": "record_log_action",
+          "value": "\"record_log\".\"action\" in ('created', 'changed', 'deleted')"
+        },
+        "record_log_detail_json": {
+          "name": "record_log_detail_json",
+          "value": "json_valid(\"record_log\".\"detail\") and json_type(\"record_log\".\"detail\") = 'object'"
+        }
+      }
+    },
+    "submission_claims": {
+      "name": "submission_claims",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gen": {
+          "name": "gen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "claimed_at_ms": {
+          "name": "claimed_at_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "submission_claims_org_id_nonce_submissions_org_id_nonce_fk": {
+          "name": "submission_claims_org_id_nonce_submissions_org_id_nonce_fk",
+          "tableFrom": "submission_claims",
+          "tableTo": "submissions",
+          "columnsFrom": [
+            "org_id",
+            "nonce"
+          ],
+          "columnsTo": [
+            "org_id",
+            "nonce"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "submission_claims_org_id_nonce_attempt_gen_pk": {
+          "columns": [
+            "org_id",
+            "nonce",
+            "attempt",
+            "gen"
+          ],
+          "name": "submission_claims_org_id_nonce_attempt_gen_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "submission_claims_attempt": {
+          "name": "submission_claims_attempt",
+          "value": "\"submission_claims\".\"attempt\" >= 2 and \"submission_claims\".\"gen\" >= 0"
+        }
+      }
+    },
+    "submission_txids": {
+      "name": "submission_txids",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "txid": {
+          "name": "txid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "submission_txids_org_id_nonce_submissions_org_id_nonce_fk": {
+          "name": "submission_txids_org_id_nonce_submissions_org_id_nonce_fk",
+          "tableFrom": "submission_txids",
+          "tableTo": "submissions",
+          "columnsFrom": [
+            "org_id",
+            "nonce"
+          ],
+          "columnsTo": [
+            "org_id",
+            "nonce"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "submission_txids_org_id_txid_pk": {
+          "columns": [
+            "org_id",
+            "txid"
+          ],
+          "name": "submission_txids_org_id_txid_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "submission_txids_hex": {
+          "name": "submission_txids_hex",
+          "value": "length(\"submission_txids\".\"txid\") = 64 and \"submission_txids\".\"txid\" not glob '*[^0-9a-f]*'"
+        }
+      }
+    },
+    "submissions": {
+      "name": "submissions",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "batch_digest": {
+          "name": "batch_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "txid": {
+          "name": "txid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "intent_height": {
+          "name": "intent_height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_by": {
+          "name": "expires_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "broadcast_at": {
+          "name": "broadcast_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "submissions_org_id_nonce_pk": {
+          "columns": [
+            "org_id",
+            "nonce"
+          ],
+          "name": "submissions_org_id_nonce_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "submissions_nonce_len": {
+          "name": "submissions_nonce_len",
+          "value": "length(\"submissions\".\"nonce\") between 1 and 200"
+        },
+        "submissions_digest_hex": {
+          "name": "submissions_digest_hex",
+          "value": "length(\"submissions\".\"batch_digest\") = 64 and \"submissions\".\"batch_digest\" not glob '*[^0-9a-f]*'"
+        },
+        "submissions_state": {
+          "name": "submissions_state",
+          "value": "\"submissions\".\"state\" in ('submitting', 'broadcast', 'failed_retryable', 'unknown_outcome')"
+        },
+        "submissions_attempts": {
+          "name": "submissions_attempts",
+          "value": "\"submissions\".\"attempts\" >= 1"
+        },
+        "submissions_txid_hex": {
+          "name": "submissions_txid_hex",
+          "value": "\"submissions\".\"txid\" is null or (length(\"submissions\".\"txid\") = 64 and \"submissions\".\"txid\" not glob '*[^0-9a-f]*')"
+        },
+        "submissions_broadcast_has_txid": {
+          "name": "submissions_broadcast_has_txid",
+          "value": "\"submissions\".\"state\" <> 'broadcast' or \"submissions\".\"txid\" is not null"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

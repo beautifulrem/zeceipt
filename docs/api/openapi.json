@@ -1163,6 +1163,93 @@
         }
       }
     },
+    "/api/recipients/{id}/history": {
+      "get": {
+        "operationId": "getRecipientHistory",
+        "summary": "The recipient's trail, oldest first (slice I4b): created, changed and deleted, written by database triggers in the same transaction as the change. A deleted recipient's trail stays readable by its id. No actor is recorded (one operator, no sign-in).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "id",
+                    "events"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "recipient"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "at",
+                          "action",
+                          "detail"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "Increasing in commit order"
+                          },
+                          "at": {
+                            "type": "string",
+                            "description": "ISO 8601 UTC: the record's own time for created (and a recipient's changes), the database clock at the change otherwise"
+                          },
+                          "action": {
+                            "enum": [
+                              "created",
+                              "changed",
+                              "deleted"
+                            ]
+                          },
+                          "detail": {
+                            "type": "object",
+                            "description": "created: displayName, network, address (abridged as the pages show it); changed: `fields`, each changed field (displayName, address, network, kycStatus, taxFlag, settlementPref, notes) as {previous, current}; deleted: displayName. `backfilled: true` for events recorded by migration 0022 from rows that existed before it"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/api/payables": {
       "get": {
         "operationId": "listPayables",
@@ -1294,6 +1381,93 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Payable"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/api/payables/{id}/history": {
+      "get": {
+        "operationId": "getPayableHistory",
+        "summary": "The payable's trail, oldest first (slice I4b): created, changed and deleted, written by database triggers in the same transaction as the change. A deleted payable's trail stays readable by its id. No actor is recorded (one operator, no sign-in).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "id",
+                    "events"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "payable"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "at",
+                          "action",
+                          "detail"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "Increasing in commit order"
+                          },
+                          "at": {
+                            "type": "string",
+                            "description": "ISO 8601 UTC: the record's own time for created (and a recipient's changes), the database clock at the change otherwise"
+                          },
+                          "action": {
+                            "enum": [
+                              "created",
+                              "changed",
+                              "deleted"
+                            ]
+                          },
+                          "detail": {
+                            "type": "object",
+                            "description": "created: recipientId, kind, usdCents, reference; changed: `fields`, each changed field (recipientId, kind, usdCents, reference, sourceUrl) as {previous, current}; deleted: reference. `backfilled: true` for events recorded by migration 0022 from rows that existed before it"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

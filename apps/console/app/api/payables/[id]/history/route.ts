@@ -1,0 +1,6 @@
+import { recordHistoryResponse } from "../../../../../lib/http/record-history.ts";
+import { guarded } from "../../../../../lib/http/route.ts";
+
+export const dynamic = "force-dynamic";
+
+export const GET = guarded(async (_req, ctx: { params: Promise<{ id: string }> }) => recordHistoryResponse("payable", (await ctx.params).id));
