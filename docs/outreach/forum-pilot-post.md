@@ -2,7 +2,7 @@
 DRAFT, not posted (WBS 4.1.2.2; slice L1). Posting is the user's decision: a public action on forum.zcashcommunity.com.
 Prerequisite: push the repository (WBS 4.1.1.1), then replace every `[after the push]` with the public link.
 Suggested category: Applications, or Ecosystem Tooling if the forum has it. Suggested title below.
-Every claim is backed by the evidence named in `.trellis/tasks/09-25-forum-post-draft/implement.md` (claim-by-claim table).
+Every claim is backed by the evidence named in `.trellis/tasks/09-25-forum-post-draft/implement.md` and, for slice D6's additions, `.trellis/tasks/09-26-forum-post-update/implement.md` (claim-by-claim tables).
 -->
 
 # Shielded payment receipts: looking for one pilot
@@ -32,7 +32,7 @@ Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the 
   - a real wallet (zcash-devtool) builds an Ironwood transaction, Zebra mines it and Zaino indexes it;
   - receipts are issued from the sender's UFVK and verified over gRPC and offline;
   - a three-recipient batch paid through Zkool yields exactly one receipt per payment output, with change excluded.
-- **An issuer binding** (spec §7). Give your signing key an id that names your domain, such as `2026-09@pay.example.org`, and serve the small file `zeceipt well-known` prints at `https://<your domain>/.well-known/zeceipt.json`. `zeceipt verify --check-issuer` and the receipt page's "Check with <domain>" then show whether your domain lists the key. The check never changes whether a receipt is valid, and it runs only when asked, because it tells your domain that someone is checking.
+- **An issuer binding** (spec §7). Give your signing key an id that names your domain, such as `2026-09@pay.example.org`, and serve the small file `zeceipt well-known` prints at `https://<your domain>/.well-known/zeceipt.json`, over HTTPS, without redirects and with `Access-Control-Allow-Origin: *`. `zeceipt verify --check-issuer` and the receipt page's "Check with <domain>" then show whether your domain lists the key. The check never changes whether a receipt is valid, and it runs only when asked, because it tells your domain that someone is checking.
 - **A receipt page that sends the receipt nowhere.** The link carries the receipt in the URL fragment, which browsers never send to a server. The page verifies in the browser (WASM), and a Chrome test checks that no request, header or storage entry holds the receipt. To check the chain, it asks a node for the transaction only when you click, and a public node then sees which txid you asked for; a raw-transaction file avoids even that.
 - **A payout console** (Next.js, self-hosted, loopback only):
   - payables in USD, converted at a locked ZEC/USD rate;
@@ -41,7 +41,7 @@ Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the 
   - a rate check before paying;
   - receipts issued automatically after N confirmations;
   - an append-only history of each batch, recipient and payable;
-  - no double payment after a database restore: before paying, it checks the wallet's own history and adopts a payment already made.
+  - no double payment after a database restore once the earlier payment is mined: before paying, it checks the wallet's mined history and adopts a payment already made. A payment still unmined at restore time is not seen.
 
   It drives Zkool: the seed stays in the wallet, and the console holds a viewing key and a Zkool token for its own account only. It refuses to pay through a Zkool that answers requests without a token. Shown on regtest end to end: batches made on the form, and batches made from USD payables at Kraken's live rate with receipts issued automatically.
 
