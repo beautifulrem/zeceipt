@@ -12,6 +12,7 @@ import {
   batchDigest, batchNonce, createBatch, createBatchFromPayables, createPayable, createRecipient, defaultMigrationsDir, getBatch, migrateDb, openDb,
   SqliteIdempotencyStore, toExecutionBatch, voidBatch, VoidError, type BatchRecord, type ConsoleDb,
 } from "../lib/index.ts";
+import { voidable } from "../lib/data/voids.ts";
 import { payableHolders } from "../lib/data/payable-status.ts";
 
 const ORG = "org-h5c";
@@ -65,6 +66,21 @@ test("BTCPay's rule in our states: void after a refusal that sent nothing; never
     assert.equal(await code(voidBatch(db, ORG, b.id)), "batch_frozen", state);
     assert.equal((await getBatch(db, ORG, b.id))!.voidedAt, undefined, `${state}: nothing changed`);
   }
+});
+
+test("voidable (slice H5d) says what voidBatch will do: a draft and a refused attempt yes; an attempt that may have sent, or a void, no", async () => {
+  const draft = await hand();
+  assert.equal(await voidable(db, draft), true);
+  const refused = await hand();
+  await attempt(refused, "failed_retryable");
+  assert.equal(await voidable(db, refused), true);
+  for (const state of ["submitting", "broadcast", "unknown_outcome"] as const) {
+    const b = await hand();
+    await attempt(b, state);
+    assert.equal(await voidable(db, b), false, state);
+  }
+  await voidBatch(db, ORG, draft.id);
+  assert.equal(await voidable(db, (await getBatch(db, ORG, draft.id))!), false, "already voided");
 });
 
 test("the payables of a voided batch from payables go into a new batch at another rate; the page status follows", async () => {

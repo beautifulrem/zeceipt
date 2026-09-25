@@ -8,7 +8,7 @@ import type { ConsoleDb } from "../../db/client.ts";
 import { runSync } from "../../db/errors.ts";
 import { batches, batchVoids, memoClaims, submissions } from "../../db/schema.ts";
 import { ExecutionError } from "../execution/types.ts";
-import { getBatch, type BatchRecord } from "./batches.ts";
+import { getBatch, rateLockFrozen, type BatchRecord } from "./batches.ts";
 
 export type VoidErrorCode = "batch_not_found" | "batch_frozen" | "batch_voided";
 
@@ -48,4 +48,13 @@ export async function voidBatch(db: ConsoleDb, orgId: string, batchId: string, o
     throw e;
   }
   return (await getBatch(db, orgId, batchId))!;
+}
+
+/**
+ * Whether the batch can be voided now (slice H5d; design H5d.1.2): not voided, and no submission that may have paid
+ * (none, or only `failed_retryable`). It mirrors `voidBatch`'s check and the `batch_voids_only_unpaid` trigger, as
+ * `rateLockFrozen` mirrors the lock trigger; pages use it to offer the action, and the route stays the authority.
+ */
+export async function voidable(db: ConsoleDb, rec: Pick<BatchRecord, "orgId" | "id" | "voidedAt">): Promise<boolean> {
+  return rec.voidedAt === undefined && !(await rateLockFrozen(db, rec));
 }

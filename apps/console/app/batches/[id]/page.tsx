@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBatch, isSubmitted, rateFixed, rateLockFrozen } from "../../../lib/data/batches.ts";
 import { currentLock } from "../../../lib/data/rates.ts";
+import { voidable } from "../../../lib/data/voids.ts";
 import { listReceipts } from "../../../lib/data/receipts.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
 import { ZkoolGraphqlError, ZkoolTransportError } from "../../../lib/execution/zkool-client.ts";
@@ -41,6 +43,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const submitted = await isSubmitted(ctx.db, rec);
   // A lock is allowed until an attempt may have paid: also after a refusal (failed_retryable), migration 0014.
   const lockFrozen = await rateLockFrozen(ctx.db, rec);
+  // Slice H5d: offered only while nothing can have been sent (the route stays the authority).
+  const canVoid = await voidable(ctx.db, rec);
   return (
     <>
       <AccessNotice />
@@ -118,6 +122,21 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         ) : (
           <p className="text-sm">External-signer custody: this console does not pay or track this batch.</p>
         )}
+        {rec.voidedAt !== undefined && !status && (
+          // In hot custody the status panel above already says "Voided"; external custody has no status panel.
+          <p className="text-sm">
+            <strong>Voided</strong> on {rec.voidedAt.slice(0, 10)}: this batch can never be paid. Its lines and history stay on record.
+          </p>
+        )}
+        {canVoid && (
+          // GOV.UK (R83): the first step of a destructive action is not a button; the confirmation page has the warning button.
+          <p className="text-sm">
+            <Link href={`/batches/${rec.id}/void`} className="text-sky-700 underline">
+              Void this draft…
+            </Link>{" "}
+            <span className="text-slate-500">Possible only while nothing has been sent.</span>
+          </p>
+        )}
       </section>
 
       <section aria-labelledby="rate-heading" className="space-y-2 rounded-lg border border-slate-200 p-4">
@@ -140,10 +159,20 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         ) : (
           <p className="text-sm">Not locked. Lock the rate to record the ZEC/USD value this batch is based on (source and time kept).</p>
         )}
-        {rateFixed(rec) ? (
+        {rec.voidedAt !== undefined ? (
+          <p className="text-sm text-slate-500">Voided: the rate can no longer be locked.</p>
+        ) : rateFixed(rec) ? (
           // Slice H5a: the lines were converted at this lock (BTCPay's fixed payout rate), so there is no Re-lock.
           <p className="text-sm text-slate-500">
-            Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate, void this draft and make a new batch from its payables.
+            Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate,{" "}
+            {canVoid ? (
+              <Link href={`/batches/${rec.id}/void`} className="text-sky-700 underline">
+                void this draft
+              </Link>
+            ) : (
+              "void this draft"
+            )}{" "}
+            and make a new batch from its payables.
           </p>
         ) : lockFrozen ? (
           <p className="text-sm text-slate-500">A payment attempt may have paid this batch: its rate can no longer be changed.</p>

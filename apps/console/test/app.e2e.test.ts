@@ -12,6 +12,7 @@ import { connect } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
+import { batchDigest, batchNonce, getBatch, openDb, SqliteIdempotencyStore, toExecutionBatch } from "../lib/index.ts";
 import { APP, NEXT, baseEnv, children, formFields, multipart, raw, start, waitHealthy, within } from "./helpers/app-server.ts";
 
 const RUN = process.env.ZECEIPT_APP_E2E === "1";
@@ -714,6 +715,64 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     s.child.kill("SIGTERM");
     await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
     await new Promise((r) => ticker.close(r));
+  }
+});
+
+test("voiding a draft from the batch page through next start, as a browser without JavaScript: a link, a confirmation with a warning button, 303; paid batches offer nothing; a stale confirmation is refused in words (slice H5d)", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("void-page", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const get = async (path: string) => (await raw(s.port, "GET", path, { host: self })).body.replaceAll("<!-- -->", "");
+    const hand = async (memo: string) => JSON.parse((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, JSON.stringify({ title: `Draft ${memo}`, items: [{ payableId: `p-${memo}`, address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "150000000", memo }] }))).body) as { id: string };
+    const confirm = async (html: string, path: string, headers: Record<string, string> = same) => {
+      const m = multipart(formFields(html, "Void this batch"));
+      return raw(s.port, "POST", path, { ...headers, "content-type": m.type }, m.body);
+    };
+
+    const b = await hand("VOID-PAGE-1");
+    const page = await get(`/batches/${b.id}`);
+    assert.ok(page.includes(`href="/batches/${b.id}/void"`) && page.includes("Void this draft…"), "the batch page links to the confirmation (a link, not a button)");
+    const confirmPage = await get(`/batches/${b.id}/void`);
+    assert.ok(confirmPage.includes("Void batch Draft VOID-PAGE-1?") && confirmPage.includes("Voiding is final: it can never be paid, and it cannot be undone.") && confirmPage.includes("1.50000000 ZEC"), "the consequences, in words, and which batch");
+    assert.ok(/<button[^>]*bg-rose-700[^>]*>Void this batch<\/button>/.test(confirmPage) && confirmPage.includes(`href="/batches/${b.id}">Cancel`), "a warning button that names the action, and Cancel");
+
+    assert.equal((await confirm(confirmPage, `/batches/${b.id}/void`, { host: self, origin: "http://evil.example" })).status, 403, "cross-site");
+    const done = await confirm(confirmPage, `/batches/${b.id}/void`);
+    assert.equal(done.status, 303, done.body.slice(0, 300));
+    assert.equal(done.location, `/batches/${b.id}`);
+    const voided = await get(`/batches/${b.id}`);
+    assert.ok(voided.includes("Voided") && !voided.includes("Void this draft…") && !voided.includes("Lock rate") && !voided.includes(">Pay "), "read-only: no Lock, Pay or Void control");
+    assert.ok((await get(`/batches/${b.id}/void`)).includes("This batch was voided on") && !(await get(`/batches/${b.id}/void`)).includes("Void this batch</button>"), "its confirmation page offers nothing");
+    assert.equal((await raw(s.port, "POST", "/api/batches", { ...same, "content-type": "application/json" }, JSON.stringify({ title: "again", items: [{ payableId: "p-again", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: "1", memo: "VOID-PAGE-1" }] }))).status, 201, "its memo is free again");
+
+    // A batch an attempt may have sent (recorded as the execution library records a broadcast): nothing is offered.
+    const paid = await hand("VOID-PAGE-PAID");
+    const side = openDb({ path: join(dir, "void-page.db") });
+    try {
+      const rec = (await getBatch(side, "demo-org", paid.id))!;
+      const store = new SqliteIdempotencyStore(side, { orgId: "demo-org" });
+      const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
+      await store.createIntent({ ...base, state: "submitting" });
+      await store.update({ ...base, state: "broadcast", txid: "cd".repeat(32) }, { attempts: 1, states: ["submitting"] });
+    } finally {
+      side.$client.close();
+    }
+    assert.ok(!(await get(`/batches/${paid.id}`)).includes("Void this draft…"), "a sent batch's page has no void link");
+    const paidConfirm = await get(`/batches/${paid.id}/void`);
+    assert.ok(paidConfirm.includes("A payment attempt may have sent this batch, so it cannot be voided.") && !paidConfirm.includes("Void this batch</button>"), "and its confirmation page no button");
+
+    // A stale confirmation page: the batch is voided through the API in between; the page's post is refused in words.
+    const c = await hand("VOID-PAGE-2");
+    const stalePage = await get(`/batches/${c.id}/void`);
+    assert.equal((await raw(s.port, "POST", `/api/batches/${c.id}/void`, same)).status, 200);
+    const stale = (await confirm(stalePage, `/batches/${c.id}/void`)).body.replaceAll("<!-- -->", "");
+    assert.ok(/role="alert"[^>]*>[\s\S]*Not voided:[\s\S]*already voided/.test(stale), "the refusal, in words");
+    assert.equal((await get("/batches/01900000-0000-7000-8000-000000000000/void")).includes("404") || (await raw(s.port, "GET", "/batches/01900000-0000-7000-8000-000000000000/void", { host: self })).status === 404, true, "404 for an unknown batch");
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
   }
 });
 

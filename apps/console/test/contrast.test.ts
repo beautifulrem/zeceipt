@@ -42,3 +42,10 @@ test("the recipients page's duplicate flag (amber text) meets 4.5:1 on white (sl
   assert.ok(shades.length > 0, "the flag is styled");
   for (const s of shades) assert.ok(contrastOnWhite(s, "amber") >= 4.5, `amber-${s} is ${contrastOnWhite(s, "amber").toFixed(2)}:1`);
 });
+
+test("the void page's warning button (white on rose) meets 4.5:1 (slice H5d)", () => {
+  const src = readFileSync(join(import.meta.dirname, "..", "app", "batches", "[id]", "void", "void-form.tsx"), "utf8");
+  const shades = [...src.matchAll(/bg-rose-(\d{3})/g)].map((m) => m[1]);
+  assert.ok(shades.length > 0, "the warning button is styled");
+  for (const s of shades) assert.ok(contrastOnWhite(s, "rose") >= 4.5, `white on rose-${s} is ${contrastOnWhite(s, "rose").toFixed(2)}:1`);
+});
