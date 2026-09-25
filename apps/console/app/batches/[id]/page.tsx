@@ -44,7 +44,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
     }
   }
   const view = status ? stateView(status) : unavailable ? STATUS_UNAVAILABLE : undefined;
-  const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id);
+  const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id, ctx.config.receiptHost);
   // Slice I4: the audit trail the triggers recorded, oldest first.
   const history = await listAudit(ctx.db, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);

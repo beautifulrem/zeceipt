@@ -1,7 +1,9 @@
 // Receipt repository (design `.trellis/tasks/09-23-receipts-sealed/design.md`): record the receipts
 // `autoIssue` produced for a batch (only for the batch's own broadcast transaction, each matched to its item,
 // idempotently and atomically), list them back decrypted, and re-wrap them under the newest key.
-// The receipt envelope and URL are sealed (they contain the output's OCK); the AAD is the row's identity.
+// The receipt envelope is sealed (it contains the output's OCK); the AAD is the row's identity. Links are built on
+// read from the receipt and the configured host (slice S2, review round 1): a link stored at issue time would keep a
+// host the operator has since moved away from (rows issued before S2 carry the unregistered `zeceipt.xyz`).
 
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { ConsoleDb } from "../../db/client.ts";
@@ -43,7 +45,13 @@ export interface StoredReceipt {
   verifiedAt: string;
   sealedKid: string;
   receipt?: Record<string, unknown>;
+  /** `<host>/r#<base64url(receipt JSON)>` on the configured host (spec §2.1), built on read. */
   url?: string;
+}
+
+/** A receipt link in spec §2.1's form, as `Receipt::to_url` builds it: the payload is the receipt JSON, base64url without padding. */
+export function receiptLink(host: string, receipt: Record<string, unknown>): string {
+  return `${host.replace(/\/+$/, "")}/r#${Buffer.from(JSON.stringify(receipt), "utf8").toString("base64url")}`;
 }
 
 const context = (txid: string, pool: string, outputIndex: number) => ({ purpose: "receipt", txid, pool, index: outputIndex });
@@ -97,7 +105,7 @@ export async function recordReceipts(
     memoText: item!.memo,
     issuedAt: now,
     verifiedAt: now,
-    sealed: seal(keyring, orgId, context(issued.txid, pool, r.recovered.index), Buffer.from(JSON.stringify({ receipt: r.receipt, url: r.url }), "utf8")),
+    sealed: seal(keyring, orgId, context(issued.txid, pool, r.recovered.index), Buffer.from(JSON.stringify({ receipt: r.receipt }), "utf8")),
     sealedKid: keyring.current,
   }));
   return runSync(() =>
@@ -140,7 +148,8 @@ export async function recordReceipts(
   );
 }
 
-export function listReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, batchId: string): Promise<StoredReceipt[]> {
+/** The batch's receipts, decrypted; each link on `host` (the configured receipt host, `config.receiptHost`), whatever link was stored. */
+export function listReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, batchId: string, host: string): Promise<StoredReceipt[]> {
   return runSync(() =>
     db
       .select({ r: receipts, payableId: batchItems.payableId })
@@ -151,7 +160,8 @@ export function listReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, bat
       .all()
       .map(({ r, payableId }) => {
         // One row that does not open (unknown key, tampering) must not hide the others: report it per row.
-        let payload: { receipt: Record<string, unknown>; url: string } | undefined;
+        // Rows sealed before S2 also hold the link as issued (`url`); it is ignored.
+        let payload: { receipt: Record<string, unknown> } | undefined;
         let openError: SealError["code"] | undefined;
         try {
           payload = JSON.parse(open(keyring, orgId, context(r.txid, r.pool, r.outputIndex), r.sealed).toString("utf8"));
@@ -172,7 +182,7 @@ export function listReceipts(db: ConsoleDb, keyring: Keyring, orgId: string, bat
           issuedAt: r.issuedAt,
           verifiedAt: r.verifiedAt,
           sealedKid: r.sealedKid,
-          ...(payload ? { receipt: payload.receipt, url: payload.url } : {}),
+          ...(payload ? { receipt: payload.receipt, url: receiptLink(host, payload.receipt) } : {}),
         };
       }),
   );

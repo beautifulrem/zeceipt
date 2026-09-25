@@ -64,7 +64,7 @@ export async function issueReceiptsResponse(id: string, cli: ZeceiptCliOptions):
   const rec = await batchOr404(id);
   const status = await getBatchStatus(ctx.db, backend, ctx.config.orgId, rec.id, { requiredConfirmations: ctx.config.confirmations, approval: approvalCheck(ctx) });
   if (!status) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
-  const list = async () => (await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id)).map(receiptJson);
+  const list = async () => (await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id, ctx.config.receiptHost)).map(receiptJson);
   switch (status.state) {
     case "receipts_issued":
       return json(200, { batchId: rec.id, txid: status.detail.txid, receipts: await list() });
@@ -93,7 +93,7 @@ export async function issueReceiptsResponse(id: string, cli: ZeceiptCliOptions):
 export async function listReceiptsResponse(id: string): Promise<Response> {
   const ctx = serverContext();
   const rec = await batchOr404(id);
-  return json(200, { batchId: rec.id, receipts: (await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id)).map(receiptJson) });
+  return json(200, { batchId: rec.id, receipts: (await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id, ctx.config.receiptHost)).map(receiptJson) });
 }
 
 /** Receipt-route failures → problems with fixed details (nothing was recorded in any of them). */

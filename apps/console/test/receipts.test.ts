@@ -24,6 +24,7 @@ import {
   recordReceipts,
   ReceiptRecordError,
   rewrapReceipts,
+  seal,
   SealError,
   sealedKidsInUse,
   SqliteIdempotencyStore,
@@ -38,6 +39,7 @@ const BIN = process.env.ZECEIPT_BIN ?? join(ROOT, "target/debug/zeceipt");
 const TXID = "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2";
 const RAW = join(ROOT, `fixtures/regtest-${TXID}.hex`);
 const UFVK = join(ROOT, "fixtures/regtest-issuer-ufvk.txt");
+const HOST = "https://receipts.example";
 const ORG = "org-b2";
 const PAYEES = [
   { payableId: "p-2", label: "R2", address: "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w", zat: 101_000_000n, memo: "INV-R-002" },
@@ -94,12 +96,14 @@ test("record → list: three real receipts, decrypted back intact, still verifyi
   const ring = new Keyring([k1]);
   const { rec, issued } = await issuedBatch("record");
   assert.deepEqual(await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued }), { inserted: [0, 1, 2], existing: [] });
-  const listed = await listReceipts(db, ring, orgOf(rec), rec.id);
+  const listed = await listReceipts(db, ring, orgOf(rec), rec.id, HOST);
   assert.deepEqual(listed.map((r) => [r.idx, r.payableId, r.memo, r.valueZat, r.txid, r.sealedKid]), PAYEES.map((p, i) => [i, p.payableId, p.memo, p.zat, TXID, "k1"]));
   for (const r of listed) {
     const src = issued.receipts.find((x) => x.payableId === r.payableId)!;
     assert.deepEqual(r.receipt, src.receipt);
-    assert.equal(r.url, src.url);
+    const link = new URL(r.url!);
+    assert.equal(`${link.origin}${link.pathname}`, `${HOST}/r`, "the configured host");
+    assert.deepEqual(JSON.parse(Buffer.from(link.hash.slice(1), "base64url").toString("utf8")), src.receipt, "the fragment is the receipt");
     assert.equal(r.outputIndex, src.recovered.index);
     assert.equal(r.recipient, src.recovered.recipient);
   }
@@ -121,11 +125,37 @@ test("record → list: three real receipts, decrypted back intact, still verifyi
   }
 });
 
+test("links are built on read from the configured host: a row sealed with a link on the old default host is served on the current one (slice S2, review round 1)", async () => {
+  const ring = new Keyring([k1]);
+  const { rec, issued } = await issuedBatch("legacy-link");
+  await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued });
+  // Re-seal every row as rows were sealed before S2: the receipt with the link as issued, on zeceipt.xyz.
+  const rows = db.$client.prepare("SELECT txid, pool, output_index AS i, rowid FROM receipts WHERE batch_id = ?").all(rec.id) as { txid: string; pool: string; i: number; rowid: number }[];
+  for (const row of rows) {
+    const src = issued.receipts.find((x) => x.outputIndex === row.i)!;
+    const legacy = { receipt: src.receipt, url: `https://zeceipt.xyz/r#${new URL(src.url).hash.slice(1)}` };
+    const sealed = seal(ring, orgOf(rec), { purpose: "receipt", txid: row.txid, pool: row.pool, index: row.i }, Buffer.from(JSON.stringify(legacy), "utf8"));
+    db.$client.prepare("UPDATE receipts SET sealed = ? WHERE rowid = ?").run(sealed, row.rowid);
+  }
+  const listed = await listReceipts(db, ring, orgOf(rec), rec.id, "https://pay.example.org/zeceipt/");
+  assert.equal(listed.length, 3);
+  assert.ok(!JSON.stringify(listed, (_k, v) => (typeof v === "bigint" ? v.toString() : v)).includes("zeceipt.xyz"), "the old host never reaches the answer");
+  for (const r of listed) {
+    assert.equal(r.openError, undefined);
+    const link = new URL(r.url!);
+    assert.equal(`${link.origin}${link.pathname}`, "https://pay.example.org/zeceipt/r", "the configured host, its path prefix kept, the trailing / dropped");
+    assert.deepEqual(JSON.parse(Buffer.from(link.hash.slice(1), "base64url").toString("utf8")), r.receipt);
+  }
+  // The rebuilt link verifies with the real binary, as the page does.
+  const v = JSON.parse(execFileSync(BIN, ["verify", "--regtest", "--raw-tx-file", RAW, listed[0].url!, "--challenge", "ch-legacy-link", "--require-signature"]).toString());
+  assert.equal(v.valid, true);
+});
+
 test("recording is idempotent: a second run (even with new receipts) keeps the first and reports them as existing", async () => {
   const ring = new Keyring([k1]);
   const { rec, issued } = await issuedBatch("again");
   await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued });
-  const before = await listReceipts(db, ring, orgOf(rec), rec.id);
+  const before = await listReceipts(db, ring, orgOf(rec), rec.id, HOST);
   const reissued = await autoIssue({
     batch: toExecutionBatch(rec),
     txid: TXID,
@@ -134,7 +164,7 @@ test("recording is idempotent: a second run (even with new receipts) keeps the f
     cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "another-challenge" },
   });
   assert.deepEqual(await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued: reissued as Extract<AutoIssueResult, { state: "issued" }> }), { inserted: [], existing: [0, 1, 2] });
-  assert.deepEqual((await listReceipts(db, ring, orgOf(rec), rec.id)).map((r) => r.receipt), before.map((r) => r.receipt), "the first receipts stay");
+  assert.deepEqual((await listReceipts(db, ring, orgOf(rec), rec.id, HOST)).map((r) => r.receipt), before.map((r) => r.receipt), "the first receipts stay");
 });
 
 test("recording refuses receipts that do not belong to the batch's own broadcast, and writes nothing", async () => {
@@ -210,7 +240,7 @@ test("the schema refuses impossible receipts; receipts cannot be deleted or chan
   } finally {
     raw.close();
   }
-  const kept = await listReceipts(db, ring, orgOf(rec), rec.id);
+  const kept = await listReceipts(db, ring, orgOf(rec), rec.id, HOST);
   assert.deepEqual(kept.map((r) => [r.valueZat, r.memo]), PAYEES.map((p) => [p.zat, p.memo]));
 });
 
@@ -220,7 +250,7 @@ test("a sealed payload moved to another row does not open there (the row identit
   await recordReceipts(db, ring, { orgId: orgOf(rec), batchId: rec.id, issued });
   // Re-wrapping is the one allowed update; abuse it to copy item 0's sealed payload onto item 1.
   db.$client.prepare("UPDATE receipts SET sealed = (SELECT sealed FROM receipts WHERE org_id = ? AND batch_id = ? AND idx = 0) WHERE org_id = ? AND batch_id = ? AND idx = 1").run(orgOf(rec), rec.id, orgOf(rec), rec.id);
-  const listed = await listReceipts(db, ring, orgOf(rec), rec.id);
+  const listed = await listReceipts(db, ring, orgOf(rec), rec.id, HOST);
   assert.deepEqual(listed.map((r) => [r.idx, r.openError ?? "ok", r.receipt === undefined]), [[0, "ok", false], [1, "seal_auth_failed", true], [2, "ok", false]], "the moved payload does not open; the other rows still do");
 });
 
@@ -233,15 +263,15 @@ test("key rotation: rewrap under a new key, retire the old one, every receipt st
   await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
   const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: RAW, ufvkFile: UFVK, keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "rot" } });
   await recordReceipts(db, new Keyring([k1]), { orgId: org, batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
-  const before = await listReceipts(db, new Keyring([k1]), org, rec.id);
+  const before = await listReceipts(db, new Keyring([k1]), org, rec.id, HOST);
   const both = new Keyring([k1, k2]);
   assert.deepEqual(await sealedKidsInUse(db).then((k) => k.includes("k1")), true, "k1 is still in use: it must not be retired yet");
   assert.equal(await rewrapReceipts(db, both, org, { limit: 2 }), 2, "chunked");
   assert.equal(await rewrapReceipts(db, both, org, { limit: 2 }), 1);
   assert.equal(await rewrapReceipts(db, both, org), 0, "nothing left under the old key");
-  const after = await listReceipts(db, new Keyring([k2]), org, rec.id); // old key retired
+  const after = await listReceipts(db, new Keyring([k2]), org, rec.id, HOST); // old key retired
   assert.deepEqual(after.map((r) => [r.receipt, r.url, r.sealedKid]), before.map((r) => [r.receipt, r.url, "k2"]));
-  assert.deepEqual((await listReceipts(db, new Keyring([k1]), org, rec.id)).map((r) => r.openError), ["seal_unknown_kid", "seal_unknown_kid", "seal_unknown_kid"]);
+  assert.deepEqual((await listReceipts(db, new Keyring([k1]), org, rec.id, HOST)).map((r) => r.openError), ["seal_unknown_kid", "seal_unknown_kid", "seal_unknown_kid"]);
   assert.ok(!(db.$client.prepare("SELECT DISTINCT json_extract(sealed, '$.kid') AS kid FROM receipts WHERE org_id = ?").all(org) as { kid: string }[]).some((r) => r.kid === "k1"));
 });
 
@@ -272,7 +302,7 @@ test("an output already receipted for one batch cannot be receipted for another 
     recordReceipts(db, ring, { orgId: org, batchId: second.id, issued: crafted }),
     (e: unknown) => e instanceof ReceiptRecordError && e.code === "receipt_mismatch" && e.message.includes(`already has a receipt for batch ${first.rec.id}`),
   );
-  assert.deepEqual(await listReceipts(db, ring, org, second.id), []);
+  assert.deepEqual(await listReceipts(db, ring, org, second.id, HOST), []);
 });
 
 test("autoIssue never writes a receipt (OCK) to a temp file; outDir (tools only) is owner-only", async () => {
