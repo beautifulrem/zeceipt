@@ -381,8 +381,10 @@ test("issuer check against a real HTTPS origin: no CORS header is unknown, the h
   await new Promise((r) => origin.listen(0, "127.0.0.1", r));
   const real = await chromium.launch({ channel: "chrome", args: [`--host-resolver-rules=MAP pay.example.org:443 127.0.0.1:${origin.address().port}`, "--no-proxy-server"] });
   try {
-    const refused = [/blocked by CORS policy: No 'Access-Control-Allow-Origin' header/, /Failed to load resource: net::ERR_FAILED/];
-    const redirected = [/redirect/i, /Failed to load resource/, /Failed to fetch/];
+    // Exactly the messages Chrome prints (measured, slice W3d after review W3c): nothing broader may pass unnoticed.
+    const failedLoad = /^Failed to load resource: net::ERR_FAILED$/;
+    const refused = [/^Access to fetch at 'https:\/\/pay\.example\.org\/\.well-known\/zeceipt\.json' from origin 'http:\/\/127\.0\.0\.1:\d+' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource\.$/, failedLoad];
+    const redirected = [failedLoad];
     for (const [m, want, cls, expectedErrors] of [
       ["no-cors", /^Unknown: pay\.example\.org: the request failed/, "pending", refused],
       ["cors", /^Confirmed: pay\.example\.org lists this key/, "ok", []],
