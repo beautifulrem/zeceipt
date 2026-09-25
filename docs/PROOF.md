@@ -750,6 +750,13 @@ What the log shows:
 - **Rate lock before paying (slice G2b1).** From run `console-http-e2e-20260923041713.json` on, the run locks the rate with the batch page's own form before the Pay form: a `locked` step, then tx `f6691a5c…`, confirmed, 3 pages VALID. A local fake ticker (steady 1600.00) keeps the run deterministic and offline; the live source is exercised in G1c1's run (Kraken through `next start`).
 - **Fragment links (slice F1).** Re-run with the rebuilt CLI: `console-http-e2e-20260923014326.json`, tx `953b2718…` at 2875, confirmed at 2878. Each console link is `https://zeceipt.xyz/r#…` (asserted without printing it), and each link verifies online as given (outputs 2, 0, 3).
 
+- **Approval and the audit trail on the live chain (slices I3, I4; 2026-09-25).** Run `console-http-e2e-20260925134853.json` (tx `16532b36…0c88`):
+  - the rate was locked with the page's form at 1600.00 from the run's local fake ticker (deterministic, offline; since slice N1 the page names such a quote by its host, never as Kraken's);
+  - the batch was approved with the page's Approve form at lock 1, and the status became `approved` before Pay;
+  - the Pay form was posted twice: paid at height 48056, confirmed (2) at 48059, the only issuer transaction since the pre-pay height, with the mempool empty;
+  - `GET /api/batches/{id}/history` held exactly `created, locked, approved, quoted, attempt_submitting, attempt_broadcast, expiry_recorded, receipt_issued ×3`: the approval at lock 1, the guard's execution quote, one attempt for two posts of the Pay form (the second replayed the record and changed nothing the trail tracks), the broadcast event naming the transaction, and one receipt event per line (outputs 3, 2, 1), each naming the transaction;
+  - three receipts verified by the CLI with the issuer's signature required, and three receipt pages VALID in Chrome with no request carrying a receipt.
+
 ## 6. testnet — placeholder
 
 To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.

@@ -181,6 +181,17 @@ test("regtest through the console: form → pay (twice, one payment) → confirm
     assert.equal(receipts.length, 3);
     assert.equal((await api<{ state: string }>(`/api/batches/${id}/status`)).state, "receipts_issued");
 
+    // 4b. The audit trail on the live chain (slices I3, I4; P1): the exact sequence, each change once. The Pay form's second
+    //     post replayed the record, so it added no event. Public facts only (actions, the txid, output indexes).
+    const history = (await api<{ events: { action: string; detail: Record<string, unknown> }[] }>(`/api/batches/${id}/history`)).events;
+    const actions = history.map((e) => e.action);
+    assert.deepEqual(actions, ["created", "locked", "approved", "quoted", "attempt_submitting", "attempt_broadcast", "expiry_recorded", "receipt_issued", "receipt_issued", "receipt_issued"], actions.join(", "));
+    assert.equal(history.find((e) => e.action === "attempt_broadcast")?.detail.txid, txid, "the broadcast event names the transaction");
+    const receiptEvents = history.filter((e) => e.action === "receipt_issued").map((e) => ({ idx: e.detail.idx, txid: e.detail.txid, outputIndex: e.detail.outputIndex }));
+    assert.ok(receiptEvents.every((r) => r.txid === txid), "each receipt event names the transaction");
+    assert.deepEqual(receiptEvents.map((r) => r.idx), [0, 1, 2], "one receipt per line, in line order");
+    step("history", { actions, approvedAtLock: history.find((e) => e.action === "approved")?.detail.lockSeq, receiptOutputs: receiptEvents.map((r) => r.outputIndex) });
+
     // 5. Verify each receipt's shareable link with the CLI against the live chain (stdin; never a file).
     //    The link carries the payload in its fragment (spec §2.1); only its origin and path are ever printed.
     const verdicts = receipts.map((r) => {
