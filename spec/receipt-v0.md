@@ -22,7 +22,7 @@ JSON object. Unknown fields must be ignored by verifiers.
 | `ock` | base64url (no padding), 32 bytes | yes | The output's Outgoing Cipher Key. |
 | `label` | string | no (default `""`) | Issuer-chosen text: invoice id, USD amount, rate, date. Signed. |
 | `challenge` | base64url | no | Verifier-supplied challenge (ZIP 311 `msg`). Signed. See §6. |
-| `issuer_key_id` | string | no | Key identifier from the issuer's well-known file (§7). Signed. |
+| `issuer_key_id` | string | no | Key identifier; `<label>@<domain>` claims a domain whose well-known file may bind the key (§7). Signed. |
 | `issuer_pubkey` | hex (64 chars) | no | ed25519 public key of the issuer. |
 | `signature` | hex (128 chars) | no | ed25519 signature over the canonical bytes (§5). |
 | `zip311_profile` | string | no | Informational; `"outputs-only"` in v0. |
@@ -92,7 +92,40 @@ A verifier who wants assurance that a receipt was produced *for them* sends a ra
 
 ## 7. Issuer key binding (optional, upgrade-only)
 
-An organisation may publish `https://<org-domain>/.well-known/zeceipt.json` (signed by a root key) listing key ids, public keys and validity intervals. A verifier that looks it up may upgrade "signed by key X" to "key X was bound to org Y during interval T". Failure to look up, a lapsed domain, or a key outside every interval yields **"cryptographically valid, issuer binding unknown"** — never "invalid".
+A signature proves only "made with key K". An organisation binds its keys to a domain it controls by serving a file on that domain over HTTPS. Control of the domain is the binding, as in Nostr's NIP-05, W3C `did:web` and AT Protocol handles. There is no separate root key: a key the verifier does not already know would bind nothing.
+
+**The claim.** A receipt claims a domain through its signed `issuer_key_id`, written `<label>@<domain>`, for example `2026-09@pay.example.org`, as NIP-05 writes `name@domain`.
+- `<label>` is 1–64 characters of `A-Z a-z 0-9 . _ -`.
+- `<domain>` is a lowercase DNS name with at least one dot, no port and no IP literal.
+- The key id is signed (§5), so the claimed domain cannot be changed without breaking the signature.
+- A key id without `@` claims no domain, and its binding is unknown.
+
+**The file** is `https://<domain>/.well-known/zeceipt.json`:
+
+```json
+{
+  "version": "zeceipt-v0",
+  "keys": [
+    { "key_id": "2026-09@pay.example.org", "pubkey": "<64 hex: ed25519>", "note": "optional, shown as text" }
+  ]
+}
+```
+
+- Every `key_id` in the file ends in `@<the file's own domain>`. Entries for any other domain are ignored: a file vouches for its own domain only.
+- To retire a key without disowning past receipts, keep it listed; the `note` can say so.
+- To disown a key, for example after a compromise, remove it.
+
+**The lookup.** A verifier looks up a binding only when its user asks, because the lookup tells the domain that one of its receipts is being checked. It fetches the file with a GET over HTTPS on the default port.
+- It follows no redirects (NIP-05: "Fetchers MUST ignore any HTTP redirects").
+- It reads at most 64 KiB and gives up after 10 seconds.
+- A server that wants browser verifiers to see its file sends `Access-Control-Allow-Origin: *`.
+
+**The outcome:**
+- **Confirmed.** The file lists an entry whose `key_id` and `pubkey` both equal the receipt's: "key K is listed by <domain>". That means the domain vouches for the key now. It does not date the vouching to when the receipt was made.
+- **Not listed.** The domain answered with a valid file that has no such entry: "<domain> does not list this key".
+- **Unknown.** Anything else: no `@` in the key id, a network error, a status other than 200, a redirect, an oversize or malformed file, or a browser refusing the response.
+
+None of these changes whether the receipt is cryptographically valid: a binding is never a reason to call a receipt "invalid".
 
 ## 8. Audit packs
 
