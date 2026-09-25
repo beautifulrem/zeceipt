@@ -346,6 +346,17 @@ for rid, pr in prio.items():
     elif solo_col[rid] not in ("kept", "reduced", "dropped"):
         errors.append(f"01_requirements.md: {rid} Solo column value '{solo_col[rid]}' is not kept/reduced/dropped")
 
+# prose may not call a requirement dropped unless its Solo value is (review I1 round 1: 01 and 05 said REQ-CON-5 was
+# dropped while 11_plan §1.1 kept a single approver with its HMAC). Checked in every product doc outside the Solo cells.
+dropped_claims = 0
+for fname, text in files.items():
+    for ln in text.splitlines():
+        body = re.sub(r"\| ((?:kept|reduced|dropped)[^|]*)\|$", "|", ln)  # a requirement row's own Solo cell
+        for m in re.finditer(r"\b((?:REQ-[A-Z]+|NFR)-\d+)\b[^.;|()\[\]]{0,40}?\bdropped\b", body):
+            dropped_claims += 1
+            if m.group(1) in solo_col and solo_col[m.group(1)] != "dropped":
+                errors.append(f"{fname}: says {m.group(1)} is dropped, but its Solo value is '{solo_col[m.group(1)]}' ({m.group(0)!r})")
+
 # no two requirements may state the same obligation (shared 5-word shingle in the Requirement text)
 req_text_of = dict(re.findall(r"^\| ((?:REQ-[A-Z]+|NFR)-\d+)[^|]*\| (?:[MSCW] \| )?([^|]*)\|", req_defs, re.M))
 stop = {"the","a","an","and","or","of","to","for","with","per","in","on","from","by","is","are","as","at","that","this","its","it","one","each","all"}
@@ -529,7 +540,7 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}; solo column rows: {len(solo_col)}; priority map: {len(prio)}; solo prices checked: {parity}; solo rows recomputed: {len(solo_rows)}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}; solo column rows: {len(solo_col)}; priority map: {len(prio)}; solo prices checked: {parity}; solo rows recomputed: {len(solo_rows)}; dropped claims checked: {dropped_claims}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)
