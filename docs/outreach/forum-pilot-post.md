@@ -36,7 +36,7 @@ Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the 
 - **A receipt page that sends the receipt nowhere.** The link carries the receipt in the URL fragment, which browsers never send to a server. The page verifies in the browser (WASM), and a Chrome test checks that no request, header or storage entry holds the receipt. To check the chain, it asks a node for the transaction only when you click, and a public node then sees which txid you asked for; a raw-transaction file avoids even that.
 - **A payout console** (Next.js, self-hosted, loopback only):
   - payables in USD, converted at a locked ZEC/USD rate;
-  - a batch paid in one transaction, never twice;
+  - a batch paid in one transaction, and paid again only when an uncertain attempt is known not to have been mined (the remaining edge cases are in the risk register, RSK-21);
   - an approval bound by HMAC to the exact lines, rate and paying account;
   - a rate check before paying;
   - receipts issued automatically after N confirmations;
