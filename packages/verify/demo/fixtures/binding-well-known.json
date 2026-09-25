@@ -1,0 +1,10 @@
+{
+  "version": "zeceipt-v0",
+  "keys": [
+    {
+      "key_id": "2026-09@pay.example.org",
+      "pubkey": "2ef7ce5c9f7ad1589175bf8bfccf991c50dc5e140c61b378e143e8577921cd16",
+      "note": "fixture key (throwaway)"
+    }
+  ]
+}

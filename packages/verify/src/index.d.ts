@@ -36,6 +36,11 @@ export function parseReceipt(input: string): Receipt;
 export function checkSignature(receipt: string): { signed: boolean; valid: boolean; issuer_pubkey?: string; error?: string };
 export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean }): VerifyResult;
 export const GRPC_WEB_ENDPOINTS: { main: string[]; test: string[] };
+/** The outcome of an issuer-binding lookup (spec §7); never a verdict on the receipt's validity. */
+export type IssuerBinding = { state: "confirmed" | "not_listed"; domain: string } | { state: "unknown"; reason: string };
+export function issuerClaim(receipt: string): { claim: { label: string; domain: string; url: string } } | { binding: IssuerBinding };
+export const MAX_WELL_KNOWN_BYTES: number;
+export function checkIssuerBinding(receipt: string, opts?: { fetchImpl?: typeof fetch; timeoutMs?: number }): Promise<IssuerBinding>;
 /** The node's view of the transaction, from lightwalletd's `RawTransaction.height` sentinels. */
 export type ChainStatus = { status: "mined"; height: number } | { status: "mempool" } | { status: "fork" };
 export function chainStatus(height: bigint | null): ChainStatus;

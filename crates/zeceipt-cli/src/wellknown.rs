@@ -17,7 +17,10 @@ use zeceipt_core::zeceipt_types::binding::{Claim, MAX_FILE_BYTES, WELL_KNOWN_PAT
 
 pub const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Whether an address may be contacted for a lookup: globally routable unicast only.
+/// Whether an address may be contacted for a lookup: globally reachable unicast only, after the IANA IPv4 and IPv6
+/// Special-Purpose Address Registries (RFC 6890). IPv6 is public only inside the global unicast space 2000::/3 and
+/// outside its special blocks, so every other form (IPv4-compatible `::/96`, NAT64 `64:ff9b::`, discard `100::`,
+/// SRv6 `5f00::`, unique local, link-local, multicast) is refused by construction (review W2b).
 pub fn is_public(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -33,6 +36,7 @@ pub fn is_public(ip: IpAddr) -> bool {
                 || (o[0] == 100 && (o[1] & 0xc0) == 64) // 100.64.0.0/10, shared address space (CGNAT)
                 || (o[0] == 198 && (o[1] & 0xfe) == 18) // 198.18.0.0/15, benchmarking
                 || (o[0] == 192 && o[1] == 0 && o[2] == 0) // 192.0.0.0/24, IETF protocol assignments
+                || (o[0] == 192 && o[1] == 88 && o[2] == 99) // 192.88.99.0/24, deprecated 6to4 relay anycast
                 || o[0] >= 240) // 240.0.0.0/4, reserved
         }
         IpAddr::V6(v6) => {
@@ -40,14 +44,13 @@ pub fn is_public(ip: IpAddr) -> bool {
                 return is_public(IpAddr::V4(v4));
             }
             let s = v6.segments();
-            !(v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                || (s[0] & 0xfe00) == 0xfc00 // fc00::/7, unique local
-                || (s[0] & 0xffc0) == 0xfe80 // fe80::/10, link-local
-                || (s[0] == 0x2001 && s[1] == 0x0db8) // 2001:db8::/32, documentation
-                || (s[0] == 0x0064 && s[1] == 0xff9b) // 64:ff9b::/96 and /48, NAT64: embeds an IPv4 address
-                || s[0] == 0x0100) // 100::/64, discard
+            let special = match s[0] {
+                // 2001::/23, IETF protocol assignments (Teredo 2001::/32 among them); 2001:db8::/32, documentation
+                0x2001 => s[1] < 0x0200 || s[1] == 0x0db8,
+                0x2002 => true,              // 2002::/16, 6to4
+                x => (x & 0xfff0) == 0x3ff0, // 3fff::/20, documentation
+            };
+            (s[0] & 0xe000) == 0x2000 && !special // 2000::/3, global unicast
         }
     }
 }
@@ -162,6 +165,8 @@ mod tests {
             "1.1.1.1",
             "2606:4700:4700::1111",
             "::ffff:93.184.215.14",
+            "2001:200::1", // just past 2001::/23: an APNIC allocation
+            "2a00:1450:4001::1",
         ] {
             assert!(is_public(public.parse().unwrap()), "{public}");
         }
@@ -189,6 +194,14 @@ mod tests {
             "::ffff:127.0.0.1",
             "::ffff:10.0.0.1",
             "64:ff9b::a00:1",
+            "::127.0.0.1",         // IPv4-compatible (::/96)
+            "2001:0:4136:e378::1", // Teredo (2001::/32)
+            "2001:1ff::1",         // the end of 2001::/23
+            "2002:c000:0204::1",   // 6to4
+            "3fff::1",             // documentation (3fff::/20)
+            "5f00::1",             // SRv6 SIDs
+            "4000::1",             // outside 2000::/3
+            "192.88.99.1",         // deprecated 6to4 relay anycast
             "100::1",
         ] {
             assert!(!is_public(private.parse().unwrap()), "{private}");

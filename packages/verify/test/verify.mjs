@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import init, { verify_receipt, check_signature, parse_receipt, version } from "../pkg/zeceipt_wasm.js";
+import init, { verify_receipt, check_signature, parse_receipt, issuer_claim, issuer_binding, version } from "../pkg/zeceipt_wasm.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const wasm = fs.readFileSync(path.join(here, "../pkg/zeceipt_wasm_bg.wasm"));
@@ -170,6 +170,45 @@ check("receipt page CSP is default-deny with WebAssembly allowed", /default-src 
 const pageJs = fs.readFileSync(path.join(here, "../r/page.js"), "utf8");
 check("receipt page writes the DOM with textContent only (no innerHTML/outerHTML/insertAdjacentHTML)", !/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(pageJs));
 check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|document\.cookie/.test(pageJs));
+
+// Issuer binding (spec §7; slice W3a): the claim in the signed key id, the comparison, and the lookup's rules.
+{
+  const { checkIssuerBinding, issuerClaim } = await import("../src/index.js");
+  const fx = (n) => fs.readFileSync(path.join(here, "../demo/fixtures", n), "utf8");
+  const claimed = fx("binding-receipt.json");
+  const ours = fx("binding-well-known.json");
+  const theirs = fx("binding-well-known-other.json");
+  const enc = (t) => new TextEncoder().encode(t);
+  check("issuer_claim: a signed receipt claims the domain in its key id, with the file's URL",
+    (() => { const c = issuer_claim(claimed).claim; return c?.label === "2026-09" && c.domain === "pay.example.org" && c.url === "https://pay.example.org/.well-known/zeceipt.json"; })(), JSON.stringify(issuer_claim(claimed)));
+  check("issuer_claim: a plain key id claims nothing", issuer_claim(receipt).binding?.state === "unknown");
+  const altered = JSON.stringify({ ...JSON.parse(claimed), label: "altered" });
+  check("issuer_claim: a receipt whose signature fails claims nothing", issuer_claim(altered).binding?.state === "unknown");
+  const yes = issuer_binding(claimed, "pay.example.org", enc(ours));
+  check("issuer_binding: confirmed by the domain's own file", yes.state === "confirmed" && yes.domain === "pay.example.org" && Object.keys(yes).length === 2, JSON.stringify(yes));
+  check("issuer_binding: not listed when the domain lists another key", issuer_binding(claimed, "pay.example.org", enc(theirs)).state === "not_listed");
+  check("issuer_binding: a file from another domain vouches for nothing", issuer_binding(claimed, "evil.example.net", enc(ours)).state === "unknown");
+  check("issuer_binding: junk is unknown", issuer_binding(claimed, "pay.example.org", enc("<html>")).state === "unknown");
+
+  // The lookup's rules, with a stub fetch: the URL, no redirects, no credentials or referrer, 200 only, 64 KiB.
+  const calls = [];
+  const stub = (res) => async (url, init) => { calls.push({ url, init }); if (res instanceof Error) throw res; return res; };
+  const confirmed = await checkIssuerBinding(claimed, { fetchImpl: stub(new Response(ours, { status: 200 })) });
+  check("checkIssuerBinding: confirmed", confirmed.state === "confirmed" && confirmed.domain === "pay.example.org", JSON.stringify(confirmed));
+  const init0 = calls[0].init;
+  check("checkIssuerBinding: fetches exactly the claimed URL", calls[0].url === "https://pay.example.org/.well-known/zeceipt.json");
+  check("checkIssuerBinding: no redirects, no credentials, no referrer, no cache", init0.redirect === "error" && init0.credentials === "omit" && init0.referrerPolicy === "no-referrer" && init0.cache === "no-store");
+  check("checkIssuerBinding: a 404 is unknown", (await checkIssuerBinding(claimed, { fetchImpl: stub(new Response("", { status: 404 })) })).reason === "pay.example.org answered HTTP 404");
+  const redirected = await checkIssuerBinding(claimed, { fetchImpl: stub(new TypeError("Failed to fetch")) });
+  check("checkIssuerBinding: a rejected fetch (a redirect, CORS, the page's policy) is unknown", redirected.state === "unknown" && /request failed/.test(redirected.reason));
+  const big = await checkIssuerBinding(claimed, { fetchImpl: stub(new Response(new Uint8Array(64 * 1024 + 1), { status: 200 })) });
+  check("checkIssuerBinding: over 64 KiB is unknown", big.state === "unknown" && /larger than 64 KiB/.test(big.reason));
+  const exact = ours + " ".repeat(64 * 1024 - enc(ours).length);
+  check("checkIssuerBinding: exactly 64 KiB is read", (await checkIssuerBinding(claimed, { fetchImpl: stub(new Response(exact, { status: 200 })) })).state === "confirmed");
+  const before = calls.length;
+  check("checkIssuerBinding: a receipt that claims nothing makes no request", (await checkIssuerBinding(receipt, { fetchImpl: stub(new Response(ours)) })).state === "unknown" && calls.length === before);
+  check("issuerClaim (JS) is the WASM export", JSON.stringify(issuerClaim(claimed)) === JSON.stringify(issuer_claim(claimed)));
+}
 
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

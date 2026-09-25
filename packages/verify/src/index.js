@@ -1,7 +1,7 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // Fetching the raw transaction is the caller's job (gRPC-web, proxy, or file),
 // so this package never talks to the network by itself.
-import init, { parse_receipt, verify_receipt, check_signature, version } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasmUrl) {
@@ -27,6 +27,66 @@ export function parseReceipt(input) {
  */
 export function verifyReceipt(receipt, rawTxHex, opts = {}) {
   return verify_receipt(receipt, rawTxHex, opts.challenge ?? "", opts.requireSignature ?? false);
+}
+
+/**
+ * The domain a receipt's signed key id claims (spec §7): `{ claim: { label, domain, url } }` when there is one to look
+ * up, else `{ binding: { state: "unknown", reason } }`. Makes no request.
+ */
+export function issuerClaim(receipt) {
+  return issuer_claim(receipt);
+}
+
+/** At most this much of a well-known file is read (spec §7). */
+export const MAX_WELL_KNOWN_BYTES = 64 * 1024;
+
+/**
+ * Look up the issuer binding a receipt claims (spec §7) and compare: `{ state: "confirmed" | "not_listed", domain }` or
+ * `{ state: "unknown", reason }`. Never a verdict on the receipt's validity. Call it only when the user asks: the
+ * request tells the claimed domain that one of its receipts is being checked. HTTPS only, no redirects (a redirect
+ * rejects the fetch), no credentials or referrer, 10 s, at most 64 KiB read. A browser cannot check the address a
+ * domain resolves to; it relies on its own limits (CORS, the page's CSP, private network access blocking).
+ */
+export async function checkIssuerBinding(receipt, { fetchImpl = fetch, timeoutMs = 10_000 } = {}) {
+  const c = issuer_claim(receipt);
+  if (!c?.claim) return c?.binding ?? { state: "unknown", reason: "no claim" };
+  const { domain, url } = c.claim;
+  let body;
+  try {
+    const res = await fetchImpl(url, { redirect: "error", credentials: "omit", referrerPolicy: "no-referrer", cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    if (res.status !== 200) return { state: "unknown", reason: `${domain} answered HTTP ${res.status}` };
+    body = await readCapped(res, MAX_WELL_KNOWN_BYTES);
+  } catch (e) {
+    if (e?.code === "too_large") return { state: "unknown", reason: `${domain}'s file is larger than 64 KiB` };
+    const why = e?.name === "TimeoutError" ? "no answer within 10 s" : "the request failed (unreachable, redirected, or refused by the browser: CORS or the page's policy)";
+    return { state: "unknown", reason: `${domain}: ${why}` };
+  }
+  return issuer_binding(receipt, domain, body);
+}
+
+async function readCapped(res, max) {
+  const chunks = [];
+  let n = 0;
+  if (!res.body) {
+    const b = new Uint8Array(await res.arrayBuffer());
+    if (b.length > max) throw Object.assign(new Error("too large"), { code: "too_large" });
+    return b;
+  }
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) {
+      await reader.cancel();
+      throw Object.assign(new Error("too large"), { code: "too_large" });
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(n);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
 }
 
 /** Default gRPC-web endpoints that serve lightwalletd over HTTPS. */

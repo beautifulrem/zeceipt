@@ -7,7 +7,7 @@
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
-use zeceipt_core::zeceipt_types::Receipt;
+use zeceipt_core::zeceipt_types::{binding, Receipt};
 use zeceipt_core::{CoreError, MemoView};
 
 #[derive(Serialize)]
@@ -216,6 +216,41 @@ pub fn check_signature(receipt: &str) -> JsValue {
         }
     };
     serde_wasm_bindgen::to_value(&out).unwrap_or(JsValue::NULL)
+}
+
+/// The domain a receipt's signed key id claims (spec §7), when the receipt is signed, its signature verifies and the
+/// key id is `<label>@<domain>`: `{ claim: { label, domain, url } }`; otherwise `{ binding: { state: "unknown", reason } }`
+/// (nothing to look up). Makes no request: the caller fetches `url` only when its user asks.
+#[wasm_bindgen]
+pub fn issuer_claim(receipt: &str) -> JsValue {
+    let out = match Receipt::parse(receipt) {
+        Err(e) => {
+            serde_json::json!({ "binding": { "state": "unknown", "reason": format!("not a receipt: {e}") } })
+        }
+        Ok(r) => match binding::receipt_claim(&r) {
+            Ok(c) => {
+                serde_json::json!({ "claim": { "label": c.label, "domain": c.domain, "url": c.url() } })
+            }
+            Err(b) => serde_json::json!({ "binding": b }),
+        },
+    };
+    out.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .unwrap_or(JsValue::NULL)
+}
+
+/// Compare a receipt with a well-known file (spec §7): `body` as served by `served_by`, the domain the caller fetched
+/// from. Returns `{ state: "confirmed" | "not_listed", domain }` or `{ state: "unknown", reason }`. Never a verdict on
+/// the receipt's validity.
+#[wasm_bindgen]
+pub fn issuer_binding(receipt: &str, served_by: &str, body: &[u8]) -> JsValue {
+    let b = match Receipt::parse(receipt) {
+        Err(e) => binding::Binding::Unknown {
+            reason: format!("not a receipt: {e}"),
+        },
+        Ok(r) => binding::evaluate(&r, served_by, body),
+    };
+    b.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .unwrap_or(JsValue::NULL)
 }
 
 /// Library version string.

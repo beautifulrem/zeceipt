@@ -2,6 +2,8 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const check_signature: (a: number, b: number) => any;
+export const issuer_binding: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
+export const issuer_claim: (a: number, b: number) => any;
 export const parse_receipt: (a: number, b: number) => [number, number, number];
 export const verify_receipt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => any;
 export const version: () => [number, number];

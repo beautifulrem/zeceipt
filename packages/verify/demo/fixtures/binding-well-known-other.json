@@ -1,0 +1,9 @@
+{
+  "version": "zeceipt-v0",
+  "keys": [
+    {
+      "key_id": "2026-09@pay.example.org",
+      "pubkey": "ffb1734ed33a8d9559adf434241e56d871ab937da6fe75caa90c653707048e5c"
+    }
+  ]
+}
