@@ -646,7 +646,10 @@ test("zecpay import through next start, as a browser without JavaScript: Preview
     const imported = await post(previewed.body, [["csv", csv], ["kind", "bounty"], ["prefix", "SEP"], ["intent", "confirm"]]);
     assert.equal(imported.status, 200);
     const done = text(imported.body);
-    assert.ok(done.includes("Imported 2 payables and 2 new recipients from the zecpay CSV."), "the notice");
+    const noticeAt = done.indexOf("Imported 2 payables and 2 new recipients from the zecpay CSV.");
+    const formAt = done.lastIndexOf("<details", done.indexOf("Import payables from a zecpay CSV"));
+    assert.ok(noticeAt !== -1 && noticeAt < formAt, "the notice, before the import's <details> (closed after an import), so it is visible");
+    assert.ok(!/<details[^>]*\sopen/.test(done.slice(formAt, done.indexOf("</summary>", formAt))), "the import's <details> is closed");
     assert.ok(done.includes("SEP-2") && !done.includes("Preview: 2 payables to add"), "the list shows the new payables; the preview is gone");
     assert.ok(!text((await raw(s.port, "GET", "/payables?imported=9&newRecipients=9", { host: self })).body).includes("Imported"), "a crafted link shows no notice");
     assert.deepEqual((await payables()).map((p) => [p.reference, p.usdCents]).sort(), [["SEP-2", 50000], ["SEP-3", 22750]]);
