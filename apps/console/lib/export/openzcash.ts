@@ -65,9 +65,19 @@ export type ExportLine = {
 
 const KIND_LABEL = { milestone: "Milestone", invoice: "Invoice", bounty: "Bounty", salary: "Salary" } as const;
 
+/**
+ * OpenZcash's per-cell clean-up, verbatim (`.replace(/\s+/g, " ").trim()` on each rendered cell), with the `·` its
+ * renderers show for an empty value. Applied to its seven columns, so a cell never differs from what its own export
+ * writes for the same text (review X2a round 1): a Detail cell shows the memo with its whitespace collapsed, while the
+ * receipt keeps the exact memo.
+ */
+export function openZcashCell(text: string): string {
+  return text.replace(/\s+/g, " ").trim() || EMPTY;
+}
+
 /** The ten cells of `05` §3.1 for one line, before quoting. */
 export function openZcashRow(line: ExportLine): string[] {
-  return [
+  const openZcashColumns = [
     line.recipientName,
     line.memo,
     line.kind ? KIND_LABEL[line.kind] : EMPTY,
@@ -75,8 +85,6 @@ export function openZcashRow(line: ExportLine): string[] {
     formatZec(line.zat),
     line.broadcastAt ? new Date(line.broadcastAt).toISOString().slice(0, 10) : EMPTY,
     "Completed",
-    line.txid,
-    line.receiptUrl,
-    line.rate ?? EMPTY,
-  ];
+  ].map(openZcashCell);
+  return [...openZcashColumns, line.txid, line.receiptUrl, line.rate ?? EMPTY];
 }

@@ -1,12 +1,13 @@
-// The OpenZcash-compatible export (slice X2a; REQ-INT-2; `05` §3.1). Every expected string below was produced by
-// OpenZcash's own functions (`formatUsdCents`, `formatZec`, the field function of `downloadTableCsv`), extracted from the
-// JavaScript openzcash.org served on 2026-09-26 (R110) and run in Node; the script and its output are kept with the
-// slice (`.trellis/tasks/09-26-openzcash-csv-writer/`), the third-party file itself is not committed.
+// The OpenZcash-compatible export (slice X2a; REQ-INT-2; `05` §3.1). Every expected string below, and the golden file,
+// was produced by OpenZcash's own code run in Node: its `formatUsdCents`, `formatZec` and `downloadTableCsv` (with its
+// own number pattern) and the per-cell clean-up its table applies, cut out of the JavaScript openzcash.org served on
+// 2026-09-26 (R110). The oracle scripts and their output are kept with the slice
+// (`.trellis/tasks/09-26-openzcash-csv-writer/`); the third-party file itself is not committed.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { csvField, formatUsdCents, formatZec, OPENZCASH_HEADER, openZcashRow, toCsv, type ExportLine } from "../lib/index.ts";
+import { csvField, formatUsdCents, formatZec, OPENZCASH_HEADER, openZcashCell, openZcashRow, toCsv, type ExportLine } from "../lib/index.ts";
 
 test("USD cells equal OpenZcash's formatUsdCents: no decimals for whole dollars, two otherwise, · for none", () => {
   const table: [number | null, string][] = [
@@ -16,6 +17,7 @@ test("USD cells equal OpenZcash's formatUsdCents: no decimals for whole dollars,
     [100, "$1"],
     [45000, "$450"],
     [99999999, "$999,999.99"],
+    [-123456, "-$1,234.56"], // never exported (amounts are positive); documents parity
     [null, "·"],
   ];
   for (const [cents, want] of table) assert.equal(formatUsdCents(cents), want, `${cents}`);
@@ -30,6 +32,7 @@ test("ZEC cells equal OpenZcash's formatZec without the symbol: grouped, trailin
     [1n, "0.00000001"],
     [776000000n, "7.76"],
     [82566679n, "0.82566679"],
+    [-150000000n, "-1.5"], // never exported; documents parity
   ];
   for (const [zat, want] of table) assert.equal(formatZec(zat), want, `${zat}`);
 });
@@ -58,12 +61,13 @@ test("the file is byte-equal to the golden file built with OpenZcash's own field
     { recipientName: "Ana Souza", memo: "BOUNTY-101", kind: "bounty", usdCents: 22750, zat: 14648356n, broadcastAt: "2026-09-25T23:10:00.000Z", txid: tx, receiptUrl: "https://pay.example.org/r#AAAA", rate: "1553.29000" },
     { recipientName: 'Ben "Kay" Lee', memo: '=HYPERLINK("x")', kind: null, usdCents: null, zat: 100000000n, broadcastAt: "2026-09-26T00:00:00.000Z", txid: tx, receiptUrl: "https://pay.example.org/r#BBBB", rate: null },
     { recipientName: "  -Dee", memo: "M-7 · grant", kind: "milestone", usdCents: 1200000, zat: 2100000000000000n, broadcastAt: null, txid: tx, receiptUrl: "https://pay.example.org/r#CCCC", rate: "1553.29000" },
+    { recipientName: "", memo: "a  b\tc", kind: "invoice", usdCents: 5, zat: 1n, broadcastAt: "2026-09-27T12:00:00.000Z", txid: tx, receiptUrl: "https://pay.example.org/r#DDDD", rate: "1553.29000" },
   ];
   const golden = readFileSync(new URL("./fixtures/openzcash-golden.csv", import.meta.url), "utf8");
   const file = toCsv(OPENZCASH_HEADER, lines.map(openZcashRow));
   assert.equal(file, golden);
   assert.ok(file.startsWith("\uFEFF\"Recipient\""), "a BOM, then the header");
-  assert.equal(file.split("\r\n").length, 4, "CRLF between lines, none at the end");
+  assert.equal(file.split("\r\n").length, 5, "CRLF between lines, none at the end");
 });
 
 test("Date is the UTC day of the broadcast, whatever the offset it was written with", () => {
@@ -73,6 +77,18 @@ test("Date is the UTC day of the broadcast, whatever the offset it was written w
   assert.equal(openZcashRow(base)[5], "·");
 });
 
-test("the header is OpenZcash's seven columns in its order, then ours", () => {
-  assert.deepEqual([...OPENZCASH_HEADER], ["Recipient", "Detail", "Category", "USD", "ZEC", "Date", "Status", "Txid", "Receipt", "Rate"]);
+test("every payable kind has its Category label, and a form line has none", () => {
+  const base: ExportLine = { recipientName: "A", memo: "M", kind: null, usdCents: null, zat: 1n, broadcastAt: null, txid: "0".repeat(64), receiptUrl: "https://h/r#x", rate: null };
+  const labels = (["milestone", "invoice", "bounty", "salary", null] as const).map((kind) => openZcashRow({ ...base, kind })[2]);
+  assert.deepEqual(labels, ["Milestone", "Invoice", "Bounty", "Salary", "·"]);
+});
+
+test("cells are cleaned as OpenZcash cleans them: whitespace collapsed and trimmed, · when nothing is left", () => {
+  assert.equal(openZcashCell("  -Dee"), "-Dee");
+  assert.equal(openZcashCell("a  b\tc"), "a b c");
+  assert.equal(openZcashCell("   "), "·");
+  assert.equal(openZcashCell(""), "·");
+  const row = openZcashRow({ recipientName: " A ", memo: "M", kind: null, usdCents: null, zat: 1n, broadcastAt: null, txid: "t", receiptUrl: "u", rate: null });
+  assert.deepEqual(row.slice(7), ["t", "u", "·"], "the three additive cells pass through");
+  assert.equal(row[0], "A");
 });
