@@ -5,11 +5,14 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import check_release
+# Importing the checker must not write a bytecode cache into the tree: a changed file would make --tag refuse.
+sys.dont_write_bytecode = True
+import check_release  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 FILES = [
@@ -129,6 +132,26 @@ class ReleaseCheck(unittest.TestCase):
         self.assertOnly(self.problems(), r"\[0\.0\.2\] is not below the section above it")
         p.write_text("## [Unreleased]\n\n## [9.0.0] - 2026-01-01\n")
         self.assertOnly(self.problems(), r"\[9\.0\.0\] is above the workspace version")
+
+    def test_a_repeated_version_section(self):
+        (self.root / "CHANGELOG.md").write_text("## [Unreleased]\n\n## [0.0.1] - 2026-01-02\n\n## [0.0.1] - 2026-01-01\n")
+        self.assertOnly(self.problems(), r"\[0\.0\.1\] is not below the section above it")
+
+    def test_a_dated_unreleased_heading(self):
+        (self.root / "CHANGELOG.md").write_text("## [Unreleased] - 2026-10-09\n")
+        self.assertOnly(self.problems(), r"the first version heading must be exactly '## \[Unreleased\]'")
+
+    def test_a_version_heading_without_brackets(self):
+        (self.root / "CHANGELOG.md").write_text("## [Unreleased]\n\n## 0.0.1 - 2026-01-01\n")
+        self.assertOnly(self.problems(), r"'## 0\.0\.1 - 2026-01-01' looks like a version heading without brackets")
+
+    def test_malformed_inputs_are_problems_not_crashes(self):
+        self.edit_json("apps/console/package-lock.json", ["packages"], [])
+        p = self.root / "Cargo.lock"
+        p.write_text(p.read_text() + '\n[[package]]\nversion = "1.0.0"\n')
+        problems = self.problems()
+        self.assertTrue(any(x.startswith('apps/console/package-lock.json: no packages') for x in problems), problems)
+        self.assertTrue(any(x.startswith("Cargo.lock: a package without a name") for x in problems), problems)
 
     def test_tag_mode_before_the_changelog_is_released_lists_every_reason(self):
         (self.root / "CHANGELOG.md").write_text(UNRELEASED)

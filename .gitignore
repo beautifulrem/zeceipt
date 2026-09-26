@@ -9,3 +9,7 @@
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# Python bytecode (the release check's tests import it; review R1b3a round 1)
+__pycache__/
+*.pyc

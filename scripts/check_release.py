@@ -30,6 +30,8 @@ import tomllib
 from pathlib import Path
 
 HEADING = re.compile(r"^## \[(?P<name>[^\]]+)\](?P<rest>.*)$", re.M)
+# A version heading someone wrote without the brackets, which HEADING would not see.
+BARE_VERSION = re.compile(r"^## v?\d+\.\d+\.\d+\b.*$", re.M)
 DATED = re.compile(r"^ - (\d{4}-\d{2}-\d{2})$")
 SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
@@ -65,7 +67,10 @@ def version_sources(root: Path, problems: list) -> str | None:
 
     try:
         lock = tomllib.loads((root / "Cargo.lock").read_text())
-        crates = [p for p in lock.get("package", []) if p["name"].startswith("zeceipt-")]
+        packages = lock.get("package", [])
+        if any("name" not in p for p in packages):
+            problems.append("Cargo.lock: a package without a name")
+        crates = [p for p in packages if p.get("name", "").startswith("zeceipt-")]
         if not crates:
             problems.append("Cargo.lock: no zeceipt-* package")
         for p in crates:
@@ -79,7 +84,7 @@ def version_sources(root: Path, problems: list) -> str | None:
             for k in key:
                 d = d[k]
             return d
-        except (OSError, KeyError, json.JSONDecodeError) as e:
+        except (OSError, KeyError, TypeError, json.JSONDecodeError) as e:
             problems.append(f"{rel}: no {'.'.join(key)} ({e})")
             return None
 
@@ -120,6 +125,8 @@ def changelog(root: Path, want: str | None, problems: list):
     except OSError as e:
         problems.append(f"CHANGELOG.md: unreadable ({e})")
         return []
+    for bare in BARE_VERSION.finditer(text):
+        problems.append(f"CHANGELOG.md: '{bare.group(0)}' looks like a version heading without brackets ('## [X.Y.Z] - YYYY-MM-DD')")
     heads = list(HEADING.finditer(text))
     sections = []
     for i, h in enumerate(heads):
@@ -159,7 +166,11 @@ def tag_checks(root: Path, tag: str, want: str | None, sections, problems: list)
     unreleased = [s for s in sections if s[0] == "Unreleased"]
     if unreleased and unreleased[0][2].strip():
         problems.append("CHANGELOG.md: '## [Unreleased]' still has entries; move them into the release's section")
-    git = lambda *a: subprocess.run(["git", "-C", str(root), *a], capture_output=True, text=True)
+    def git(*a):
+        try:
+            return subprocess.run(["git", "-C", str(root), *a], capture_output=True, text=True)
+        except OSError as e:
+            return subprocess.CompletedProcess(a, 127, "", str(e))
     status = git("status", "--porcelain")
     if status.returncode != 0:
         problems.append(f"git status failed: {status.stderr.strip()}")
