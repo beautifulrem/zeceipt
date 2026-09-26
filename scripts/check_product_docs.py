@@ -9,7 +9,7 @@
 - the WBS roll-up table (incl. Total) matches the counted leaves
 - every REQ id referenced from the WBS exists
 - every `NN_file.md` §n reference points at an existing section
-- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row and the reserve total equals buffer + below-the-line cuts; solo kept prices equal WBS prices unless marked reduced (and lower); solo rows, scaling, kept total and Buffer = Capacity − Kept recomputed; baseline and per-owner capacities derived from the stated date range; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves; a requirement traced to a ✅ leaf is ✅ or 👤; NFR-1's evidence quotes the source guard's live summary line; the tracer task's review line lists every committed review record
+- every 👤 leaf is in the Asks table; 11_plan.md §3 columns match WBS owners; every pd-bearing leaf is scheduled in §3; per window each owner ≤ 0.75 pd/day counting {budget}/{buffer} tokens (which must total Must 6 and Buffer) and leaf dates lie inside their window; §1 person-days equal WBS leaf sums; §1 Total/done/open/slack and the per-owner loads recomputed; every pd-bearing leaf is kept or dropped in §1.1 and the Solo column in 01 §4–§6 agrees; no Must leaf in the last two windows, every window holding a submission deliverable or process step names a fallback; NFRs carry a Solo value too; 'reduced' cells must cite a kept leaf; a 'dropped' requirement may not be named on (or traced in §8 to) a kept or ✅ leaf; a 'kept' cell may not carry a qualifier (only/without/no); W rows need no leaf; no two requirements share three consecutive normalised words of obligation text; capability sentences in 04/05/07 cite a requirement id; the §0 Must-set list is sorted; every buffer figure in §1.1 and RSK-19 equals the solo Buffer row and the reserve total equals buffer + below-the-line cuts; solo kept prices equal WBS prices unless marked reduced (and lower); solo rows, scaling, kept total and Buffer = Capacity − Kept recomputed; baseline and per-owner capacities derived from the stated date range; every cited REQ/NFR id exists and non-Must ids in the policy docs are marked planned/cut; every §3 body row parses as a window; status cells cite existing leaves; a requirement traced to a ✅ leaf is ✅ or 👤; NFR-1's evidence quotes the source guard's live summary line; the tracer task's review line lists every committed review record; §8 (the solo schedule) holds only kept or U leaves, schedules every open kept leaf at its §1.1 price × the scale, keeps each window within 0.75 pd/day, and its totals line matches
 Exit 1 on any failure.
 """
 import re
@@ -554,10 +554,55 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
         errors.append(f"01_requirements.md: status cell cites WBS leaf {num} which does not exist")
 
+# 11_plan.md §8 (solo schedule, baseline v2): kept or U leaves only, every open kept leaf scheduled,
+# prices = §1.1 price × scale, per-window load ≤ 0.75 pd/day, totals line = the sums
+solo_sched = plan.split("## 8.")[1] if "## 8." in plan else ""
+solo_windows = 0
+if solo_sched:
+    status_of = {m.group(1): m.group(2).strip()[:1] for m in leaf_re.finditer(wbs)}
+    kept_price = {leaf: float(price) for leaf, price, _ in re.findall(r"\b(\d\.\d\.\d\.\d) \((\d+(?:\.\d+)?)( reduced)?\)", solo_kept_tbl)}
+    factor = float(scale.group(1)) if scale else 1.6
+    scheduled, load_sum = set(), 0.0
+    for row in re.findall(r"^\| (\d\d-\d\d(?: → \d\d-\d\d)?) \| ([^|]*) \| ([\d.]+) / ([\d.]+) \|", solo_sched, re.M):
+        win, work, load_s, cap_s = row
+        solo_windows += 1
+        ends = [_dt.date(2026, int(d[:2]), int(d[3:])) for d in re.findall(r"\d\d-\d\d", win)]
+        days = (ends[-1] - ends[0]).days + 1 if win != "10-12" else 0
+        load_w = 0.0
+        for leaf in re.findall(r"\b(\d\.\d\.\d\.\d)\b", work):
+            if leaf not in kept_ids and owner_of.get(leaf) != "U":
+                errors.append(f"11_plan.md §8: leaf {leaf} is neither kept in §1.1 nor a U leaf")
+        for leaf, price in re.findall(r"\b(\d\.\d\.\d\.\d) \((\d+(?:\.\d+)?)\)", work):
+            scheduled.add(leaf)
+            load_w += float(price)
+            if leaf in kept_price and abs(float(price) - kept_price[leaf] * factor) > 1e-6:
+                errors.append(f"11_plan.md §8: {leaf} priced {price}, but §1.1 gives {kept_price[leaf]} × {factor}")
+        load_w += sum(float(x) for x in re.findall(r"\{budget (\d+(?:\.\d+)?)\}", work))
+        load_w = round(load_w, 6)
+        if abs(load_w - float(load_s)) > 1e-6:
+            errors.append(f"11_plan.md §8: window {win} says load {load_s} but its items sum to {load_w}")
+        if abs(float(cap_s) - 0.75 * days) > 1e-6:
+            errors.append(f"11_plan.md §8: window {win} capacity {cap_s} ≠ 0.75 × {days} days")
+        if load_w > float(cap_s) + 1e-6:
+            errors.append(f"11_plan.md §8: window {win} load {load_w} exceeds its capacity {cap_s}")
+        load_sum += load_w
+    for leaf in sorted(kept_ids & set(pd_of)):
+        if status_of.get(leaf) != "✅" and leaf not in scheduled:
+            errors.append(f"11_plan.md §8: open kept leaf {leaf} is in no window")
+    tot = re.search(r"load (\d+(?:\.\d+)?) pd against capacity (\d+(?:\.\d+)?) pd \((\d+) days × 0\.75[^)]*\) leaves slack (\d+(?:\.\d+)?) pd", solo_sched)
+    if not tot:
+        errors.append("11_plan.md §8: totals line not found")
+    else:
+        t_load, t_cap, t_days, t_slack = float(tot.group(1)), float(tot.group(2)), int(tot.group(3)), float(tot.group(4))
+        if abs(t_load - round(load_sum, 6)) > 1e-6:
+            errors.append(f"11_plan.md §8: totals say load {t_load}, windows sum to {round(load_sum, 6)}")
+        if abs(t_cap - 0.75 * t_days) > 1e-6 or abs(t_slack - (t_cap - t_load)) > 1e-6:
+            errors.append(f"11_plan.md §8: totals arithmetic wrong ({t_cap} vs 0.75 × {t_days}; slack {t_slack} vs {t_cap} − {t_load})")
+
 sched_rows = re.findall(r"^\| [^|]+ \| ([^|]*) \| ([^|]*) \| [^|]*\|$", sched, re.M)
 budget_rows = re.findall(r"^\| ([^|]+) \| WBS ([^|]+) \| ([\d.]+) \|", budget, re.M)
 print(f"leaves per phase: { {k: v['leaves'] for k, v in counts.items()} }; tests checked: {len(test_names)}; "
-      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}; solo column rows: {len(solo_col)}; priority map: {len(prio)}; solo prices checked: {parity}; solo rows recomputed: {len(solo_rows)}; dropped claims checked: {dropped_claims}")
+      f"owners parsed: {len(owner_of)}; leaves with pd: {len(pd_of)}; schedule rows: {len(sched_rows)}; budget rows summed: {len(budget_rows)}; budget lines: {len(rows_pd)}; owner load R {load['R']} / T-PM {load['T']}; windows levelled: {windows}; day-one cuts: {cut_day_one}; buffer tokens {tok_buffer}; budget tokens {tok_budget}; solo-branch leaves listed: {len(solo_leaves & set(pd_of))}/{len(pd_of)}; solo column rows: {len(solo_col)}; priority map: {len(prio)}; solo prices checked: {parity}; solo rows recomputed: {len(solo_rows)}; dropped claims checked: {dropped_claims}; solo schedule windows: {solo_windows}")
 if errors:
     print("\n".join(errors))
     sys.exit(1)

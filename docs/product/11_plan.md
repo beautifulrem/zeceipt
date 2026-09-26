@@ -1,6 +1,6 @@
 # Plan: schedule, effort, cut order, metrics, videos, judge answers
 
-This is the executable plan for 2026-09-22 → 2026-10-12. External milestones (posts, videos, uploads, user asks) are authoritative in `09_submission_checklist.md` §5; engineering dates are authoritative in §3 below; effort and cut rules live here. Roles: R (Rust/protocol), T (TypeScript/product), PM (product/pitch), U (user-only actions).
+This is the executable plan for 2026-09-22 → 2026-10-12. External milestones (posts, videos, uploads, user asks) are authoritative in `09_submission_checklist.md` §5; engineering dates are authoritative in §3 below until 2026-09-26 and in §8 (the solo schedule, baseline v2) from 2026-09-27; effort and cut rules live here. Roles: R (Rust/protocol), T (TypeScript/product), PM (product/pitch), U (user-only actions).
 
 ## 1. Effort budget (person-days)
 
@@ -78,6 +78,8 @@ Never cut: Must 1, 2, 4, 6. Decision point: 2026-10-03 status review (RSK-6, RSK
 
 ## 3. Day-by-day schedule (authoritative for engineering dates)
 
+Baseline v1 (two-person). Superseded from 2026-09-27 by §8, the solo schedule; kept unchanged so the variance against it stays visible.
+
 Freeze (from 10-10) = no changes to `crates/`, `packages/verify/pkg`, `spec/` or `fixtures/`; documentation, release artefacts (tag, notes, badges), registry publication and submission-form edits remain allowed. Columns follow the WBS owner letters: the R column lists only R-owned leaves, the T/PM column only T/PM/U-owned leaves. Each row is a dated window; the leaf person-days listed per owner never exceed 0.75 × days in the window, and every leaf's WBS date lies inside the window that lists it (`scripts/check_product_docs.py` verifies all three). Leaves cut on day one (3.3.6.4, 3.3.5.8) are netted by the person-days the cuts free and shown in brackets only for restoration; `{budget x}` and `{buffer x}` tokens are counted as load. Fixed external dates come from `09_submission_checklist.md` §5. Non-leaf budget lines (Must 6 issuance runs, buffer) are named where they sit.
 
 | Window | R (≤ 0.75 pd/day) | T / PM (≤ 0.75 pd/day; U in bold) | Milestone |
@@ -103,7 +105,7 @@ Stop-loss history: the 2026-09-25 kill criterion ("Ironwood recovery fails → S
 | Horizon | Metric | Baseline target | Solo-branch target (§1.1) | How counted |
 |---|---|---|---|---|
 | By 2026-10-12 | Receipts issued on public chains (testnet/mainnet) | ≥ 15 | ≥ 3 (one issuance run, one pilot) | PROOF §6/§7 txids |
-| | Real issuing organisation | ≥ 1 (ZecHub DAO or Zcash Brazil) | ≥ 1 (ZecHub DAO) | named in README with their consent |
+| | Real issuing organisation | ≥ 1 (ZecHub DAO or Zcash Brazil) | ≥ 1: the sender of a pilot's payments, which issues from its wallet's viewing key (for ZecHub's bounties that is FPF today, `[R4]`; slice D9), or any payer who answers the forum call | named in README with their consent |
 | | Third-party emitter or consumer | ≥ 1 (Konclave adapter or OpenZcash demo branch) | one external verification of a receipt posted on the forum (adapters are dropped) | link |
 | | npm + crate downloads | ≥ 50 | ≥ 20 | registry stats |
 | | Publicly posted third-party verifications | ≥ 3 | ≥ 1 | forum/X/CI links |
@@ -148,3 +150,18 @@ Weekly updates: 2026-09-28 and 2026-10-05, 60 s each, posted on X tagging @colos
 ## 7. Second-round review verdict (2026-09-21, ported from the private research notes)
 
 Two independent reviews (red team and alternatives) concluded: the payables-SaaS direction was a crowded me-too; the receipt direction has a clear primitive (per-output OCK), a live pool (Ironwood) nobody had built on, verifiable evidence classes, and a defensible layer position (disclosure, not execution). Adopted 2026-09-21 with the stop-loss above and the prior-art disclosure in `docs/PRIOR_ART.md`. Odds were estimated at 3–20% for a top-10 Zcash-track finish; nothing since has moved that estimate.
+
+## 8. Solo schedule, baseline v2 (2026-09-27 → 10-12; authoritative for engineering dates from 2026-09-27)
+
+Why a new baseline: the solo branch replaced the two-person plan on 2026-09-24 (§1.1), an approved scope change; §3 stays as baseline v1 so the variance remains visible, and this table is v2, made 2026-09-26 (slice D10a) `[R107]`. It schedules every open leaf that §1.1 keeps, at its solo-scaled price (§1.1 price × 1.6), and the user asks that gate them (in bold). WBS leaf dates stay the baseline v1 dates; where they differ, this table governs. Work already done ahead of schedule (every kept console leaf, 3.3.5.3, 3.3.3.3) is not listed. The checker enforces: every leaf here is kept in §1.1 or is a U leaf; every open kept leaf is here; prices are the §1.1 price × 1.6; per window the load is ≤ 0.75 pd × days; the totals line matches.
+
+| Window | Work (scaled pd; U in bold) | Load / capacity | Milestone and fallback |
+|---|---|---|---|
+| 09-27 → 09-30 | Must 6: first public-chain issuance run, PROOF §6, README {budget 0.4} (needs 3.4.1.5); forum post: links and final pass once the repo is public 4.1.2.2 (0.4); **U: push the repo and enable CI (4.1.1.1) by 09-28; confirm the name (2.4.3.4) by 09-28; testnet faucet (3.4.1.4) and fund the wallet (3.4.1.5) by 09-30; post the forum pilot call and the zips #387 comment after the push** | 0.8 / 3.0 | Public-chain receipts exist. Fallback: if funding is late, the run moves to 10-01 → 10-03 and must land by 10-03, before the videos |
+| 10-01 → 10-03 | Pilot: one real batch paid by the pilot's sender (for ZecHub's bounties that is FPF, which must issue from its wallet's viewing key; otherwise any payer who answers the forum call) 4.2.1.1 (0.8); **U: register the domain and host the page (4.1.1.2) by 10-01; decide whether to contact Konclave's author as a second pilot channel (4.1.2.3) by 10-01; team roster and founder lines (2.4.3.3) by 10-03; confirm the window-open date (1.1.1.4) by 10-03** | 0.8 / 2.25 | One issuing organisation. Fallback: no pilot by 10-03 → the form reports receipts issued by the team only and says so |
+| 10-04 → 10-07 | Pitch video 5.1.1.1 (1.2); technical demo 5.1.1.2 (1.2); description and GTM placeholders filled 5.1.2.2 (0.4); initial upload on the window-open day, inferred 10-05 `[R106]`, 5.2.1.1 (0.2) | 3.0 / 3.0 | Videos recorded, first upload. Fallback: without public-chain receipts the videos show the regtest runs and say so |
+| 10-08 → 10-09 | Security review rerun: cargo audit, npm audit, gitleaks, source guards 3.4.2.3 (0.4); videos uploaded unlisted and links tested 5.1.1.4 (0.4); **U: team backgrounds and location (5.1.2.3) by 10-09** | 0.8 / 1.5 | Security review clean. Fallback: a finding that needs a code change is fixed before the 10-10 freeze or recorded as accepted with its reason |
+| 10-10 → 10-11 | Freeze and form re-check 5.2.1.2 (0.2); final submission 5.2.1.3 (0.4); **U: npm publish @zeceipt/verify (4.1.1.3) on 10-10, the day after the security review** | 0.6 / 1.5 | Submitted on 10-11. Fallback: 10-12 before 23:59 PT |
+| 10-12 | Deadline; no planned work | 0 / 0 | Buffer day |
+
+Totals: load 6.0 pd against capacity 11.25 pd (15 days × 0.75, 09-27 → 10-11) leaves slack 5.25 pd. Using the slack is decided in slice D10b, by §1.1's rule that dropped work is recoverable if slack appears.
