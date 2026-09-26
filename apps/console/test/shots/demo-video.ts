@@ -10,13 +10,18 @@
 //   3. a receipt link opened as its recipient would (VALID: address, amount, memo) → one character of its OCK changed →
 //      INVALID at the signature stage;
 //   4. a zecpay CSV imported on the payables page: the preview (new recipients, one matched by Orchard receiver under
-//      another name, each row's address, a ZEC row refused by its CSV line), then Import (slice V2c1; the pitch's 1:37 beat).
-// Outputs (outside the repository): 1-console.webm, 2-receipts.webm, 3-receipt-page.webm, 4-import.webm and shots.json (each step's
+//      another name, each row's address, a ZEC row refused by its CSV line), then Import (slice V2c1; the pitch's 1:37 beat);
+//   5. the batch page's "Download for OpenZcash (CSV)", downloaded through the page, and the file shown as a table (receipt
+//      links and txids abridged on screen);
+//   6. a terminal: `zeceipt pack` and `verify-pack` on the batch's five receipts, the verified total a lower bound
+//      (slice V2c2; the pitch's 1:14 beat). Both render real outputs; their text is scanned for secrets before it is shown.
+// Outputs (outside the repository): 1-console.webm to 6-pack.webm and shots.json (each step's
 // offset in its segment, for editing and narration). Receipt links, OCKs and the wrap key stay in memory: shots.json is
 // scanned for them before it is written.
 
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -195,7 +200,10 @@ try {
   const link = receipts[0].url;
   const receipt = JSON.parse(Buffer.from(link.slice(link.indexOf("#") + 1), "base64url").toString("utf8")) as Record<string, unknown>;
   const ock = String(receipt.ock);
-  receipt.ock = `${ock.slice(0, -1)}${ock.at(-1) === "0" ? "1" : "0"}`;
+  // The first character, not the last: 32 bytes are 43 base64url characters whose last carries two padding bits, so
+  // changing a final "0" to "1" made a non-canonical encoding the verifier refuses to parse ("could not be checked"),
+  // not a key that fails at the signature (found in slice V2c2: the take depended on the OCK's last character).
+  receipt.ock = `${ock[0] === "A" ? "B" : "A"}${ock.slice(1)}`;
   const tampered = `${link.slice(0, link.indexOf("#") + 1)}${Buffer.from(JSON.stringify(receipt), "utf8").toString("base64url")}`;
   secrets.push(tampered);
 
@@ -252,6 +260,7 @@ try {
     await page.getByRole("button", { name: /^Import 3 payables$/ }).waitFor();
     assert.ok(await page.getByText("Ana Souza (existing, matched by Orchard receiver").first().isVisible(), "the existing recipient is matched by receiver");
     assert.ok(await page.getByText("CSV line 5 will not be imported: the amount is in ZEC").first().isVisible(), "the ZEC row is refused by its line");
+    for (const name of ["Fay Adeyemi (new)", "Gus Lindqvist (new)", "Address it will pay"]) assert.ok(await page.getByText(name).first().isVisible(), `the preview shows ${name} (review V2c1)`);
     // The whole preview on screen: its heading at the top, then the rows and the refusal below it (review of the first
     // take: scrolling only the table's header into view left the rows below the fold).
     await page.getByText(/^Preview: 3 payables to add/).evaluate((el) => el.scrollIntoView({ block: "start" }));
@@ -265,6 +274,76 @@ try {
   });
   const imported = (JSON.parse((await raw(s.port, "GET", "/api/payables", { host: self })).body) as { payables: { reference: string }[] }).payables.map((p) => p.reference).filter((r) => r.startsWith("OCT-GRANTS-")).sort();
   assert.deepEqual(imported, ["OCT-GRANTS-2", "OCT-GRANTS-3", "OCT-GRANTS-4"]);
+
+  // Segment 5: the OpenZcash download, through the page, and the file as a table. The receipt links and txids are
+  // abridged on screen; the scan below proves no whole link reaches the page.
+  const show = (html: string) => {
+    for (const secret of secrets) assert.ok(!html.includes(secret), "no receipt link, OCK or wrap key on screen");
+    return html;
+  };
+  const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const shortLink = (u: string) => (u.includes("#") ? `${u.slice(0, u.indexOf("#") + 1)}${u.slice(u.indexOf("#") + 1, u.indexOf("#") + 7)}…` : u);
+  let csvRows: string[][] = [];
+  await segment("export", "5-export.webm", async (page, step) => {
+    await page.goto(`${base}/batches/${batchId}`);
+    const offer = page.getByRole("link", { name: "Download for OpenZcash (CSV)" });
+    await offer.evaluate((el) => el.closest("div")?.scrollIntoView({ block: "center" }));
+    await step("the batch page offers the OpenZcash CSV, saying what the file holds and that it discloses every listed payment, permanently", KEY);
+    const [download] = await Promise.all([page.waitForEvent("download"), offer.click()]);
+    const file = join(dir, download.suggestedFilename());
+    await download.saveAs(file);
+    const text = readFileSync(file, "utf8").replace(/^\uFEFF/, "");
+    csvRows = text.split("\r\n").map((line) => [...line.matchAll(/"((?:[^"]|"")*)"/g)].map((m) => m[1].replace(/""/g, '"')));
+    assert.deepEqual(csvRows[0], ["Recipient", "Detail", "Category", "USD", "ZEC", "Date", "Status", "Txid", "Receipt", "Rate"]);
+    assert.equal(csvRows.length, 6, "a header and five rows");
+    const cell = (v: string, i: number, row: number) => esc(row === 0 ? v : i === 7 ? `${v.slice(0, 12)}…` : i === 8 ? shortLink(v) : v);
+    // A blank document first: setContent on the console's page would keep its CSP, which blocks these inline styles.
+    await page.goto("about:blank");
+    await page.setContent(show(`<!doctype html><meta charset="utf-8"><title>${esc(download.suggestedFilename())}</title>
+      <body style="font:14px system-ui;margin:32px;color:#0f172a"><h1 style="font-size:18px">${esc(download.suggestedFilename())}</h1>
+      <p style="color:#475569">The downloaded file, as a spreadsheet shows it: OpenZcash's columns, then the txid, the receipt link and the rate. Links and txids are abridged here, on screen only.</p>
+      <table style="border-collapse:collapse">${csvRows.map((r, n) => `<tr>${r.map((v, i) => `<${n ? "td" : "th"} style="border-bottom:1px solid #e2e8f0;padding:6px 10px;text-align:left;${i === 8 ? "font-family:monospace" : ""}">${cell(v, i, n)}</${n ? "td" : "th"}>`).join("")}</tr>`).join("")}</table></body>`));
+    await step("the file: one row per payment, in OpenZcash's columns, with each payment's txid, receipt link and rate (links abridged on screen)", KEY);
+  });
+
+  // Segment 6: the audit pack, run in a terminal's working directory so the commands shown are the commands run.
+  const work = join(dir, "audit");
+  mkdirSync(join(work, "receipts"), { recursive: true });
+  mkdirSync(join(work, "raw"));
+  for (const [i, r] of receipts.entries()) writeFileSync(join(work, "receipts", `receipt-${i + 1}.json`), `${JSON.stringify(r.receipt)}\n`);
+  writeFileSync(join(work, "raw", `${txid}.hex`), readFileSync(rawFile, "utf8"));
+  const totalZat = (JSON.parse((await raw(s.port, "GET", `/api/batches/${batchId}`, { host: self })).body) as { totalZat: string }).totalZat;
+  // The commands shown are run as shown, by sh in the audit directory, with the CLI on PATH (the pack's JSON is long:
+  // jq prints one line per receipt, then the totals and the note, from the same report).
+  const commands = [
+    `zeceipt pack --title "September bounties" --declared-total-zat ${totalZat} receipts/*.json > pack.json`,
+    "zeceipt verify-pack pack.json --raw-tx-dir raw --require-signature > report.json",
+    "jq -c '.receipts[] | {index, valid, value_zat}' report.json",
+    "jq '{all_valid, declared_total_zat, verified_total_zat, note}' report.json",
+  ];
+  const outputs = commands.map((c) => {
+    const r = spawnSync("sh", ["-c", c], { cwd: work, encoding: "utf8", env: { ...process.env, PATH: `${resolve(BIN, "..")}:${process.env.PATH}` } });
+    assert.equal(r.status, 0, `${c}: ${r.stderr}`);
+    return r.stdout;
+  });
+  const report = JSON.parse(readFileSync(join(work, "report.json"), "utf8")) as { all_valid: boolean; verified_total_zat: number; receipts: unknown[] };
+  assert.equal(report.all_valid, true);
+  assert.equal(report.receipts.length, 5);
+  assert.equal(String(report.verified_total_zat), totalZat, "the verified total equals the declared one");
+  await segment("pack", "6-pack.webm", async (page, step) => {
+    // Navigate once before setContent: on a fresh page's first document the recording left the bottom band grey
+    // (measured: pixel 127,125,126 without, the page's own colour with).
+    await page.goto("data:text/html,");
+    await page.setContent(show(`<!doctype html><html style="background:#0b1020"><meta charset="utf-8"><title>terminal</title>
+      <body style="margin:0;min-height:100vh;background:#0b1020;color:#e2e8f0;font:14px/1.5 ui-monospace,Menlo,monospace;padding:24px 32px;box-sizing:border-box">
+      <div style="color:#94a3b8">~/audit (regtest)</div>
+      ${commands.map((c, i) => `<div id="c${i}"><span style="color:#38bdf8">$</span> ${esc(c)}</div><pre style="margin:0 0 6px;white-space:pre-wrap">${esc(outputs[i])}</pre>`).join("")}
+      </body>`));
+    await page.locator("#c2").evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await step("an auditor gets a pack of five receipts instead of a viewing key: verify-pack checks each against the transaction, and all five are valid", KEY);
+    await page.locator("#c3").evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await step("the verified total equals the declared one, and the report says it is a lower bound", KEY);
+  });
 
   const index = {
     version: 1,
