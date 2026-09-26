@@ -189,7 +189,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.2.4 ⬜ T — Fallback: 1Click ZEC→USDC leg measured (REQ-SOL-5). 0.5 pd, 2026-10-08 → 10-09.
 #### 3.3.3 Integrations
 - 3.3.3.1 ⬜ T — Konclave CSV (`label,address,value[,memo]`) → receipt issuance adapter (REQ-INT-1). 0.75 pd, 2026-09-29 → 09-30.
-- 3.3.3.2 🟡 T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2). 0.75 pd, 2026-10-01 → 10-03. Spec re-derived from OpenZcash's own export (slice X1, R110); writer and formatters (X2a); the route `GET /api/batches/{id}/exports/openzcash` with its audit record and cross-site refusal (X2b). Left: the batch page's link and its disclosure text (X2c).
+- 3.3.3.2 ✅ T — OpenZcash-compatible export with `receipt_url` column (REQ-INT-2). 0.75 pd, 2026-10-01 → 10-03. Done 2026-09-26 (slices X1, X2a, X2b, X2c): spec re-derived from OpenZcash's own export (R110); writer and formatters checked against OpenZcash's own code; the route `GET /api/batches/{id}/exports/openzcash` with its audit record, cross-site refusal and HEAD rule; the batch page's link with its disclosure, tested through `next start`.
 - 3.3.3.3 ✅ R — Well-known issuer key file generator and verifier upgrade path (REQ-INT-3). 0.5 pd, 2026-10-01 → 10-03. Added back after the solo-branch drop (slices W1–W3). The design is redone as a domain-control binding (W1, spec §7, `[R101]`). The claim rule, the file format, the outcome logic, shared vectors, the `zeceipt well-known` generator and the console key-id rule are built (W2a). The CLI lookup (W2b), the verify package (W3a) and the receipt page's "Check with <domain>" (W3b, PROOF §2e) complete it.
 - 3.3.3.4 ⬜ R — Post format v0 to zips #387 and forum (REQ-INT-4). 0.5 pd, 2026-09-27 → 09-28. Drafted 2026-09-26 (slice Z1, `docs/outreach/zips-387-comment.md`): an implementation report on the outputs half and an answer to ZIP 311's reason for requiring spend authority `[R102]`; posting it is the user's.
 #### 3.3.4 Open technical questions
@@ -320,9 +320,9 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 63 | 40 | 2 | 19 | 2 |
+| 3 Engineering | 63 | 41 | 1 | 19 | 2 |
 | 4 Launch/GTM | 16 | 0 | 1 | 11 | 4 |
 | 5 Submission | 18 | 3 | 1 | 13 | 1 |
-| **Total** | 185 | 120 | 5 | 50 | 10 |
+| **Total** | 185 | 121 | 4 | 50 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

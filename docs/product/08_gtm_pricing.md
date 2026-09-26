@@ -2,7 +2,7 @@
 
 ## 1. Segments and sequence
 
-1. **Zcash grant and bounty programs** (P1): ZecHub DAO (weekly bounties, whose payments FPF sends `[R4]`), ZCG (a 1,016-row ledger mirrored on OpenZcash `[R105]`), ZF grants. Value: verifiable public ledger; auditor packs. Channels in the solo schedule (`11_plan.md` §8): the forum pilot call, and an OpenZcash-compatible export (planned). The OpenZcash "verified" demo branch is infeasible (no public source) and a ZecHub Discord announcement was not restored (slice D10b).
+1. **Zcash grant and bounty programs** (P1): ZecHub DAO (weekly bounties, whose payments FPF sends `[R4]`), ZCG (a 1,016-row ledger mirrored on OpenZcash `[R105]`), ZF grants. Value: verifiable public ledger; auditor packs. Channels in the solo schedule (`11_plan.md` §8): the forum pilot call, and an OpenZcash-compatible export (built, slices X1–X2c). The OpenZcash "verified" demo branch is infeasible (no public source) and a ZecHub Discord announcement was not restored (slice D10b).
 2. **Zcash-native teams and DAOs** (P2): Zcash Brazil (Konclave), Shielded Labs, ZODL contractors, grantee teams. Channels: a CSV import of Konclave's `label,address,value[,memo]` format (planned, slice D10b; the Konclave-side adapter was dropped); contacting Konclave's author is the user's decision (WBS 4.1.2.3).
 3. **Developers** (P5): crates + npm (publishing is the user's) + vectors; the zips #387 implementation report (drafted; posting is the user's option); a ZecHub wiki page (not scheduled).
 4. **Post-hackathon**: compliance/verification API for exchanges and KYT vendors; second chain: the same envelope and verification UX over a chain-specific disclosure primitive (Solana confidential balances use per-mint ElGamal auditor keys, not per-output keys `[R41]`; a per-transfer disclosure there needs its own primitive and is research, not a port).
@@ -30,7 +30,7 @@ A pilot needs the wallet that sends the payments: receipts are issued from that 
 | ZecHub DAO, with FPF as the sender | weekly bounties, open community; FPF sends the payments `[R4]` | FPF issues receipts for one week of ZecHub bounties | ⬜ (after the forum call) |
 | Zcash Brazil (Konclave) | keeps its treasury on Konclave since 2026-08-29 `[R10]`; our KB lists its treasury lead as OpenZcash's maintainer (unverified, KB `12_sources_and_gaps.md`) | one batch paid from its wallet, with receipts for its public ledger | ⬜ |
 | One ZCG grantee team | pays subcontractors in ZEC | run one batch | ⬜ |
-| OpenZcash | ledger consumer | the OpenZcash-compatible export (planned); the "verified" demo branch is infeasible (no public source) | ⬜ |
+| OpenZcash | ledger consumer | the OpenZcash-compatible export (built, slices X1–X2c); the "verified" demo branch is infeasible (no public source) | ⬜ (ask whether the format is useful) |
 
 ## 4. Pricing (draft, benchmarked)
 

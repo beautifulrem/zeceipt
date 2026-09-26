@@ -876,6 +876,19 @@ test("the linkability warning through next start (REQ-CON-6, slice H6): after re
     assert.ok(quietNow.includes("Before paying: addresses already disclosed") && quietNow.includes('Line 1 (QUIET-1): A receipt already disclosed this address (batch "September").'), "the batch validation report names the line and the batch");
     assert.ok(quietNow.includes(LINKABILITY_SPEC) && quietNow.includes("fresh address from the same wallet"), "spec §9's words and the remedy");
     assert.ok(!(await get(`/batches/${a.id}`)).includes("Before paying: addresses already disclosed"), "A is not warned about its own receipts");
+    // Slice X2c: the page offers the OpenZcash export with what it discloses, and the served app delivers the file
+    // to the console's own page and refuses another site (X2b's rule, through next start).
+    const aPage = await get(`/batches/${a.id}`);
+    assert.ok(aPage.includes(`href="/api/batches/${a.id}/exports/openzcash"`) && aPage.includes(">Download for OpenZcash (CSV)<"), "the page offers the export");
+    assert.ok(aPage.includes(": all 3 lines, in the columns OpenZcash's own export writes."), "a complete batch says so");
+    assert.ok(aPage.includes("The file holds every receipt link above. Whoever gets it can see each of these payments, and that cannot be taken back"), "the disclosure, before the download");
+    const file = await raw(s.port, "GET", `/api/batches/${a.id}/exports/openzcash`, { host: self, "sec-fetch-site": "same-origin" });
+    assert.deepEqual([file.status, file.type, file.headers["content-disposition"], file.headers["cache-control"]], [200, "text/csv; charset=utf-8", `attachment; filename="zeceipt-openzcash-${a.id}.csv"`, "no-store"]);
+    assert.ok(file.body.startsWith('\uFEFF"Recipient","Detail","Category","USD","ZEC","Date","Status","Txid","Receipt","Rate"\r\n'), "OpenZcash's header, after a BOM");
+    assert.equal(file.body.split("\r\n").length, 4, "three rows");
+    assert.equal((await raw(s.port, "GET", `/api/batches/${a.id}/exports/openzcash`, { host: self, "sec-fetch-site": "cross-site" })).status, 403, "not for another site");
+    assert.ok(!s.output().includes("receipts.example/r#") && !s.output().includes("/r#ey"), "no receipt link in the server output");
+    assert.ok(!(await get(`/batches/${quiet.id}`)).includes("Download for OpenZcash"), "no receipts, no export link");
     const people = await get("/recipients");
     assert.ok(people.includes('A receipt already disclosed this address (batch "September").') && people.includes('id="linkability"'), "the recipients page flags Bob and explains");
     // Rendered text only (after ">"); the same words also sit in React's serialised payload inside a <script>.

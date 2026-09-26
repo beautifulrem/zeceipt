@@ -119,7 +119,7 @@ Six criteria (rules §8) `[R1]`:
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
 | Novelty | first per-output receipts on Ironwood; format + vectors; `docs/PRIOR_ART.md` states exactly what is new vs Glasspane/ZIP 311 |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4) |
-| Open-source, composability | MIT; crates + npm package (publishing is the user's) + vectors; the issuer's well-known key file; planned in the solo schedule: an OpenZcash-compatible export and a CSV import of Konclave's format (`11_plan.md` §8; `05_data_model_api.md` §4) |
+| Open-source, composability | MIT; crates + npm package (publishing is the user's) + vectors; the issuer's well-known key file; an OpenZcash-compatible export (built, slices X1–X2c); planned in the solo schedule: a CSV import of Konclave's format (`11_plan.md` §8; `05_data_model_api.md` §4) |
 | Business Plan, team ability | `08_gtm_pricing.md`; `11_plan.md` §1–§4; team section (U) |
 
 Seven FAQ factors `[R1]`:

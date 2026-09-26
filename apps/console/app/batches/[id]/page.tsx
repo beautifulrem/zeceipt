@@ -288,6 +288,27 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             ))}
           </ul>
         )}
+        {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what downloading it discloses. */}
+        {receipts.length > 0 &&
+          (receipts.some((r) => r.openError) ? (
+            <p className="text-sm text-slate-600">A receipt of this batch does not open, so the OpenZcash file cannot be made.</p>
+          ) : (
+            <div className="space-y-1 text-sm">
+              <p>
+                <a href={`/api/batches/${rec.id}/exports/openzcash`} className="text-sky-700 underline">
+                  Download for OpenZcash (CSV)
+                </a>{" "}
+                <span className="text-slate-600">
+                  {receipts.length < rec.items.length
+                    ? `: ${receipts.length} of ${rec.items.length} lines have receipts, and only those are in the file.`
+                    : `: all ${receipts.length} lines, in the columns OpenZcash's own export writes.`}
+                </span>
+              </p>
+              <p className="text-slate-600">
+                The file holds every receipt link above. Whoever gets it can see each of these payments, and that cannot be taken back: publishing the file in a ledger publishes them.
+              </p>
+            </div>
+          ))}
       </section>
 
       <section aria-labelledby="history-heading" className="space-y-2">

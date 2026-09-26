@@ -67,4 +67,4 @@ Colosseum judges evaluate on Functionality, Potential Impact, Novelty, UX, Open-
 | P3 | receipt page | PDF export, USDC settlement |
 | P4 | audit pack CLI | hosted audit portal |
 | P5 | crates + npm + vectors | ZIP alignment, other chains |
-| P6 | OpenZcash-compatible export (planned; the demo branch is infeasible: no public OpenZcash source) | verified feeds |
+| P6 | OpenZcash-compatible export (built, slices X1–X2c; the demo branch is infeasible: no public OpenZcash source) | verified feeds |
