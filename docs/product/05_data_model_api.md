@@ -50,10 +50,28 @@ Receipt issuance is backend-independent (REQ-CON-11): after `Mined{height}` and 
 
 ## 3. Export formats (exact columns)
 
-### 3.1 OpenZcash-compatible (`openzcash.csv`) `[R5]`
-`recipient,detail,category,usd,zec,rate,date,status,txid,receipt_url`
-- `usd` = budgeted USD (2 dp); `zec` = disbursed ZEC (8 dp); `rate` = locked ZEC/USD; `date` = ISO date of confirmation; `status` ∈ {paid, open, cancelled}.
-- First eight columns match OpenZcash's row model; the last two are additive.
+### 3.1 OpenZcash-compatible (`openzcash.csv`) `[R110]` `[R5]`
+
+This export is planned under REQ-INT-2 (reduced in the solo branch to this export; leaf 3.3.3.2, slice X2). Re-derived 2026-09-26 (slice X1) from OpenZcash's own "Export CSV", so a row from the console sits beside a row exported from openzcash.org in one spreadsheet. The first seven columns match OpenZcash's export in name, order and cell format; the last three are additive.
+
+`Recipient,Detail,Category,USD,ZEC,Date,Status,Txid,Receipt,Rate`
+
+| Column | Value | Format (as OpenZcash renders it) |
+|---|---|---|
+| Recipient | the recipient's display name | text; OpenZcash's cell also carries its row type and origin ("Grant from spreadsheet"), which the console does not have, so it writes the name alone |
+| Detail | the payable's reference (the payment's memo) | text |
+| Category | `·` | OpenZcash's categories (e.g. "Community") are editorial; the console's payable kind is written in Detail's place only if the user asks for it later |
+| USD | the line's dollars | `$12,000` for whole dollars, `$227.50` otherwise (en-US currency); `·` for a line made on the form without dollars |
+| ZEC | the line's zatoshi | comma-grouped ZEC, trailing zeros removed, no symbol (`0.14648356`, `1,234.5`) |
+| Date | the day the receipt was issued, after the payment's confirmation, in UTC | `YYYY-MM-DD` |
+| Status | `Completed` | OpenZcash's label for a paid milestone |
+| Txid | the transaction id | 64 hex characters |
+| Receipt | the receipt link (`https://<host>/r#<payload>`) | text |
+| Rate | the batch's locked ZEC/USD rate for a batch made from payables (exactly one lock, H5a; planned under REQ-INT-2, with the lock of REQ-CON-4) | the stored decimal string; `·` for a batch made on the form, whose lock of record is not settled (slices follow-up G2b1) |
+
+- Rows: one per issued receipt, in batch order then line order; a line without a receipt (not yet confirmed, or not issued) is not a row, since a ledger row here means a verifiable payment.
+- Encoding, as OpenZcash's: a UTF-8 BOM, CRLF line ends, every field in double quotes with `"` doubled, and the same formula guard (a field starting with `=`, `+`, `@`, `-`, tab or CR gets a leading `'` unless it is a number in OpenZcash's pattern); a header row.
+- Disclosure: every Receipt cell carries that output's OCK, so the file shows each listed payment to anyone who holds it (THREAT_MODEL "A receipt link leaks"). It is made on an explicit request through the guarded API, recorded in the audit log, never cached or written to disk by the console, and the page that offers it says so.
 
 ### 3.2 QuickBooks Online 3-column (`qbo.csv`) `[R32]`
 `Date,Description,Amount`

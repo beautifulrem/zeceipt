@@ -92,7 +92,7 @@ Priorities are stated for the two-person baseline plan. Under the solo branch (`
 | ID | Pri | Requirement | Acceptance criterion | Status / evidence | Solo branch (`11_plan.md` §1.1) |
 |---|---|---|---|---|---|
 | REQ-INT-1 | S | Konclave adapter: from its CSV/ledger rows and a txid, issue receipts and write back a `receipt_url` column. | Sample Konclave CSV processed on regtest. | ⬜ | dropped |
-| REQ-INT-2 | S | OpenZcash column-compatible export plus `receipt_url`; demo branch showing a "verified" badge. | Columns match `[R5]` list. | ⬜ | reduced (the export, 3.3.3.2, added back by D10b; the demo branch stays dropped: OpenZcash's source is not public) |
+| REQ-INT-2 | S | OpenZcash column-compatible export plus `receipt_url`; demo branch showing a "verified" badge. | The first seven columns and their cell formats match OpenZcash's own export `[R110]`, with txid, receipt link and rate after them (`05` §3.1). | ⬜ | reduced (the export, 3.3.3.2, added back by D10b; the demo branch stays dropped: OpenZcash's source is not public) |
 | REQ-INT-3 | S | Well-known issuer key file generator; verifier upgrade path (never downgrade). | CLI `well-known` writes the file; verify shows "binding confirmed". | ✅ generator (`zeceipt well-known`, W2a); CLI verify (`--check-issuer`, `--issuer-file`, W2b) shows confirmed / not listed / unknown | kept |
 | REQ-INT-4 | S | Format feedback posted to zips #387 and the forum with a link to vectors. | Post URL recorded. | ⬜ | dropped |
 
@@ -170,7 +170,7 @@ One row per requirement. Evidence for ✅ rows is a test name, a PROOF section o
 | REQ-SOL-4 | ⬜ | 3.3.2.3 | devnet deployment; evidence section to be added to the proof log |
 | REQ-SOL-5 | ⬜ | 3.3.2.4 | `[R33]` asset ids known; quote/min amount to measure |
 | REQ-INT-1 | ⬜ | 3.3.3.1 | `[R10]` CSV format |
-| REQ-INT-2 | ⬜ | 3.3.3.2 | `[R5]` columns; `05` §3.1 |
+| REQ-INT-2 | ⬜ | 3.3.3.2 | `[R110]` OpenZcash's export format (read from its code); `05` §3.1 |
 | REQ-INT-3 | ✅ | 3.3.3.3 | `05` §4 well-known contract; `well_known_prints_the_binding_file`, `verify_reports_the_issuer_binding_and_never_changes_validity` (`cli.rs`); `wellknown.rs` tests; PROOF §2d |
 | REQ-INT-4 | ⬜ | 3.3.3.4 | zips #387 comment drafted (`docs/outreach/zips-387-comment.md`, slice Z1); posting is the user's |
 | NFR-1 | ✅ | 3.4.2.1 | CI source guards; clippy `-D warnings`; `forbid(unsafe_code)` in all five crates |
