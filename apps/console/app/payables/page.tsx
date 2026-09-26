@@ -5,6 +5,7 @@ import { listRecipients } from "../../lib/data/recipients.ts";
 import { serverContext } from "../../lib/server/context.ts";
 import { centsText, recipientLabel, shortAddress } from "../../lib/view/format.ts";
 import { AccessNotice } from "../components/panels.tsx";
+import { ImportForm } from "./import-form.tsx";
 import { PayableForm } from "./payable-form.tsx";
 import { TABLE_CLASS } from "../../lib/view/table.ts";
 
@@ -34,7 +35,11 @@ function hostOf(url: string): string {
 /** What the org owes (slice H4; REQ-CON-3; 04 SCR-3): the list, a kind filter (links, no JavaScript) and the add form. */
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { config, db } = serverContext();
-  const kind = (await searchParams).kind;
+  const params = await searchParams;
+  const kind = params.kind;
+  // Slice I3b: after an import, what it added (from the redirect's query; numbers only).
+  const imported = typeof params.imported === "string" && /^\d{1,3}$/.test(params.imported) ? Number(params.imported) : undefined;
+  const newRecipients = typeof params.newRecipients === "string" && /^\d{1,3}$/.test(params.newRecipients) ? Number(params.newRecipients) : 0;
   const filter = isKind(kind) ? kind : undefined;
   const [all, recipients, holders] = await Promise.all([listPayables(db, config.orgId), listRecipients(db, config.orgId), payableHolders(db, config.orgId)]);
   const list = filter ? all.filter((p) => p.kind === filter) : all;
@@ -49,6 +54,12 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <AccessNotice />
+      {imported !== undefined && (
+        <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-900">
+          Imported {imported} {imported === 1 ? "payable" : "payables"}
+          {newRecipients > 0 ? ` and ${newRecipients} new ${newRecipients === 1 ? "recipient" : "recipients"}` : ""} from the zecpay CSV.
+        </p>
+      )}
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Payables</h1>
         <p className="text-sm text-slate-500">What this org owes, in US dollars. Each reference becomes its payment&apos;s memo, so it is unique.</p>
@@ -125,6 +136,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
       ) : (
         <PayableForm recipients={recipients.map((r) => ({ id: r.id, label: recipientLabel(r.displayName, r.address) }))} />
       )}
+      <ImportForm />
     </>
   );
 }

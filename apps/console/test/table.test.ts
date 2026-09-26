@@ -34,6 +34,6 @@ test("every data table in the app uses TABLE_CLASS; a form grid (inputs in cells
       }
     }
   }
-  assert.equal(data, 4, "the batch list, the batch items, recipients, payables");
+  assert.equal(data, 5, "the batch list, the batch items, recipients, payables, the zecpay import preview (I3b)");
   assert.equal(grids, 1, "the new-batch form's line grid");
 });

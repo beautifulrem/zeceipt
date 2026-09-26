@@ -603,6 +603,52 @@ test("recipients page through next start, posted as a browser without JavaScript
   }
 });
 
+test("zecpay import through next start, as a browser without JavaScript: Preview writes nothing, Import writes what it showed, a changed file is previewed again (slice I3b)", { skip: !RUN }, async () => {
+  const s = await start(demoEnv("zecpay-import", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined }));
+  try {
+    await waitHealthy(s.port, s.child, s.output);
+    const self = `127.0.0.1:${s.port}`;
+    const same = { host: self, origin: `http://${self}` };
+    const text = (b: string) => b.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"');
+    const UA = "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w";
+    const UA2 = "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj";
+    const csv = `name,wallet,amount,currency,payout_currency\nAlice,${UA},500,USD,ZEC\nBob,${UA2},227.50,,\nEve,zs1abc,200,ZEC,ZEC`;
+    const payables = async () => (JSON.parse((await raw(s.port, "GET", "/api/payables", { host: self })).body) as { payables: { reference: string; usdCents: number }[] }).payables;
+    const post = (html: string, fields: [string, string][], headers: Record<string, string> = same) => {
+      const m = multipart([...formFields(html, 'name="csv"'), ...fields]);
+      return raw(s.port, "POST", "/payables", { ...headers, "content-type": m.type }, m.body);
+    };
+    const first = (await raw(s.port, "GET", "/payables", { host: self })).body;
+    assert.ok(text(first).includes("Import payables from a zecpay CSV"), "the page offers the import");
+
+    const previewed = await post(first, [["csv", csv], ["kind", "bounty"], ["prefix", "SEP"], ["intent", "preview"]]);
+    assert.equal(previewed.status, 200);
+    const shown = text(previewed.body);
+    assert.ok(shown.includes("Preview: 2 payables to add") && shown.includes(">Import 2 payables<"), "two rows to add, and the button says so");
+    assert.ok(shown.includes("SEP-2") && shown.includes("SEP-3") && shown.includes("Alice (new)") && shown.includes("$227.50"), "references, new recipients and amounts");
+    assert.ok(shown.includes("CSV line 4 will not be imported: the amount is in ZEC"), "Eve's refusal, by CSV line");
+    assert.deepEqual(await payables(), [], "the preview wrote nothing");
+
+    // Import from another site: refused before anything runs.
+    assert.equal((await post(previewed.body, [["csv", csv], ["kind", "bounty"], ["prefix", "SEP"], ["intent", "confirm"]], { host: self, origin: "http://evil.example" })).status, 403);
+    // Import with a changed file: the fingerprint does not match, so it previews again and writes nothing.
+    const changed = await post(previewed.body, [["csv", csv.replace("500", "501")], ["kind", "bounty"], ["prefix", "SEP"], ["intent", "confirm"]]);
+    assert.equal(changed.status, 200);
+    assert.ok(text(changed.body).includes("changed since the preview; nothing was imported; preview again"));
+    assert.deepEqual(await payables(), []);
+
+    const imported = await post(previewed.body, [["csv", csv], ["kind", "bounty"], ["prefix", "SEP"], ["intent", "confirm"]]);
+    assert.equal(imported.status, 303);
+    assert.equal(imported.location, "/payables?imported=2&newRecipients=2");
+    assert.ok(text((await raw(s.port, "GET", imported.location!, { host: self })).body).includes("Imported 2 payables and 2 new recipients from the zecpay CSV."));
+    assert.deepEqual((await payables()).map((p) => [p.reference, p.usdCents]).sort(), [["SEP-2", 50000], ["SEP-3", 22750]]);
+    assertNoKey(s.output());
+  } finally {
+    s.child.kill("SIGTERM");
+    await within(s.exited, 10_000, "shutdown").catch(() => s.child.kill("SIGKILL"));
+  }
+});
+
 test("payables page through next start, posted as a browser without JavaScript: add in dollars (303), the kind filter, and every error under its field with values kept (slice H4)", { skip: !RUN }, async () => {
   const s = await start(demoEnv("payables", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined }));
   try {
