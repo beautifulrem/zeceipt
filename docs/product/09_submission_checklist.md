@@ -17,7 +17,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | GitHub repository | public URL (open source encouraged; private allowed with judge access) | 👤 push |
 | Presentation (pitch) video | ≤ 3 min, YouTube unlisted | ⬜ |
 | Product demo video | ≤ 3 min technical, YouTube unlisted | ⬜ |
-| Go-to-market | paragraph from `08_gtm_pricing.md` §1–§2 | ⬜ |
+| Go-to-market | draft in §2b (slice D9): first users, channels, milestones, draft pricing | 🟡 fill the status placeholder |
 | Live demo / website URL | `zeceipt.xyz` demo page (or GitHub Pages fallback) — field not in the 2026-09-17 capture; prepare anyway | ⬜ |
 | X / social handle | team handle for weekly updates — not in the capture; prepare anyway | 👤 |
 | AI-assistance disclosure | if the form asks: AI-assisted coding and research were used; all cryptography comes from upstream crates; disclose plainly | ⬜ |
@@ -55,6 +55,24 @@ Receipts compose into audit packs whose totals are lower bounds. An issuer can b
 **Traction.** [Actuals: public receipts, the issuing organisation, public verifications: ≤ 20 words.]
 
 **Team.** [Founder-market fit and roles: ≤ 40 words.]
+
+## 2b. Go-to-market draft (form field "Go-to-market strategy and distribution plans"; slice D9)
+
+Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 2026-09-26), the FPF quarter `[R4]`, targets `11_plan.md` §4 (solo branch), pricing `08_gtm_pricing.md` §4; each claim maps to evidence in `.trellis/tasks/09-26-gtm-paragraph/implement.md`.
+
+**Who first.** Zcash grant and bounty programs, which pay in shielded ZEC and account for it in public: ZCG's ledger is published on OpenZcash, and ZecHub DAO made 129 bounty payments in one quarter. Then ZCG's grantees and payroll teams. The community has named the gap: in a June forum thread on viewing keys for accounting, one reply put it as "The encryption is done; the boring middle is not."
+
+**How it spreads.**
+- A receipt travels as a link to a page that verifies it in the browser, so each payment shows the product to the person paid and to whoever checks it.
+- An open-source core (MIT): the format, test vectors, Rust crates, a CLI and a browser verifier, so wallets and payout tools can issue or check receipts without us.
+- The Zcash forum: a public call for one pilot team, which pays a real batch and sends its contributors their receipt links.
+- The standard: an implementation report for ZIP 311's discussion, asking whether an outputs-only profile could be standardised, so receipts can become a common format rather than ours alone.
+
+**Milestones.** By submission: at least 3 receipts on a public chain, one issuing organisation, one receipt verified publicly by someone outside the team. In 90 days: 2 organisations, 100 receipts a month, one integration with a payout tool.
+
+**Pricing (draft).** The core stays free and open source, with a free hosted tier; paid hosted tiers start at $79 a month; a usage-priced verification API for auditors and compliance vendors comes later.
+
+[Status at submission: which posts are live, the pilot organisation, receipts issued.]
 
 ## 3. Videos
 

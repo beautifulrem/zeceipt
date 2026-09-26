@@ -276,7 +276,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 5.1.1.5 ⬜ PM — Weekly update video 2 (60 s, 10-05). 0.125 pd, 2026-10-04 → 10-07.
 #### 5.1.2 Written
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
-- 5.1.2.2 ⬜ PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2. 0.5 pd, 2026-10-04 → 10-07.
+- 5.1.2.2 🟡 PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2 and §2b. 0.5 pd, 2026-10-04 → 10-07. Drafted 2026-09-26 (slices D8 and D9); the placeholders (team, public-chain receipts, pilot, traction, post status) are filled at the 10-05 upload.
 - 5.1.2.3 👤 ⬜ U — Team members with background context; team location.
 - 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale. Dropped with the solo branch, which forces Developer Infrastructure (`11_plan.md` §1.1, RSK-19); recorded in `09_submission_checklist.md` §1 (slice D8). 0.25 pd, 2026-10-04 → 10-07.
 - 5.1.2.5 ⬜ PM — Logo / graphic: simple wordmark + receipt glyph (SVG) for the form. 0.25 pd, 2026-10-04 → 10-07.
@@ -318,7 +318,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
 | 3 Engineering | 63 | 40 | 1 | 20 | 2 |
 | 4 Launch/GTM | 16 | 0 | 1 | 11 | 4 |
-| 5 Submission | 18 | 3 | 0 | 14 | 1 |
-| **Total** | 185 | 120 | 3 | 52 | 10 |
+| 5 Submission | 18 | 3 | 1 | 13 | 1 |
+| **Total** | 185 | 120 | 4 | 51 | 10 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).
