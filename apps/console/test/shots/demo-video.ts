@@ -353,9 +353,10 @@ try {
   const tech = join(dir, "tech");
   mkdirSync(tech);
   const ENDPOINT = ZAINO;
+  // In the order they are shown (review V2e): inspect, then keygen, issue and verify.
   const techCommands = [
-    "zeceipt keygen --out demo.key",
     `zeceipt inspect --regtest --endpoint ${ENDPOINT} --txid ${txid} | jq -c '{version, outputs: [.outputs[].pool]}'`,
+    "zeceipt keygen --out demo.key",
     `zeceipt issue --regtest --endpoint ${ENDPOINT} --txid ${txid} --ufvk-file ufvk.txt --key-file demo.key --out-dir receipts 2>/dev/null | jq -c '.receipts[].recovered | {index, value_zec, memo: .memo.text, is_change}'`,
     `zeceipt verify --regtest --endpoint ${ENDPOINT} --require-signature "$(ls receipts/*.json | head -1)" | jq '{valid, height, value_zec, memo: .memo.text}'`,
   ];
@@ -365,7 +366,7 @@ try {
     assert.equal(r.status, 0, `${c}: ${r.stderr}`);
     return r.stdout;
   });
-  const inspected = JSON.parse(techOut[1]) as { version: string; outputs: string[] };
+  const inspected = JSON.parse(techOut[0]) as { version: string; outputs: string[] };
   assert.equal(inspected.version, "V6");
   assert.equal(inspected.outputs.length, 6, "six outputs: five payments and the change");
   assert.ok(inspected.outputs.every((p) => p === "ironwood"));
@@ -381,13 +382,13 @@ try {
       <div style="color:#94a3b8">~/demo (regtest)</div>
       ${lines.map((l, i) => `<div id="c${i}" style="white-space:pre-wrap"><span style="color:#38bdf8">$</span> ${esc(l.cmd)}</div><pre style="margin:0 0 6px;white-space:pre-wrap">${esc(l.out)}</pre>`).join("")}
       </body></html>`);
-  // On screen, the long txid and endpoint are shortened in the commands only; the outputs are as printed.
+  // On screen, only the txid is shortened, in the commands only; the outputs are as printed.
   const shown = (c: string) => c.replaceAll(txid, `${txid.slice(0, 10)}…`);
   await segment("tech-terminal", "7-tech-terminal.webm", async (page, step) => {
     await page.goto("data:text/html,");
-    await page.setContent(terminal([{ cmd: shown(techCommands[1]), out: techOut[1] }]));
+    await page.setContent(terminal([{ cmd: shown(techCommands[0]), out: techOut[0] }]));
     await step("inspect: the batch's transaction is version 6, with six Ironwood outputs (five payments and the change)", KEY);
-    await page.setContent(terminal([{ cmd: shown(techCommands[1]), out: techOut[1] }, { cmd: techCommands[0], out: techOut[0] }, { cmd: shown(techCommands[2]), out: techOut[2] }]));
+    await page.setContent(terminal([{ cmd: shown(techCommands[0]), out: techOut[0] }, { cmd: techCommands[1], out: techOut[1] }, { cmd: shown(techCommands[2]), out: techOut[2] }]));
     await step("issue with the issuer's full viewing key: one receipt per payment, five, the change skipped; recipient, amount and memo recovered, no key shown", KEY);
     await page.setContent(terminal([{ cmd: shown(techCommands[2]), out: techOut[2] }, { cmd: shown(techCommands[3]), out: techOut[3] }]));
     await step("verify one receipt against the node: valid, and the height of the block it was mined in", KEY);

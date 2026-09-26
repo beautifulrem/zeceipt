@@ -5,7 +5,7 @@ narration (KB `11_strategy.md` §六). Steps follow `11_plan.md` §5's technical
 `.trellis/tasks/09-27-tech-demo-script/implement.md`.
 Footage (regtest only; recorded by `apps/console/test/shots/demo-video.ts`): `3-receipt-page.webm` from take
 `../raw/demo/20260925230743/` (slice L2); segments 7 to 9 (the terminal, the custody panels, the proof document) from take
-`../raw/demo/20260926184041/` (slice V2e), real commands run as shown, with every OCK filtered out of what is on screen. Cue times
+`../raw/demo/20260926184526/` (slice V2e), real commands run as shown, with every OCK filtered out of what is on screen. Cue times
 are video times, checked on frames.
 -->
 
@@ -16,7 +16,7 @@ The voice-over is spoken over the picture, at about 2 words a second: 334 words,
 | Time | Picture | Voice-over |
 |---|---|---|
 | 0:00–0:13 | Title card: "Zeceipt: how one shielded payment becomes a receipt" | "This is how Zeceipt turns one shielded Zcash payment into a receipt that anyone can check, and what that receipt does and does not prove." |
-| 0:13–0:29 | `7-tech-terminal.webm` (take 20260926184041) from 0.1 s: `zeceipt inspect --regtest …` piped to `jq`, printing V6 and six Ironwood outputs, held. Narrate the count `inspect` prints (a bundle is padded, so a wallet spending more notes can show dummy outputs); the take asserts six | "Everything here runs on a local Zcash test chain. Start from the console's batch payment: a version 6 transaction, and the six Ironwood outputs it lists, five payments and the change." |
+| 0:13–0:29 | `7-tech-terminal.webm` (take 20260926184526) from 0.1 s: `zeceipt inspect --regtest …` piped to `jq`, printing V6 and six Ironwood outputs, held. Narrate the count `inspect` prints (a bundle is padded, so a wallet spending more notes can show dummy outputs); the take asserts six | "Everything here runs on a local Zcash test chain. Start from the console's batch payment: a version 6 transaction, and the six Ironwood outputs it lists, five payments and the change." |
 | 0:29–0:58 | `7-tech-terminal.webm` from 3.1 s: `zeceipt keygen` (a demo key, its public key only), then `zeceipt issue --regtest … --ufvk-file … --key-file demo.key` piped to `jq`: five receipts, each with its output index, amount, memo and `is_change: false`, never a key; held | "The issuer holds the sender's full viewing key, which gives its outgoing viewing key. For each output, the protocol derives an Outgoing Cipher Key from that key and the output's own data. That one key opens that one output, and nothing else. Issuing skips the change, because it pays the sender's own address, and signs five receipts." |
 | 0:58–1:16 | `3-receipt-page.webm` (take 20260925230743): VALID from raw 0.3 s, held; INVALID from raw 3.66 s | "In the browser, the same Rust code, compiled to WebAssembly, recovers the recipient, the amount and the memo from the transaction with that key. Change one character of the receipt, and the signature check fails." |
 | 1:16–1:30 | `7-tech-terminal.webm` from 6.1 s: `zeceipt verify --regtest --endpoint … --require-signature <one receipt>` piped to `jq`: `valid: true`, the block height, the value and the memo, never the key; held | "The command line checks the same receipt against the chain itself: it fetches the transaction from the node and reports the block it was mined in." |
