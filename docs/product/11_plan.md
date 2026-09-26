@@ -119,35 +119,50 @@ Browser verification leaves no trace by design (no telemetry); adoption is count
 
 ## 5. Video beat sheets (English)
 
+Each beat is what the repository has today, with its evidence and whether footage exists. Rewritten on 2026-09-26 (slice V2a), because the first version predated the solo branch: it scripted a Solana attestation write, a Konclave export and an OpenZcash "verified" row, none of which exists. Anything dropped is named as such, not shown.
+
 Pitch (≤ 3:00):
-- 0:00 "Your organisation pays in Zcash. Every time someone asks 'did you really pay?', you hand over the whole wallet's viewing key."
-- 0:20 Console: import 5 USD payables → lock rate → approve → one Ironwood transaction.
-- 1:00 Recipient opens a receipt link; the browser recovers their address, amount and memo from the chain.
-- 1:30 Flip one byte of the receipt → INVALID at the named stage.
-- 1:50 Auditor pack of 5 receipts: total recomputed; an OpenZcash-style ledger row shows "verified".
-- 2:20 Konclave user exports receipts (or the demo branch).
-- 2:40 Business: seats for grant programs and DAOs + verification API; roadmap: ZIP 311 alignment, Solana attestation/confidential balances.
-- 2:50 Team and founder-market fit (two sentences, U to supply).
 
-Footage for the pitch's 0:20–1:30 beats (console, receipt link, tamper) is recorded by `apps/console/test/shots/demo-video.ts` on the live regtest chain (slice L2): three silent segments and a shot list with timings, re-runnable after any UI change; narration and editing stay the person's.
+| Time | Beat | Evidence | Footage |
+|---|---|---|---|
+| 0:00 | "Your organisation pays in Zcash. Every time someone asks 'did you really pay?', the only proof today is handing over the wallet's viewing key, which shows every payment." | README "What it is"; spec §1 | narration over a title |
+| 0:20 | The console: five USD payables (typed, or imported from a zecpay CSV after a preview), one batch at Kraken's rate fixed for it, approved, one Ironwood transaction for all five | PROOF §5g; `05` §3.6 (import) | recorded: `1-console.webm` (slice L2); the import preview is not filmed yet (V2c) |
+| 1:00 | Receipts issued once the payment has its confirmations; a recipient opens their link and the browser recovers their address, amount and memo from the chain | PROOF §5g, §2c | recorded: `2-receipts.webm`, `3-receipt-page.webm` |
+| 1:30 | One character of the receipt changed: INVALID, and the page names the stage | PROOF §2c | recorded: `3-receipt-page.webm` |
+| 1:50 | The public ledger: the batch downloads as the CSV OpenZcash's own "Export CSV" writes, with each row's receipt link, so anyone can check a row; an auditor gets a pack of receipts (`zeceipt pack`, `verify-pack`) whose total is a lower bound | README "Integrations"; spec §8 | not filmed yet (V2c): the page's download, a terminal for the pack |
+| 2:20 | It fits the tools people use: Konclave's payroll CSV fills the console's batch form, zecpay's becomes payables, and any payout tool can call the library after broadcasting | README "Integrations"; `05` §3.6 | the import is not filmed yet (V2c) |
+| 2:40 | Business and roadmap: a free issuer tier, team and organisation plans, a verification API (draft pricing, `08_gtm_pricing.md` §4); next, the forum pilot and a public-chain run; later, ZIP 311's spend-authority half, which needs wallet-side signing | `08` §4; RSK-3 | narration |
+| 2:50 | Team and founder-market fit (two sentences, from the user) | the user | the user |
 
-Technical demo (2–3:00): v6 transaction parse → UFVK → external OVK → per-output OCK → `try_output_recovery_with_ock` inside wasm → tamper rejection → why not a viewing key (all-or-nothing vs per-output) → hot-custody vs external-signer modes → Solana attestation write → trade-off: outputs-only now, spend-authority later → regtest proof walk-through.
+Footage for the 0:20–1:30 beats is recorded by `apps/console/test/shots/demo-video.ts` on the live regtest chain (slice L2): three silent segments and a shot list with timings, re-runnable after any UI change. Narration and editing stay the person's. Say "on a local test chain" wherever a regtest shot is used: no receipt exists on a public chain yet (RSK-3).
+
+Technical demo (2–3:00), in order:
+1. A v6 transaction parsed, and its Ironwood outputs listed (`zeceipt inspect`; PROOF §1).
+2. From the sender's UFVK to its outgoing viewing key to one output's OCK (spec §3), and why that is per output where a viewing key is all or nothing.
+3. Recovery with the OCK inside WASM, in the browser (`@zeceipt/verify`; PROOF §2b), and tamper rejection at a named stage.
+4. The two custody modes: `hot`, where the console pays through Zkool with a token scoped to its account; and `external`, where it holds the UFVK only and refuses Pay, approvals and issuing (`apps/console/README.md`).
+5. The trade-off: outputs only now; spend authority, and so full ZIP 311, needs the spending key and is not built (README; `docs/outreach/zips-387-comment.md`).
+6. The regtest proof walk-through (PROOF §5–§5g).
+
+No Solana step: Solana was dropped with the solo branch (§1.1).
 
 Weekly updates: 2026-09-28 and 2026-10-05, 60 s each (restored by slice D10b). Where to post is not stated in the FAQ; the Arena tracks `isCurrentWeekUpdateSubmitted`, so most likely the Arena dashboard, with X tagging @colosseum as a harmless extra (slice V1; this line first said X only). Script for the first: `docs/outreach/weekly-update-1.md`.
 
 ## 6. Judge answer sheet (receipt version)
 
+Rewritten with §5 (slice V2a): each answer says only what exists, and names planned or dropped work as such.
+
 | Likely asker | Question | Answer |
 |---|---|---|
-| Colosseum team (Clay, Michael, LBO) | "Is this a ZIP or a company? How big is the market?" | Category: the proof layer for private payments. Aleo/Toku, Tempo Zones, Canton and Solana confidential balances all ship private payments in 2026 and none has on-demand proof. Revenue: issuer seats + verification API + audit-pack hosting + licensing. Zcash is the beachhead; Solana is the first chain that consumes receipts. |
-| Matty | "Another payroll tool? Konclave?" | No. Konclave/ZBooks execute payments; we are the proof layer neither has. Konclave plugs in by exporting one ock column. |
-| ZODL-appointed Zcash judge | "Relation to ZIP 311?" | The outputs-disclosure subset (per-output ock) implemented on Ironwood, with an implementation report drafted for zips #387 (posting is the user's). Spend-authority proof needs wallet-side signing; we will propose an RPC to Zallet. |
-| Jill Gunter | "Privacy vs accountability?" | Private by default, provable on demand, as one link. Under EU AMLR (2027) this is the survival property for privacy assets. |
-| Arcium judges (Julian, Milian) | "Why not Arcium / Solana auditor keys?" | Auditor keys see everything per mint; we disclose per output. Complementary; the second stop is receipts for Solana confidential balances via a chain-specific primitive. |
-| Nate | "Verification API idempotency and failure semantics?" | Verification is a pure, stateless, cacheable function. Issuance is idempotent on (txid, index). Unconfirmed returns pending, never invalid. |
-| Jed | "Audit evidence standard, tax?" | Three-part outcome: cryptographic recovery + chain inclusion + issuer signature; totals labelled lower bound; receipts carry FMV data for 1099 totals. |
-| Dean / Mitchell | "How does a DAO treasury use it?" | Every published ledger row self-verifies; audit packs replace viewing-key hand-offs. |
-| Sitaram | "Recipient experience?" | No login; link opens; browser verifies locally; optional USDC-on-Solana settlement. |
+| Colosseum team (Clay, Michael, LBO) | "Is this a ZIP or a company? How big is the market?" | Category: the proof layer for private payments. Aleo/Toku, Tempo Zones, Canton and Solana confidential balances all ship private payments in 2026, and none offers on-demand proof of one payment. Revenue as drafted: a free issuer tier, team and organisation plans, and a verification API or licence (`08_gtm_pricing.md` §4). Zcash is where it works today; another chain would need its own disclosure primitive. |
+| Matty | "Another payroll tool? Konclave?" | No. Konclave and ZBooks execute payments; this is the proof layer neither has. The console reads Konclave's payroll CSV and zecpay's, and a payout tool can issue receipts by calling the library after broadcasting. There is no Konclave adapter (dropped with the solo branch). |
+| ZODL-appointed Zcash judge | "Relation to ZIP 311?" | The outputs-disclosure half (per-output OCK), implemented on Ironwood, with an implementation report drafted for zips #387 (posting is the user's). The spend-authority half needs the spending key, so wallet-side signing; it is not built. |
+| Jill Gunter | "Privacy vs accountability?" | Private by default, provable on demand, as one link. Under EU AMLR (2027) that is the property regulated counterparties will ask of privacy assets. |
+| Arcium judges (Julian, Milian) | "Why not Arcium / Solana auditor keys?" | Auditor keys see everything under a mint; a receipt discloses one output. They are complementary. Receipts for another chain would need that chain's own per-output primitive; that is not built, and Solana work was dropped. |
+| Nate | "Verification API idempotency and failure semantics?" | Verification is a pure function of the receipt and the transaction, so it is stateless and cacheable. Issuance is idempotent per output (txid, pool, output index). An unconfirmed transaction is "pending" (CLI exit 2), never "invalid". A hosted verification API is planned, not built. |
+| Jed | "Audit evidence standard, tax?" | Three parts: the cryptographic recovery, the transaction's place on chain, and the issuer's signature. A pack's total is labelled a lower bound. Each batch made from payables records its locked rate and each line's USD, and the OpenZcash export carries them. Each paying attempt records the execution quote taken just before it pays, with its source and time (NFR-8). The IRS values crypto when it is received, which is confirmation, minutes later; a quote at confirmation is not recorded (`07_compliance_tax.md` §2). |
+| Dean / Mitchell | "How does a DAO treasury use it?" | Publish the OpenZcash-style CSV with each row's receipt link, so every row checks against the chain; hand auditors a pack of receipts instead of a viewing key. |
+| Sitaram | "Recipient experience?" | No login: the link opens, and the browser verifies locally. It asks a public node for the transaction only when you click. |
 
 ## 7. Second-round review verdict (2026-09-21, ported from the private research notes)
 
