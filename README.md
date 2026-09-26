@@ -14,21 +14,29 @@ It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority
 
 ## For judges
 
-**Five minutes, offline, no keys** (Rust with `protoc`; Node 24 or later):
+**About ten minutes on a recent laptop.** You need Rust with `protoc`, Node 24 or later, and Python 3 (for the demo server). The first run downloads crates and npm packages; after that nothing needs the network, and no wallet keys are involved.
 
 ```bash
 cargo test --workspace --features zeceipt-core/synthetic   # 47 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed browser verifier (WASM) against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 432 console tests: 403 run, 29 are opt-in (build-and-serve, regtest)
+
+# issue and verify a receipt offline, from the committed synthetic fixture
+cargo build --release && Z=target/release/zeceipt
+$Z keygen --out /tmp/issuer.key
+$Z issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label demo --key-file /tmp/issuer.key --out-dir /tmp/r
+$Z verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
+
+(cd packages/verify && npm run demo)                       # the receipt page at http://localhost:8787/r/, the paste demo at /demo/
 ```
 
-Then the offline commands under Quick start issue and verify a receipt from the synthetic fixture, and `cd packages/verify && npm run demo` serves the receipt page at `http://localhost:8787/r/` and the paste demo at `/demo/`.
-
-**What runs where.** Everything above runs on your machine; the console listens on 127.0.0.1 only and has no sign-in yet. The live evidence ran on a local Zcash regtest chain (zebrad, Zaino, Zkool; `docs/REGTEST_RUNBOOK.md`): `docs/PROOF.md` §5–§5g. On mainnet, transactions have been parsed and fetched only (§1, §2b); receipts on a public chain wait on funding.
+**What runs where.** Everything above runs on your machine. The console's npm scripts bind it to 127.0.0.1, and it has no sign-in yet (see "Payout console", Security). The live evidence ran on a local Zcash regtest chain (zebrad, Zaino, Zkool; `docs/REGTEST_RUNBOOK.md`): `docs/PROOF.md` §5–§5g. On mainnet, transactions have been parsed and fetched only (§1, §2b); receipts on a public chain wait on funding.
 
 **Where the evidence is.** `docs/PROOF.md` (each claim with its transcript), `spec/receipt-v0.md` (the format), `docs/THREAT_MODEL.md` and `docs/SECURITY_REVIEW.md` (what is defended, what is not).
 
-**Built during the hackathon.** The repository started on 2026-09-21 PT (first commit `252c76e`), a week into the event, and nothing in it predates the event (`docs/PRE_EVENT_STATE.md`; prior art in `docs/PRIOR_ART.md`). The work was cut into small slices, each with a written requirement and each reviewed by an independent reviewer until it scored 100: one record per review round in `docs/product/reviews/`, one task per slice in `.trellis/tasks/`.
+**Built during the hackathon.** The repository started on 2026-09-21 PT (first commit `252c76e`), a week into the event, and no product code predates the event. `.trellis/` and `.claude/` also hold third-party workflow tooling installed with the Trellis tool and Claude Code; with `Cargo.lock`, that tooling is most of the first commit (`docs/PRE_EVENT_STATE.md`; prior art in `docs/PRIOR_ART.md`). The work was cut into small slices, each with a written requirement, and each was reviewed in recorded rounds by a separate AI review agent until it scored 100. The receipt core's and the research phase's rounds are in the development journal; later rounds have one file each in `docs/product/reviews/`, and each slice has a task in `.trellis/tasks/`.
+
+**Team and AI assistance.** Stated in the submission form, in the team's own words.
 
 **How it was prioritised.** `docs/product/11_plan.md`: what a one-person team kept and dropped, and why (§1.1), and the day-by-day schedule (§8). The research behind each decision is in `docs/product/10_research_log.md`.
 
@@ -48,7 +56,6 @@ $Z pack --title "Q3 bounties" receipts/*.json > pack.json && $Z verify-pack pack
 Offline (no network): add `--raw-tx-file tx.hex`. Try it now on the committed synthetic fixture:
 
 ```bash
-cargo run -q -p zeceipt-core --features synthetic --example make_synthetic
 $Z issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label demo --key-file issuer.key --out-dir /tmp/r
 $Z verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
 ```
