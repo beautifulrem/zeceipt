@@ -950,6 +950,84 @@
         }
       }
     },
+    "/api/batches/{id}/exports/openzcash": {
+      "get": {
+        "operationId": "exportOpenZcash",
+        "summary": "The batch's issued receipts as the CSV OpenZcash's own export writes (05 §3.1; REQ-INT-2)",
+        "description": "Ten columns: OpenZcash's seven (Recipient, Detail, Category, USD, ZEC, Date, Status) in its cell formats, then Txid, Receipt and Rate; a UTF-8 BOM, CRLF, quoted fields and OpenZcash's formula guard. Every Receipt cell carries that output's OCK, so the file discloses each listed payment to whoever holds it, permanently: no-store, never logged, and each download is recorded in the audit log as `exported` with its format and row count only.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The CSV, as an attachment",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"zeceipt-openzcash-<batch id>.csv\""
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "description": "no_receipts (nothing issued yet) or receipt_unreadable (a stored receipt does not open; `items` lists its lines); nothing was exported",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "description": "store_busy (with Retry-After: 1) or not_ready (no Retry-After)",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/batches/{id}/rate-lock": {
       "post": {
         "operationId": "lockRate",
@@ -1668,7 +1746,7 @@
           },
           "code": {
             "type": "string",
-            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken, rate_fixed, batch_voided, not_approved, approval_stale, already_paid_ambiguous"
+            "description": "host_not_allowed, cross_site_request, origin_mismatch, unsupported_media_type, body_too_large, bad_request, malformed_json, body_invalid, batch_invalid, batch_not_found, not_ready, internal, payment_rejected, outcome_unknown, submission_in_flight, nonce_conflict, store_busy, wallet_unavailable, custody_external, confirmation_mismatch, preflight_failed, issuance_failed, receipt_unverified, not_ready_for_receipts, batch_frozen, rate_unavailable, rate_not_locked, rate_moved, recipient_invalid, recipient_not_found, payable_invalid, payable_not_found, reference_taken, rate_fixed, batch_voided, not_approved, approval_stale, already_paid_ambiguous, no_receipts, receipt_unreadable"
           },
           "problems": {
             "type": "array",

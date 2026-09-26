@@ -58,7 +58,7 @@ This export is planned under REQ-INT-2 (reduced in the solo branch to this expor
 
 | Column | Value | Format (as OpenZcash renders it) |
 |---|---|---|
-| Recipient | the recipient's display name | text; OpenZcash's cell also carries its row type and origin ("Grant from spreadsheet"), which the console does not have, so it writes the name alone |
+| Recipient | the line's label: the recipient's display name copied when the line was made, so a later payee edit never changes what was paid (slice X2b) | text; OpenZcash's cell also carries its row type and origin ("Grant from spreadsheet"), which the console does not have, so it writes the name alone |
 | Detail | the line's memo (`batch_items.memo`), which is the payable's reference for a line made from a payable | text |
 | Category | the payable's kind for a line made from a payable (`Milestone`, `Invoice`, `Bounty`, `Salary`); `·` for a line made on the form | text; OpenZcash's own categories (e.g. "Community") are editorial, so the two files' categories differ in kind |
 | USD | the line's dollars | `$12,000` for whole dollars, `$227.50` otherwise (en-US currency); `·` for a line made on the form without dollars |

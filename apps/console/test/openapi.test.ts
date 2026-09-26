@@ -36,7 +36,7 @@ test("every route file's methods are documented, and every documented operation 
 });
 
 test("the documented problem codes are exactly the codes the console emits", () => {
-  const src = ["lib/http/guard.ts", "lib/http/body.ts", "lib/http/problem.ts", "lib/http/route.ts", "lib/http/batches.ts", "lib/http/submit.ts", "lib/http/receipts.ts", "lib/http/rates.ts", "lib/http/recipients.ts", "lib/http/payables.ts", "lib/http/payable-batches.ts", "lib/http/voids.ts", "lib/http/approvals.ts", "lib/http/history.ts", "lib/http/record-history.ts"].map((f) => readFileSync(join(APP, f), "utf8")).join("\n");
+  const src = ["lib/http/guard.ts", "lib/http/body.ts", "lib/http/problem.ts", "lib/http/route.ts", "lib/http/batches.ts", "lib/http/submit.ts", "lib/http/receipts.ts", "lib/http/rates.ts", "lib/http/recipients.ts", "lib/http/payables.ts", "lib/http/payable-batches.ts", "lib/http/voids.ts", "lib/http/approvals.ts", "lib/http/history.ts", "lib/http/record-history.ts", "lib/http/exports.ts"].map((f) => readFileSync(join(APP, f), "utf8")).join("\n");
   const emitted = new Set([...src.matchAll(/(?:problem|HttpProblem)\(\s*\d{3},\s*"([a-z_]+)"/g)].map((m) => m[1]));
   const documented = new Set(spec.components.schemas.Problem.properties.code.description.split(/,\s*/));
   assert.deepEqual([...emitted].sort(), [...documented].sort());
@@ -56,6 +56,7 @@ const STATUSES: Record<string, string[]> = {
   "get /api/batches/{id}/status": ["200", "403", "404", "409", "500", "502", "503"],
   "get /api/batches/{id}/receipts": ["200", "403", "404", "500", "503"],
   "post /api/batches/{id}/receipts": ["200", "201", "202", "403", "404", "409", "500", "502", "503"],
+  "get /api/batches/{id}/exports/openzcash": ["200", "403", "404", "409", "500", "503"],
   "post /api/batches/{id}/rate-lock": ["201", "403", "404", "409", "500", "502", "503"],
   "get /api/recipients": ["200", "403", "500", "503"],
   "post /api/recipients": ["201", "400", "403", "413", "415", "422", "500", "503"],

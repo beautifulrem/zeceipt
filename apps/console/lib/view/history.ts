@@ -47,6 +47,12 @@ export function eventText(e: Pick<AuditEvent, "action" | "detail">): string {
     case "receipt_issued":
       text = int(d.idx) !== undefined ? `Receipt issued for line ${int(d.idx)! + 1}` : "Receipt issued";
       break;
+    case "exported": {
+      const rows = int(d.rows);
+      const what = d.format === "openzcash" ? "OpenZcash CSV" : "CSV";
+      text = rows !== undefined ? `Exported as ${what} (${rows} ${rows === 1 ? "receipt link" : "receipt links"})` : `Exported as ${what}`;
+      break;
+    }
     default:
       text = e.action;
   }

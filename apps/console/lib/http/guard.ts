@@ -33,13 +33,23 @@ export function requestProblem(method: string, headers: Headers): Response | nul
   }
   if (SAFE_METHODS.has(method.toUpperCase())) return null;
 
-  const site = headers.get("sec-fetch-site");
-  if (site !== null && site !== "same-origin" && site !== "none") {
-    return problem(403, "cross_site_request", "requests that change data must come from this console's own pages");
-  }
+  const crossSite = crossSiteProblem(headers, "requests that change data must come from this console's own pages");
+  if (crossSite) return crossSite;
   const origin = headers.get("origin");
   if (origin !== null && origin !== `http://${host}` && origin !== `https://${host}`) {
     return problem(403, "origin_mismatch", "requests that change data must come from this console's own origin");
   }
+  return null;
+}
+
+/**
+ * `Sec-Fetch-Site` cross-site or same-site → 403 (OWASP's fetch-metadata resource isolation); absent (not a browser),
+ * `same-origin` or `none` (typed or bookmarked) pass. Unsafe methods always apply it; a GET that returns secrets and
+ * records an event applies it too (slice X2b: the OpenZcash export), so another site cannot make the operator's
+ * browser download receipt links or write to the audit log.
+ */
+export function crossSiteProblem(headers: Headers, detail: string): Response | null {
+  const site = headers.get("sec-fetch-site");
+  if (site !== null && site !== "same-origin" && site !== "none") return problem(403, "cross_site_request", detail);
   return null;
 }

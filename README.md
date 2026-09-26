@@ -19,7 +19,7 @@ It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority
 ```bash
 cargo test --workspace --features zeceipt-core/synthetic   # 47 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed browser verifier (WASM) against the committed vectors
-(cd apps/console && npm ci && npm test)                    # 439 console tests: 410 run, 29 are opt-in (build-and-serve, regtest)
+(cd apps/console && npm ci && npm test)                    # 444 console tests: 415 run, 29 are opt-in (build-and-serve, regtest)
 
 # issue and verify a receipt offline, from the committed synthetic fixture
 cargo build --release && Z=target/release/zeceipt && T=$(mktemp -d)
@@ -116,7 +116,7 @@ Does not prove: who is presenting it (use a challenge for interactive proofs), a
 ## Integrations
 
 - **Konclave / ZBooks / any payout tool**: call `zeceipt_core::issue` (or the CLI) after broadcast; attach the receipt URL to each payslip row.
-- **OpenZcash / public ledgers**: publish each row's receipt link, or a period's audit pack; anyone can verify the rows.
+- **OpenZcash / public ledgers**: publish each row's receipt link, or a period's audit pack; anyone can verify the rows. The console exports a batch's receipts as the CSV OpenZcash's own "Export CSV" writes, plus txid, receipt link and rate (`GET /api/batches/{id}/exports/openzcash`, `docs/product/05_data_model_api.md` §3.1); the file discloses every listed payment, permanently.
 - **Auditors**: receive an audit pack instead of a viewing key; `verify-pack` reports a lower-bound total.
 
 ## Status
