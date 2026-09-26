@@ -14,8 +14,11 @@
 //   5. the batch page's "Download for OpenZcash (CSV)", downloaded through the page, and the file shown as a table (receipt
 //      links and txids abridged on screen);
 //   6. a terminal: `zeceipt pack` and `verify-pack` on the batch's five receipts, the verified total a lower bound
-//      (slice V2c2; the pitch's 1:14 beat). Both render real outputs; their text is scanned for secrets before it is shown.
-// Outputs (outside the repository): 1-console.webm to 6-pack.webm and shots.json (each step's
+//      (slice V2c2; the pitch's 1:14 beat). Both render real outputs; their text is scanned for secrets before it is shown;
+//   7. a terminal: keygen, inspect, issue with the issuer's UFVK and verify against the node, each piped to jq so no key
+//      is on screen; 8. the hot and external consoles' payment-mode panels; 9. PROOF.md's §5 headings (slice V2e; the
+//      technical demo, docs/outreach/tech-demo-video.md).
+// Outputs (outside the repository): 1-console.webm to 9-proof.webm and shots.json (each step's
 // offset in its segment, for editing and narration). Receipt links, OCKs and the wrap key stay in memory: shots.json is
 // scanned for them before it is written.
 
@@ -343,6 +346,95 @@ try {
     await step("an auditor gets a pack of five receipts instead of a viewing key: verify-pack checks each against the transaction, and all five are valid", KEY);
     await page.locator("#c3").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await step("the verified total equals the declared one, and the report says it is a lower bound", KEY);
+  });
+
+  // Segment 7: the technical demo's terminal. A fresh key made here (the issuer's real key file is never copied or shown),
+  // the issuer's UFVK file from the fixtures, the live node. Each command runs as shown; jq keeps every OCK off screen.
+  const tech = join(dir, "tech");
+  mkdirSync(tech);
+  const ENDPOINT = ZAINO;
+  const techCommands = [
+    "zeceipt keygen --out demo.key",
+    `zeceipt inspect --regtest --endpoint ${ENDPOINT} --txid ${txid} | jq -c '{version, outputs: [.outputs[].pool]}'`,
+    `zeceipt issue --regtest --endpoint ${ENDPOINT} --txid ${txid} --ufvk-file ufvk.txt --key-file demo.key --out-dir receipts 2>/dev/null | jq -c '.receipts[].recovered | {index, value_zec, memo: .memo.text, is_change}'`,
+    `zeceipt verify --regtest --endpoint ${ENDPOINT} --require-signature "$(ls receipts/*.json | head -1)" | jq '{valid, height, value_zec, memo: .memo.text}'`,
+  ];
+  writeFileSync(join(tech, "ufvk.txt"), readFileSync(join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), "utf8"));
+  const techOut = techCommands.map((c) => {
+    const r = spawnSync("sh", ["-c", c], { cwd: tech, encoding: "utf8", env: { ...process.env, PATH: `${resolve(BIN, "..")}:${process.env.PATH}` } });
+    assert.equal(r.status, 0, `${c}: ${r.stderr}`);
+    return r.stdout;
+  });
+  const inspected = JSON.parse(techOut[1]) as { version: string; outputs: string[] };
+  assert.equal(inspected.version, "V6");
+  assert.equal(inspected.outputs.length, 6, "six outputs: five payments and the change");
+  assert.ok(inspected.outputs.every((p) => p === "ironwood"));
+  const issuedLines = techOut[2].trim().split("\n").map((l) => JSON.parse(l) as { is_change: boolean | null });
+  assert.equal(issuedLines.length, 5, "five receipts: the change is skipped");
+  const checked = JSON.parse(techOut[3]) as { valid: boolean; height: number | null };
+  assert.equal(checked.valid, true);
+  assert.ok(typeof checked.height === "number" && checked.height > 0, "verified against the node: a mined height");
+  for (const f of readdirSync(join(tech, "receipts"))) secrets.push(String((JSON.parse(readFileSync(join(tech, "receipts", f), "utf8")) as { ock: string }).ock));
+  const terminal = (lines: { cmd: string; out: string }[]) =>
+    show(`<!doctype html><html style="background:#0b1020"><meta charset="utf-8"><title>terminal</title>
+      <body style="margin:0;min-height:100vh;background:#0b1020;color:#e2e8f0;font:14px/1.5 ui-monospace,Menlo,monospace;padding:24px 32px;box-sizing:border-box">
+      <div style="color:#94a3b8">~/demo (regtest)</div>
+      ${lines.map((l, i) => `<div id="c${i}" style="white-space:pre-wrap"><span style="color:#38bdf8">$</span> ${esc(l.cmd)}</div><pre style="margin:0 0 6px;white-space:pre-wrap">${esc(l.out)}</pre>`).join("")}
+      </body></html>`);
+  // On screen, the long txid and endpoint are shortened in the commands only; the outputs are as printed.
+  const shown = (c: string) => c.replaceAll(txid, `${txid.slice(0, 10)}…`);
+  await segment("tech-terminal", "7-tech-terminal.webm", async (page, step) => {
+    await page.goto("data:text/html,");
+    await page.setContent(terminal([{ cmd: shown(techCommands[1]), out: techOut[1] }]));
+    await step("inspect: the batch's transaction is version 6, with six Ironwood outputs (five payments and the change)", KEY);
+    await page.setContent(terminal([{ cmd: shown(techCommands[1]), out: techOut[1] }, { cmd: techCommands[0], out: techOut[0] }, { cmd: shown(techCommands[2]), out: techOut[2] }]));
+    await step("issue with the issuer's full viewing key: one receipt per payment, five, the change skipped; recipient, amount and memo recovered, no key shown", KEY);
+    await page.setContent(terminal([{ cmd: shown(techCommands[2]), out: techOut[2] }, { cmd: shown(techCommands[3]), out: techOut[3] }]));
+    await step("verify one receipt against the node: valid, and the height of the block it was mined in", KEY);
+  });
+
+  // Segment 8: the two custody modes, as each console's home page states them.
+  const ext = await start({
+    ...baseEnv(),
+    ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_DB_PATH: join(dir, "external.db"), ZECEIPT_ORG_ID: "demo-external", ZECEIPT_NETWORK: "regtest",
+    ZECEIPT_WRAP_KEYS: `k1:${WRAP.toString("base64")}`, ZECEIPT_LIGHTWALLETD_URL: ZAINO, ZECEIPT_BIN: BIN,
+    ZECEIPT_UFVK_FILE: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), ZECEIPT_RECEIPT_HOST: site.base,
+    // The demo key made in segment 7 (the issuer's real key file is never used for this second console).
+    ZECEIPT_ISSUER_KEY_FILE: join(tech, "demo.key"), ZECEIPT_ISSUER_KEY_ID: "2026-09",
+  });
+  try {
+    await waitHealthy(ext.port, ext.child, ext.output);
+    await segment("custody", "8-custody.webm", async (page, step) => {
+      // A blank page first, and a moment for the recording to start: the first take had no frame of the hot console,
+      // which painted before the recorder's first frame and never changed.
+      await page.goto("data:text/html,");
+      await page.waitForTimeout(500);
+      await page.goto(`${base}/`);
+      await page.getByText("Hot wallet: the seed lives only in Zkool").first().waitFor();
+      await page.getByText("Hot wallet: the seed lives only in Zkool").first().evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await step("hot custody: the console pays through Zkool, and the seed lives only in the wallet", KEY);
+      await page.goto(`http://127.0.0.1:${ext.port}/`);
+      await page.getByText("External signer: this console never pays or tracks payments").first().waitFor();
+      await page.getByText("External signer: this console never pays or tracks payments").first().evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await step("external custody: a second console holding the viewing key only, which never pays", KEY);
+    });
+    const refused = await raw(ext.port, "POST", "/api/batches/00000000-0000-7000-8000-000000000000/submit", { host: `127.0.0.1:${ext.port}`, origin: `http://127.0.0.1:${ext.port}`, "content-type": "application/json", "sec-fetch-site": "same-origin" }, JSON.stringify({ confirmTotalZat: "1" }));
+    assert.equal(refused.status, 409, `the external console refuses to pay: ${refused.body}`);
+    assert.match(refused.body, /custody_external/);
+  } finally {
+    ext.child.kill("SIGTERM");
+    await within(ext.exited, 10_000, "shutdown").catch(() => ext.child.kill("SIGKILL"));
+  }
+
+  // Segment 9: the proof document's regtest sections, its own headings.
+  const proofHeadings = readFileSync(join(ROOT, "docs/PROOF.md"), "utf8").split("\n").filter((l) => /^## 5/.test(l)).map((l) => l.slice(3));
+  assert.ok(proofHeadings.length >= 7, "PROOF §5 to §5g");
+  await segment("proof", "9-proof.webm", async (page, step) => {
+    await page.goto("data:text/html,");
+    await page.setContent(show(`<!doctype html><html><meta charset="utf-8"><title>docs/PROOF.md</title>
+      <body style="font:16px/1.6 system-ui;margin:40px 56px;color:#0f172a"><div style="color:#64748b;font:13px ui-monospace,Menlo,monospace">docs/PROOF.md (its regtest sections)</div>
+      <ul style="padding-left:20px">${proofHeadings.map((h) => `<li style="margin:6px 0">${esc(h)}</li>`).join("")}</ul></body></html>`));
+    await step("the proof document: each regtest run with its transcript (PROOF §5 to §5g)", KEY);
   });
 
   const index = {

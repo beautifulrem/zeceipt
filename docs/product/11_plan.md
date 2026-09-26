@@ -146,7 +146,7 @@ Technical demo (2–3:00), in order:
 5. The trade-off: outputs only now; spend authority, and so full ZIP 311, needs the spending key and is not built (README; `docs/outreach/zips-387-comment.md`).
 6. The regtest proof walk-through (PROOF §5–§5g).
 
-No Solana step: Solana was dropped with the solo branch (§1.1). The timed script, with each sentence's evidence: `docs/outreach/tech-demo-video.md` (slice V2d; its terminal and console shots are V2e).
+No Solana step: Solana was dropped with the solo branch (§1.1). The timed script, with each sentence's evidence: `docs/outreach/tech-demo-video.md` (slice V2d; its terminal, custody and proof shots are recorded, slice V2e).
 
 Weekly updates: 2026-09-28 and 2026-10-05, 60 s each (restored by slice D10b). Where to post is not stated in the FAQ; the Arena tracks `isCurrentWeekUpdateSubmitted`, so most likely the Arena dashboard, with X tagging @colosseum as a harmless extra (slice V1; this line first said X only). Script for the first: `docs/outreach/weekly-update-1.md`.
 
