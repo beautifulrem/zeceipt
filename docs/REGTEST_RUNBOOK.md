@@ -44,3 +44,10 @@ Notes: Zeceipt's `Network` enum has main/test only; regtest addresses use testne
 - Note: zkool_graphql listens on `0.0.0.0:9000` (all interfaces) and has no bind-address option; without `--jwt-public-key-file` it serves anyone who can reach the port. Start it with the key, run it only on a machine or network you trust, and stop it after the run.
 - From `apps/console`: `ZECEIPT_REGTEST=1 NO_PROXY='*' node --test test/regtest.http.e2e.test.ts`. It builds the app, starts `next start` against the live stack, drives the pages' forms without JavaScript, verifies the receipts with the CLI, and writes `console-http-e2e-<stamp>.json` to `ARTIFACT_DIR`. Environment as for §5c, plus `ZECEIPT_BIN` (default `target/release/zeceipt`; rebuild it after link-format changes). Since slice F3 it also serves `packages/verify/` on a local port, sets it as `ZECEIPT_RECEIPT_HOST`, and opens each console link on the public receipt page in the installed Google Chrome (playwright-core), loading the raw transaction from zebrad as a file. So Chrome must be installed.
 
+
+
+## Console payables path (2026-09-26, PROOF §5g)
+- With the stack of §5e running (Zkool with `--jwt-public-key-file`), from `apps/console`: `ZECEIPT_REGTEST=1 NO_PROXY='127.0.0.1,localhost' node --test test/regtest.payables.e2e.test.ts`. It reaches Kraken through the machine's proxy (`NODE_USE_ENV_PROXY=1`), makes USD payables, a batch at Kraken's live bid, pays it once, and lets the receipt worker issue the receipts on its own; the transcript goes to `console-payables-e2e-<stamp>.json` in `ARTIFACT_DIR` (PROOF §5g).
+
+## Demo footage (slices L2, V2c1, V2c2)
+- After `next build`, with the same stack: `ZECEIPT_REGTEST=1 node test/shots/demo-video.ts [out-dir]` from `apps/console`. It records six silent segments into `../raw/demo/<stamp>/` with `shots.json`; check a frame of each segment (the repository's `CLAUDE.md`).
