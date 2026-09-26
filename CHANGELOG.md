@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the version is 0.x, anything public may change between minor versions.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the version is 0.x, anything may change at any time (SemVer item 4).
 
 Version links will be added once the repository has a public URL.
 
@@ -12,7 +12,7 @@ The first release. This section becomes `0.1.0` when the tag is cut.
 
 ### Added
 
-- **Receipt format v0** (`spec/receipt-v0.md`). A receipt is a signed envelope that discloses one shielded output by its Outgoing Cipher Key, so that anyone can recover exactly that output's recipient, amount and memo from the chain without a viewing key. It is the `outputs` half of ZIP 311, without the spend-authority proof, which needs the spending key.
+- **Receipt format v0** (`spec/receipt-v0.md`). A receipt is an optionally signed envelope that discloses one shielded output by its Outgoing Cipher Key, so that anyone can recover exactly that output's recipient, amount and memo from the chain without a viewing key. It is the `outputs` half of ZIP 311, without the spend-authority proof, which needs the spending key, and without ZIP 311's requirements that only a sender can create a disclosure and that it cannot be re-signed (`docs/outreach/zips-387-comment.md`).
   - Canonical signing bytes with an ed25519 issuer signature.
   - Challenges, for receipts made out to one verifier.
   - Audit packs, whose total is a lower bound.
@@ -30,15 +30,15 @@ The first release. This section becomes `0.1.0` when the tag is cut.
   - `verify --check-issuer` for the domain binding: HTTPS only, no redirects, public addresses only, and at most 64 KiB (§2d).
 - **The browser verifier and the receipt page.**
   - `zeceipt-wasm` is packaged as `@zeceipt/verify` in `packages/verify`, with the built WASM committed.
-  - The receipt page at `/r/` verifies a receipt link in the browser. It reports where the transaction is on chain according to the node you choose, or from a file.
-  - The page checks the issuer's domain only when asked, stores nothing, and sends no request you did not ask for (§2b, §2c, §2e).
+  - The receipt page at `/r/` verifies a receipt link in the browser, against the transaction fetched from a public node when you ask, or loaded from a file, and says where the transaction is on chain.
+  - The page checks the issuer's domain only when asked, stores nothing, and sends nothing outside its own site unless you ask (§2b, §2c, §2e).
 - **The payout console** (`apps/console`). A self-hosted Next.js and SQLite app for a treasurer who pays contributors in shielded ZEC. Its `npm start` and `npm run dev` scripts bind it to 127.0.0.1.
   - **Setup:** recipients with checked unified addresses, and payables in US dollars.
   - **Imports:** a Konclave payroll CSV fills the new-batch form for review. A zecpay CSV becomes payables after a preview, all rows or none (`docs/product/05_data_model_api.md` §3.6).
   - **Batches:**
-    - made by hand or from payables, at a ZEC/USD rate quoted from Kraken and fixed for the batch, each line floored to the zatoshi;
+    - made by hand, with lines in ZEC and a ZEC/USD rate lock from Kraken that can be re-locked until the batch is submitted, or from payables, with US dollars converted at a Kraken rate fixed for the batch, each line floored to the zatoshi;
     - approved by an HMAC over the lines, rate and paying account;
-    - paid once in one Ironwood transaction through Zkool, with a token scoped to the console's account and the rate re-checked before paying;
+    - paid in one Ironwood transaction per batch through Zkool, with a token scoped to the console's account and the rate re-checked before paying; an uncertain attempt is paid again only when nothing was mined past its expiry bound (the cases that remain are RSK-21 in `docs/product/06_risk_register.md`);
     - voided while they cannot have been paid, freeing their payables.
   - **Receipts:**
     - one per payment, issued by a worker once the payment has the configured confirmations;
