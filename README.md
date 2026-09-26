@@ -25,7 +25,7 @@ node packages/verify/test/verify.mjs                       # the committed brows
 cargo build --release && Z=target/release/zeceipt && T=$(mktemp -d)
 $Z keygen --out $T/issuer.key
 $Z issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label demo --key-file $T/issuer.key --out-dir $T/r
-$Z verify $T/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
+$Z verify $T/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature   # issue prints two expected notes: a bare OVK issues every opened output, and no --host means no link
 
 (cd packages/verify && npm run demo)                       # the receipt page at http://localhost:8787/r/, the paste demo at /demo/
 ```
