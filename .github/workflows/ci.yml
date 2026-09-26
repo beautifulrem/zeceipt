@@ -29,6 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: one version in every source, and the changelog's shape (release check, and its tests)
+        run: python3 scripts/check_release.py && python3 scripts/test_check_release.py
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
       - name: "@zeceipt/verify as published: the tarball's files, public access, and the README's Node example through the installed package (offline)"
