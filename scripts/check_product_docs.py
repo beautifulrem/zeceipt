@@ -599,7 +599,7 @@ if solo_sched:
         days_sum += days
         cap_sum += float(cap_s)
     listed_kept = set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", solo_kept_tbl))
-    dropped_para = solo_dropped.split("\n\n")[0]
+    dropped_para = solo_dropped.split("Cuts below the line")[0]  # the whole dropped list, up to the below-the-line cuts (review D10b round 1)
     for leaf in sorted(listed_kept & set(re.findall(r"\b(\d\.\d\.\d\.\d)\b", dropped_para))):
         errors.append(f"11_plan.md §1.1: leaf {leaf} is both in the kept table and in the dropped list (an added-back leaf must leave the dropped list)")
     if prev_end != _dt.date(2026, 10, 11):

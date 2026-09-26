@@ -295,7 +295,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ---
 
-## Asks of the user (all 👤 leaves, by due date)
+## Asks of the user (all 👤 leaves, plus the user's part of PM leaves that §8 marks in bold, by due date)
 
 Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-22 → 09-26 had passed unanswered, and each new date is the one §8 gives.
 
@@ -303,12 +303,14 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 |---|---|---|---|
 | 2026-09-28 | 2.4.3.4 | Confirm the product name (default: Zeceipt) | README, npm scope, domain |
 | 2026-09-28 | 4.1.1.1 | Create the GitHub org/repo, push, enable CI | CI has never run; judges need a public URL; dead links in README/package.json; the forum and zips #387 drafts wait on it |
+| 2026-09-28 | 5.1.1.3 | Record and post weekly update 1 (60 s; script and footage ready; needs the Arena project registered to post) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8); 4.2.2.4 counts the posts | the officially "strongly recommend"-ed weekly update; fallback: by 09-30 or skipped |
 | 2026-09-30 | 3.4.1.4 | Claim testnet TAZ from a faucet (human CAPTCHA/PoW gate) | first public-chain receipt (PROOF §6) |
 | 2026-09-30 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | public-chain receipts (solo target ≥ 3), which must land by 10-03, before the videos |
 | 2026-10-01 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
 | 2026-10-01 | 4.1.2.3 | Decide whether to contact Konclave's author (default: yes). The adapter was dropped with the solo branch (`11_plan.md` §1.1), so this is now only a pilot channel | a second pilot candidate |
 | 2026-10-03 | 1.1.1.4 | Confirm the submission window open date (Colosseum Discord/FAQ); inferred 2026-10-05 11:00 to 10-06 11:00 UTC `[R106]` | sets the initial-upload day (5.2.1.1) |
 | 2026-10-03 | 2.4.3.3 | Team roster and two founder-market-fit sentences | pitch video (recorded from 10-04), submission form |
+| 2026-10-05 | 5.1.1.5 | Record and post weekly update 2 (60 s; script and footage ready) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8) | as above; fallback: by 10-07 or skipped |
 | 2026-10-09 | 5.1.2.3 | Team backgrounds and location for the form | submission form fields |
 | 2026-10-10 | 4.1.1.3 | `npm publish @zeceipt/verify` — the day after the security review rerun (3.4.2.3) completes on 10-09, which is also the day the v0.1.0 tag (4.1.1.4, restored by slice D10b) is cut; a release action, allowed during the freeze | REQ-WEB-8; integrator story; irreversible, so it follows the audit by a full day |
 

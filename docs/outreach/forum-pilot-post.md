@@ -51,7 +51,7 @@ Evidence for each item: `docs/PROOF.md` §1, §2, §2b–§2e, §5 and §5b–§
 
 - **Receipts on a public chain:** the testnet run is prepared and waits on faucet funds, and mainnet comes after. This is why I'm asking for a pilot.
 - **Two approvers:** the console has one approver and no sign-in yet.
-- **Accounting exports:** OpenZcash, QuickBooks and Xero are not built for this hackathon.
+- **Accounting exports:** an OpenZcash-compatible export (the ledger's columns plus a receipt link per row) is being built; QuickBooks and Xero are not built for this hackathon. If you maintain a ledger, would that format be useful to you?
 
 ## The pilot I'm looking for
 
