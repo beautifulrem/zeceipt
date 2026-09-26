@@ -11,16 +11,16 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Blockchains and tools integrated | Zcash: Ironwood, Orchard and Sapling; lightwalletd and Zaino gRPC; Zkool GraphQL; Zebra on regtest | ✅ Solana and NEAR Intents were dropped with the solo branch (`11_plan.md` §1.1), which forfeits accelerator eligibility `[R1]` |
 | Track | Zcash | ✅ |
 | Category | **Developer Infrastructure**: the solo branch replaced the baseline on 2026-09-24, since no second person was confirmed (`11_plan.md` §1.1, RSK-19), and its rule forces this category. Payments & Remittance would have been the primary otherwise | ✅ by rule |
-| Team members with background | names, roles, 2-line bios | 👤 |
+| Team members with background | "All teammates, with context on their backgrounds and previous experience" `[R109]`: names, roles, backgrounds, previous experience | 👤 |
 | Team location / country | | 👤 |
 | Logo / graphic | a plain text wordmark (the designed logo, WBS 5.1.2.5, was dropped with the solo branch) | ⬜ |
-| GitHub repository | public URL (open source encouraged; private allowed with judge access) | 👤 push |
+| GitHub repository | public URL (open source encouraged; or private with access granted to hackathon@colosseum.com `[R109]`) | 👤 push |
 | Presentation (pitch) video | 2–3 min ("one of the first resources judges review" `[R109]`), YouTube unlisted | ⬜ |
 | Product demo video | ≤ 3 min, how the product works `[R109]`, YouTube unlisted | ⬜ |
 | Go-to-market (the form asks for "Go-to-market strategy, demand validation, and plans for developing distribution" `[R109]`) | draft in §2b (slice D9): first users, demand in a user's words, channels, milestones, draft pricing | 🟡 fill the status placeholder |
 | Live demo / website URL | `zeceipt.xyz` demo page (or GitHub Pages fallback) — field not in the 2026-09-17 capture; prepare anyway | ⬜ |
 | X / social handle | team handle for weekly updates — not in the capture; prepare anyway | 👤 |
-| Past development work (required: "teams must disclose all relevant past development work in the submission form" `[R109]`) | Draft, from `docs/PRE_EVENT_STATE.md`: the repository started on 2026-09-21 PT, a week into the event, and no product code predates it; research notes and the product definition were kept in a private knowledge base; third-party code is published crates and npm packages (lockfiles) and the workflow tooling under `.trellis/` and `.claude/` (Trellis, Claude Code), installed with those tools, which with `Cargo.lock` is most of the first commit | ⬜ the user confirms and submits it |
+| Past development work (required: "teams must disclose all relevant past development work in the submission form" `[R109]`) | Draft, from `docs/PRE_EVENT_STATE.md`: the repository started on 2026-09-21 PT, a week into the event, and no product code predates it; before the event there was only a general study library of other hackathons' winning projects (June 2026), not specific to this product; the competition research and the product definition were written during the event (2026-09-17 → 09-21) in a private knowledge base, before the repository started; third-party code is published crates and npm packages (lockfiles) and the workflow tooling under `.trellis/` and `.claude/` (Trellis, Claude Code), installed with those tools, which with `Cargo.lock` is most of the first commit; `docs/PRIOR_ART.md` reviews other people's projects and none of their code is used. The same statement is public in `docs/PRE_EVENT_STATE.md` and the README "For judges" section. The user adds any earlier work only they know of | ⬜ the user confirms and submits it |
 | AI-assistance disclosure | if the form asks: AI-assisted coding and research were used; all cryptography comes from upstream crates; disclose plainly | ⬜ |
 | isUniversityProject / isSolanaMobile | no / no | ✅ |
 
