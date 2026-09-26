@@ -65,26 +65,25 @@ export type ExportLine = {
 
 const KIND_LABEL = { milestone: "Milestone", invoice: "Invoice", bounty: "Bounty", salary: "Salary" } as const;
 
-/**
- * OpenZcash's per-cell clean-up, verbatim (`.replace(/\s+/g, " ").trim()` on each rendered cell), with the `·` its
- * renderers show for an empty value. Applied to its seven columns, so a cell never differs from what its own export
- * writes for the same text (review X2a round 1): a Detail cell shows the memo with its whitespace collapsed, while the
- * receipt keeps the exact memo.
- */
-export function openZcashCell(text: string): string {
-  return text.replace(/\s+/g, " ").trim() || EMPTY;
+/** OpenZcash's per-cell clean-up, verbatim: its table applies `.replace(/\s+/g, " ").trim()` to each rendered cell. */
+export function cleanCell(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 /** The ten cells of `05` §3.1 for one line, before quoting. */
 export function openZcashRow(line: ExportLine): string[] {
+  // Each of OpenZcash's seven cells in its renderer's order: the renderer's `·` for an empty value first, then the
+  // clean-up (so a whitespace-only memo gives an empty cell, as OpenZcash's `detail || "·"` does; review X2a round 2).
+  // Recipient is the exception: OpenZcash's cell is never empty (it carries the row type and origin), so the `·` after
+  // cleaning is the console's own choice, for an empty or blank label.
   const openZcashColumns = [
-    line.recipientName,
-    line.memo,
-    line.kind ? KIND_LABEL[line.kind] : EMPTY,
-    formatUsdCents(line.usdCents),
-    formatZec(line.zat),
-    line.broadcastAt ? new Date(line.broadcastAt).toISOString().slice(0, 10) : EMPTY,
-    "Completed",
-  ].map(openZcashCell);
+    cleanCell(line.recipientName) || EMPTY,
+    cleanCell(line.memo || EMPTY),
+    cleanCell(line.kind ? KIND_LABEL[line.kind] : EMPTY),
+    cleanCell(formatUsdCents(line.usdCents)),
+    cleanCell(formatZec(line.zat)),
+    cleanCell(line.broadcastAt ? new Date(line.broadcastAt).toISOString().slice(0, 10) : EMPTY),
+    cleanCell("Completed"),
+  ];
   return [...openZcashColumns, line.txid, line.receiptUrl, line.rate ?? EMPTY];
 }
