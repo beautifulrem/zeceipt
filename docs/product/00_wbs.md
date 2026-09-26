@@ -261,7 +261,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 4.2.2.1 ⬜ PM — Receipts issued on public chains (target ≥ 15 by 2026-10-12).
 - 4.2.2.2 ⬜ PM — npm/crate downloads (≥ 50).
 - 4.2.2.3 ⬜ PM — Publicly posted third-party verifications (≥ 3).
-- 4.2.2.4 ⬜ PM — Weekly X updates posted (2026-09-28, 2026-10-05).
+- 4.2.2.4 ⬜ PM — Weekly updates posted (most likely on the Arena dashboard, with X as an extra; slice V1) (2026-09-28, 2026-10-05).
 
 ---
 
@@ -303,7 +303,7 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 |---|---|---|---|
 | 2026-09-28 | 2.4.3.4 | Confirm the product name (default: Zeceipt) | README, npm scope, domain |
 | 2026-09-28 | 4.1.1.1 | Create the GitHub org/repo, push, enable CI | CI has never run; judges need a public URL; dead links in README/package.json; the forum and zips #387 drafts wait on it |
-| 2026-09-28 | 5.1.1.3 | Record and post weekly update 1 (60 s; script and footage ready; needs the Arena project registered to post) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8); 4.2.2.4 counts the posts | the officially "strongly recommend"-ed weekly update; fallback: by 09-30 or skipped |
+| 2026-09-28 | 5.1.1.3 | Record and post weekly update 1 (60 s; script and footage ready; most likely on the Arena dashboard, inferred from `isCurrentWeekUpdateSubmitted` and needing the project registered, with X tagging @colosseum as an extra) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8); 4.2.2.4 counts the posts | the officially "strongly recommend"-ed weekly update; fallback: by 09-30 or skipped |
 | 2026-09-30 | 3.4.1.4 | Claim testnet TAZ from a faucet (human CAPTCHA/PoW gate) | first public-chain receipt (PROOF §6) |
 | 2026-09-30 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | public-chain receipts (solo target ≥ 3), which must land by 10-03, before the videos |
 | 2026-10-01 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
