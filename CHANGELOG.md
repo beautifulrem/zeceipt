@@ -1,0 +1,62 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). While the version is 0.x, anything public may change between minor versions.
+
+Version links will be added once the repository has a public URL.
+
+## [Unreleased]
+
+The first release. This section becomes `0.1.0` when the tag is cut.
+
+### Added
+
+- **Receipt format v0** (`spec/receipt-v0.md`). A receipt is a signed envelope that discloses one shielded output by its Outgoing Cipher Key, so that anyone can recover exactly that output's recipient, amount and memo from the chain without a viewing key. It is the `outputs` half of ZIP 311, without the spend-authority proof, which needs the spending key.
+  - Canonical signing bytes with an ed25519 issuer signature.
+  - Challenges, for receipts made out to one verifier.
+  - Audit packs, whose total is a lower bound.
+  - An optional binding of an issuer key to a domain: `/.well-known/zeceipt.json`, which can only confirm a claim, never change a verdict.
+  - Receipt links that carry the receipt in the URL fragment.
+  - Committed test vectors: `spec/test-vectors/receipt-v0.json`.
+- **`zeceipt-core`.** Parsing of v4, v5 and v6 transactions. It recovers each output's recipient, amount and memo for Ironwood, Orchard and Sapling from the OCK, using the upstream Zcash crates and re-implementing no cryptography. It issues receipts from a UFVK or a bare OVK, and verifies them.
+  - Evidence: the official Orchard note-encryption vectors, round trips and tamper cases (`docs/PROOF.md` §2, §3).
+- **`zeceipt-lwd`.** A lightwalletd and Zaino gRPC client: `GetTransaction`, `GetLatestBlock`, and a `GetBlockRange` scan. It was checked against `zec.rocks` on mainnet (§1).
+- **`zeceipt` CLI.**
+  - Subcommands: `keygen`, `inspect`, `issue`, `verify`, `pack`, `verify-pack`, `well-known` and `find-ironwood`.
+  - Exit codes: 0 valid, 1 invalid, 2 pending, 3 usage.
+  - Offline use with `--raw-tx-file`.
+  - `--host` for receipt links, with no default host.
+  - `verify --check-issuer` for the domain binding: HTTPS only, no redirects, public addresses only, and at most 64 KiB (§2d).
+- **The browser verifier and the receipt page.**
+  - `zeceipt-wasm` is packaged as `@zeceipt/verify` in `packages/verify`, with the built WASM committed.
+  - The receipt page at `/r/` verifies a receipt link in the browser. It reports where the transaction is on chain according to the node you choose, or from a file.
+  - The page checks the issuer's domain only when asked, stores nothing, and sends no request you did not ask for (§2b, §2c, §2e).
+- **The payout console** (`apps/console`). A self-hosted Next.js and SQLite app for a treasurer who pays contributors in shielded ZEC. Its `npm start` and `npm run dev` scripts bind it to 127.0.0.1.
+  - **Setup:** recipients with checked unified addresses, and payables in US dollars.
+  - **Imports:** a Konclave payroll CSV fills the new-batch form for review. A zecpay CSV becomes payables after a preview, all rows or none (`docs/product/05_data_model_api.md` §3.6).
+  - **Batches:**
+    - made by hand or from payables, at a ZEC/USD rate quoted from Kraken and fixed for the batch, each line floored to the zatoshi;
+    - approved by an HMAC over the lines, rate and paying account;
+    - paid once in one Ironwood transaction through Zkool, with a token scoped to the console's account and the rate re-checked before paying;
+    - voided while they cannot have been paid, freeing their payables.
+  - **Receipts:**
+    - one per payment, issued by a worker once the payment has the configured confirmations;
+    - sealed at rest;
+    - exported per batch as the CSV OpenZcash writes, plus the txid, receipt link and rate.
+  - **Records:** an append-only history of every batch, recipient and payable, and a warning before paying an address an earlier receipt disclosed.
+  - **API:** described in `docs/api/openapi.json`, with `application/problem+json` errors.
+  - **Live runs:** on a local regtest chain (§5c–§5g). These cover a batch driven through the pages without JavaScript, the payables path at Kraken's live rate, and a restored database that adopts a mined payment instead of paying again.
+- **Security.**
+  - `docs/THREAT_MODEL.md`.
+  - `scripts/security_review.sh`, which runs `cargo audit`, `npm audit`, gitleaks over the history and the tree, and the source guards (`docs/SECURITY_REVIEW.md`).
+  - Security controls for the console:
+    - loopback `Host`s only, with no cross-site writes;
+    - pages that cannot be framed, and that run only nonced scripts;
+    - a refusal to pay through a Zkool that serves requests without a token.
+
+Not in this release:
+- receipts on a public chain (the testnet run waits on faucet funds; `docs/PROOF.md` §4);
+- `@zeceipt/verify` on npm (it is packaged, not published);
+- sign-in for the console;
+- the spend-authority proof of full ZIP 311.

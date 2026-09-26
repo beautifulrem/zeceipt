@@ -3,7 +3,7 @@
 Verifiable receipts for shielded Zcash payments on the live **Ironwood** pool.
 An organisation that pays in shielded ZEC can hand each recipient, auditor or public ledger a receipt that anyone verifies against the chain — recovering exactly one output's recipient, amount and memo — **without giving away a viewing key** and without revealing any other payment.
 
-- Live demo / proof: [`docs/PROOF.md`](docs/PROOF.md) (mainnet-read, synthetic, browser, regtest chain-write, and a Zkool-built 3-recipient batch in §5b) · Format: [`spec/receipt-v0.md`](spec/receipt-v0.md) · Prior art: [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) · Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
+- Live demo / proof: [`docs/PROOF.md`](docs/PROOF.md) (mainnet-read, synthetic, browser, regtest chain-write, and a Zkool-built 3-recipient batch in §5b) · Format: [`spec/receipt-v0.md`](spec/receipt-v0.md) · Prior art: [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) · Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) · Changes: [`CHANGELOG.md`](CHANGELOG.md)
 - Built for Colosseum Crypto World's Fair 2026, Zcash track. Repository created 2026-09-21 PT — commits are timestamped +08:00, so `git log` shows the first commit as 2026-09-22 00:07 (see [`docs/PRE_EVENT_STATE.md`](docs/PRE_EVENT_STATE.md)). MIT.
 
 ## What it is
@@ -73,7 +73,7 @@ Receipt links: with `--host`, `zeceipt issue` prints each receipt as `https://<h
 
 `apps/console` is a self-hosted web console (Next.js, SQLite, loopback only) for a treasurer who pays contributors in shielded ZEC:
 
-1. Record recipients (their shielded addresses, checked as unified addresses) and payables in US dollars.
+1. Record recipients (their shielded addresses, checked as unified addresses) and payables in US dollars, or import them: a zecpay CSV becomes payables after a preview, and a Konclave payroll CSV fills the new-batch form for review.
 2. Make a batch from payables: the ZEC/USD rate is quoted from Kraken and fixed for the batch, and each line is its dollars at that rate, floored to the zatoshi, so the payer never overpays.
 3. Approve it: the approval is bound by HMAC to the exact lines, rate and paying account, so any change needs a new one.
 4. Pay: one Ironwood transaction for the whole batch through Zkool (the seed stays in the wallet; the console holds a viewing key), once per batch (see Security), with the rate re-checked before paying.
@@ -115,7 +115,7 @@ Does not prove: who is presenting it (use a challenge for interactive proofs), a
 
 ## Integrations
 
-- **Konclave / ZBooks / any payout tool**: call `zeceipt_core::issue` (or the CLI) after broadcast; attach the receipt URL to each payslip row.
+- **Konclave / ZBooks / any payout tool**: call `zeceipt_core::issue` (or the CLI) after broadcast; attach the receipt URL to each payslip row. Or pay through the console with the file you already have: it reads a Konclave payroll CSV (`label,address,value[,memo]`, ZEC) into the new-batch form for review, and a zecpay CSV (`name,wallet,amount,currency,payout_currency`, USD) as payables, after a preview that shows each address it will pay, all rows or none (`docs/product/05_data_model_api.md` §3.6).
 - **OpenZcash / public ledgers**: publish each row's receipt link, or a period's audit pack; anyone can verify the rows. The console exports a batch's receipts as the CSV OpenZcash's own "Export CSV" writes, plus txid, receipt link and rate (`GET /api/batches/{id}/exports/openzcash`, `docs/product/05_data_model_api.md` §3.1); the file discloses every listed payment, permanently.
 - **Auditors**: receive an audit pack instead of a viewing key; `verify-pack` reports a lower-bound total.
 
