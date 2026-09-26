@@ -27,7 +27,7 @@ Why now: the Ironwood pool activated on 2026-07-28 and the Orchard pool is seale
 
 - Who: bounty hunters, grant recipients, remote contributors paid in shielded ZEC.
 - Evidence: IRS treats FMV at receipt as income `[R25]`; recipients need USD value and date per payment; the forum thread notes "the auditor needs proof" `[R3]`.
-- Jobs: prove income (tax, visa, loans); confirm which invoice a payment settled; optionally receive USDC on Solana instead.
+- Jobs: prove income (tax, visa, loans); confirm which invoice a payment settled; optionally receive USDC on Solana instead (dropped with Solana in the solo branch).
 - Pains: screenshots are not evidence; wallets show memos but nothing exportable.
 - Success: one link per payment that any third party can verify; PDF/JSON export.
 
@@ -64,7 +64,7 @@ Colosseum judges evaluate on Functionality, Potential Impact, Novelty, UX, Open-
 |---|---|---|
 | P1 | pilot target (ZecHub's bounties, with FPF as the sender who issues; or a payer from the forum call) | ZCG/FPF adoption via OpenZcash |
 | P2 | CSV import of Konclave's format (planned; the Konclave-side adapter was dropped) | console customers |
-| P3 | receipt page | PDF export, USDC settlement |
+| P3 | receipt page | PDF export (not built), USDC settlement (dropped) |
 | P4 | audit pack CLI | hosted audit portal |
 | P5 | crates + npm + vectors | ZIP alignment, other chains |
 | P6 | OpenZcash-compatible export (built, slices X1–X2c; the demo branch is infeasible: no public OpenZcash source) | verified feeds |

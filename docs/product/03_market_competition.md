@@ -28,7 +28,7 @@ Legend: ● has it · ○ partial · — none. Columns are the capabilities a ju
 
 | Product | Live pool | Batch payouts | USD-denominated | Approvals | Per-payment verifiable receipt | Audit pack / lower-bound | Accounting export | Active | Ref |
 |---|---|---|---|---|---|---|---|---|---|
-| **Zeceipt (this)** | Ironwood (+Orchard/Sapling) | ● console: one transaction per batch, never twice | ● payables in USD at a fixed lock | ○ one approver, HMAC-bound; two approvers dropped (REQ-CON-22) | ● (OCK, signed, challenge) | ● | dropped in the solo branch (REQ-CON-14) | yes | PROOF §5d; `01` REQ-CON-3/-4/-5/-7 |
+| **Zeceipt (this)** | Ironwood (+Orchard/Sapling) | ● console: one transaction per batch (RSK-21's remaining cases) | ● payables in USD at a fixed lock | ○ one approver, HMAC-bound; two approvers dropped (REQ-CON-22) | ● (OCK, signed, challenge) | ● | dropped in the solo branch (REQ-CON-14) | yes | PROOF §5d; `01` REQ-CON-3/-4/-5/-7 |
 | Konclave | Ironwood | ● one tx N memos | — | ● FROST t-of-n | — (self-attested ledger) | — | ○ CSV ledger | yes, users | `[R10]` |
 | Laminar | n/a (prepares intents; the wallet signs) | ● CSV → ZIP-321 intents (proposed) | — | — | ○ "Receipt Bundle": hash-linked intent manifest, integrity only; discloses nothing by default | — | — | RFC and ZCG grant application 2026 ($50k, 12 weeks); delivery **unverified** | `[R92]` |
 | ZBooks | Orchard-era | ○ ZIP-321 QR | — | ● M-of-N | — | — | ○ CSV/P&L | dormant 2026-07-30 | `[R11]` |
@@ -48,7 +48,7 @@ Reading: nobody on Zcash (or elsewhere in the table) combines chain-verifiable p
 
 ## 4. Positioning statement
 
-For organisations that pay people in shielded ZEC and must prove it, Zeceipt is the disclosure layer that turns each payment into a receipt anyone can verify against the chain, without handing over a viewing key. Unlike payout tools (Konclave, ZBooks) that only keep an internal ledger, and unlike viewing-key exports that reveal everything, Zeceipt discloses exactly one output per receipt and packages receipts into lower-bound audit packs and accounting exports. Execution tools are integrations, not competitors.
+For organisations that pay people in shielded ZEC and must prove it, Zeceipt is the disclosure layer that turns each payment into a receipt anyone can verify against the chain, without handing over a viewing key. Unlike payout tools (Konclave, ZBooks) that only keep an internal ledger, and unlike viewing-key exports that reveal everything, Zeceipt discloses exactly one output per receipt and packages receipts into lower-bound audit packs and a ledger export (the OpenZcash CSV; accounting exports are planned). Execution tools are integrations, not competitors.
 
 ## 5. Threats to watch (weekly rescan, WBS 1.1.2.4)
 

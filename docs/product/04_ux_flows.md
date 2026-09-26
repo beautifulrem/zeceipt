@@ -46,6 +46,9 @@ Error states: rate source down (the lock is blocked and the batch stays in draft
 4. Vectors: `spec/test-vectors/receipt-v0.json` to test their own encoder.
 
 ### FLOW-5 Public ledger (P6)
+
+A design, not built as written: the `receipts.json` feed and a ledger site's "verified" badge are not built (the feed went with 3.3.6.3 in the solo branch). What exists is the console's OpenZcash CSV, whose rows carry receipt links anyone can open (slice X2a).
+
 1. Organisation publishes `receipts.json` (array of receipts) at a stable URL.
 2. Ledger site verifies rows (browser or batch) and shows a "verified" badge with a self-verify link.
 3. Rows without receipts stay grey.
