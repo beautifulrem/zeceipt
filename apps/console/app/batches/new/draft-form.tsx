@@ -85,11 +85,13 @@ export function DraftForm({ initial, addressHint }: { initial: DraftFormState; a
         </ul>
       )}
       {state.notes && state.notes.length > 0 && (
-        <ul role="status" className="rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-800">
-          {state.notes.map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ul>
+        <div role="status" className="rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-800">
+          <ul>
+            {state.notes.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
       )}
       <label className="block space-y-1 text-sm">
         <span className="font-medium">Title</span>

@@ -112,3 +112,23 @@ test("an import is merged after the lines already typed; the limit counts both; 
   ], "a made memo on a row that did not fit is not mentioned");
   assert.deepEqual(mergeImported([{ ...BLANK_LINE }], { lines: [], refused: [], madeMemos: [] }, 50).lines, [{ ...BLANK_LINE }], "never an empty form");
 });
+
+test("filling again skips rows already in the form (by id or memo), and says so (review I2 round 1)", () => {
+  const typed = [{ ...BLANK_LINE, payableId: "row-2", address: "u1b", amount: "0.5", memo: "A" }, { ...BLANK_LINE, payableId: "p9", address: "u1z", amount: "1", memo: "PAY-3" }];
+  const imported = {
+    lines: [
+      { sourceLine: 2, payableId: "row-2", label: "Alice", address: "u1b", amount: "0.5", memo: "A" },
+      { sourceLine: 3, payableId: "row-3", label: "Bob", address: "u1c", amount: "0.25", memo: "PAY-3" },
+      { sourceLine: 4, payableId: "row-4", label: "Carol", address: "u1d", amount: "1", memo: "C" },
+    ],
+    refused: [],
+    madeMemos: [],
+  };
+  const out = mergeImported(typed, imported, 50);
+  assert.deepEqual(out.lines.map((l) => l.payableId), ["row-2", "p9", "row-4"]);
+  assert.deepEqual(out.notes, [
+    "Added 1 line from the CSV; review them, then create the draft.",
+    "CSV line 2 was not added: it is already in the form.",
+    "CSV line 3 was not added: it is already in the form.",
+  ]);
+});

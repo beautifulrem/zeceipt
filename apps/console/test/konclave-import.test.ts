@@ -64,6 +64,7 @@ test("a header is only the column names, in any case, with or without memo", () 
 test("amounts follow Konclave's from_zec_str: digits and one point, .5 and 5. allowed, no sign, at most 8 decimals", () => {
   const cases: [string, bigint | undefined][] = [
     ["0.5", 50_000_000n], [".5", 50_000_000n], ["5.", 500_000_000n], [" 1 ", 100_000_000n], ["0.00000001", 1n],
+    ["21000000", 2_100_000_000_000_000n], ["21000000.00000001", undefined], ["99999999999999999999", undefined],
     ["0.000000001", undefined], ["-1", undefined], ["+1", undefined], ["1,000", undefined], ["1e3", undefined], [".", undefined], ["", undefined],
   ];
   for (const [field, want] of cases) assert.equal(konclaveZecToZat(field), want, JSON.stringify(field));
@@ -92,4 +93,29 @@ test(`at most ${IMPORT_MAX_ROWS} lines: the rest are refused by source line`, ()
     { sourceLine: 51, reason: `a batch holds at most ${IMPORT_MAX_ROWS} lines` },
     { sourceLine: 52, reason: `a batch holds at most ${IMPORT_MAX_ROWS} lines` },
   ]);
+});
+
+test("every field is trimmed, as Konclave trims them: spaces after commas are not part of the values", () => {
+  const r = parseKonclaveCsv("Alice , u1alice , 0.5 ,  ref maio  ", withPrefix);
+  assert.deepEqual(r.lines.map((l) => [l.label, l.address, l.amount, l.memo]), [["Alice", "u1alice", "0.5", "ref maio"]]);
+});
+
+test("more than 21M ZEC is an invalid amount by its CSV line, as Konclave's from_u64 refuses it", () => {
+  const r = parseKonclaveCsv("A,u1a,21000000,m\nB,u1b,21000000.00000001,n", withPrefix);
+  assert.deepEqual(r.lines.map((l) => l.amount), ["21000000"]);
+  assert.deepEqual(r.refused, [{ sourceLine: 2, reason: "invalid amount '21000000.00000001'" }]);
+});
+
+test("the limit counts accepted rows only: three bad rows then 51 good ones give 50 lines, the 51st good one refused", () => {
+  const bad = ["A,u1a,oops,m", "B,,1,m", "C,u1c,0,m"];
+  const good = Array.from({ length: IMPORT_MAX_ROWS + 1 }, (_, i) => `P${i},u1p${i},1,M-${i}`);
+  const r = parseKonclaveCsv([...bad, ...good].join("\n"), withPrefix);
+  assert.equal(r.lines.length, IMPORT_MAX_ROWS);
+  assert.deepEqual(r.refused.map((x) => x.sourceLine), [1, 2, 3, 3 + IMPORT_MAX_ROWS + 1]);
+  assert.equal(r.refused[3].reason, `a batch holds at most ${IMPORT_MAX_ROWS} lines`);
+});
+
+test("a header with columns beyond memo is data, not a header", () => {
+  const r = parseKonclaveCsv("label,address,value,memo,extra\nA,u1a,1,m", withPrefix);
+  assert.deepEqual(r.refused, [{ sourceLine: 1, reason: "invalid amount 'value'" }]);
 });

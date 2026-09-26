@@ -5,6 +5,7 @@
 // only when it holds the column names (Konclave drops any first row whose amount does not parse, silently), and an empty
 // memo takes the operator's prefix (Konclave allows none; the console's memo is the payment's reference).
 
+import { MAX_ZAT } from "../execution/money.ts";
 import type { DraftLine } from "../view/draft-form.ts";
 
 /** The batch limit (B1), which is also the import's limit (`05` §3.6). */
@@ -25,7 +26,7 @@ export interface KonclaveImport {
 
 const HEADER = ["label", "address", "value"];
 
-/** Konclave's `from_zec_str`: digits and one point (`.5` and `5.` allowed), no sign or separators, at most 8 decimals. */
+/** Konclave's `from_zec_str`: digits and one point (`.5` and `5.` allowed), no sign or separators, at most 8 decimals, at most 21M ZEC. */
 export function konclaveZecToZat(field: string): bigint | undefined {
   const s = field.trim();
   const dot = s.indexOf(".");
@@ -33,7 +34,9 @@ export function konclaveZecToZat(field: string): bigint | undefined {
   const frac = dot === -1 ? "" : s.slice(dot + 1);
   if (whole === "" && frac === "") return undefined;
   if (frac.length > 8 || !/^\d*$/.test(whole) || !/^\d*$/.test(frac)) return undefined;
-  return BigInt(whole || "0") * 100_000_000n + BigInt((frac || "0").padEnd(8, "0"));
+  const zat = BigInt(whole || "0") * 100_000_000n + BigInt((frac || "0").padEnd(8, "0"));
+  // Konclave's `Zatoshis::from_u64` refuses more than the 21M ZEC supply, and its parse refuses u64 overflow.
+  return zat > MAX_ZAT ? undefined : zat;
 }
 
 /** Zatoshi as the draft form's amount field writes it (`1.5`, `0.00000001`, `2`). */

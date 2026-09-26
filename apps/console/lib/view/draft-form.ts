@@ -143,10 +143,15 @@ export function mergeImported(
   maxLines: number,
 ): { lines: DraftLine[]; notes: string[] } {
   const kept = current.filter((l) => LINE_FIELDS.some((f) => l[f].trim() !== ""));
+  // Filling again after fixing the CSV (review I2 round 1): a row whose id or memo is already in the form is skipped.
+  const ids = new Set(kept.map((l) => l.payableId.trim()));
+  const memos = new Set(kept.map((l) => l.memo));
+  const fresh = imported.lines.filter((l) => !ids.has(l.payableId) && !memos.has(l.memo));
+  const already = imported.lines.filter((l) => !fresh.includes(l)).map((l) => ({ sourceLine: l.sourceLine, reason: "it is already in the form" }));
   const room = Math.max(0, maxLines - kept.length);
-  const taken = imported.lines.slice(0, room);
-  const over = imported.lines.slice(room).map((l) => ({ sourceLine: l.sourceLine, reason: `a batch holds at most ${maxLines} lines` }));
-  const refused = [...imported.refused, ...over].sort((a, b) => a.sourceLine - b.sourceLine);
+  const taken = fresh.slice(0, room);
+  const over = fresh.slice(room).map((l) => ({ sourceLine: l.sourceLine, reason: `a batch holds at most ${maxLines} lines` }));
+  const refused = [...imported.refused, ...already, ...over].sort((a, b) => a.sourceLine - b.sourceLine);
   const made = imported.madeMemos.filter((m) => taken.some((l) => l.sourceLine === m.sourceLine));
   const notes = [
     `Added ${taken.length} ${taken.length === 1 ? "line" : "lines"} from the CSV; review them, then create the draft.`,
