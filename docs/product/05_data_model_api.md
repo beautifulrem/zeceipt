@@ -59,19 +59,19 @@ This export is planned under REQ-INT-2 (reduced in the solo branch to this expor
 | Column | Value | Format (as OpenZcash renders it) |
 |---|---|---|
 | Recipient | the recipient's display name | text; OpenZcash's cell also carries its row type and origin ("Grant from spreadsheet"), which the console does not have, so it writes the name alone |
-| Detail | the payable's reference (the payment's memo) | text |
-| Category | `·` | OpenZcash's categories (e.g. "Community") are editorial; the console's payable kind is written in Detail's place only if the user asks for it later |
+| Detail | the line's memo (`batch_items.memo`), which is the payable's reference for a line made from a payable | text |
+| Category | the payable's kind for a line made from a payable (`Milestone`, `Invoice`, `Bounty`, `Salary`); `·` for a line made on the form | text; OpenZcash's own categories (e.g. "Community") are editorial, so the two files' categories differ in kind |
 | USD | the line's dollars | `$12,000` for whole dollars, `$227.50` otherwise (en-US currency); `·` for a line made on the form without dollars |
 | ZEC | the line's zatoshi | comma-grouped ZEC, trailing zeros removed, no symbol (`0.14648356`, `1,234.5`) |
-| Date | the day the receipt was issued, after the payment's confirmation, in UTC | `YYYY-MM-DD` |
+| Date | the day the payment went out, as OpenZcash's Date is: the UTC day of the submission's `broadcast_at`; for a payment adopted from the wallet's history after a restore (PROOF §5f) that is the day it was adopted, unless an earlier broadcast was recorded | `YYYY-MM-DD` |
 | Status | `Completed` | OpenZcash's label for a paid milestone |
 | Txid | the transaction id | 64 hex characters |
 | Receipt | the receipt link (`https://<host>/r#<payload>`) | text |
-| Rate | the batch's locked ZEC/USD rate for a batch made from payables (exactly one lock, H5a; planned under REQ-INT-2, with the lock of REQ-CON-4) | the stored decimal string; `·` for a batch made on the form, whose lock of record is not settled (slices follow-up G2b1) |
+| Rate | the batch's locked ZEC/USD rate for a batch made from payables, which converted its dollars into zatoshi (exactly one lock, H5a; planned under REQ-INT-2, with the lock of REQ-CON-4) | the stored decimal string; `·` for a batch made on the form, whose lines were set in ZEC, so no rate converted them |
 
 - Rows: one per issued receipt, in batch order then line order; a line without a receipt (not yet confirmed, or not issued) is not a row, since a ledger row here means a verifiable payment.
-- Encoding, as OpenZcash's: a UTF-8 BOM, CRLF line ends, every field in double quotes with `"` doubled, and the same formula guard (a field starting with `=`, `+`, `@`, `-`, tab or CR gets a leading `'` unless it is a number in OpenZcash's pattern); a header row.
-- Disclosure: every Receipt cell carries that output's OCK, so the file shows each listed payment to anyone who holds it (THREAT_MODEL "A receipt link leaks"). It is made on an explicit request through the guarded API, recorded in the audit log, never cached or written to disk by the console, and the page that offers it says so.
+- Encoding, as OpenZcash's: a UTF-8 BOM, CRLF line ends, every field in double quotes with `"` doubled, and the same formula guard: a field matching `/^\s*[=+@\-\t\r]/` and not matching `/^\s*[-−]?\$?\d[\d,]*(\.\d+)?(\s*[A-Za-z%]{1,4})?\s*$/` gets a leading `'` (so `  =x` is guarded and `-$1,200` is not); a header row.
+- Disclosure: every Receipt cell carries that output's OCK, so the file shows each listed payment to anyone who holds it (THREAT_MODEL "A receipt link leaks"), and permanently: a receipt cannot be revoked (spec §9), so putting the file in a public ledger publishes those payments for good. It is made on an explicit request through the guarded API, recorded in the audit log by an explicit insert (the log is otherwise written by triggers), never cached or written to disk by the console, and the page that offers it says so. The downloaded file on the user's disk is a new path for a link to leak; X2 adds it to THREAT_MODEL's row.
 
 ### 3.2 QuickBooks Online 3-column (`qbo.csv`) `[R32]`
 `Date,Description,Amount`
