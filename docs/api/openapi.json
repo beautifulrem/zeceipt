@@ -1038,6 +1038,38 @@
             }
           }
         }
+      },
+      "head": {
+        "operationId": "exportOpenZcashHead",
+        "summary": "Not allowed: the export is GET only",
+        "description": "Next.js would otherwise answer HEAD with the GET handler and record an export that never happened (R111).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "UUIDv7"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "405": {
+            "description": "Method not allowed",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/batches/{id}/rate-lock": {

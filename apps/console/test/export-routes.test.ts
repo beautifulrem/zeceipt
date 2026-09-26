@@ -10,11 +10,12 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  batchDigest, batchNonce, bootServerContext, recordQuote, createBatchFromPayables, createPayable, createRecipient, defaultMigrationsDir, getBatch, OPENZCASH_HEADER,
+  autoIssue, batchDigest, batchNonce, bootServerContext, recordQuote, recordReceipts, type AutoIssueResult, createBatchFromPayables, createPayable, createRecipient, defaultMigrationsDir, getBatch, OPENZCASH_HEADER,
   SERVER_CONTEXT_KEY, toCsv, toExecutionBatch, type BootState, type ZeceiptCliOptions,
 } from "../lib/index.ts";
 import { issueReceiptsResponse, listReceiptsResponse, type ReceiptJson } from "../lib/http/receipts.ts";
 import { HttpProblem } from "../lib/http/problem.ts";
+import { serverContext } from "../lib/server/context.ts";
 import * as collection from "../app/api/batches/route.ts";
 import * as exportRoute from "../app/api/batches/[id]/exports/openzcash/route.ts";
 import { FakeZkool } from "./helpers/fake-zkool.ts";
@@ -208,4 +209,18 @@ test("Date is written only when the submission's txid is the receipt's", async (
   const text = Buffer.from(await (await get(id)).arrayBuffer()).toString("utf8");
   const dates = text.split("\r\n").slice(1).map((line) => line.split('","')[5]);
   assert.deepEqual(dates, ["·", "·", "·"]);
+});
+
+test("a partial export says so: two of three receipts recorded gives two rows, X-Zeceipt-Rows 2 and X-Zeceipt-Lines 3", async () => {
+  const id = await formBatch("org-partial", { issued: false });
+  const ctx = serverContext();
+  const rec = (await getBatch(ctx.db, ctx.config.orgId, id))!;
+  const out = (await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 698, confirmations: 3, tip: 700 }, requiredConfirmations: 3, cli })) as Extract<AutoIssueResult, { state: "issued" }>;
+  assert.equal(out.state, "issued");
+  // Receipts are never deleted (trigger), so a partial batch is made at recording: keep two of the three.
+  await recordReceipts(ctx.db, ctx.keyring, { orgId: ctx.config.orgId, batchId: id, issued: { ...out, receipts: out.receipts.slice(0, 2) } });
+  const r = await get(id);
+  assert.equal(r.status, 200);
+  assert.deepEqual([r.headers.get("x-zeceipt-rows"), r.headers.get("x-zeceipt-lines")], ["2", "3"]);
+  assert.equal(Buffer.from(await r.arrayBuffer()).toString("utf8").split("\r\n").length, 3, "a header and two rows");
 });

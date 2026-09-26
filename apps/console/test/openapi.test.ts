@@ -23,7 +23,7 @@ test("every route file's methods are documented, and every documented operation 
   const built = new Set<string>();
   for (const f of routeFiles(join(APP, "app"))) {
     const path = "/" + relative(join(APP, "app"), f).split(sep).slice(0, -1).map((s) => s.replace(/^\[(.+)\]$/, "{$1}")).join("/");
-    for (const m of readFileSync(f, "utf8").matchAll(/export\s+(?:(?:async\s+)?function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g)) built.add(`${m[1].toLowerCase()} ${path}`);
+    for (const m of readFileSync(f, "utf8").matchAll(/export\s+(?:(?:async\s+)?function|const)\s+(GET|HEAD|POST|PUT|PATCH|DELETE)\b/g)) built.add(`${m[1].toLowerCase()} ${path}`);
   }
   const documented = new Set(Object.entries(spec.paths).flatMap(([p, ops]) => Object.keys(ops).map((m) => `${m} ${p}`)));
   assert.deepEqual([...built].sort(), [...documented].sort());
@@ -57,6 +57,7 @@ const STATUSES: Record<string, string[]> = {
   "get /api/batches/{id}/receipts": ["200", "403", "404", "500", "503"],
   "post /api/batches/{id}/receipts": ["200", "201", "202", "403", "404", "409", "500", "502", "503"],
   "get /api/batches/{id}/exports/openzcash": ["200", "403", "404", "409", "500", "503"],
+  "head /api/batches/{id}/exports/openzcash": ["403", "405"],
   "post /api/batches/{id}/rate-lock": ["201", "403", "404", "409", "500", "502", "503"],
   "get /api/recipients": ["200", "403", "500", "503"],
   "post /api/recipients": ["201", "400", "403", "413", "415", "422", "500", "503"],
