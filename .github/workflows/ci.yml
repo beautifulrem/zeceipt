@@ -53,11 +53,12 @@ jobs:
         # ZECEIPT_BROWSER_E2E: the JavaScript-path test drives the runner's Google Chrome through playwright-core.
         run: ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 node --test test/app.e2e.test.ts
   wasm:
-    # Rebuilds the committed WASM on Linux with the toolchain it was measured with (README, "Building the WASM
-    # package"; slice X3b): the wasm-bindgen outputs must match the committed ones and the Linux build must pass the
-    # same checks; whether the .wasm bytes match across platforms (clang 18 here, Homebrew clang 23 on the Mac) is
-    # reported in the job summary, not required.
-    runs-on: ubuntu-latest
+    # Rebuilds the committed WASM on Linux with the same Rust, wasm-pack and wasm-bindgen it was measured with, and the
+    # runner's clang 18 (Homebrew clang 23 on the Mac) (README, "Building the WASM package"; slices X3b, X3c): the
+    # wasm-bindgen outputs must match the committed ones and the Linux build must pass the same checks; whether the
+    # .wasm bytes match across platforms is reported in the job summary, not required. Pinned to the image R120 read,
+    # whose apt provides clang-18 and llvm-18, so the comparison is repeatable.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

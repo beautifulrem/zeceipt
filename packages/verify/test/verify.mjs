@@ -7,7 +7,18 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const pkgDir = path.resolve(process.env.ZECEIPT_PKG_DIR ?? path.join(here, "../pkg"));
+const committedPkg = path.join(here, "../pkg");
+const pkgDir = path.resolve(process.env.ZECEIPT_PKG_DIR ?? committedPkg);
+// Another build's wasm runs behind the committed JS wrapper below, which is sound only if its glue is the committed
+// glue: check that here rather than rely on build_wasm.sh --compare having run first (review X3b).
+if (pkgDir !== path.resolve(committedPkg)) {
+  for (const f of ["package.json", "zeceipt_wasm.js", "zeceipt_wasm.d.ts", "zeceipt_wasm_bg.wasm.d.ts"]) {
+    if (!fs.readFileSync(path.join(pkgDir, f)).equals(fs.readFileSync(path.join(committedPkg, f)))) {
+      console.error(`FAIL ${pkgDir}/${f} differs from the committed package's: the wasm-bindgen glue must be identical`);
+      process.exit(1);
+    }
+  }
+}
 const { default: init, verify_receipt, check_signature, parse_receipt, issuer_claim, issuer_binding, version } = await import(pathToFileURL(path.join(pkgDir, "zeceipt_wasm.js")).href);
 console.log(`package: ${pkgDir}`);
 const wasm = fs.readFileSync(path.join(pkgDir, "zeceipt_wasm_bg.wasm"));

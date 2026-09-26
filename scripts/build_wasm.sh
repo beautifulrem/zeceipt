@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the browser verifier's WebAssembly package reproducibly (WBS 3.4.2.4; slices X3a, X3b; R119, R120).
+# Build the browser verifier's WebAssembly package reproducibly (WBS 3.4.2.4; slices X3a, X3b, X3c; R119, R120).
 #
 # Absolute build paths would otherwise be embedded in the .wasm (panic locations in the Cargo registry's sources), so
 # the same source built in another checkout or on another machine would differ, and the package would carry the
@@ -31,6 +31,7 @@ while [[ $# -gt 0 ]]; do
     *) echo "build_wasm: unknown argument: $1" >&2; usage ;;
   esac
 done
+[[ $require_wasm == 1 && $mode == build ]] && { echo "build_wasm: --require-identical-wasm needs --check or --compare" >&2; usage; }
 
 compare() { # $1: a built package directory
   local dir="$1" status=0 line
