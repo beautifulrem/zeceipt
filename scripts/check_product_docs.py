@@ -554,31 +554,39 @@ for num in re.findall(r"WBS (\d\.\d\.\d\.\d)", req_defs):
     if num not in leaf_ids:
         errors.append(f"01_requirements.md: status cell cites WBS leaf {num} which does not exist")
 
-# 11_plan.md §8 (solo schedule, baseline v2): kept or U leaves only, every open kept leaf scheduled,
-# prices = §1.1 price × scale, per-window load ≤ 0.75 pd/day, totals line = the sums
+# 11_plan.md §8 (solo schedule, baseline v2): kept or U leaves only, every open kept leaf scheduled exactly once,
+# prices = §1.1 price × scale, exactly one {budget} token = §1.1's Must 6 line × scale, windows tile 09-27 → 10-11
+# without gaps or overlaps, per-window load ≤ capacity = 0.75 pd/day, totals line = the sums (review D10a round 1)
 solo_sched = plan.split("## 8.")[1] if "## 8." in plan else ""
 solo_windows = 0
 if solo_sched:
     status_of = {m.group(1): m.group(2).strip()[:1] for m in leaf_re.finditer(wbs)}
     kept_price = {leaf: float(price) for leaf, price, _ in re.findall(r"\b(\d\.\d\.\d\.\d) \((\d+(?:\.\d+)?)( reduced)?\)", solo_kept_tbl)}
     factor = float(scale.group(1)) if scale else 1.6
-    scheduled, load_sum = set(), 0.0
-    for row in re.findall(r"^\| (\d\d-\d\d(?: → \d\d-\d\d)?) \| ([^|]*) \| ([\d.]+) / ([\d.]+) \|", solo_sched, re.M):
-        win, work, load_s, cap_s = row
+    m6_line = re.search(r"^\| Must 6[^|]*\| budget line \| (\d+(?:\.\d+)?) \|", solo_kept_tbl, re.M)
+    sched_count, load_sum, days_sum, cap_sum, budget_tokens = {}, 0.0, 0, 0.0, []
+    prev_end = _dt.date(2026, 9, 26)
+    for win, work, load_s, cap_s in re.findall(r"^\| (\d\d-\d\d(?: → \d\d-\d\d)?) \| ([^|]*) \| ([\d.]+) / ([\d.]+) \|", solo_sched, re.M):
         solo_windows += 1
         ends = [_dt.date(2026, int(d[:2]), int(d[3:])) for d in re.findall(r"\d\d-\d\d", win)]
-        days = (ends[-1] - ends[0]).days + 1 if win != "10-12" else 0
+        deadline_row = win == "10-12"
+        days = 0 if deadline_row else (ends[-1] - ends[0]).days + 1
+        if not deadline_row:
+            if ends[0] != prev_end + _dt.timedelta(days=1):
+                errors.append(f"11_plan.md §8: window {win} does not start the day after the previous window ends ({prev_end})")
+            prev_end = ends[-1]
         load_w = 0.0
         for leaf in re.findall(r"\b(\d\.\d\.\d\.\d)\b", work):
             if leaf not in kept_ids and owner_of.get(leaf) != "U":
                 errors.append(f"11_plan.md §8: leaf {leaf} is neither kept in §1.1 nor a U leaf")
         for leaf, price in re.findall(r"\b(\d\.\d\.\d\.\d) \((\d+(?:\.\d+)?)\)", work):
-            scheduled.add(leaf)
+            sched_count[leaf] = sched_count.get(leaf, 0) + 1
             load_w += float(price)
             if leaf in kept_price and abs(float(price) - kept_price[leaf] * factor) > 1e-6:
                 errors.append(f"11_plan.md §8: {leaf} priced {price}, but §1.1 gives {kept_price[leaf]} × {factor}")
-        load_w += sum(float(x) for x in re.findall(r"\{budget (\d+(?:\.\d+)?)\}", work))
-        load_w = round(load_w, 6)
+        toks = [float(x) for x in re.findall(r"\{budget (\d+(?:\.\d+)?)\}", work)]
+        budget_tokens += toks
+        load_w = round(load_w + sum(toks), 6)
         if abs(load_w - float(load_s)) > 1e-6:
             errors.append(f"11_plan.md §8: window {win} says load {load_s} but its items sum to {load_w}")
         if abs(float(cap_s) - 0.75 * days) > 1e-6:
@@ -586,9 +594,22 @@ if solo_sched:
         if load_w > float(cap_s) + 1e-6:
             errors.append(f"11_plan.md §8: window {win} load {load_w} exceeds its capacity {cap_s}")
         load_sum += load_w
+        days_sum += days
+        cap_sum += float(cap_s)
+    if prev_end != _dt.date(2026, 10, 11):
+        errors.append(f"11_plan.md §8: the working windows end on {prev_end}, not 10-11")
+    for leaf, n in sorted(sched_count.items()):
+        if n > 1:
+            errors.append(f"11_plan.md §8: leaf {leaf} is scheduled {n} times")
     for leaf in sorted(kept_ids & set(pd_of)):
-        if status_of.get(leaf) != "✅" and leaf not in scheduled:
+        if status_of.get(leaf) != "✅" and leaf not in sched_count:
             errors.append(f"11_plan.md §8: open kept leaf {leaf} is in no window")
+    if len(budget_tokens) != 1:
+        errors.append(f"11_plan.md §8: expected exactly one {{budget}} token (Must 6), found {len(budget_tokens)}")
+    elif not m6_line:
+        errors.append("11_plan.md §1.1: Must 6 budget line not found")
+    elif abs(budget_tokens[0] - float(m6_line.group(1)) * factor) > 1e-6:
+        errors.append(f"11_plan.md §8: Must 6 budget {budget_tokens[0]}, but §1.1 gives {m6_line.group(1)} × {factor}")
     tot = re.search(r"load (\d+(?:\.\d+)?) pd against capacity (\d+(?:\.\d+)?) pd \((\d+) days × 0\.75[^)]*\) leaves slack (\d+(?:\.\d+)?) pd", solo_sched)
     if not tot:
         errors.append("11_plan.md §8: totals line not found")
@@ -596,6 +617,8 @@ if solo_sched:
         t_load, t_cap, t_days, t_slack = float(tot.group(1)), float(tot.group(2)), int(tot.group(3)), float(tot.group(4))
         if abs(t_load - round(load_sum, 6)) > 1e-6:
             errors.append(f"11_plan.md §8: totals say load {t_load}, windows sum to {round(load_sum, 6)}")
+        if t_days != days_sum or abs(t_cap - cap_sum) > 1e-6:
+            errors.append(f"11_plan.md §8: totals say {t_days} days / {t_cap} pd, windows sum to {days_sum} days / {cap_sum} pd")
         if abs(t_cap - 0.75 * t_days) > 1e-6 or abs(t_slack - (t_cap - t_load)) > 1e-6:
             errors.append(f"11_plan.md §8: totals arithmetic wrong ({t_cap} vs 0.75 × {t_days}; slack {t_slack} vs {t_cap} − {t_load})")
 

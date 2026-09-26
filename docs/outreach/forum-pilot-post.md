@@ -61,6 +61,8 @@ One team that pays 3–10 contributors in shielded ZEC and wants each of them, o
 2. Each recipient gets a receipt link and can verify it in the browser, with nothing installed.
 3. You tell me what was missing.
 
+Timing: a batch paid between 1 and 3 October makes it into our hackathon submission; later is just as welcome.
+
 Your keys stay yours: the console never holds a spending key, and the CLI needs a viewing key plus a receipt-signing key it generates (`zeceipt keygen`), never a spending key. Expect about an hour of your time. ZecHub's bounty payouts, a ZCG grantee team, or a payroll team (hello, Konclave users) would be ideal.
 
 ## Questions for everyone
