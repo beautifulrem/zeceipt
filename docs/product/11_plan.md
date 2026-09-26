@@ -134,6 +134,8 @@ Pitch (≤ 3:00):
 | 2:40 | Business and roadmap: a free issuer tier, team and organisation plans, a verification API (draft pricing, `08_gtm_pricing.md` §4); next, the forum pilot and a public-chain run; later, ZIP 311's spend-authority half, which needs wallet-side signing | `08` §4; RSK-3 | narration |
 | 2:50 | Team and founder-market fit (two sentences, from the user) | the user | the user |
 
+The timed script, with each shot's cut and each sentence's evidence: `docs/outreach/pitch-video.md` (slice V2b; its times are the recording's, and these are approximate).
+
 Footage for the 0:20–1:30 beats is recorded by `apps/console/test/shots/demo-video.ts` on the live regtest chain (slice L2): three silent segments and a shot list with timings, re-runnable after any UI change. Narration and editing stay the person's. Say "on a local test chain" wherever a regtest shot is used: no receipt exists on a public chain yet (RSK-3). Over this footage, don't say "automatically" about the receipts (the Issue button is pressed) or "from the chain" over the receipt page (it shows "Chain inclusion: Unknown" because the transaction was loaded from a file); the same list is in `docs/outreach/weekly-update-1.md`, "Do not say".
 
 Technical demo (2–3:00), in order:
