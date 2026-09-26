@@ -125,7 +125,7 @@ Pitch (≤ 3:00):
 
 | Time | Beat | Evidence | Footage |
 |---|---|---|---|
-| 0:00 | "Your organisation pays in Zcash. Every time someone asks 'did you really pay?', the only proof today is handing over the wallet's viewing key, which shows every payment." | README "What it is"; spec §1 | narration over a title |
+| 0:00 | "Your organisation pays in Zcash. Every time someone asks 'did you really pay?', the usual proof today is handing over the wallet's viewing key, which shows every payment." (Not "the only": Glasspane made per-payment receipts on Orchard, dormant since 2026-07-13, `03`.) | README "What it is"; spec §1 | narration over a title |
 | 0:20 | The console: five USD payables (typed, or imported from a zecpay CSV after a preview), one batch at Kraken's rate fixed for it, approved, one Ironwood transaction for all five | PROOF §5g; `05` §3.6 (import) | recorded: `1-console.webm` (slice L2); the import preview is not filmed yet (V2c) |
 | 1:00 | Once the payment confirms, the batch page issues a receipt per payment (issuance can also be automatic: PROOF §5g, not in this footage); a recipient opens their link and the browser recovers their address, amount and memo from the transaction (on the local test chain it is loaded from a file) | PROOF §5d (the Issue button), §5g (automatic), §2c (the page) | recorded: `2-receipts.webm` (the Issue receipts button), `3-receipt-page.webm` |
 | 1:30 | One character of the receipt changed: INVALID, and the page names the stage | PROOF §2c | recorded: `3-receipt-page.webm` |

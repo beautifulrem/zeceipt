@@ -28,7 +28,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 
 Sources, not part of the submitted text: the ledger figures `[R105]`, the FPF quarter `[R4]`, Ironwood's activation `[R20]`; each other claim maps to evidence in `.trellis/tasks/09-26-submission-description/implement.md`.
 
-**Problem.** Organisations that pay contributors in shielded Zcash cannot prove a single payment. Today they can only hand over a viewing key, which exposes every payment the wallet ever made, or a spreadsheet the auditor has to trust. OpenZcash mirrors ZCG's ledger of 1,016 disbursements, 825 of them marked paid (budgeted at $23.3M), and not one row is checked against the chain.
+**Problem.** Organisations that pay contributors in shielded Zcash have no practical way to prove a single payment. Today they usually hand over a viewing key, which exposes every payment the wallet ever made, or a spreadsheet the auditor has to trust. OpenZcash mirrors ZCG's ledger of 1,016 disbursements, 825 of them marked paid (budgeted at $23.3M), and not one row is checked against the chain.
 
 **What Zeceipt does.** Every output an organisation pays becomes a receipt: a small, optionally signed envelope holding that output's Outgoing Cipher Key. Anyone holding the receipt recovers exactly that payment from the chain in a browser: recipient, amount, memo. They receive no viewing key and see no other payment. It uses ZIP 311's output disclosure, without its spend-authority requirement, for the Ironwood pool (live since 2026-07-28), Orchard and Sapling.
 
