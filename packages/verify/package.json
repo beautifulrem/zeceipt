@@ -16,7 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build:wasm": "wasm-pack build ../../crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg && rm -f pkg/.gitignore",
+    "build:wasm": "../../scripts/build_wasm.sh",
     "demo": "python3 -m http.server 8787 --directory .",
     "test": "node test/verify.mjs",
     "test:page": "ZECEIPT_BROWSER_E2E=1 node test/page.e2e.mjs",

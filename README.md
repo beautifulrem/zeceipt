@@ -134,10 +134,18 @@ Pending: receipts on a public chain (the testnet run is prepared and waits on fa
 
 ## Building the WASM package
 
-`packages/verify/pkg` is committed so a clone works without a toolchain. To rebuild: the transitive `secp256k1` C library needs a wasm-capable clang, e.g. on macOS with Homebrew LLVM:
+`packages/verify/pkg` is committed so a clone works without a toolchain. To rebuild it, run `scripts/build_wasm.sh` (or `npm run build:wasm` in `packages/verify`). The transitive `secp256k1` C library needs a wasm-capable clang: Homebrew LLVM's by default, or set `ZECEIPT_WASM_CLANG` and `ZECEIPT_WASM_AR`.
 
-```bash
-export CC_wasm32_unknown_unknown=/opt/homebrew/opt/llvm/bin/clang AR_wasm32_unknown_unknown=/opt/homebrew/opt/llvm/bin/llvm-ar \
-       CFLAGS_wasm32_unknown_unknown="--target=wasm32-unknown-unknown -O2 -nostdlib -fno-exceptions -D__wasm32__"
-wasm-pack build crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg
-```
+**The build is reproducible on the same toolchain.**
+- The script remaps absolute build paths:
+  - rustc's `--remap-path-prefix` for the Rust code (Cargo's `trim-paths` is not stable in Cargo 1.96);
+  - clang's `-ffile-prefix-map` for the C code.
+- So the output is the same from any checkout, and it carries no local path. `packages/verify/test/verify.mjs` fails on a committed WASM that does.
+- Measured: two builds from different checkouts and target directories were byte-identical, with this toolchain:
+  - rustc 1.96.0;
+  - wasm-pack 0.15.0 (with its wasm-opt, version 117);
+  - wasm-bindgen 0.2.128 (`Cargo.lock`);
+  - Homebrew clang 23.1.1.
+- The committed WASM's sha256 is `bf60dfe80d19d79c09454d25a994f95e05d7c16ef95af08aeeeb1d2dfee7d3f1`.
+- To check it, build into another directory and compare the hash the script prints: `scripts/build_wasm.sh --out-dir /tmp/pkg`.
+- A different version of any of these tools may produce different bytes.
