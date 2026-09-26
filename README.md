@@ -3,7 +3,7 @@
 Verifiable receipts for shielded Zcash payments on the live **Ironwood** pool.
 An organisation that pays in shielded ZEC can hand each recipient, auditor or public ledger a receipt that anyone verifies against the chain — recovering exactly one output's recipient, amount and memo — **without giving away a viewing key** and without revealing any other payment.
 
-- Live demo / proof: [`docs/PROOF.md`](docs/PROOF.md) (mainnet-read, synthetic, browser, regtest chain-write, and a Zkool-built 3-recipient batch in §5b) · Format: [`spec/receipt-v0.md`](spec/receipt-v0.md) · Prior art: [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) · Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) · Changes: [`CHANGELOG.md`](CHANGELOG.md)
+- Live demo / proof: [`docs/PROOF.md`](docs/PROOF.md) (mainnet-read, synthetic, browser, regtest chain-write, and a Zkool-built 3-recipient batch in §5b) · Format: [`spec/receipt-v0.md`](spec/receipt-v0.md) · Prior art: [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) · Threat model: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) · Changes: [`CHANGELOG.md`](CHANGELOG.md) · Releasing: [`docs/RELEASING.md`](docs/RELEASING.md)
 - Built for Colosseum Crypto World's Fair 2026, Zcash track. Repository created 2026-09-21 PT — commits are timestamped +08:00, so `git log` shows the first commit as 2026-09-22 00:07 (see [`docs/PRE_EVENT_STATE.md`](docs/PRE_EVENT_STATE.md)). MIT.
 
 ## What it is
