@@ -12,6 +12,26 @@ Zcash's shielded pools already publish, for every output, an `out_ciphertext` en
 
 It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority signature, which needs the spending key. Zeceipt never touches spending keys; issuer attribution is an application-layer ed25519 signature. For the same reason it does not meet two of ZIP 311's other requirements: that only a sender of the transaction can create a disclosure (anyone with the sender's viewing key, or an earlier receipt, can), and that disclosures are non-malleable (a receipt holder can re-sign one with their own key, which attributes it to that key only). `docs/outreach/zips-387-comment.md` sets out the trade.
 
+## For judges
+
+**Five minutes, offline, no keys** (Rust with `protoc`; Node 24 or later):
+
+```bash
+cargo test --workspace --features zeceipt-core/synthetic   # 47 tests, including the official Orchard note-encryption vectors
+node packages/verify/test/verify.mjs                       # the committed browser verifier (WASM) against the committed vectors
+(cd apps/console && npm ci && npm test)                    # 432 console tests: 403 run, 29 are opt-in (build-and-serve, regtest)
+```
+
+Then the offline commands under Quick start issue and verify a receipt from the synthetic fixture, and `cd packages/verify && npm run demo` serves the receipt page at `http://localhost:8787/r/` and the paste demo at `/demo/`.
+
+**What runs where.** Everything above runs on your machine; the console listens on 127.0.0.1 only and has no sign-in yet. The live evidence ran on a local Zcash regtest chain (zebrad, Zaino, Zkool; `docs/REGTEST_RUNBOOK.md`): `docs/PROOF.md` §5–§5g. On mainnet, transactions have been parsed and fetched only (§1, §2b); receipts on a public chain wait on funding.
+
+**Where the evidence is.** `docs/PROOF.md` (each claim with its transcript), `spec/receipt-v0.md` (the format), `docs/THREAT_MODEL.md` and `docs/SECURITY_REVIEW.md` (what is defended, what is not).
+
+**Built during the hackathon.** The repository started on 2026-09-21 PT (first commit `252c76e`), a week into the event, and nothing in it predates the event (`docs/PRE_EVENT_STATE.md`; prior art in `docs/PRIOR_ART.md`). The work was cut into small slices, each with a written requirement and each reviewed by an independent reviewer until it scored 100: one record per review round in `docs/product/reviews/`, one task per slice in `.trellis/tasks/`.
+
+**How it was prioritised.** `docs/product/11_plan.md`: what a one-person team kept and dropped, and why (§1.1), and the day-by-day schedule (§8). The research behind each decision is in `docs/product/10_research_log.md`.
+
 ## Quick start
 
 ```bash
@@ -101,7 +121,7 @@ The payout console works end to end on a local regtest chain (`docs/PROOF.md` §
 - each approved and paid once in one transaction;
 - receipts issued from the page or by the worker on its own, and verified;
 - the audit trail;
-- a restored database that does not pay twice.
+- a restored database that adopts a mined payment instead of paying it again.
 
 Pending: receipts on a public chain (the testnet run is prepared and waits on faucet funds, `docs/PROOF.md` §4; mainnet follows), and publishing `@zeceipt/verify` to npm. Dropped for this hackathon: the Solana attestation program. Out of scope for v0: the spend-authority proof (full ZIP 311).
 
