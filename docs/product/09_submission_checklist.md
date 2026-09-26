@@ -91,22 +91,21 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 
 ## 5. Timeline (authoritative for external milestones)
 
-This table is the authority for dates visible outside the team (posts, videos, uploads, user asks). Engineering dates are authoritative in `11_plan.md` §3; the rows below are its fixed points and the two must not disagree.
+This table is the authority for dates visible outside the team (posts, videos, uploads, user asks). Engineering dates are authoritative in `11_plan.md` §8 (the solo schedule, baseline v2; §3 is baseline v1); every row below is one of §8's dates or asks, and the two must not disagree. Re-derived 2026-09-26 (slice D10c): of the baseline rows due by 09-27, the product phase closed on time; the push, the forum post, the funding checkpoint and the window-date confirmation passed unanswered and are re-dated below; the zips #387 post, the Konclave adapter outreach and the Solana review were dropped with the solo branch (the zips comment is drafted and posting it is the user's option, `11_plan.md` §1.1).
 
 | Date | Milestone | Source |
 |---|---|---|
-| 2026-09-22 | Product/research phase closed; window-open date confirmed (U) | `11_plan.md` §3 |
-| 2026-09-24 | Push repo, CI green, forum post, pilot outreach | `08` §2 |
-| 2026-09-25 | Funding checkpoint (RSK-3 trigger) | `06` |
-| 2026-09-27 | zips #387 post | `08` §2 |
-| 2026-09-28 | Weekly update video 1; register `zeceipt.xyz` (U) | `08` §2, WBS 4.1.1.2 |
-| 2026-09-30 | Konclave author outreach with adapter draft (3.3.3.1 lands 09-30) | `08` §2 |
-| 2026-10-01 | First pilot batch (testnet/mainnet) | `08` §2 |
-| 2026-10-03 | Console + Solana status review; cut decisions | `06` RSK-6/7, `11` §2 |
-| 2026-10-05 | Initial upload; weekly update 2 (shift to the actual window-open day) | `11` §3 |
-| 2026-10-09 | Final videos uploaded; v0.1.0 release published | `11` §3, WBS 4.1.1.4 |
-| 2026-10-10 | Freeze; form re-check; `npm publish @zeceipt/verify` (U; a release action, the day after the audit and tag) | `11` §3, WBS 4.1.1.3 |
-| 2026-10-11 | Final submission | `11` §3 |
+| 2026-09-22 | Product/research phase closed ✅ | `11_plan.md` §3 |
+| 2026-09-28 | Push the repo and enable CI; confirm the product name; record and post weekly update 1 (fallback: by 09-30, or skipped); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
+| 2026-09-30 | Testnet faucet claim and mainnet funding of the issuing wallet (U) | `11_plan.md` §8; WBS asks |
+| 2026-10-01 | Register the domain and host the page; decide whether to contact Konclave's author as a pilot channel (U) | `11_plan.md` §8; WBS asks |
+| 2026-10-01 → 10-03 | First public-chain receipts by 10-03 (funding cut-off 10-02, then testnet only); the pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | `11_plan.md` §8 |
+| 2026-10-03 | Team roster and founder lines; confirm the window-open date, inferred 10-05 or 10-06 `[R106]` (U) | `11_plan.md` §8; WBS asks |
+| 2026-10-04 → 10-07 | Pitch video and technical demo recorded | `11_plan.md` §8 |
+| 2026-10-05 | Record and post weekly update 2 (U; fallback: by 10-07, or skipped); initial upload on the window-open day | `11_plan.md` §8 |
+| 2026-10-09 | Security review rerun; videos uploaded unlisted and links tested; v0.1.0 tag cut; team backgrounds and location (U) | `11_plan.md` §8; WBS 4.1.1.4 |
+| 2026-10-10 | Freeze; form re-check; `npm publish @zeceipt/verify` (U; a release action, the day after the security review) | `11_plan.md` §8; WBS 4.1.1.3 |
+| 2026-10-11 | Final submission | `11_plan.md` §8 |
 | 2026-10-12 | Deadline (buffer) | `[R1]` |
 
 ## 6. Judging criteria and evaluation factors → repo artefacts
@@ -119,7 +118,7 @@ Six criteria (rules §8) `[R1]`:
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
 | Novelty | first per-output receipts on Ironwood; format + vectors; `docs/PRIOR_ART.md` states exactly what is new vs Glasspane/ZIP 311 |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4) |
-| Open-source, composability | MIT; crates + npm + vectors; well-known key file; Konclave/OpenZcash adapters (`05_data_model_api.md` §4) |
+| Open-source, composability | MIT; crates + npm package (publishing is the user's) + vectors; the issuer's well-known key file; planned in the solo schedule: an OpenZcash-compatible export and a CSV import of Konclave's format (`11_plan.md` §8; `05_data_model_api.md` §4) |
 | Business Plan, team ability | `08_gtm_pricing.md`; `11_plan.md` §1–§4; team section (U) |
 
 Seven FAQ factors `[R1]`:

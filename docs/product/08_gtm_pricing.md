@@ -2,36 +2,35 @@
 
 ## 1. Segments and sequence
 
-1. **Zcash grant and bounty programs** (P1): ZecHub DAO (weekly bounties), FPF/ZCG (1,015-row public ledger), ZF grants. Value: verifiable public ledger; auditor packs. Channel: forum post + ZecHub Discord + OpenZcash "verified" demo branch.
-2. **Zcash-native teams and DAOs** (P2): Zcash Brazil (Konclave), Shielded Labs, ZODL contractors, grantee teams. Channel: Konclave CSV adapter; direct outreach to Konclave's author.
-3. **Developers** (P5): crates + npm + vectors; zips #387 post; ZecHub wiki page.
+1. **Zcash grant and bounty programs** (P1): ZecHub DAO (weekly bounties, whose payments FPF sends `[R4]`), ZCG (a 1,016-row ledger mirrored on OpenZcash `[R105]`), ZF grants. Value: verifiable public ledger; auditor packs. Channels in the solo schedule (`11_plan.md` §8): the forum pilot call, and an OpenZcash-compatible export (planned). The OpenZcash "verified" demo branch is infeasible (no public source) and a ZecHub Discord announcement was not restored (slice D10b).
+2. **Zcash-native teams and DAOs** (P2): Zcash Brazil (Konclave), Shielded Labs, ZODL contractors, grantee teams. Channels: a CSV import of Konclave's `label,address,value[,memo]` format (planned, slice D10b; the Konclave-side adapter was dropped); contacting Konclave's author is the user's decision (WBS 4.1.2.3).
+3. **Developers** (P5): crates + npm (publishing is the user's) + vectors; the zips #387 implementation report (drafted; posting is the user's option); a ZecHub wiki page (not scheduled).
 4. **Post-hackathon**: compliance/verification API for exchanges and KYT vendors; second chain: the same envelope and verification UX over a chain-specific disclosure primitive (Solana confidential balances use per-mint ElGamal auditor keys, not per-output keys `[R41]`; a per-transfer disclosure there needs its own primitive and is research, not a port).
 
 ## 2. Launch sequence (dates)
 
-Dates here are a subset of the single timeline in `09_submission_checklist.md` §5; if they ever disagree, §5 wins.
+Dates here are a subset of the single timeline in `09_submission_checklist.md` §5, re-derived from `11_plan.md` §8 on 2026-09-26 (slice D10c); if they ever disagree, §5 wins.
 
 | Date | Action | Owner |
 |---|---|---|
-| 2026-09-24 | Forum post "Shielded payment receipts: looking for one pilot" with demo + regtest proof | PM |
-| 2026-09-24 | Push repo, enable CI | U |
-| 2026-09-27 | Post format v0 + vectors to zips #387 (design test, public timestamp) | R |
-| 2026-09-28 | Register `zeceipt.xyz`, host demo page | U |
-| 2026-09-28 | Weekly update video 1 (60 s, English) on X, tag @colosseum | PM |
-| 2026-09-30 | Konclave author outreach with adapter PR draft (adapter lands 09-30, WBS 3.3.3.1) | PM/U |
-| 2026-10-01 | First pilot batch (ZecHub bounties or a grantee team) on testnet/mainnet | PM |
-| 2026-10-05 | Weekly update 2; initial submission upload | PM |
-| 2026-10-10 | `npm publish @zeceipt/verify` (the day after audit, secrets scan and the v0.1.0 tag) | U |
+| 2026-09-28 | Push the repo, enable CI; then post the forum call "Shielded payment receipts: looking for one pilot" (drafted) | U |
+| 2026-09-28 | Weekly update 1 (60 s) on the Colosseum Arena; script and footage ready (`docs/outreach/weekly-update-1.md`) | U records and posts; PM prepares |
+| 2026-10-01 | Register `zeceipt.xyz`, host the demo page | U |
+| 2026-10-01 → 10-03 | First pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | PM, with the pilot |
+| 2026-10-05 | Weekly update 2; initial submission upload on the window-open day | U records and posts; PM uploads |
+| 2026-10-10 | `npm publish @zeceipt/verify` (the day after the security review) | U |
 | 2026-10-11 | Final submission | PM |
 
 ## 3. Pilot candidates (ranked by reachability)
 
+A pilot needs the wallet that sends the payments: receipts are issued from that wallet's viewing key (PROOF §5), so the issuer is whoever pays.
+
 | Candidate | Why | Ask | Status |
 |---|---|---|---|
-| ZecHub DAO | weekly bounties, open community, funded by FPF `[R4]` | issue receipts for one week of bounties | ⬜ |
-| Zcash Brazil (Konclave) | already runs shielded payroll; ambassador also maintains OpenZcash `[R10]` `[R5]` | attach receipts to their public ledger | ⬜ |
+| ZecHub DAO, with FPF as the sender | weekly bounties, open community; FPF sends the payments `[R4]` | FPF issues receipts for one week of ZecHub bounties | ⬜ (after the forum call) |
+| Zcash Brazil (Konclave) | already runs shielded payroll `[R10]`; our KB lists its treasury lead as OpenZcash's maintainer (unverified, KB `12_sources_and_gaps.md`) | one batch paid from its wallet, with receipts for its public ledger | ⬜ |
 | One ZCG grantee team | pays subcontractors in ZEC | run one batch | ⬜ |
-| OpenZcash | ledger consumer | verified column demo branch | ⬜ |
+| OpenZcash | ledger consumer | the OpenZcash-compatible export (planned); the "verified" demo branch is infeasible (no public source) | ⬜ |
 
 ## 4. Pricing (draft, benchmarked)
 
