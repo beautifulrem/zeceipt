@@ -939,6 +939,24 @@ test("create-draft form through next start, posted as a browser without JavaScri
     const batch = JSON.parse((await raw(s.port, "GET", `/api/batches/${id}`, { host: self })).body) as { title: string; items: { payableId: string; label: string; zat: string; memo: string }[] };
     assert.equal(batch.title, "October");
     assert.deepEqual(batch.items.map((i) => [i.payableId, i.label, i.zat, i.memo]), [["p1", "Alice", "25000000", "OCT-1"], ["p2", "", "100000001", "OCT-2"]]);
+
+    // Slice I2: "Fill from Konclave CSV" fills the lines for review (nothing created), then the draft is created from them.
+    const csv = `label,address,value,memo\n\nAlice,${UA},.5,IMP-A\nBob,${UA},0.25,\nCarol,${UA},oops,x`;
+    const fill = multipart([...hidden, ["title", ""], ...lineFields(0, {}), ["csv", csv], ["memoPrefix", "IMP"], ["intent", "import"]]);
+    const filled = await raw(s.port, "POST", "/batches/new", { ...same, "content-type": fill.type }, fill.body);
+    assert.equal(filled.status, 200);
+    const shown = filled.body.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
+    for (const note of ["Added 2 lines from the CSV; review them, then create the draft.", "CSV line 4: it had no memo, so it was given IMP-4.", "CSV line 5 was not added: invalid amount 'oops'."]) {
+      assert.ok(shown.includes(note), note);
+    }
+    assert.ok(shown.includes('value="row-3"') && shown.includes('value="0.5"') && shown.includes('value="IMP-4"'), "the rows are in the form's lines");
+    assert.equal(await count(), 1, "filling creates nothing");
+    const make = multipart([...hidden, ["title", "Imported"], ...lineFields(0, { payableId: "row-3", label: "Alice", address: UA, amount: "0.5", memo: "IMP-A" }), ...lineFields(1, { payableId: "row-4", label: "Bob", address: UA, amount: "0.25", memo: "IMP-4" })]);
+    const made = await raw(s.port, "POST", "/batches/new", { ...same, "content-type": make.type }, make.body);
+    assert.equal(made.status, 303);
+    const madeId = /^\/batches\/([0-9a-f-]{36})$/.exec(made.location ?? "")?.[1];
+    const imported = JSON.parse((await raw(s.port, "GET", `/api/batches/${madeId}`, { host: self })).body) as { items: { payableId: string; zat: string; memo: string }[] };
+    assert.deepEqual(imported.items.map((i) => [i.payableId, i.zat, i.memo]), [["row-3", "50000000", "IMP-A"], ["row-4", "25000000", "IMP-4"]]);
     assertNoKey(s.output());
   } finally {
     s.child.kill("SIGTERM");

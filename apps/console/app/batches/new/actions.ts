@@ -6,11 +6,18 @@
 import { redirect } from "next/navigation";
 import { batchProblem, createBatchFrom } from "../../../lib/http/batches.ts";
 import { answer } from "../../../lib/http/route.ts";
-import { parseDraftForm, problemsByLine, type ApiProblem, type DraftFormState } from "../../../lib/view/draft-form.ts";
+import { IMPORT_MAX_ROWS, parseKonclaveCsv } from "../../../lib/import/konclave.ts";
+import { mergeImported, parseDraftForm, problemsByLine, type ApiProblem, type DraftFormState } from "../../../lib/view/draft-form.ts";
 
 export async function createDraftAction(prev: DraftFormState, form: FormData): Promise<DraftFormState> {
   const parsed = parseDraftForm(form);
   const keep = { title: parsed.title, lines: parsed.lines, submission: prev.submission + 1 };
+  // Slice I2: "Fill from Konclave CSV" fills the lines for review; nothing is created until "Create draft".
+  if (form.get("intent") === "import") {
+    const imported = parseKonclaveCsv(String(form.get("csv") ?? ""), { memoPrefix: String(form.get("memoPrefix") ?? "") });
+    const merged = mergeImported(parsed.lines, imported, IMPORT_MAX_ROWS);
+    return { ...keep, lines: merged.lines, top: [], lineErrors: {}, notes: merged.notes };
+  }
   if (!parsed.body) return { ...keep, top: parsed.top, lineErrors: parsed.lineErrors };
   const res = await answer(() => createBatchFrom(parsed.body), batchProblem);
   const body = (await res.json()) as ApiProblem & { id?: string };

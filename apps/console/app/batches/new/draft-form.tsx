@@ -84,6 +84,13 @@ export function DraftForm({ initial, addressHint }: { initial: DraftFormState; a
           ))}
         </ul>
       )}
+      {state.notes && state.notes.length > 0 && (
+        <ul role="status" className="rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-800">
+          {state.notes.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      )}
       <label className="block space-y-1 text-sm">
         <span className="font-medium">Title</span>
         <input name="title" defaultValue={state.title} key={`t${state.submission}`} required className="w-full rounded border border-slate-300 px-2 py-1" placeholder="October contributors" />
@@ -91,6 +98,22 @@ export function DraftForm({ initial, addressHint }: { initial: DraftFormState; a
       {/* Keyed by submission: after an error the lines re-render with what was submitted. */}
       <Lines key={state.submission} initial={state.lines} errors={state.lineErrors} addressHint={addressHint} />
       <p className="text-sm text-slate-600">Blank lines are ignored. Amounts are in ZEC with up to 8 decimal places. Nothing is paid until you press Pay on the batch page.</p>
+      {/* Slice I2 (REQ-CON-19; 05 §3.6): a Konclave payroll CSV fills the lines above for review. */}
+      <details className="space-y-2 rounded-md border border-slate-200 px-4 py-2 text-sm">
+        <summary className="cursor-pointer font-medium">Fill from a Konclave CSV</summary>
+        <p className="text-slate-600">Paste a file in Konclave&apos;s format, label,address,value,memo, with amounts in ZEC. The rows are added below the lines above; nothing is created until you press Create draft.</p>
+        <label className="block space-y-1">
+          <span>CSV</span>
+          <textarea name="csv" rows={6} className="w-full rounded border border-slate-300 px-2 py-1 font-mono text-xs" placeholder={"label,address,value,memo\nAlice,u1…,0.5,INV-042"} />
+        </label>
+        <label className="block space-y-1">
+          <span>Memo prefix for rows without a memo</span>
+          <input name="memoPrefix" className="w-48 rounded border border-slate-300 px-2 py-1" placeholder="PAY-2026-09" />
+        </label>
+        <button type="submit" name="intent" value="import" formNoValidate disabled={pending} className="rounded-md border border-sky-700 px-3 py-1 text-sm font-semibold text-sky-700 disabled:opacity-60">
+          Fill from Konclave CSV
+        </button>
+      </details>
       <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {pending ? "Creating…" : "Create draft"}
       </button>

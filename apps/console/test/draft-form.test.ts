@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addLine, editableLines, parseDraftForm, problemsByLine, removeLine, updateLine, BLANK_LINE } from "../lib/view/draft-form.ts";
+import { addLine, editableLines, parseDraftForm, problemsByLine, removeLine, updateLine, BLANK_LINE, mergeImported } from "../lib/view/draft-form.ts";
 
 const form = (entries: [string, string][]) => {
   const f = new FormData();
@@ -84,4 +84,31 @@ test("editing lines: remove takes the line clicked (with its values and errors),
   const edited = updateLine(added, added[2].id, "amount", "0.5");
   assert.deepEqual(edited.map((l) => l.values.amount), ["2.2", "3.3", "0.5"]);
   assert.equal(removeLine(edited, 999).length, 3, "an unknown id removes nothing");
+});
+
+test("an import is merged after the lines already typed; the limit counts both; every note names its CSV line (slice I2)", () => {
+  const typed = [{ ...BLANK_LINE, payableId: "p1", address: "u1a", amount: "1", memo: "M1" }, { ...BLANK_LINE }];
+  const imported = {
+    lines: [
+      { sourceLine: 2, payableId: "row-2", label: "Alice", address: "u1b", amount: "0.5", memo: "A" },
+      { sourceLine: 3, payableId: "row-3", label: "Bob", address: "u1c", amount: "0.25", memo: "PAY-3" },
+    ],
+    refused: [{ sourceLine: 4, reason: "invalid amount 'oops'" }],
+    madeMemos: [{ sourceLine: 3, memo: "PAY-3" }],
+  };
+  const out = mergeImported(typed, imported, 50);
+  assert.deepEqual(out.lines.map((l) => l.payableId), ["p1", "row-2", "row-3"], "the blank typed line is dropped; the typed one stays first");
+  assert.deepEqual(out.notes, [
+    "Added 2 lines from the CSV; review them, then create the draft.",
+    "CSV line 3: it had no memo, so it was given PAY-3.",
+    "CSV line 4 was not added: invalid amount 'oops'.",
+  ]);
+  const full = mergeImported(typed, imported, 2);
+  assert.deepEqual(full.lines.map((l) => l.payableId), ["p1", "row-2"]);
+  assert.deepEqual(full.notes, [
+    "Added 1 line from the CSV; review them, then create the draft.",
+    "CSV line 3 was not added: a batch holds at most 2 lines.",
+    "CSV line 4 was not added: invalid amount 'oops'.",
+  ], "a made memo on a row that did not fit is not mentioned");
+  assert.deepEqual(mergeImported([{ ...BLANK_LINE }], { lines: [], refused: [], madeMemos: [] }, 50).lines, [{ ...BLANK_LINE }], "never an empty form");
 });

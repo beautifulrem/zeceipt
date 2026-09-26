@@ -32,6 +32,8 @@ export interface DraftFormState {
   lineErrors: Record<number, string[]>;
   /** Changes on every submission, so the form re-renders with the submitted values. */
   submission: number;
+  /** What an import did (slice I2): rows added, rows refused, memos made. Information, not errors. */
+  notes?: string[];
 }
 
 export const BLANK_LINE: DraftLine = { payableId: "", label: "", address: "", amount: "", memo: "" };
@@ -130,3 +132,27 @@ export function updateLine(lines: EditableLine[], id: number, field: LineField, 
   return lines.map((l) => (l.id === id ? { ...l, values: { ...l.values, [field]: value } } : l));
 }
 
+
+/**
+ * A Konclave import merged into the form (slice I2; `05` §3.6): the lines already typed stay, the imported rows follow,
+ * and the batch limit counts both; every refused row and every memo made from the prefix is named by its CSV line.
+ */
+export function mergeImported(
+  current: DraftLine[],
+  imported: { lines: (DraftLine & { sourceLine: number })[]; refused: { sourceLine: number; reason: string }[]; madeMemos: { sourceLine: number; memo: string }[] },
+  maxLines: number,
+): { lines: DraftLine[]; notes: string[] } {
+  const kept = current.filter((l) => LINE_FIELDS.some((f) => l[f].trim() !== ""));
+  const room = Math.max(0, maxLines - kept.length);
+  const taken = imported.lines.slice(0, room);
+  const over = imported.lines.slice(room).map((l) => ({ sourceLine: l.sourceLine, reason: `a batch holds at most ${maxLines} lines` }));
+  const refused = [...imported.refused, ...over].sort((a, b) => a.sourceLine - b.sourceLine);
+  const made = imported.madeMemos.filter((m) => taken.some((l) => l.sourceLine === m.sourceLine));
+  const notes = [
+    `Added ${taken.length} ${taken.length === 1 ? "line" : "lines"} from the CSV; review them, then create the draft.`,
+    ...made.map((m) => `CSV line ${m.sourceLine}: it had no memo, so it was given ${m.memo}.`),
+    ...refused.map((r) => `CSV line ${r.sourceLine} was not added: ${r.reason}.`),
+  ];
+  const lines = [...kept, ...taken.map((l) => ({ payableId: l.payableId, label: l.label, address: l.address, amount: l.amount, memo: l.memo }))];
+  return { lines: lines.length ? lines : [{ ...BLANK_LINE }], notes };
+}
