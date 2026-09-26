@@ -13,6 +13,10 @@ const pkgDir = path.resolve(process.env.ZECEIPT_PKG_DIR ?? committedPkg);
 // glue: check that here rather than rely on build_wasm.sh --compare having run first (review X3b).
 if (pkgDir !== path.resolve(committedPkg)) {
   for (const f of ["package.json", "zeceipt_wasm.js", "zeceipt_wasm.d.ts", "zeceipt_wasm_bg.wasm.d.ts"]) {
+    if (!fs.existsSync(path.join(pkgDir, f))) {
+      console.error(`FAIL ${pkgDir}/${f} is missing: the wasm-bindgen glue must be identical`);
+      process.exit(1);
+    }
     if (!fs.readFileSync(path.join(pkgDir, f)).equals(fs.readFileSync(path.join(committedPkg, f)))) {
       console.error(`FAIL ${pkgDir}/${f} differs from the committed package's: the wasm-bindgen glue must be identical`);
       process.exit(1);
