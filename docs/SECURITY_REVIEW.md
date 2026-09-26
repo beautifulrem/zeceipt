@@ -27,6 +27,22 @@ Run it with one command: `scripts/security_review.sh`. It needs `cargo-audit` (`
 - (round 2) the same dummy key in an untracked file under the committed `packages/verify/pkg/`, reported by `gitleaks-tree`. In round 1 it went unseen, which is the reviewer's control;
 - (round 2) `packages/verify/pkg/` put back into `.gitleaks.toml`'s allowlist, reported by the new `gitleaks-exclusions-untracked` check: an exclusion may cover only paths with no tracked file.
 
+## Interim pass: 2026-09-27 (slice S6, a dry run at fd62009)
+
+This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.2.3), so a new advisory or leak would surface while there is time to act. It does not replace the rerun. `scripts/security_review.sh` exited 0:
+
+| Check | Tool, database | Result |
+|---|---|---|
+| Rust dependencies (`Cargo.lock`, 304 crates) | cargo-audit 0.22.2; RustSec advisory database, 1,271 advisories (fetched at the run) | 0 vulnerabilities. The accepted RUSTSEC-2023-0089 warning is unchanged and still covered by `.cargo/audit.toml` |
+| npm, `apps/console` | npm audit | 0 vulnerabilities |
+| npm, `packages/verify` | npm audit | 0 vulnerabilities |
+| Secrets, git history (417 commits) | gitleaks 8.30.1 | no leaks (about 7.65 MB scanned) |
+| Secrets, working tree | gitleaks 8.30.1 | no leaks |
+| Exclusions cover only untracked paths | `gitleaks-exclusions-untracked` | passed |
+| Key material in code, secrets in logs | `scripts/check_source_guards.py` | passed |
+
+Since the first pass closed (829617a), 178 commits were added. `Cargo.lock` gained no crate (304 before and after), only six dependency edges from `zeceipt-cli` to crates already locked (`hyper`, `hyper-util`, `http-body-util`, `rustls`, `tokio-rustls`, `webpki-roots`), for the issuer-binding fetch (slice W2b). The two `package.json` files changed scripts and `publishConfig`, not dependencies. The committed WASM was rebuilt without local paths (slice X3a).
+
 ## Manual checklist
 
 Each item is re-read at every run; the evidence is where it is proven.
