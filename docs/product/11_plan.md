@@ -133,7 +133,7 @@ Footage for the pitch's 0:20–1:30 beats (console, receipt link, tamper) is rec
 
 Technical demo (2–3:00): v6 transaction parse → UFVK → external OVK → per-output OCK → `try_output_recovery_with_ock` inside wasm → tamper rejection → why not a viewing key (all-or-nothing vs per-output) → hot-custody vs external-signer modes → Solana attestation write → trade-off: outputs-only now, spend-authority later → regtest proof walk-through.
 
-Weekly updates: 2026-09-28 and 2026-10-05, 60 s each, posted on X tagging @colosseum.
+Weekly updates: 2026-09-28 and 2026-10-05, 60 s each (restored by slice D10b). Where to post is not stated in the FAQ; the Arena tracks `isCurrentWeekUpdateSubmitted`, so most likely the Arena dashboard, with X tagging @colosseum as a harmless extra (slice V1; this line first said X only). Script for the first: `docs/outreach/weekly-update-1.md`.
 
 ## 6. Judge answer sheet (receipt version)
 
