@@ -77,9 +77,14 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 
 ## 3. Videos
 
-- Pitch (≤ 3:00): beat sheet in `11_plan.md` §5.
-- Technical demo (2–3:00): outline in `11_plan.md` §5.
-- Weekly updates: 2026-09-28, 2026-10-05 (60 s each).
+- **Pitch (≤ 3:00):** script and shot list in `docs/outreach/pitch-video.md` (slices V2b, V2c1, V2c2), about 2:44 with the team lines.
+  - Every shot is recorded on the local regtest chain by `apps/console/test/shots/demo-video.ts`, and each row names its take and its cue times, checked on frames.
+  - The user's part: the team lines, narration, editing, and uploading (WBS 5.1.1.1, 5.1.1.4).
+- **Technical demo (≤ 3:00):** script and shot list in `docs/outreach/tech-demo-video.md` (slices V2d, V2e), about 2:52.
+  - The terminal (`inspect`, `issue`, `verify` against the node, with no key on screen), the custody panels and the proof document's sections are recorded (take 20260926184526), and the receipt page is reused from L2.
+  - The user's part: narration, editing, and uploading (WBS 5.1.1.2).
+- **Both scripts** carry a do-not-say list, and the claims that depend on the user's own steps (the public repository, a public-chain run, the forum post) are marked conditional.
+- **Weekly updates:** 2026-09-28, 2026-10-05 (60 s each). The first script is `docs/outreach/weekly-update-1.md`.
 
 ## 4. Repository readiness
 
