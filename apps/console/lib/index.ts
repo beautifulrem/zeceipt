@@ -47,3 +47,5 @@ export { createBatchFromPayables, MAX_PAYABLES, payableBatchProblems } from "./d
 export { dustZat, usdCentsToZat } from "./rates/convert.ts";
 export { voidBatch, VoidError, type VoidErrorCode } from "./data/voids.ts";
 export { isPlainText } from "./data/text.ts";
+export { csvField, EMPTY, formatUsdCents, formatZec, OPENZCASH_HEADER, openZcashRow, toCsv } from "./export/openzcash.ts";
+export type { ExportLine } from "./export/openzcash.ts";
