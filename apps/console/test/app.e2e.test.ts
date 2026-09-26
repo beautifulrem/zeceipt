@@ -880,7 +880,8 @@ test("the linkability warning through next start (REQ-CON-6, slice H6): after re
     // to the console's own page and refuses another site (X2b's rule, through next start).
     const aPage = await get(`/batches/${a.id}`);
     assert.ok(aPage.includes(`href="/api/batches/${a.id}/exports/openzcash"`) && aPage.includes(">Download for OpenZcash (CSV)<"), "the page offers the export");
-    assert.ok(aPage.includes(": all 3 lines, in the columns OpenZcash's own export writes."), "a complete batch says so");
+    assert.ok(aPage.includes("All 3 lines, in OpenZcash's own export columns, plus the txid, receipt link and rate."), "a complete batch says so");
+    assert.ok(aPage.includes('aria-describedby="export-scope export-disclosure"'), "the link is described by what the file holds and discloses");
     assert.ok(aPage.includes("The file holds every receipt link above. Whoever gets it can see each of these payments, and that cannot be taken back"), "the disclosure, before the download");
     const file = await raw(s.port, "GET", `/api/batches/${a.id}/exports/openzcash`, { host: self, "sec-fetch-site": "same-origin" });
     assert.deepEqual([file.status, file.type, file.headers["content-disposition"], file.headers["cache-control"]], [200, "text/csv; charset=utf-8", `attachment; filename="zeceipt-openzcash-${a.id}.csv"`, "no-store"]);

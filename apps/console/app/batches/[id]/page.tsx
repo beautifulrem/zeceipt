@@ -7,6 +7,7 @@ import { batchLinkability, disclosedReceivers } from "../../../lib/data/linkabil
 import { disclosedText } from "../../../lib/view/linkability.ts";
 import { LinkabilityNote } from "../../components/linkability.tsx";
 import { listReceipts } from "../../../lib/data/receipts.ts";
+import { exportOffer } from "../../../lib/view/export-offer.ts";
 import { listAudit } from "../../../lib/data/audit.ts";
 import { eventText } from "../../../lib/view/history.ts";
 import { getBatchStatus, type BatchStatus } from "../../../lib/data/status.ts";
@@ -45,6 +46,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   }
   const view = status ? stateView(status) : unavailable ? STATUS_UNAVAILABLE : undefined;
   const receipts = await listReceipts(ctx.db, ctx.keyring, ctx.config.orgId, rec.id, ctx.config.receiptHost);
+  const offer = exportOffer(rec.id, receipts, rec.items.length);
   // Slice I4: the audit trail the triggers recorded, oldest first.
   const history = await listAudit(ctx.db, ctx.config.orgId, rec.id);
   const total = rec.items.reduce((s, i) => s + i.zat, 0n);
@@ -288,27 +290,23 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             ))}
           </ul>
         )}
-        {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what downloading it discloses. */}
-        {receipts.length > 0 &&
-          (receipts.some((r) => r.openError) ? (
-            <p className="text-sm text-slate-600">A receipt of this batch does not open, so the OpenZcash file cannot be made.</p>
-          ) : (
-            <div className="space-y-1 text-sm">
-              <p>
-                <a href={`/api/batches/${rec.id}/exports/openzcash`} className="text-sky-700 underline">
-                  Download for OpenZcash (CSV)
-                </a>{" "}
-                <span className="text-slate-600">
-                  {receipts.length < rec.items.length
-                    ? `: ${receipts.length} of ${rec.items.length} lines have receipts, and only those are in the file.`
-                    : `: all ${receipts.length} lines, in the columns OpenZcash's own export writes.`}
-                </span>
-              </p>
-              <p className="text-slate-600">
-                The file holds every receipt link above. Whoever gets it can see each of these payments, and that cannot be taken back: publishing the file in a ledger publishes them.
-              </p>
-            </div>
-          ))}
+        {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what it discloses (lib/view/export-offer.ts). */}
+        {offer.kind === "unopenable" && <p className="text-sm text-slate-600">{offer.text}</p>}
+        {offer.kind === "offer" && (
+          <div className="space-y-1 text-sm">
+            <p id="export-scope" className="text-slate-600">
+              {offer.scope}
+            </p>
+            <p id="export-disclosure" className="text-slate-600">
+              {offer.disclosure}
+            </p>
+            <p>
+              <a href={offer.href} aria-describedby="export-scope export-disclosure" className="text-sky-700 underline">
+                Download for OpenZcash (CSV)
+              </a>
+            </p>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="history-heading" className="space-y-2">
