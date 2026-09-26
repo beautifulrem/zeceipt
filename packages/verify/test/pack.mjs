@@ -55,20 +55,24 @@ try {
   const fixtures = path.join(pkgDir, "demo/fixtures");
   const receiptJson = fs.readFileSync(path.join(fixtures, "synthetic-receipt-bearer.json"), "utf8");
   const rawTxHex = fs.readFileSync(path.join(fixtures, "synthetic-ironwood.hex"), "utf8").trim();
-  const script = `const receiptJson = ${JSON.stringify(receiptJson)};
+  // First a load that fails (no bytes, in Node), which must not stick: the README's example then loads and verifies.
+  const script = `import * as first from "@zeceipt/verify";
+const failedFirst = await first.initVerifier().then(() => false, () => true);
+const receiptJson = ${JSON.stringify(receiptJson)};
 const rawTxHex = ${JSON.stringify(rawTxHex)};
 ${nodeExample}
 import { parseReceipt, checkSignature } from "@zeceipt/verify";
 const tampered = JSON.parse(receiptJson);
 tampered.ock = tampered.ock.slice(0, -1) + (tampered.ock.endsWith("A") ? "B" : "A");
 console.log(JSON.stringify({
-  valid: result.valid, value_zat: result.value_zat, memo: result.memo,
+  failedFirst, valid: result.valid, value_zat: result.value_zat, memo: result.memo,
   tampered: verifyReceipt(JSON.stringify(tampered), rawTxHex).valid,
   parsed: parseReceipt(receiptJson).txid, signature: checkSignature(receiptJson),
 }));
 `;
   fs.writeFileSync(path.join(app, "check.mjs"), script);
   const out = JSON.parse(execFileSync(process.execPath, ["check.mjs"], { cwd: app, encoding: "utf8" }));
+  check("through the installed package: a first load without the bytes fails in Node, and does not stick (slice R1b2)", out.failedFirst === true, JSON.stringify(out));
   check("through the installed package: the fixture verifies, 2.5 ZEC", out.valid === true && out.value_zat === 250000000, JSON.stringify(out));
   check("through the installed package: a tampered OCK does not verify", out.tampered === false);
   check("through the installed package: parseReceipt reads the txid", out.parsed === JSON.parse(receiptJson).txid, out.parsed);

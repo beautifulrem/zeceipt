@@ -6,10 +6,10 @@ The receipt format is specified in [`spec/receipt-v0.md`](https://github.com/zec
 
 ## What a valid result proves
 
-As the verifier's own `proves` and `does_not_prove` fields say (spec §4):
+As spec §4 says; the first two parts of each list are the verifier's own `proves` and `does_not_prove` fields:
 
 - **Proves:** this transaction pays the shown value to the shown recipient with the shown memo; whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it; a signature attributes the receipt to a key, not the OCK to the sender.
-- **Does not prove:** who is presenting this receipt; anything about other outputs, transactions or balances.
+- **Does not prove:** who is presenting this receipt; anything about other outputs, transactions or balances; or spend authority (full ZIP 311, spec §1), which needs the spending key.
 
 To know a receipt was made for you, send the issuer a random challenge and pass it to `verifyReceipt`.
 
@@ -51,7 +51,7 @@ const result = verifyReceipt(receiptJson, rawTxHex);
 
 | Export | What it does |
 |---|---|
-| `initVerifier(wasm?)` | Loads the verifier once and returns its version. `wasm`: a URL, a `Response`, bytes or a `WebAssembly.Module`. |
+| `initVerifier(wasm?)` | Loads the verifier once and returns its version; a failed load can be retried. `wasm`: a URL, a `Response`, bytes or a `WebAssembly.Module`. |
 | `verifyReceipt(receipt, rawTxHex, { challenge?, requireSignature? })` | Verifies a receipt against the raw transaction. Returns `valid`, and the recovered `recipient`, `value_zat`, `value_zec` and `memo`, or the failing `stage` and `error`, plus `proves` and `does_not_prove`. |
 | `parseReceipt(input)` | Parses a receipt from JSON, a receipt link or its base64url payload. |
 | `checkSignature(receipt)` | Checks only the issuer signature (no transaction needed). |

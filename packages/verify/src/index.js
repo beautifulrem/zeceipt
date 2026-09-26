@@ -5,7 +5,9 @@ import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, iss
 
 let ready;
 export async function initVerifier(wasm) {
-  if (!ready) ready = init(wasm ? { module_or_path: wasm } : undefined);
+  // Concurrent calls share one load, and a success is never repeated; a failure is forgotten, so the caller can retry
+  // (in Node a first call without the bytes rejects, since Node's fetch cannot read a file: URL).
+  if (!ready) ready = init(wasm ? { module_or_path: wasm } : undefined).catch((e) => { ready = undefined; throw e; });
   await ready;
   return version();
 }
