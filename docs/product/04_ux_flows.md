@@ -21,17 +21,17 @@
    - or the batch is made from payables (slices H5a, H5b): `/batches/from-payables` lists the free payables as checkboxes (a fieldset with a legend, nothing pre-selected, GOV.UK), says before the button that the rate is quoted then and fixed, and makes the batch in one step at that rate; errors appear under the title, the choice or the payable, with the choice kept `[R81]`;
    - if the rate then moves more than 3% before paying (the guard refuses, sending nothing), the operator voids the draft from its page and makes a new batch from the same payables at today's rate (slices H5c, H5d `[R83]`).
 3. Approval (REQ-CON-5; built, slice I3): the approver sees recipients, totals and the locked rate; approve → HMAC recorded; a re-lock or any edit voids it, and Pay needs it. One approver: a second, distinct approver is REQ-CON-22, dropped in the solo branch.
-4. Execute: choose backend (Zkool hot-custody · external signer via per-recipient ZIP-321 QR); confirm dialog restates totals.
-5. Track: pending → broadcast → confirmed(n); failure rows retryable, no duplicates.
-6. Receipts issued automatically (REQ-CON-11); links copied or emailed; export CSVs (OpenZcash / QBO / Xero, REQ-CON-14; 1099 totals NFR-9, baseline only).
-Error states: rate source down (the lock is blocked and the batch stays in draft; falling back to a second source is REQ-CON-20, planned), backend unreachable (batch stays approved), tx not found after 30 min (mark "unknown outcome", require manual reconcile), recipient address on the wrong network (blocked at import).
+4. Pay (hot custody; REQ-CON-7): one Ironwood transaction through Zkool, with the total confirmed and the rate re-checked. In `external` custody the console does not pay: the external signer pays, and this console holds the UFVK only (it refuses Pay, `custody_external`). The ZIP-321 backend was dropped in the solo branch (3.3.5.6).
+5. Track: pending → broadcast → confirmed(n); a failed attempt is retryable, and after an uncertain one the console pays again only when nothing is mined past the attempt's expiry bound (RSK-21 lists the cases that remain).
+6. Receipts issued automatically after the confirmations, or from the batch page (REQ-CON-11); their links are shown on the page; the batch downloads as the OpenZcash CSV (REQ-INT-2, a Should requirement, built in slices X2a–X2c). Emailing links and the QuickBooks, Xero and 1099 exports (REQ-CON-14, NFR-9) are not built.
+Error states: rate source down (the lock is blocked and the batch stays in draft; falling back to a second source is REQ-CON-20, planned), backend unreachable (batch stays approved), an uncertain outcome (the attempt is marked unknown; the console reconciles it against the chain and pays again only past its expiry bound, RSK-21), recipient address on the wrong network (blocked at import).
 
 ### FLOW-2 Recipient verifies (P3)
 1. Opens `https://<host>/r#<payload>` (or pastes a receipt into the demo page). The payload is in the fragment, so the page's host never receives it (spec §2.1).
 2. Page loads wasm, shows "what this proves" before fetching anything.
 3. Fetch raw tx from a public node (button; explains the txid is revealed to that node) or load a file.
 4. Result: VALID with recipient/value/memo/label/issuer/challenge state; INVALID with the failing stage in plain words.
-5. Optional: download JSON/PDF; if a challenge was issued to them, enter it.
+5. Optional: if a challenge was issued to them, enter it. Downloading the result as JSON or PDF is not built.
 
 ### FLOW-3 Auditor verifies a pack (P4)
 1. Receives `pack.json` (and optionally a challenge they issued).

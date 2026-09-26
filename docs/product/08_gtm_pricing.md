@@ -38,7 +38,7 @@ A pilot needs the wallet that sends the payments: receipts are issued from that 
 |---|---|---|---|
 | Open source | free | crates, npm, CLI, format, vectors | dev adoption; grant-fundable public good |
 | Issuer | $0 up to 20 receipts/month | hosted receipt pages, one org, one issuer key | free entry tier (Bitwage's per-employee pricing `[R29]` is unverified, second-hand; the free tier stands on its own) |
-| Team | $79/month | 500 receipts/month, audit-pack hosting, exports (OpenZcash/QBO/Xero/1099 totals), 5 seats | below Request Finance Growth ($250) since we are an add-on, above Rise's $49/contractor unit `[R27]` `[R28]` |
+| Team | $79/month | 500 receipts/month, audit-pack hosting, exports (OpenZcash, built; QBO/Xero/1099 totals, planned), 5 seats | below Request Finance Growth ($250) since we are an add-on, above Rise's $49/contractor unit `[R27]` `[R28]` |
 | Organisation | from $299/month | unlimited receipts, well-known key binding, verification API quota, priority support | Request Finance Pro/Scale range `[R27]` |
 | Verification API / licensing | usage-based; enterprise licence | compliance vendors, exchanges, ledgers | commercial KYT/compliance deployments quoted at $50k–$200k/yr and above as the ceiling reference `[R40]` |
 
