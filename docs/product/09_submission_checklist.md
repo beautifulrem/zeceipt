@@ -60,7 +60,7 @@ Receipts compose into audit packs whose totals are lower bounds. An issuer can b
 
 Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 2026-09-26), the FPF quarter `[R4]`, targets `11_plan.md` §4 (solo branch), pricing `08_gtm_pricing.md` §4; each claim maps to evidence in `.trellis/tasks/09-26-gtm-paragraph/implement.md`.
 
-**Who first.** Zcash grant and bounty programs, which pay contributors in ZEC and account for it in public: ZCG's ledger is mirrored on OpenZcash from its public sheet, and FPF made 129 ZecHub bounty payments to 33 recipients in one quarter. Our first pilot target is ZecHub DAO's bounty program; then ZCG's grantees and payroll teams. The community has named the gap: in a June forum thread on viewing keys for accounting, Michae2xl wrote "The encryption is done; the boring middle is not.", listing a scoped, logged disclosure for the auditor among the missing pieces.
+**Who first.** Zcash grant and bounty programs, which pay contributors in ZEC and account for it in public: ZCG's ledger is mirrored on OpenZcash from its public sheet, and FPF made 129 ZecHub bounty payments to 33 recipients in one quarter. Our first pilot target is ZecHub's bounty program, with whoever sends its payments (today FPF) issuing the receipts from that wallet's viewing key; then ZCG's grantees and payroll teams. The community has named the gap: in a June forum thread on viewing keys for accounting, Michae2xl wrote "The encryption is done; the boring middle is not.", listing a scoped, logged disclosure for the auditor among the missing pieces.
 
 **How it spreads.**
 - A receipt travels as a link to a page that verifies it in the browser, so each payment shows the product to the person paid and to whoever checks it.
@@ -68,7 +68,7 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 - The Zcash forum: a public call for one pilot team, which pays a real batch and sends its contributors their receipt links.
 - The standard: an implementation report for ZIP 311's discussion, asking whether an outputs-only profile could be standardised, so receipts can become a common format rather than ours alone.
 
-**Milestones.** By submission: at least 3 receipts on a public chain, one issuing organisation, one receipt verified publicly by someone outside the team. In 90 days: 2 organisations, 100 receipts a month, one integration with a payout tool. In 12 months: a verifier pilot on a second privacy chain (Solana confidential balances or Aleo), which needs that chain's own disclosure primitive.
+**Milestones.** By submission: at least 3 receipts on a public chain, one issuing organisation, one receipt verified publicly by someone outside the team. In 90 days: 2 organisations, 100 receipts a month, one integration with a payout tool. In 12 months: a verifier pilot on a second chain with private payments (Solana confidential balances or Aleo records), which needs that chain's own disclosure primitive.
 
 **Pricing (draft).** The core stays free and open source, and hosting is free up to 20 receipts a month; above that, paid hosted tiers start at $79 a month. A usage-priced verification API for compliance vendors, exchanges and ledgers comes later.
 
