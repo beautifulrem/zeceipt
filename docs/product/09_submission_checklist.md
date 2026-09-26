@@ -91,15 +91,15 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 
 ## 5. Timeline (authoritative for external milestones)
 
-This table is the authority for dates visible outside the team (posts, videos, uploads, user asks). Engineering dates are authoritative in `11_plan.md` §8 (the solo schedule, baseline v2; §3 is baseline v1); every row below is one of §8's dates or asks, and the two must not disagree. Re-derived 2026-09-26 (slice D10c): of the baseline rows due by 09-27, the product phase closed on time; the push, the forum post, the funding checkpoint and the window-date confirmation passed unanswered and are re-dated below; the zips #387 post, the Konclave adapter outreach and the Solana review were dropped with the solo branch (the zips comment is drafted and posting it is the user's option, `11_plan.md` §1.1).
+This table is the authority for dates visible outside the team (posts, videos, uploads, user asks). Engineering dates are authoritative in `11_plan.md` §8 (the solo schedule, baseline v2; §3 is baseline v1); every row below is one of §8's dates or asks, and the two must not disagree. Re-derived 2026-09-26 (slice D10c): of the baseline rows due by 09-27, the product phase closed on time; the push, the forum post with its pilot outreach, the funding checkpoint and the window-date confirmation passed unanswered and are re-dated below; the zips #387 post, the Konclave adapter outreach and the Solana review were dropped with the solo branch (the zips comment is drafted and posting it is the user's option, `11_plan.md` §1.1).
 
 | Date | Milestone | Source |
 |---|---|---|
 | 2026-09-22 | Product/research phase closed ✅ | `11_plan.md` §3 |
-| 2026-09-28 | Push the repo and enable CI; confirm the product name; record and post weekly update 1 (fallback: by 09-30, or skipped); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
-| 2026-09-30 | Testnet faucet claim and mainnet funding of the issuing wallet (U) | `11_plan.md` §8; WBS asks |
+| 2026-09-28 | Push the repo and enable CI; confirm the product name; register the project on the Arena if it is not yet (weekly updates and the upload most likely need it); record and post weekly update 1 (fallback: by 09-30, or skipped); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
+| 2026-09-30 | Testnet faucet claim and mainnet funding of the issuing wallet (U); the first public-chain issuance run once funded (§8, 09-27 → 09-30) | `11_plan.md` §8; WBS asks |
 | 2026-10-01 | Register the domain and host the page; decide whether to contact Konclave's author as a pilot channel (U) | `11_plan.md` §8; WBS asks |
-| 2026-10-01 → 10-03 | First public-chain receipts by 10-03 (funding cut-off 10-02, then testnet only); the pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | `11_plan.md` §8 |
+| 2026-10-01 → 10-03 | Fallback for the public-chain run: it must land by 10-03 (mainnet cut-off 10-02, then testnet only); the pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | `11_plan.md` §8 |
 | 2026-10-03 | Team roster and founder lines; confirm the window-open date, inferred 10-05 or 10-06 `[R106]` (U) | `11_plan.md` §8; WBS asks |
 | 2026-10-04 → 10-07 | Pitch video and technical demo recorded | `11_plan.md` §8 |
 | 2026-10-05 | Record and post weekly update 2 (U; fallback: by 10-07, or skipped); initial upload on the window-open day | `11_plan.md` §8 |

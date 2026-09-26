@@ -62,9 +62,9 @@ Colosseum judges evaluate on Functionality, Potential Impact, Novelty, UX, Open-
 
 | Persona | v0 (hackathon) | Post-hackathon |
 |---|---|---|
-| P1 | pilot target (ZecHub DAO, one grantee) | ZCG/FPF adoption via OpenZcash |
-| P2 | Konclave adapter demo | console customers |
+| P1 | pilot target (ZecHub's bounties, with FPF as the sender who issues; or a payer from the forum call) | ZCG/FPF adoption via OpenZcash |
+| P2 | CSV import of Konclave's format (planned; the Konclave-side adapter was dropped) | console customers |
 | P3 | receipt page | PDF export, USDC settlement |
 | P4 | audit pack CLI | hosted audit portal |
 | P5 | crates + npm + vectors | ZIP alignment, other chains |
-| P6 | OpenZcash demo branch | verified feeds |
+| P6 | OpenZcash-compatible export (planned; the demo branch is infeasible: no public OpenZcash source) | verified feeds |

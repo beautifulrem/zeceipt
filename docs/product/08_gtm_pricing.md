@@ -28,7 +28,7 @@ A pilot needs the wallet that sends the payments: receipts are issued from that 
 | Candidate | Why | Ask | Status |
 |---|---|---|---|
 | ZecHub DAO, with FPF as the sender | weekly bounties, open community; FPF sends the payments `[R4]` | FPF issues receipts for one week of ZecHub bounties | ⬜ (after the forum call) |
-| Zcash Brazil (Konclave) | already runs shielded payroll `[R10]`; our KB lists its treasury lead as OpenZcash's maintainer (unverified, KB `12_sources_and_gaps.md`) | one batch paid from its wallet, with receipts for its public ledger | ⬜ |
+| Zcash Brazil (Konclave) | keeps its treasury on Konclave since 2026-08-29 `[R10]`; our KB lists its treasury lead as OpenZcash's maintainer (unverified, KB `12_sources_and_gaps.md`) | one batch paid from its wallet, with receipts for its public ledger | ⬜ |
 | One ZCG grantee team | pays subcontractors in ZEC | run one batch | ⬜ |
 | OpenZcash | ledger consumer | the OpenZcash-compatible export (planned); the "verified" demo branch is infeasible (no public source) | ⬜ |
 
