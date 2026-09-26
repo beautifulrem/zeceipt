@@ -1,17 +1,16 @@
 // Headless regression check for the committed WASM package.
 // Fails if the committed verifier no longer agrees with the committed fixtures
 // (e.g. the canonical signing bytes changed but pkg/ was not rebuilt).
+// ZECEIPT_PKG_DIR tests another build instead, such as CI's Linux rebuild (slice X3b).
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import init, { verify_receipt, check_signature, parse_receipt, issuer_claim, issuer_binding, version } from "../pkg/zeceipt_wasm.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const wasm = fs.readFileSync(path.join(here, "../pkg/zeceipt_wasm_bg.wasm"));
-await init({ module_or_path: wasm });
-
-const receipt = fs.readFileSync(path.join(here, "../demo/fixtures/synthetic-receipt.json"), "utf8");
-const rawTx = fs.readFileSync(path.join(here, "../demo/fixtures/synthetic-ironwood.hex"), "utf8").trim();
+const pkgDir = path.resolve(process.env.ZECEIPT_PKG_DIR ?? path.join(here, "../pkg"));
+const { default: init, verify_receipt, check_signature, parse_receipt, issuer_claim, issuer_binding, version } = await import(pathToFileURL(path.join(pkgDir, "zeceipt_wasm.js")).href);
+console.log(`package: ${pkgDir}`);
+const wasm = fs.readFileSync(path.join(pkgDir, "zeceipt_wasm_bg.wasm"));
 
 let failures = 0;
 const check = (name, cond, detail) => { if (!cond) { failures++; console.error("FAIL", name, detail ?? ""); } else console.log("ok  ", name); };
@@ -19,8 +18,17 @@ const check = (name, cond, detail) => { if (!cond) { failures++; console.error("
 // Built by scripts/build_wasm.sh (slice X3a): no absolute path of the machine that built it, which would make the
 // package unreproducible elsewhere and ship the builder's paths. /rustc/<commit>/ (the standard library's own) and the
 // remapped /cargo/registry/src/ and /zeceipt/ are expected.
-const localPaths = [...wasm.toString("latin1").matchAll(/(?:\/Users\/|\/home\/|\/Volumes\/|\/var\/folders\/|\/private\/|\/tmp\/|[A-Z]:\\Users\\)[\x21-\x7e]{0,60}/g)].map((m) => m[0]);
+const LOCAL_PATH = /(?:\/Users\/|\/home\/|\/root\/|\/Volumes\/|\/var\/folders\/|\/private\/|\/tmp\/|[A-Z]:\\Users\\|[A-Z]:\/Users\/)[\x21-\x7e]{0,60}/g;
+const localPaths = [...wasm.toString("latin1").matchAll(LOCAL_PATH)].map((m) => m[0]);
 check("the committed WASM carries no local build path (built by scripts/build_wasm.sh)", localPaths.length === 0, JSON.stringify(localPaths.slice(0, 3)));
+
+await init({ module_or_path: wasm });
+// The JS wrapper imports the committed glue; hand it this build's bytes (the glue must be identical: build_wasm.sh
+// compares it), so the wrapper's checks below run against the build under test.
+await (await import("../src/index.js")).initVerifier(wasm);
+
+const receipt = fs.readFileSync(path.join(here, "../demo/fixtures/synthetic-receipt.json"), "utf8");
+const rawTx = fs.readFileSync(path.join(here, "../demo/fixtures/synthetic-ironwood.hex"), "utf8").trim();
 
 const ok = verify_receipt(receipt, rawTx, "auditor-nonce-7", true);
 check("valid receipt verifies", ok.valid === true, JSON.stringify(ok));

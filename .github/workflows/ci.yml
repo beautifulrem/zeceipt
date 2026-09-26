@@ -53,12 +53,26 @@ jobs:
         # ZECEIPT_BROWSER_E2E: the JavaScript-path test drives the runner's Google Chrome through playwright-core.
         run: ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 node --test test/app.e2e.test.ts
   wasm:
+    # Rebuilds the committed WASM on Linux with the toolchain it was measured with (README, "Building the WASM
+    # package"; slice X3b): the wasm-bindgen outputs must match the committed ones and the Linux build must pass the
+    # same checks; whether the .wasm bytes match across platforms (clang 18 here, Homebrew clang 23 on the Mac) is
+    # reported in the job summary, not required.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.96.0
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - run: cargo install wasm-pack --locked
-      - run: wasm-pack build crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg
+      - run: sudo apt-get update && sudo apt-get install -y clang-18 llvm-18
+      - run: cargo install wasm-pack --version 0.15.0 --locked
+      - name: build the WASM package with the reproducible script, outside the committed pkg/
+        run: ZECEIPT_WASM_CLANG=clang-18 ZECEIPT_WASM_AR=llvm-ar-18 scripts/build_wasm.sh --out-dir "$RUNNER_TEMP/pkg"
+      - name: compare with the committed package (wasm-bindgen outputs must match; the .wasm is reported)
+        run: scripts/build_wasm.sh --compare "$RUNNER_TEMP/pkg"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: the Linux-built package passes the committed package's checks
+        run: ZECEIPT_PKG_DIR="$RUNNER_TEMP/pkg" node packages/verify/test/verify.mjs

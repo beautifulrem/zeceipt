@@ -147,5 +147,8 @@ Pending: receipts on a public chain (the testnet run is prepared and waits on fa
   - wasm-bindgen 0.2.128 (`Cargo.lock`);
   - Homebrew clang 23.1.1.
 - The committed WASM's sha256 is `bf60dfe80d19d79c09454d25a994f95e05d7c16ef95af08aeeeb1d2dfee7d3f1`.
-- To check it, build into another directory and compare the hash the script prints: `scripts/build_wasm.sh --out-dir /tmp/pkg`.
-- A different version of any of these tools may produce different bytes.
+- To check it, run `scripts/build_wasm.sh --check`. It builds into a temporary directory and compares the result with the committed package:
+  - the wasm-bindgen outputs (the JS glue, the `.d.ts` files, `package.json`) must be identical;
+  - the `.wasm` is reported identical or different (`--require-identical-wasm` makes a difference fail).
+- A different version of any of these tools may produce different bytes. The measurement above was made on macOS.
+- CI's `wasm` job rebuilds the package on Linux with the same Rust, wasm-pack and wasm-bindgen, but the runner's clang 18. It requires the wasm-bindgen outputs to match and the Linux build to pass `verify.mjs`, and reports whether the `.wasm` bytes match (slice X3b). Its first run waits for the repository's push.
