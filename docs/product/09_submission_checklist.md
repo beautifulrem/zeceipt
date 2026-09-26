@@ -1,6 +1,6 @@
 # Colosseum submission checklist
 
-Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FAQ; re-check the live form on the day the window is confirmed, WBS 1.1.1.4). Deadline 2026-10-12 23:59 PT; window assumed to open ~2026-10-05 (confirm). One submission per team; all content in English; misrepresenting development history or failing to disclose pre-existing code disqualifies `[R1]`.
+Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FAQ, re-read 2026-09-26 `[R109]`; re-check the live form on the day the window is confirmed, WBS 1.1.1.4). Deadline 2026-10-12 23:59 PT; window assumed to open ~2026-10-05 (confirm). One submission per team; all content in English; misrepresenting development history or failing to disclose pre-existing code disqualifies `[R1]`.
 
 ## 1. Form fields
 
@@ -15,11 +15,12 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Team location / country | | 👤 |
 | Logo / graphic | a plain text wordmark (the designed logo, WBS 5.1.2.5, was dropped with the solo branch) | ⬜ |
 | GitHub repository | public URL (open source encouraged; private allowed with judge access) | 👤 push |
-| Presentation (pitch) video | ≤ 3 min, YouTube unlisted | ⬜ |
-| Product demo video | ≤ 3 min technical, YouTube unlisted | ⬜ |
-| Go-to-market | draft in §2b (slice D9): first users, channels, milestones, draft pricing | 🟡 fill the status placeholder |
+| Presentation (pitch) video | 2–3 min ("one of the first resources judges review" `[R109]`), YouTube unlisted | ⬜ |
+| Product demo video | ≤ 3 min, how the product works `[R109]`, YouTube unlisted | ⬜ |
+| Go-to-market (the form asks for "Go-to-market strategy, demand validation, and plans for developing distribution" `[R109]`) | draft in §2b (slice D9): first users, demand in a user's words, channels, milestones, draft pricing | 🟡 fill the status placeholder |
 | Live demo / website URL | `zeceipt.xyz` demo page (or GitHub Pages fallback) — field not in the 2026-09-17 capture; prepare anyway | ⬜ |
 | X / social handle | team handle for weekly updates — not in the capture; prepare anyway | 👤 |
+| Past development work (required: "teams must disclose all relevant past development work in the submission form" `[R109]`) | Draft, from `docs/PRE_EVENT_STATE.md`: the repository started on 2026-09-21 PT, a week into the event, and no product code predates it; research notes and the product definition were kept in a private knowledge base; third-party code is published crates and npm packages (lockfiles) and the workflow tooling under `.trellis/` and `.claude/` (Trellis, Claude Code), installed with those tools, which with `Cargo.lock` is most of the first commit | ⬜ the user confirms and submits it |
 | AI-assistance disclosure | if the form asks: AI-assisted coding and research were used; all cryptography comes from upstream crates; disclose plainly | ⬜ |
 | isUniversityProject / isSolanaMobile | no / no | ✅ |
 
