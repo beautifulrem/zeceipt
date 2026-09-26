@@ -8,8 +8,10 @@
 //   1. recipients and five USD bounties → a batch from payables at the locked rate → Approve → Pay;
 //   2. the confirmed batch → Issue receipts → the receipts and the History;
 //   3. a receipt link opened as its recipient would (VALID: address, amount, memo) → one character of its OCK changed →
-//      INVALID at the signature stage.
-// Outputs (outside the repository): 1-console.webm, 2-receipts.webm, 3-receipt-page.webm and shots.json (each step's
+//      INVALID at the signature stage;
+//   4. a zecpay CSV imported on the payables page: the preview (new recipients, one matched by Orchard receiver under
+//      another name, each row's address, a ZEC row refused by its CSV line), then Import (slice V2c1; the pitch's 1:37 beat).
+// Outputs (outside the repository): 1-console.webm, 2-receipts.webm, 3-receipt-page.webm, 4-import.webm and shots.json (each step's
 // offset in its segment, for editing and narration). Receipt links, OCKs and the wrap key stay in memory: shots.json is
 // scanned for them before it is written.
 
@@ -207,7 +209,8 @@ try {
     await open(link);
     assert.equal((await page.textContent("#headline"))?.trim(), "VALID");
     await page.locator("#headline").evaluate((el) => el.scrollIntoView({ block: "start" }));
-    await step("a recipient opens their link: VALID, with their address, amount and memo recovered from the chain", KEY);
+    // Not "from the chain": no public node serves regtest, so the page loads the transaction from a file (V1's rule).
+    await step("a recipient opens their link: VALID, with their address, amount and memo recovered from the transaction (loaded from a file)", KEY);
     await page.goto("about:blank");
     await open(tampered);
     assert.equal((await page.textContent("#headline"))?.trim(), "INVALID");
@@ -215,6 +218,53 @@ try {
     await page.locator("#headline").evaluate((el) => el.scrollIntoView({ block: "start" }));
     await step("one character of the key changed: INVALID, and the page names the stage (the signature)", KEY);
   });
+
+  // Two more people for the import, with their own regtest accounts; the CSV also names Ana Souza by her address under a
+  // shorter name (matched by Orchard receiver, the existing name kept) and has one ZEC row, which zecpay's format allows
+  // and this console refuses (a ZEC amount belongs in a draft batch).
+  const more: { name: string; ua: string }[] = [];
+  for (const [i, name] of ["Fay Adeyemi", "Gus Lindqvist"].entries()) {
+    const { createAccount: id } = await zkool<{ createAccount: number }>("mutation($new: NewAccount!) { createAccount(newAccount: $new) }", {
+      new: { name: `demo-${stamp}-import-${i + 1}`, key: "", passphrase: "", aindex: 0, birth, pools: 8, useInternal: false },
+    });
+    const { addressByAccount } = await zkool<{ addressByAccount: { ua: string } }>("query($id: Int!) { addressByAccount(idAccount: $id) { ua } }", { id });
+    more.push({ name, ua: addressByAccount.ua });
+  }
+  const csv = [
+    "name,wallet,amount,currency,payout_currency",
+    `${more[0].name},${more[0].ua},350,USD,ZEC`,
+    `${more[1].name},${more[1].ua},120.50,USD,ZEC`,
+    `Ana,${recipients[0].ua},75,USD,ZEC`,
+    `Hal,${more[0].ua},2,ZEC,ZEC`,
+  ].join("\n");
+
+  await segment("import", "4-import.webm", async (page, step) => {
+    await page.goto(`${base}/payables`);
+    await page.getByText("Import payables from a zecpay CSV").click();
+    // The payables page has another form with a kind field (adding one payable): scope to the import's form.
+    const form = page.locator("form", { has: page.locator('textarea[name="csv"]') });
+    await form.locator('textarea[name="csv"]').fill(csv);
+    await form.locator('select[name="kind"]').selectOption("milestone");
+    await form.locator('input[name="prefix"]').fill("OCT-GRANTS");
+    await form.locator('textarea[name="csv"]').scrollIntoViewIfNeeded();
+    await step("a zecpay payroll CSV pasted, with the kind and a reference prefix (each reference is the prefix and the CSV line)");
+    await form.getByRole("button", { name: "Preview" }).click();
+    await page.getByRole("button", { name: /^Import 3 payables$/ }).waitFor();
+    assert.ok(await page.getByText("Ana Souza (existing, matched by Orchard receiver").first().isVisible(), "the existing recipient is matched by receiver");
+    assert.ok(await page.getByText("CSV line 5 will not be imported: the amount is in ZEC").first().isVisible(), "the ZEC row is refused by its line");
+    // The whole preview on screen: its heading at the top, then the rows and the refusal below it (review of the first
+    // take: scrolling only the table's header into view left the rows below the fold).
+    await page.getByText(/^Preview: 3 payables to add/).evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await step("the preview writes nothing: two new recipients, Ana matched by Orchard receiver under the file's other name, the address each row will pay, and the ZEC row refused by its CSV line", KEY);
+    await page.getByRole("button", { name: /^Import 3 payables$/ }).click();
+    await page.getByText("Imported 3 payables and 2 new recipients from the zecpay CSV.").waitFor();
+    await page.getByText("Imported 3 payables").evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await step("imported: three payables and two new recipients, all together", KEY);
+    await page.getByText("OCT-GRANTS-2", { exact: true }).evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await step("the three new payables in the list, each with its reference (OCT-GRANTS-2 to -4, from the CSV lines)", KEY);
+  });
+  const imported = (JSON.parse((await raw(s.port, "GET", "/api/payables", { host: self })).body) as { payables: { reference: string }[] }).payables.map((p) => p.reference).filter((r) => r.startsWith("OCT-GRANTS-")).sort();
+  assert.deepEqual(imported, ["OCT-GRANTS-2", "OCT-GRANTS-3", "OCT-GRANTS-4"]);
 
   const index = {
     version: 1,
