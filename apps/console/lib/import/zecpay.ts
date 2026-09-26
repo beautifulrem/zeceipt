@@ -6,8 +6,9 @@
 
 import { checkUnifiedAddress, orchardReceiverHex } from "../execution/address.ts";
 import type { Network } from "../execution/types.ts";
-import { payableProblems, type PayableKind } from "../data/payables.ts";
-import { canonicalAddress, recipientProblems } from "../data/recipients.ts";
+import type { PayableKind } from "../data/payable-rules.ts";
+import { payableProblems } from "../data/payable-validate.ts";
+import { canonicalAddress, recipientProblems } from "../data/recipient-validate.ts";
 import { IMPORT_MAX_ROWS, type ImportRefusal } from "./konclave.ts";
 
 export interface ZecpayRow {
@@ -50,7 +51,7 @@ export function dollarsToCents(amount: string): number | undefined {
   return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
 }
 
-export type PlannedRecipient = { kind: "existing"; id: string; name: string; fileName: string } | { kind: "new"; name: string };
+export type PlannedRecipient = { kind: "existing"; id: string; name: string; fileName: string } | { kind: "new"; name: string; fileName: string };
 
 export interface PlannedPayable {
   sourceLine: number;
@@ -140,16 +141,23 @@ export function planZecpayImport(parsed: ZecpayParse, ctx: PlanContext): ZecpayP
         refuse(`a new recipient needs a name: ${bad.detail}`);
         continue;
       }
-      recipient = { kind: "new", name };
+      recipient = { kind: "new", name, fileName: row.name };
     }
     const reference = `${prefix}-${row.sourceLine}`;
     if (ctx.takenReferences.has(reference)) {
       refuse(`reference taken: ${reference} is already a payable's reference`);
       continue;
     }
-    const usd = payableProblems({ recipientId: "-", kind: ctx.kind, usdCents: cents, reference }).find((p) => p.field === "usdCents");
+    const problems = payableProblems({ recipientId: "-", kind: ctx.kind, usdCents: cents, reference });
+    const usd = problems.find((p) => p.field === "usdCents");
     if (usd) {
       refuse(`invalid amount '${row.amount}': ${usd.detail}`);
+      continue;
+    }
+    // Each row's own reference (review I3a round 1): a long prefix can pass with line 1 and overflow with line 10.
+    const ref = problems.find((p) => p.field === "reference");
+    if (ref) {
+      refuse(`reference not valid: ${reference}: ${ref.detail}`);
       continue;
     }
     if (plan.payables.length >= IMPORT_MAX_ROWS) {

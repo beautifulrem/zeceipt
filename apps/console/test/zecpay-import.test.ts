@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dollarsToCents, parseZecpayCsv, planZecpayImport, type PlanContext } from "../lib/import/zecpay.ts";
+import { item, ua } from "./helpers/ua-encoder.ts";
 
 const SAMPLE = readFileSync(new URL("./fixtures/zecpay-sample-payroll.csv", import.meta.url), "utf8");
 // Regtest unified addresses with Orchard receivers (the committed Zkool fixture's recipients, as in receipt-routes.test.ts).
@@ -29,9 +30,9 @@ test("valid rows: USD amounts in whole cents, a new recipient per receiver, refe
   const plan = planZecpayImport(parseZecpayCsv(csv), ctx());
   assert.deepEqual(plan.refused, []);
   assert.deepEqual(plan.payables.map((p) => [p.sourceLine, p.usdCents, p.reference, p.recipient]), [
-    [2, 50000, "PAYROLL-2026-09-2", { kind: "new", name: "Alice" }],
-    [3, 22750, "PAYROLL-2026-09-3", { kind: "new", name: "Bob" }],
-    [4, 5, "PAYROLL-2026-09-4", { kind: "new", name: "Alice" }],
+    [2, 50000, "PAYROLL-2026-09-2", { kind: "new", name: "Alice", fileName: "Alice" }],
+    [3, 22750, "PAYROLL-2026-09-3", { kind: "new", name: "Bob", fileName: "Bob" }],
+    [4, 5, "PAYROLL-2026-09-4", { kind: "new", name: "Alice", fileName: "Alice again" }],
   ], "defaults USD and ZEC; a second row to the same receiver shares the first row's new recipient and name");
 });
 
@@ -87,4 +88,51 @@ test("file-level problems: no header, no prefix, a prefix that cannot make a ref
 test("amounts are whole cents, stricter than zecpay's parseFloat", () => {
   const cases: [string, number | undefined][] = [["500", 50000], ["227.5", 22750], ["227.50", 22750], ["0.05", 5], ["500abc", undefined], ["1.005", undefined], ["-5", undefined], ["1e3", undefined], ["", undefined]];
   for (const [amount, want] of cases) assert.equal(dollarsToCents(amount), want, amount);
+});
+
+test("each row's reference is checked: a 98-character prefix passes on line 1 and is refused from line 10", () => {
+  const rows = Array.from({ length: 11 }, (_, i) => `R${i},${UA[i % 3]},1`);
+  const plan = planZecpayImport(parseZecpayCsv(["name,wallet,amount", ...rows].join("\n")), ctx({ prefix: "P".repeat(98) }));
+  assert.equal(plan.fileProblem, undefined);
+  assert.deepEqual(plan.payables.map((p) => p.sourceLine), [2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(plan.refused.map((r) => r.sourceLine), [10, 11, 12]);
+  assert.match(plan.refused[0].reason, /^reference not valid: P{98}-10: reference must be 1–100 characters/);
+});
+
+test("zecpay's header is matched case-insensitively and trimmed, and cells are trimmed, as zecpay does", () => {
+  const clean = planZecpayImport(parseZecpayCsv(`name,wallet,amount,currency,payout_currency\nAlice,${UA[0]},500,USD,ZEC`), ctx());
+  const padded = planZecpayImport(parseZecpayCsv(` Name , WALLET,amount ,Currency,PAYOUT_CURRENCY\n  Alice , ${UA[0]} , 500 , USD , ZEC `), ctx());
+  assert.deepEqual(padded, clean);
+});
+
+test("a zero amount is refused at the amount step, with its own reason", () => {
+  const plan = planZecpayImport(parseZecpayCsv(`name,wallet,amount\nA,zs1abc,0`), ctx());
+  assert.match(plan.refused[0].reason, /^invalid amount '0': whole cents greater than zero/);
+});
+
+test("a recipient on another network is never a match, even with the same Orchard receiver", () => {
+  const regtest = ua("uregtest", [item(3, 43, 9)]);
+  const mainnet = ua("u", [item(3, 43, 9)]); // the same receiver bytes, encoded for mainnet
+  const plan = planZecpayImport(parseZecpayCsv(`name,wallet,amount\nA,${regtest},1`), ctx({ recipients: [{ id: "m-1", displayName: "Main", address: mainnet, network: "main" }] }));
+  assert.equal(plan.payables[0].recipient.kind, "new");
+});
+
+test("the planner cannot write: none of its runtime imports reaches the database", () => {
+  const seen = new Set<string>();
+  const walk = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const src = readFileSync(file, "utf8");
+    for (const m of src.matchAll(/^import\s+(?!type\b)[^;]*?from\s+"([^"]+)"/gm)) {
+      if (!m[1].startsWith(".")) {
+        assert.ok(!/drizzle|better-sqlite3/.test(m[1]), `${file} imports ${m[1]}`);
+        continue;
+      }
+      const next = new URL(m[1], `file://${file}`).pathname;
+      assert.ok(!next.includes("/db/"), `${file} imports ${m[1]}`);
+      walk(next);
+    }
+  };
+  walk(new URL("../lib/import/zecpay.ts", import.meta.url).pathname);
+  assert.ok(seen.size > 3, "the walk followed the imports");
 });
