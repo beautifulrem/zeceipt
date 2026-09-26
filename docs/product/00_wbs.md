@@ -244,7 +244,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 4.1.1.1 👤 ⬜ U — Create GitHub org/repo, push, enable CI.
 - 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example. The receipt page needs `packages/verify/` as the site root, with `/r` redirected to `/r/` (README, "Receipt links"). Check it on the host, and add the page's CSP and `Referrer-Policy` as response headers there (a meta cannot carry `frame-ancestors`).
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve.
-- 4.1.1.4 ⬜ R — Tag v0.1.0; README badges; release notes. 0.25 pd, 2026-10-08 → 10-09.
+- 4.1.1.4 ⬜ R — Tag v0.1.0; README badges and a "For judges" section (where to start, commands, what runs where; winner lessons item 9); release notes. 0.25 pd, 2026-10-08 → 10-09. Added back in the solo branch (slice D10b): the section and notes in 09-27 → 09-30, the tag on 10-09.
 #### 4.1.2 Community and design test
 - 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-10-08 → 10-09.
 - 4.1.2.2 🟡 PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24. Drafted 2026-09-25 (slice L1, Trellis `09-25-forum-post-draft`): `docs/outreach/forum-pilot-post.md`, every claim tied to PROOF, links marked for after the push `[R92]`. Posting is the user's action, after the repository is public (4.1.1.1).
@@ -310,7 +310,7 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 | 2026-10-03 | 1.1.1.4 | Confirm the submission window open date (Colosseum Discord/FAQ); inferred 2026-10-05 11:00 to 10-06 11:00 UTC `[R106]` | sets the initial-upload day (5.2.1.1) |
 | 2026-10-03 | 2.4.3.3 | Team roster and two founder-market-fit sentences | pitch video (recorded from 10-04), submission form |
 | 2026-10-09 | 5.1.2.3 | Team backgrounds and location for the form | submission form fields |
-| 2026-10-10 | 4.1.1.3 | `npm publish @zeceipt/verify` — the day after the security review rerun (3.4.2.3) completes on 10-09 (the v0.1.0 tag, 4.1.1.4, was dropped with the solo branch); a release action, allowed during the freeze | REQ-WEB-8; integrator story; irreversible, so it follows the audit by a full day |
+| 2026-10-10 | 4.1.1.3 | `npm publish @zeceipt/verify` — the day after the security review rerun (3.4.2.3) completes on 10-09, which is also the day the v0.1.0 tag (4.1.1.4, restored by slice D10b) is cut; a release action, allowed during the freeze | REQ-WEB-8; integrator story; irreversible, so it follows the audit by a full day |
 
 ## Roll-up
 
