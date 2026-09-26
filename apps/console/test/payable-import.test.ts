@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPayable, createRecipient, migrateDb, openDb, type ConsoleDb } from "../lib/index.ts";
-import { ImportEmptyError, ImportPlanChangedError, previewZecpayImport, writeZecpayImport, type ZecpayImportInput } from "../lib/data/payable-import.ts";
+import { ImportEmptyError, ImportPlanChangedError, planFingerprint, previewZecpayImport, writeZecpayImport, type ZecpayImportInput } from "../lib/data/payable-import.ts";
 
 const UA = [
   "uregtest1qzj498rks3e6gfazv0fxns3d0v4qcdpj38yswctfhakqruuw9xv672xdhystq3mxyz66ytudxtgnm7ys6skun57za5llp0fp3saxsu4w",
@@ -93,4 +93,16 @@ test("a fingerprint from another file or another prefix is not accepted", async 
   await assert.rejects(writeZecpayImport(db, { ...inp, prefix: "OTHER" }, fingerprint), ImportPlanChangedError);
   await assert.rejects(writeZecpayImport(db, { ...inp, csv: csv3 + `\nEve,${UA[2]},1` }, fingerprint), ImportPlanChangedError);
   assert.equal(count("payables", inp.orgId), 0);
+});
+
+test("the kind and network are part of what was previewed: previewed as salary, confirmed as bounty, nothing is written", async () => {
+  const inp = input(csv3);
+  const { fingerprint } = await previewZecpayImport(db, inp);
+  await assert.rejects(writeZecpayImport(db, { ...inp, kind: "bounty" }, fingerprint), ImportPlanChangedError);
+  // Another network refuses these regtest addresses, so its plan differs anyway; the fingerprint names it even when the
+  // rows alone would match.
+  await assert.rejects(writeZecpayImport(db, { ...inp, network: "test" }, fingerprint), ImportPlanChangedError);
+  const empty = { payables: [], refused: [] };
+  assert.notEqual(planFingerprint(empty, { kind: "salary", network: "regtest" }), planFingerprint(empty, { kind: "salary", network: "test" }));
+  assert.deepEqual([count("recipients", inp.orgId), count("payables", inp.orgId)], [0, 0]);
 });

@@ -3,7 +3,7 @@
 // The zecpay import (slice I3b; REQ-CON-19; 05 §3.6): Preview plans the file and writes nothing; Import writes the
 // previewed plan in one transaction, or nothing when the data changed since (preview again). Unbound: (prev, form).
 
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { ImportEmptyError, ImportPlanChangedError, previewZecpayImport, writeZecpayImport } from "../../lib/data/payable-import.ts";
 import { PAYABLE_KINDS, type PayableKind } from "../../lib/data/payable-rules.ts";
 import { serverContext } from "../../lib/server/context.ts";
@@ -30,6 +30,8 @@ export async function importZecpayAction(prev: ZecpayImportState, form: FormData
     if (e instanceof ImportEmptyError) return preview(e.message);
     throw e;
   }
-  // Outside any try: redirect throws. 303 for a no-JS post, a client navigation otherwise.
-  redirect(`/payables?imported=${written.payables}&newRecipients=${written.recipients}`);
+  // The page's list shows the new payables; the notice lives in this state only, so no link can fake it.
+  revalidatePath("/payables");
+  const what = `${written.payables} ${written.payables === 1 ? "payable" : "payables"}${written.recipients > 0 ? ` and ${written.recipients} new ${written.recipients === 1 ? "recipient" : "recipients"}` : ""}`;
+  return { submission: prev.submission + 1, csv: "", prefix: "", kind: rawKind, rows: [], refused: [], notice: `Imported ${what} from the zecpay CSV.` };
 }

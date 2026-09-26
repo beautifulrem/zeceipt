@@ -39,7 +39,7 @@ test("valid rows: USD amounts in whole cents, a new recipient per receiver, refe
 test("recipients match by Orchard receiver, not by the address text; the existing name is kept and the file's is shown", () => {
   const csv = `name,wallet,amount\nA. Smith,${UA[0].toUpperCase()},10`;
   const plan = planZecpayImport(parseZecpayCsv(csv), ctx({ recipients: [{ id: "r-1", displayName: "Alice Smith", address: UA[0], network: "regtest" }] }));
-  assert.deepEqual(plan.payables.map((p) => p.recipient), [{ kind: "existing", id: "r-1", name: "Alice Smith", fileName: "A. Smith" }], "the upper-case encoding is the same receiver");
+  assert.deepEqual(plan.payables.map((p) => p.recipient), [{ kind: "existing", id: "r-1", name: "Alice Smith", fileName: "A. Smith", address: UA[0] }], "the upper-case encoding is the same receiver; the recipient's stored address is what it will be paid at");
   assert.equal(plan.payables[0].address, UA[0], "stored lower-cased, as the recipient form stores it");
   const mixed = planZecpayImport(parseZecpayCsv(`name,wallet,amount\nA,${UA[0].slice(0, 20)}${UA[0].slice(20).toUpperCase()},10`), ctx());
   assert.match(mixed.refused[0].reason, /mixes upper and lower case/);

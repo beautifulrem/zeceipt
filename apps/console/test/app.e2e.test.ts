@@ -603,7 +603,7 @@ test("recipients page through next start, posted as a browser without JavaScript
   }
 });
 
-test("zecpay import through next start, as a browser without JavaScript: Preview writes nothing, Import writes what it showed, a changed file is previewed again (slice I3b)", { skip: !RUN }, async () => {
+test("zecpay import through next start, as a browser without JavaScript: Preview writes nothing and shows each address, Import writes what it showed, a changed file or kind is previewed again (slice I3b)", { skip: !RUN }, async () => {
   const s = await start(demoEnv("zecpay-import", { ZECEIPT_CUSTODY_MODE: "external", ZECEIPT_ZKOOL_URL: undefined, ZECEIPT_ZKOOL_ACCOUNT: undefined, ZECEIPT_ZKOOL_TOKEN_FILE: undefined, ZECEIPT_ZKOOL_PUBLIC_KEY_FILE: undefined }));
   try {
     await waitHealthy(s.port, s.child, s.output);
@@ -627,6 +627,7 @@ test("zecpay import through next start, as a browser without JavaScript: Preview
     assert.ok(shown.includes("Preview: 2 payables to add") && shown.includes(">Import 2 payables<"), "two rows to add, and the button says so");
     assert.ok(shown.includes("SEP-2") && shown.includes("SEP-3") && shown.includes("Alice (new)") && shown.includes("$227.50"), "references, new recipients and amounts");
     assert.ok(shown.includes("CSV line 4 will not be imported: the amount is in ZEC"), "Eve's refusal, by CSV line");
+    assert.ok(shown.includes("<th>Address it will pay</th>") && shown.includes(`title="${UA}"`) && shown.includes(UA2), "each row shows the address it will pay, abridged, the full address a click away");
     assert.deepEqual(await payables(), [], "the preview wrote nothing");
 
     // Import from another site: refused before anything runs.
@@ -636,11 +637,18 @@ test("zecpay import through next start, as a browser without JavaScript: Preview
     assert.equal(changed.status, 200);
     assert.ok(text(changed.body).includes("changed since the preview; nothing was imported; preview again"));
     assert.deepEqual(await payables(), []);
+    // Import as another kind than previewed: the kind is part of the fingerprint, so it previews again too.
+    const otherKind = await post(previewed.body, [["csv", csv], ["kind", "salary"], ["prefix", "SEP"], ["intent", "confirm"]]);
+    assert.ok(text(otherKind.body).includes("changed since the preview; nothing was imported; preview again"));
+    assert.deepEqual(await payables(), []);
 
+    // The outcome is in the action's answer, and the page it renders lists the new payables; no link carries it.
     const imported = await post(previewed.body, [["csv", csv], ["kind", "bounty"], ["prefix", "SEP"], ["intent", "confirm"]]);
-    assert.equal(imported.status, 303);
-    assert.equal(imported.location, "/payables?imported=2&newRecipients=2");
-    assert.ok(text((await raw(s.port, "GET", imported.location!, { host: self })).body).includes("Imported 2 payables and 2 new recipients from the zecpay CSV."));
+    assert.equal(imported.status, 200);
+    const done = text(imported.body);
+    assert.ok(done.includes("Imported 2 payables and 2 new recipients from the zecpay CSV."), "the notice");
+    assert.ok(done.includes("SEP-2") && !done.includes("Preview: 2 payables to add"), "the list shows the new payables; the preview is gone");
+    assert.ok(!text((await raw(s.port, "GET", "/payables?imported=9&newRecipients=9", { host: self })).body).includes("Imported"), "a crafted link shows no notice");
     assert.deepEqual((await payables()).map((p) => [p.reference, p.usdCents]).sort(), [["SEP-2", 50000], ["SEP-3", 22750]]);
     assertNoKey(s.output());
   } finally {

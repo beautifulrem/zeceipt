@@ -7,6 +7,8 @@ import { centsText } from "./format.ts";
 export interface PreviewRow {
   sourceLine: number;
   recipient: string;
+  /** The address the payable will pay: the existing recipient's as stored, or the new recipient's from the file. */
+  address: string;
   amount: string;
   reference: string;
 }
@@ -22,6 +24,8 @@ export interface ZecpayImportState {
   refused: string[];
   /** A file-level problem or an outcome message (nothing written). */
   message?: string;
+  /** What an import wrote (review I3b round 1: carried in the action's state, not in a link anyone could send). */
+  notice?: string;
 }
 
 /** How a planned row's recipient reads: the existing one (and the file's name when it differs), or a new one. */
@@ -30,9 +34,9 @@ export function previewRows(plan: ZecpayPlan): PreviewRow[] {
     const r = p.recipient;
     const who =
       r.kind === "existing"
-        ? `${r.name} (existing${r.fileName && r.fileName !== r.name ? `; the file says “${r.fileName}”` : ""})`
+        ? `${r.name} (existing, matched by Orchard receiver${r.fileName && r.fileName !== r.name ? `; the file says “${r.fileName}”` : ""})`
         : `${r.name} (new${r.fileName !== r.name ? `; the file says “${r.fileName}” on this line` : ""})`;
-    return { sourceLine: p.sourceLine, recipient: who, amount: centsText(p.usdCents), reference: p.reference };
+    return { sourceLine: p.sourceLine, recipient: who, address: r.kind === "existing" ? r.address : p.address, amount: centsText(p.usdCents), reference: p.reference };
   });
 }
 

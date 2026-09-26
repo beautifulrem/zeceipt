@@ -30,16 +30,17 @@ function readContext(db: Db, input: ZecpayImportInput) {
   return { network: input.network, kind: input.kind, prefix: input.prefix, recipients: rows, takenReferences: new Set(refs.map((r) => r.reference)) };
 }
 
-/** What the preview showed, as one hash: the rows to write and the rows refused. */
-export function planFingerprint(plan: ZecpayPlan): string {
-  return createHash("sha256").update(JSON.stringify({ payables: plan.payables, refused: plan.refused, fileProblem: plan.fileProblem ?? null })).digest("hex");
+/** What the preview showed, as one hash: the kind and network, the rows to write and the rows refused. */
+export function planFingerprint(plan: ZecpayPlan, input: Pick<ZecpayImportInput, "kind" | "network">): string {
+  // The kind and network are written too, so they are part of what was previewed (review I3b round 1).
+  return createHash("sha256").update(JSON.stringify({ kind: input.kind, network: input.network, payables: plan.payables, refused: plan.refused, fileProblem: plan.fileProblem ?? null })).digest("hex");
 }
 
 /** The plan for a preview, from the organisation's recipients and references now. Writes nothing. */
 export function previewZecpayImport(db: ConsoleDb, input: ZecpayImportInput): Promise<{ plan: ZecpayPlan; fingerprint: string }> {
   return runSync(() => {
     const plan = planZecpayImport(parseZecpayCsv(input.csv), readContext(db, input));
-    return { plan, fingerprint: planFingerprint(plan) };
+    return { plan, fingerprint: planFingerprint(plan, input) };
   });
 }
 
@@ -74,7 +75,7 @@ export function writeZecpayImport(
     db.transaction(
       (tx) => {
         const plan = planZecpayImport(parseZecpayCsv(input.csv), readContext(tx, input));
-        if (planFingerprint(plan) !== fingerprint) throw new ImportPlanChangedError();
+        if (planFingerprint(plan, input) !== fingerprint) throw new ImportPlanChangedError();
         if (plan.fileProblem) throw new ImportEmptyError(plan.fileProblem);
         if (plan.payables.length === 0) throw new ImportEmptyError("no row can be imported; nothing was written");
         const at = now.toISOString();

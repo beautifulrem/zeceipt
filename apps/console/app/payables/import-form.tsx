@@ -6,6 +6,7 @@
 import { useActionState } from "react";
 import { PAYABLE_KINDS } from "../../lib/data/payable-rules.ts";
 import { TABLE_CLASS } from "../../lib/view/table.ts";
+import { Address } from "../components/address.tsx";
 import type { ZecpayImportState } from "../../lib/view/zecpay-import.ts";
 import { importZecpayAction } from "./import-actions.ts";
 
@@ -16,7 +17,7 @@ export function ImportForm() {
   const [state, formAction, pending] = useActionState(importZecpayAction, EMPTY_IMPORT);
   const canImport = state.fingerprint !== undefined && state.rows.length > 0;
   return (
-    <details open={state.submission > 0} className="space-y-3 rounded-lg border border-slate-200 p-4 text-sm">
+    <details open={state.submission > 0 && !state.notice} className="space-y-3 rounded-lg border border-slate-200 p-4 text-sm">
       <summary className="cursor-pointer font-medium">Import payables from a zecpay CSV</summary>
       <form action={formAction} className="space-y-3" key={state.submission}>
         <p className="text-slate-600">
@@ -43,6 +44,11 @@ export function ImportForm() {
             <input name="prefix" defaultValue={state.prefix} className="w-56 rounded border border-slate-300 px-2 py-1" placeholder="PAYROLL-2026-09" />
           </label>
         </div>
+        {state.notice && (
+          <p role="status" className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900">
+            {state.notice}
+          </p>
+        )}
         {state.message && (
           <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900">
             {state.message}
@@ -55,6 +61,7 @@ export function ImportForm() {
               <tr>
                 <th>CSV line</th>
                 <th>Recipient</th>
+                <th>Address it will pay</th>
                 <th>Amount</th>
                 <th>Reference</th>
               </tr>
@@ -64,6 +71,9 @@ export function ImportForm() {
                 <tr key={r.sourceLine}>
                   <td>{r.sourceLine}</td>
                   <td>{r.recipient}</td>
+                  <td>
+                    <Address value={r.address} />
+                  </td>
                   <td>{r.amount}</td>
                   <td>{r.reference}</td>
                 </tr>

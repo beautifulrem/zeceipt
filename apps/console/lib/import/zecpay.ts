@@ -51,7 +51,7 @@ export function dollarsToCents(amount: string): number | undefined {
   return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0"));
 }
 
-export type PlannedRecipient = { kind: "existing"; id: string; name: string; fileName: string } | { kind: "new"; name: string; fileName: string };
+export type PlannedRecipient = { kind: "existing"; id: string; name: string; fileName: string; address: string } | { kind: "new"; name: string; fileName: string };
 
 export interface PlannedPayable {
   sourceLine: number;
@@ -89,7 +89,7 @@ export function planZecpayImport(parsed: ZecpayParse, ctx: PlanContext): ZecpayP
   const prefixProblem = payableProblems({ recipientId: "-", kind: ctx.kind, usdCents: 1, reference: `${prefix}-1` }).find((p) => p.field === "reference" || p.field === "kind");
   if (!prefix || prefixProblem) return { payables: [], refused: [], fileProblem: prefix ? `the reference prefix cannot make a valid reference: ${prefixProblem!.detail}` : "give a reference prefix: zecpay rows have no reference, and each payable needs one" };
 
-  const byReceiver = new Map<string, { id: string; displayName: string }>();
+  const byReceiver = new Map<string, { id: string; displayName: string; address: string }>();
   for (const r of ctx.recipients) {
     if (r.network !== ctx.network) continue;
     const key = orchardReceiverHex(r.address, r.network);
@@ -133,7 +133,7 @@ export function planZecpayImport(parsed: ZecpayParse, ctx: PlanContext): ZecpayP
     const existing = byReceiver.get(receiver);
     let recipient: PlannedRecipient;
     if (existing) {
-      recipient = { kind: "existing", id: existing.id, name: existing.displayName, fileName: row.name };
+      recipient = { kind: "existing", id: existing.id, name: existing.displayName, fileName: row.name, address: existing.address };
     } else {
       const name = newNames.get(receiver) ?? row.name;
       const bad = recipientProblems({ orgId: "-", network: ctx.network, displayName: name, address: wallet }).find((p) => p.field === "displayName");
