@@ -22,10 +22,10 @@ node packages/verify/test/verify.mjs                       # the committed brows
 (cd apps/console && npm ci && npm test)                    # 432 console tests: 403 run, 29 are opt-in (build-and-serve, regtest)
 
 # issue and verify a receipt offline, from the committed synthetic fixture
-cargo build --release && Z=target/release/zeceipt
-$Z keygen --out /tmp/issuer.key
-$Z issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label demo --key-file /tmp/issuer.key --out-dir /tmp/r
-$Z verify /tmp/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
+cargo build --release && Z=target/release/zeceipt && T=$(mktemp -d)
+$Z keygen --out $T/issuer.key
+$Z issue --raw-tx-file fixtures/synthetic-ironwood.hex --ovk "$(cat fixtures/synthetic-ovk.hex)" --label demo --key-file $T/issuer.key --out-dir $T/r
+$Z verify $T/r/*.json --raw-tx-file fixtures/synthetic-ironwood.hex --require-signature
 
 (cd packages/verify && npm run demo)                       # the receipt page at http://localhost:8787/r/, the paste demo at /demo/
 ```
