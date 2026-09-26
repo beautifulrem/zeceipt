@@ -64,7 +64,8 @@ export class RecipientInvalidError extends ExecutionError {
  * Bech32m is case-insensitive only in a single case: an all-upper-case address (as QR codes carry it) is the same
  * address lowercased; mixed case is not an address.
  */
-function canonicalAddress(a: string): string | undefined {
+/** A unified address in one case, lower-cased (Bech32 allows all upper case); undefined when it mixes cases. */
+export function canonicalAddress(a: string): string | undefined {
   if (a === a.toLowerCase()) return a;
   if (a === a.toUpperCase()) return a.toLowerCase();
   return undefined;
