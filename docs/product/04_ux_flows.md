@@ -13,7 +13,7 @@
 ## 2. Flows
 
 ### FLOW-1 Issuer runs a batch (P1/P2)
-1. Add payables by hand, or import CSV (Konclave `label,address,value[,memo]` or zecpay `name,wallet,amount,currency,payout_currency`; REQ-CON-19, planned: restored by slice D10b for pilot onboarding after the solo branch had cut it; not built yet) → validation report (bad UA, duplicate address, missing W-9/TIN for a `tax_flag = us_1099` recipient whose calendar-year aggregate reaches $2,000 `[R26]`; KYC status is shown but does not block).
+1. Add payables by hand, or import CSV (zecpay `name,wallet,amount,currency,payout_currency` for USD amounts into payables; Konclave `label,address,value[,memo]`, whose amounts are ZEC, fills a draft batch's lines instead, `05` §3.6; REQ-CON-19, planned: restored by slice D10b for pilot onboarding after the solo branch had cut it; not built yet) → validation report (bad UA, duplicate address, missing W-9/TIN for a `tax_flag = us_1099` recipient whose calendar-year aggregate reaches $2,000 `[R26]`; KYC status is shown but does not block).
 2. Create batch → lock rate from one source with its timestamp (REQ-CON-4); at execution a > 3% move since the lock blocks until re-quote (REQ-CON-21). A second source with a cross-source disagreement check is REQ-CON-20 (Should; baseline cut item 4, dropped in the solo branch). Built (slices G1c2, G2b1, G2b2; REQ-CON-4, REQ-CON-21):
    - the batch page locks the rate (with its source and time) and offers Pay only once locked (REQ-CON-4);
    - every attempt that will pay is checked, and a move beyond the limit is refused with both rates, the limit and a re-lock prompt, while nothing is sent (REQ-CON-21);
