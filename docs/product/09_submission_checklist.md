@@ -7,7 +7,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Field | Content / decision | Status |
 |---|---|---|
 | Product name | Zeceipt (confirm) | 👤 |
-| Description | ≤ 500 words; draft in §2: 425 words of text plus three placeholders budgeted at 10 + 20 + 40 words, 495 in total when filled (count: whitespace-separated tokens from **Problem.** to the end of **Team.**) | 🟡 fill the placeholders within their budgets |
+| Description | ≤ 500 words; draft in §2: 428 words of text plus three placeholders budgeted at 10 + 20 + 40 words, 498 in total when filled (2 words of slack) (count: whitespace-separated tokens from **Problem.** to the end of **Team.**) | 🟡 fill the placeholders within their budgets |
 | Blockchains and tools integrated | Zcash: Ironwood, Orchard and Sapling; lightwalletd and Zaino gRPC; Zkool GraphQL; Zebra on regtest | ✅ Solana and NEAR Intents were dropped with the solo branch (`11_plan.md` §1.1), which forfeits accelerator eligibility `[R1]` |
 | Track | Zcash | ✅ |
 | Category | **Developer Infrastructure**: the solo branch replaced the baseline on 2026-09-24, since no second person was confirmed (`11_plan.md` §1.1, RSK-19), and its rule forces this category. Payments & Remittance would have been the primary otherwise | ✅ by rule |
