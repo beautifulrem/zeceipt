@@ -44,3 +44,4 @@ Say these only when they are true at the time of recording:
 - **"the only"**, **"nobody else"**, or that a viewing key is the only way today: Glasspane made per-payment receipts on Zcash's Orchard pool (dormant since 2026-07-13, `03_market_competition.md`), and only Solana's auditor keys and Monero's proofs were checked elsewhere (`11_plan.md` §6).
 - **"without contacting us"**: the receipt page is served by the link's host, and on a public chain it asks a node when the recipient clicks. What is true: the receipt stays in the link's fragment, which the browser never sends (spec §2.1).
 - **"users" or "customers"**: there are none yet.
+- **The receipt links' host** (`http://127.0.0.1:…/r#…` in the CSV shot): it is the local test page. If it comes up, say so: a real deployment serves the page from a host it controls, over HTTPS (README, "Receipt links"; THREAT_MODEL calls a loopback host an operator error).
