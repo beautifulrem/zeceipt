@@ -63,7 +63,7 @@ This export is planned under REQ-INT-2 (reduced in the solo branch to this expor
 | Category | the payable's kind for a line made from a payable (`Milestone`, `Invoice`, `Bounty`, `Salary`); `·` for a line made on the form | text; OpenZcash's own categories (e.g. "Community") are editorial, so the two files' categories differ in kind |
 | USD | the line's dollars | `$12,000` for whole dollars, `$227.50` otherwise (en-US currency); `·` for a line made on the form without dollars |
 | ZEC | the line's zatoshi | comma-grouped ZEC, trailing zeros removed, no symbol (`0.14648356`, `1,234.5`) |
-| Date | the day the payment went out, as OpenZcash's Date is: the UTC day of the submission's `broadcast_at`; for a payment adopted from the wallet's history after a restore (PROOF §5f) that is the day it was adopted, unless an earlier broadcast was recorded | `YYYY-MM-DD` |
+| Date | the day the payment went out, as OpenZcash's Date is: the UTC day of the submission's `broadcast_at`; for a payment adopted from the wallet's history (after a restore, PROOF §5f, or when an uncertain attempt is reconciled later) it is the day it was adopted, unless an earlier broadcast was recorded | `YYYY-MM-DD` |
 | Status | `Completed` | OpenZcash's label for a paid milestone |
 | Txid | the transaction id | 64 hex characters |
 | Receipt | the receipt link (`https://<host>/r#<payload>`) | text |
