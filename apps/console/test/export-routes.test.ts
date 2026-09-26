@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  batchDigest, batchNonce, bootServerContext, createBatchFromPayables, createPayable, createRecipient, defaultMigrationsDir, getBatch, OPENZCASH_HEADER,
+  batchDigest, batchNonce, bootServerContext, recordQuote, createBatchFromPayables, createPayable, createRecipient, defaultMigrationsDir, getBatch, OPENZCASH_HEADER,
   SERVER_CONTEXT_KEY, toCsv, toExecutionBatch, type BootState, type ZeceiptCliOptions,
 } from "../lib/index.ts";
 import { issueReceiptsResponse, listReceiptsResponse, type ReceiptJson } from "../lib/http/receipts.ts";
@@ -85,6 +85,9 @@ async function formBatch(org: string, opts: { issued: boolean }) {
   const r = await collection.POST(new Request(`http://${HOST}/api/batches`, { method: "POST", headers, body: JSON.stringify({ title: org, items }) }), undefined);
   assert.equal(r.status, 201);
   const id = ((await r.json()) as { id: string }).id;
+  // A real form batch is always locked before it pays (G2b1): lock it, so Rate's · is tested against a lock that exists.
+  const quote = { source: "kraken" as const, pair: "XZECZUSD" as const, bid: "1553.29", ask: "1553.80", last: "1553.21", rate: "1553.29", fetchedAt: "2026-09-25T23:00:00.000Z", host: "api.kraken.com" };
+  await recordQuote(ctx.db, { orgId: org, batchId: id, purpose: "lock", quote });
   await broadcast(ctx, id);
   if (opts.issued) assert.equal((await issue(id)).status, 201);
   return id;
@@ -103,7 +106,7 @@ after(async () => {
   await fake.stop();
 });
 
-test("a batch made on the form: 200, the exact CSV (no dollars, no category, no rate), attachment and no-store, one audit row", async () => {
+test("a batch made on the form (locked, as every paying batch is): 200, the exact CSV (no dollars, no category, and no rate: its lines were set in ZEC), attachment and no-store, one audit row", async () => {
   const id = await formBatch("org-form", { issued: true });
   const links = await urls(id);
   const r = await get(id);
@@ -111,6 +114,7 @@ test("a batch made on the form: 200, the exact CSV (no dollars, no category, no 
   assert.equal(r.headers.get("content-type"), "text/csv; charset=utf-8");
   assert.equal(r.headers.get("content-disposition"), `attachment; filename="zeceipt-openzcash-${id}.csv"`);
   assert.equal(r.headers.get("cache-control"), "no-store");
+  assert.deepEqual([r.headers.get("x-zeceipt-rows"), r.headers.get("x-zeceipt-lines")], ["3", "3"]);
   const want = toCsv(OPENZCASH_HEADER, [
     ["R2", "INV-R-002", "·", "·", "1.01", "2026-09-25", "Completed", TXID, links[0], "·"],
     ["R3", "INV-R-003", "·", "·", "1.02", "2026-09-25", "Completed", TXID, links[1], "·"],
@@ -187,4 +191,21 @@ test("a receipt that does not open is 409 receipt_unreadable naming its line, ne
   assert.deepEqual([body.code, body.items], ["receipt_unreadable", [1]]);
   assert.ok(!body.detail.includes("receipts.example"), "no receipt data in the problem");
   assert.equal(exportsOf(id).length, 0);
+});
+
+test("HEAD downloads nothing and records nothing: 405 with Allow: GET (Next.js would otherwise run GET for it)", async () => {
+  const id = await formBatch("org-head", { issued: true });
+  const r = await exportRoute.HEAD(new Request(`http://${HOST}/api/batches/${id}/exports/openzcash`, { method: "HEAD", headers: { host: HOST } }), { params: Promise.resolve({ id }) });
+  assert.deepEqual([r.status, r.headers.get("allow")], [405, "GET"]);
+  assert.equal(exportsOf(id).length, 0);
+});
+
+test("Date is written only when the submission's txid is the receipt's", async () => {
+  const id = await formBatch("org-txid", { issued: true });
+  // Simulate a submission whose recorded txid is not the one the receipts name (review X2b round 1): Date must be ·.
+  const other = "ff".repeat(32);
+  db().$client.prepare("UPDATE submissions SET txid = ? WHERE batch_id = ?").run(other, id);
+  const text = Buffer.from(await (await get(id)).arrayBuffer()).toString("utf8");
+  const dates = text.split("\r\n").slice(1).map((line) => line.split('","')[5]);
+  assert.deepEqual(dates, ["·", "·", "·"]);
 });

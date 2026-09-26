@@ -14,6 +14,8 @@ import { listReceipts } from "./receipts.ts";
 
 export interface ExportRows {
   lines: ExportLine[];
+  /** How many lines the batch has: more than `lines` when some receipts are not issued yet (a partial export). */
+  batchLines: number;
   /** Line indexes whose receipt did not open (unknown key, tampering): the export refuses rather than drop them. */
   unreadable: number[];
 }
@@ -63,5 +65,5 @@ export async function exportLines(db: ConsoleDb, keyring: Keyring, orgId: string
       rate,
     });
   }
-  return { lines, unreadable };
+  return { lines, unreadable, batchLines: items.length };
 }

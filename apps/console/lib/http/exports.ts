@@ -24,7 +24,7 @@ export async function openZcashExportResponse(id: string, headers: Headers, now:
   const orgId = ctx.config.orgId;
   const batch = UUID_V7.test(id) ? await getBatch(ctx.db, orgId, id) : undefined;
   if (!batch) throw new HttpProblem(404, "batch_not_found", "no batch with this id");
-  const { lines, unreadable } = await exportLines(ctx.db, ctx.keyring, orgId, batch.id, ctx.config.receiptHost);
+  const { lines, unreadable, batchLines } = await exportLines(ctx.db, ctx.keyring, orgId, batch.id, ctx.config.receiptHost);
   if (unreadable.length > 0) {
     throw new HttpProblem(409, "receipt_unreadable", "a stored receipt of this batch does not open (unknown key or damaged); nothing was exported", { items: unreadable });
   }
@@ -41,6 +41,9 @@ export async function openZcashExportResponse(id: string, headers: Headers, now:
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="zeceipt-openzcash-${batch.id}.csv"`,
       "Cache-Control": "no-store",
+      // Rows and the batch's lines, so a partial export (receipts not all issued) is visible to the caller.
+      "X-Zeceipt-Rows": String(lines.length),
+      "X-Zeceipt-Lines": String(batchLines),
     },
   });
 }

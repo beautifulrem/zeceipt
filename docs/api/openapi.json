@@ -981,6 +981,18 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "X-Zeceipt-Rows": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "the rows written (issued receipts)"
+              },
+              "X-Zeceipt-Lines": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "the batch's lines; more than the rows when some receipts are not issued yet"
               }
             },
             "content": {

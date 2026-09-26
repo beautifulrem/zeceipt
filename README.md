@@ -19,7 +19,7 @@ It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority
 ```bash
 cargo test --workspace --features zeceipt-core/synthetic   # 47 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed browser verifier (WASM) against the committed vectors
-(cd apps/console && npm ci && npm test)                    # 444 console tests: 415 run, 29 are opt-in (build-and-serve, regtest)
+(cd apps/console && npm ci && npm test)                    # 446 console tests: 417 run, 29 are opt-in (build-and-serve, regtest)
 
 # issue and verify a receipt offline, from the committed synthetic fixture
 cargo build --release && Z=target/release/zeceipt && T=$(mktemp -d)
