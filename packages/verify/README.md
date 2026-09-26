@@ -6,7 +6,7 @@ The receipt format is specified in [`spec/receipt-v0.md`](https://github.com/zec
 
 ## What a valid result proves
 
-As spec §4 says; the first two parts of each list are the verifier's own `proves` and `does_not_prove` fields:
+As spec §4 says. The Proves line is the verifier's own `proves` field, and the first two parts of Does not prove are its `does_not_prove` field:
 
 - **Proves:** this transaction pays the shown value to the shown recipient with the shown memo; whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it; a signature attributes the receipt to a key, not the OCK to the sender.
 - **Does not prove:** who is presenting this receipt; anything about other outputs, transactions or balances; or spend authority (full ZIP 311, spec §1), which needs the spending key.
