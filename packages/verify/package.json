@@ -19,7 +19,8 @@
     "build:wasm": "wasm-pack build ../../crates/zeceipt-wasm --target web --release --out-dir ../../packages/verify/pkg && rm -f pkg/.gitignore",
     "demo": "python3 -m http.server 8787 --directory .",
     "test": "node test/verify.mjs",
-    "test:page": "ZECEIPT_BROWSER_E2E=1 node test/page.e2e.mjs"
+    "test:page": "ZECEIPT_BROWSER_E2E=1 node test/page.e2e.mjs",
+    "test:pack": "node test/pack.mjs"
   },
   "keywords": [
     "zcash",
@@ -29,6 +30,9 @@
     "privacy",
     "proof-of-payment"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "playwright-core": "^1.63.0"
   }

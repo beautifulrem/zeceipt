@@ -1,11 +1,11 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
-// Fetching the raw transaction is the caller's job (gRPC-web, proxy, or file),
-// so this package never talks to the network by itself.
+// It makes a request only when the caller asks: fetchRawTx (a gRPC-web lookup of one transaction) and
+// checkIssuerBinding (the claimed domain's well-known file). Verifying needs no network.
 import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version } from "../pkg/zeceipt_wasm.js";
 
 let ready;
-export async function initVerifier(wasmUrl) {
-  if (!ready) ready = init(wasmUrl ? { module_or_path: wasmUrl } : undefined);
+export async function initVerifier(wasm) {
+  if (!ready) ready = init(wasm ? { module_or_path: wasm } : undefined);
   await ready;
   return version();
 }

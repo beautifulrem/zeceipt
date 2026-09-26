@@ -31,6 +31,8 @@ jobs:
           node-version: 24
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
+      - name: "@zeceipt/verify as published: the tarball's files, public access, and the README's Node example through the installed package (offline)"
+        run: node packages/verify/test/pack.mjs
       - name: public receipt page (packages/verify/r) in Chrome — link to VALID with the three parts, every state, and no request, header or storage carrying the receipt (REQ-CON-12)
         working-directory: packages/verify
         # playwright-core drives the runner's Google Chrome; the public gRPC-web node is intercepted, so no internet is needed.

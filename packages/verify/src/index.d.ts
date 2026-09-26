@@ -31,7 +31,11 @@ export interface VerifyResult {
   proves: string;
   does_not_prove: string;
 }
-export function initVerifier(wasmUrl?: string | URL): Promise<string>;
+/**
+ * Load the WASM verifier once; returns its version. In a browser, no argument fetches `pkg/zeceipt_wasm_bg.wasm` next to
+ * the module. In Node, pass the bytes (Node's fetch cannot read a `file:` URL).
+ */
+export function initVerifier(wasm?: string | URL | Response | BufferSource | WebAssembly.Module): Promise<string>;
 export function parseReceipt(input: string): Receipt;
 export function checkSignature(receipt: string): { signed: boolean; valid: boolean; issuer_pubkey?: string; error?: string };
 export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean }): VerifyResult;
