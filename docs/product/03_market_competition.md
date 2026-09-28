@@ -43,8 +43,12 @@ Legend: ● has it · ○ partial · — none. Columns are the capabilities a ju
 | Toku / Rise / Bitwage | EVM/Solana stablecoins | ● | ● | ● | ○ payslips/tax forms | — | ● | active | `[R28]`–`[R30]` |
 | Monero prove-payment | Monero | — | — | — | ● per-tx key | — | — | shipped | `[R31]` |
 | Solana confidential balances | Solana | — | — | — | ○ auditor key per mint (all-or-nothing) | — | — | re-enabled on mainnet 2026-06-04 (proof program) / launch post 2026-06-10 | `[R41]` |
+| ShieldGive | Sapling via a node's `z_listreceivedbyaddress` (the recipient's viewing key imported) | — | — | — | ○ a Solana NFT minted by the recipient's agent after it sees the donation (attested by that agent, not chain-verifiable by a third party; mocked in the public demo) | — | — | active (CWF Zcash track), created 2026-09-16 | `[R129]` |
+| Open Zcash Merchant Payments | n/a (authenticates ZIP 321 invoices for wallets) | — | — | — | — (signs the invoice before payment; a reviewed domain/key registry with DNS TXT challenges) | — | — | alpha, created 2026-09-22 | `[R129]` |
+| Zumbra | Ironwood (a Zipher fork) | — | — | ○ an agent spending policy | ○ MPP `Payment-Receipt` headers (a server's status line, not chain-verifiable) | — | — | pre-alpha, created 2026-09-21 | `[R129]` |
+| Rill (zcash) | n/a (shielded ZIP 321 invoices for agent pay links) | — | — | — | — (the seller watches with a viewing key) | — | — | created 2026-09-14, last push 09-19 | `[R129]` |
 
-Reading: nobody on Zcash (or elsewhere in the table) combines chain-verifiable per-payment receipts with audit packs and accounting exports; the closest shipped analogue is Monero's per-transaction proof, which has no batch, memo or accounting layer. Rechecked on 2026-09-28: no maintained Zcash wallet we searched (Zallet, the zcash, zingolabs, zodl-inc, Electric-Coin-Company and ZcashFoundation organisations, Zkool) implements ZIP 311 or a payment-disclosure RPC; zcashd's experimental Sprout-only ones are deprecated `[R124]`.
+Reading: nobody on Zcash (or elsewhere in the table) combines chain-verifiable per-payment receipts with audit packs and accounting exports; the closest shipped analogue is Monero's per-transaction proof, which has no batch, memo or accounting layer. Rechecked on 2026-09-28: no maintained Zcash wallet we searched (Zallet, the zcash, zingolabs, zodl-inc, Electric-Coin-Company and ZcashFoundation organisations, Zkool) implements ZIP 311 or a payment-disclosure RPC; zcashd's experimental Sprout-only ones are deprecated `[R124]`. Rescanned the same day among Zcash repositories created since 09-10: the receipt-adjacent newcomers prove a payment to the recipient's own agent (ShieldGive's NFT), sign the request before payment (Open Zcash Merchant Payments) or return a server's status (Zumbra's MPP receipts); none discloses one output so that a third party can check it on chain `[R129]`.
 
 ## 4. Positioning statement
 
@@ -55,4 +59,6 @@ For organisations that pay people in shielded ZEC and must prove it, Zeceipt is 
 - Konclave adding receipts (they have the OVK and the ledger; adding an ock column is a day of work) — mitigation: ship the format and offer the adapter first (REQ-INT-1).
 - ZCG #437 being funded and producing an "official" SDK in 2027 — mitigation: align fields, post to zips #387, position as the implementation.
 - Zenvelope's group envelopes — different primitive (link payments), not a receipt; monitor.
+- ShieldGive in the same track calls its NFT a "donation proof": a judge may compare. Its proof is the recipient's agent's attestation, where a Zeceipt receipt is checked against the chain by anyone; say so if asked, without claiming to be the only receipt `[R129]`.
+- Open Zcash Merchant Payments binds merchant keys to domains through a reviewed registry, the pre-payment counterpart of the issuer binding (`/.well-known/zeceipt.json`, spec §7): a signed invoice and a receipt could share one key and domain; monitor.
 - Hackathon history: no Zcash-specific hackathon has produced a payout-receipt winner `[R22]`; Colosseum winners share mainnet usage plus one verifiable number `[R36]` — the metric plan in `11_plan.md` §4 is built around that.
