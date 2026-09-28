@@ -21,7 +21,7 @@ Status rechecked on 2026-09-28 through the GitHub API (`docs/product/10_research
 - ZIP 311 is still a draft, and its text is unchanged in substance since 2024. zips #387 has had no activity since 2026-03-24.
 - ZCG #437 is unchanged since 2026-09-22 (open, "Ready For ZCG Review").
 - Glasspane has had no commit since 2026-07-13.
-- Konclave's last release is v0.6.0 (2026-09-22), with no commit since. Its "receipts" are signing-ceremony records (approvers, date, txid, with the signature behind a disclosure; pull request #181, merged 2026-08-21), not chain-verifiable per-output payment receipts.
+- Konclave's last release is v0.6.0 (2026-09-22), with no commit since 2026-09-22. Its "receipts" are signing-ceremony records (approvers, date, txid, with the signature behind a disclosure; pull request #181, merged 2026-08-21), not chain-verifiable per-output payment receipts.
 - No maintained wallet we searched implements ZIP 311 or a payment-disclosure RPC:
   - Zallet's issues, pull requests and code; Zallet explicitly does not migrate zcashd's `paymentdisclosure` option;
   - the zcash, zingolabs, zodl-inc, Electric-Coin-Company and ZcashFoundation organisations;
