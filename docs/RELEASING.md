@@ -6,7 +6,9 @@ Steps marked 👤 are the maintainer's own, because they publish or use the main
 
 ## 1. Before the tag
 
-In this order. The last step needs a clean tree, so every earlier step that changes a file ends with a commit.
+First, check crates.io for a `zcash_protocol` release that knows NU7's consensus branch `0x77190AD9` (RSK-14). If one exists, bump the Zcash crates and apply the three API changes recorded in `.trellis/tasks/09-28-nu7-spike/spike.diff` (slice U1c) before anything below, so v0.1.0 supports NU7. If none exists, v0.1.0 ships refusing NU7 transactions by name (its release notes say so); it is not built on unreleased git dependencies (R122).
+
+Then, in this order. The last step needs a clean tree, so every earlier step that changes a file ends with a commit.
 
 1. **The repository's name** (WBS 2.4.3.4), first, because later checks read it.
    - `packages/verify/package.json`'s `repository.url` (`https://github.com/zeceipt/zeceipt`) and the package README's links must name the repository that will be pushed.
