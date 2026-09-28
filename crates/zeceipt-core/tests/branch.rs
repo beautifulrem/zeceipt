@@ -192,3 +192,42 @@ fn a_v6_transaction_under_a_pre_nu6_3_branch_is_malformed() {
         }
     }
 }
+
+/// A real mainnet v5 transaction mined under NU6 (block 2,900,000; two Orchard actions), added in review U2 round 1.
+const ORCHARD_V5: &str = include_str!(
+    "../../../fixtures/5f1c6bfa4e97c9aa5e918b6912dc70cb7a46aee01d91599bdb8e657306650e0a.hex"
+);
+
+/// The check refuses only what can never be consensus-valid: a v5 transaction parses under every branch from NU5 to
+/// NU6.3 (the mined one under NU6, with its txid), and is malformed under Canopy, before v5 existed.
+#[test]
+fn a_v5_transaction_parses_under_nu5_to_nu6_3_and_not_before() {
+    use zcash_protocol::consensus::BranchId;
+    let mined = hex::decode(ORCHARD_V5.trim()).unwrap();
+    assert_eq!(&mined[..4], &[0x05, 0x00, 0x00, 0x80], "a v5 header");
+    assert_eq!(
+        u32::from_le_bytes(mined[8..12].try_into().unwrap()),
+        u32::from(BranchId::Nu6)
+    );
+    let tx = parse_transaction(&mined).expect("the mined transaction parses");
+    assert_eq!(
+        zeceipt_core::txid_hex(&tx),
+        "5f1c6bfa4e97c9aa5e918b6912dc70cb7a46aee01d91599bdb8e657306650e0a"
+    );
+    for branch in [
+        BranchId::Nu5,
+        BranchId::Nu6_1,
+        BranchId::Nu6_2,
+        BranchId::Nu6_3,
+    ] {
+        let mut bytes = mined.clone();
+        bytes[8..12].copy_from_slice(&u32::from(branch).to_le_bytes());
+        parse_transaction(&bytes).unwrap_or_else(|e| panic!("v5 under {branch:?}: {e}"));
+    }
+    let mut canopy = mined.clone();
+    canopy[8..12].copy_from_slice(&u32::from(BranchId::Canopy).to_le_bytes());
+    assert!(
+        matches!(parse_transaction(&canopy), Err(CoreError::Malformed(_))),
+        "v5 under Canopy is malformed"
+    );
+}

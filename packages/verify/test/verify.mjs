@@ -70,7 +70,7 @@ const nu61 = orchardV6.slice(0, 16) + "f04dec4d" + orchardV6.slice(24); // NU6.1
 const preNu63 = verify_receipt(receipt, nu61, "auditor-nonce-7", true);
 check("v6 under a pre-NU6.3 branch -> tx (malformed)", preNu63.stage === "tx" && /cannot use consensus branch 0x4dec4df0/.test(preNu63.error), JSON.stringify(preNu63));
 check("the same transaction as mined -> txid (it parses)", verify_receipt(receipt, orchardV6, "auditor-nonce-7", true).stage === "txid");
-check("wrong tx -> txid",verify_receipt(receipt, fs.readFileSync(path.join(here, "../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex"), "utf8").trim(), "auditor-nonce-7", true).stage === "txid");
+check("wrong tx -> txid", verify_receipt(receipt, fs.readFileSync(path.join(here, "../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex"), "utf8").trim(), "auditor-nonce-7", true).stage === "txid");
 
 // Format-derived coverage: every committed vector (all Network x Pool variants) must parse
 // and its signed form must verify exactly as the vector says, so a variant added to the
