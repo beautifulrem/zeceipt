@@ -6,7 +6,12 @@ Steps marked 👤 are the maintainer's own, because they publish or use the main
 
 ## 1. Before the tag
 
-First, check crates.io for a `zcash_protocol` release that knows NU7's consensus branch `0x77190AD9` (RSK-14). If one exists, bump the Zcash crates and apply the three API changes recorded in `.trellis/tasks/09-28-nu7-spike/spike.diff` (slice U1c) before anything below, so v0.1.0 supports NU7. If none exists, v0.1.0 ships refusing NU7 transactions by name (its release notes say so); it is not built on unreleased git dependencies (R122).
+First, check crates.io for a `zcash_protocol` release that knows NU7's consensus branch `0x77190AD9` (RSK-14): its `consensus.rs` maps `0x7719_0ad9` to `BranchId::Nu7` in `TryFrom<u32>` with no `cfg`. If one exists, do slice U1c before anything below, so v0.1.0 supports NU7:
+- bump the Zcash crates, and apply the API changes recorded in `.trellis/tasks/09-28-nu7-spike/spike.diff` (the released API may differ from main's);
+- turn the two NU7-refusal tests in `crates/zeceipt-core/tests/branch.rs` into success cases;
+- decide how the console's address validator treats revision-2 `zu`/`tu` addresses (`.trellis/tasks/09-28-nu7-spike/implement.md`);
+- rebuild the WASM (`scripts/build_wasm.sh`) and update the README's sha256;
+- remove the NU7 limitation from the release notes and the changelog, and update RSK-14 and THREAT_MODEL's residual. If none exists, v0.1.0 ships refusing NU7 transactions by name (its release notes say so); it is not built on unreleased git dependencies (R122).
 
 Then, in this order. The last step needs a clean tree, so every earlier step that changes a file ends with a commit.
 
