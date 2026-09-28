@@ -20,7 +20,7 @@ The first release. This section becomes `0.1.0` when the tag is cut.
   - Receipt links that carry the receipt in the URL fragment.
   - Committed test vectors: `spec/test-vectors/receipt-v0.json`.
 - **`zeceipt-core`.** Parsing of v4, v5 and v6 transactions. It recovers each output's recipient, amount and memo for Ironwood, Orchard and Sapling from the OCK, using the upstream Zcash crates and re-implementing no cryptography. It issues receipts from a UFVK or a bare OVK, and verifies them.
-  - Evidence: the official Orchard note-encryption vectors, round trips and tamper cases (`docs/PROOF.md` §2, §3).
+  - Evidence: the official Orchard note-encryption vectors, round trips and tamper cases (`docs/PROOF.md` §2, §3), and a seeded mutation test over every committed transaction through parse, issue and verify that finds no panic (50,000 inputs in its deep run).
   - A v5 or v6 transaction whose own consensus branch its version is not valid in (such as v6 under NU6.1) is refused as malformed, as Zebra has refused it since 6.4.2 (GHSA-h5rr-8pqv-grp9); a transaction under a branch the crates do not know is refused by name.
 - **`zeceipt-lwd`.** A lightwalletd and Zaino gRPC client: `GetTransaction`, `GetLatestBlock`, and a `GetBlockRange` scan. It was checked against `zec.rocks` on mainnet (§1).
 - **`zeceipt` CLI.**
