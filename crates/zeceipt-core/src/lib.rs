@@ -21,7 +21,7 @@ use zcash_note_encryption::{
     try_output_recovery_with_ock, try_output_recovery_with_ovk, Domain, EphemeralKeyBytes,
     OutgoingCipherKey, ShieldedOutput, ENC_CIPHERTEXT_SIZE,
 };
-use zcash_primitives::transaction::Transaction;
+use zcash_primitives::transaction::{Transaction, TxVersion};
 use zcash_protocol::consensus::{BranchId, MainNetwork, NetworkType, TestNetwork};
 use zcash_protocol::local_consensus::LocalNetwork;
 use zcash_protocol::memo::{Memo, MemoBytes};
@@ -215,19 +215,15 @@ impl OutgoingKeys {
     }
 }
 
-/// The consensus branch id in a v5 or v6 transaction's header (bytes 8..12, little-endian), if it has one.
+/// The consensus branch id in a v5 or v6 transaction's header (bytes 8..12, little-endian), if the bytes start with
+/// one. `TxVersion::read` checks the version and its version group id together, so garbage, or a txid pasted by
+/// mistake, is not taken for a transaction of an unknown branch (review U1a round 1).
 fn header_branch_id(bytes: &[u8]) -> Option<u32> {
-    let word = |i: usize| {
-        bytes
-            .get(i..i + 4)
-            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-    };
-    let header = word(0)?;
-    let (overwintered, version) = (header >> 31 == 1, header & 0x7fff_ffff);
-    if overwintered && version >= 5 {
-        word(8)
-    } else {
-        None
+    match TxVersion::read(bytes) {
+        Ok(TxVersion::V5 | TxVersion::V6) => bytes
+            .get(8..12)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])),
+        _ => None,
     }
 }
 

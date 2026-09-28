@@ -84,3 +84,68 @@ fn truncated_bytes_are_still_malformed() {
         Err(CoreError::Malformed(_))
     ));
 }
+
+/// A hand-built v4 transaction: one transparent input, no outputs, no shielded parts. It parses (a v4 header's
+/// bytes 8..12 are not a branch id, so it must never reach the branch check).
+#[test]
+fn a_v4_transaction_still_parses() {
+    let mut v4 = hex::decode("0400008085202f89").unwrap(); // v4, overwintered; the Sapling version group id
+    v4.push(1); // one input
+    v4.extend([0u8; 36]); // its prevout
+    v4.push(0); // an empty script
+    v4.extend([0xff; 4]); // its sequence
+    v4.push(0); // no outputs
+    v4.extend([0u8; 8]); // lock time, expiry height
+    v4.extend([0u8; 8]); // value balance
+    v4.extend([0u8; 3]); // no spends, outputs or JoinSplits
+    parse_transaction(&v4).expect("a v4 transaction parses");
+}
+
+/// A v5 header (its own version group id) with NU7's branch: refused by name as the v6 case is.
+#[test]
+fn a_v5_nu7_transaction_is_refused_by_name() {
+    let mut v5 = hex::decode("050000800a27a726").unwrap();
+    v5.extend(0x7719_0ad9u32.to_le_bytes());
+    v5.extend([0u8; 64]);
+    let err = parse_transaction(&v5).expect_err("refused");
+    assert!(
+        matches!(
+            err,
+            CoreError::UnsupportedBranch {
+                id: 0x7719_0ad9,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+}
+
+/// Bytes that are not a v5/v6 header stay malformed, never "unsupported branch": a non-overwintered header, a
+/// v5 version with another version group id, a txid pasted by mistake (its fourth byte has the overwintered bit),
+/// short and empty input.
+#[test]
+fn garbage_is_malformed_not_an_unknown_branch() {
+    let mut not_overwintered = hex::decode("050000000a27a726").unwrap();
+    not_overwintered.extend(0x7719_0ad9u32.to_le_bytes());
+    not_overwintered.extend([0u8; 64]);
+    let mut wrong_group = hex::decode("0500008000000000").unwrap();
+    wrong_group.extend(0x7719_0ad9u32.to_le_bytes());
+    wrong_group.extend([0u8; 64]);
+    let txid =
+        hex::decode("58794a9b32a9c051a7e9e44f319c114aabd6bfe2c334a85f0ca7321810c8a011").unwrap();
+    let bytes = hex::decode(TX.trim()).unwrap();
+    for (name, input) in [
+        ("non-overwintered", not_overwintered.as_slice()),
+        ("wrong version group id", wrong_group.as_slice()),
+        ("a txid", txid.as_slice()),
+        ("11 bytes", &bytes[..11]),
+        ("empty", &[][..]),
+    ] {
+        let result = parse_transaction(input);
+        assert!(
+            matches!(result, Err(CoreError::Malformed(_))),
+            "{name}: {:?}",
+            result.err()
+        );
+    }
+}
