@@ -53,8 +53,9 @@ export function chainStatus(height: bigint | null): ChainStatus;
  * transaction (gRPC code 5, a "not found"/"no such" message, or empty data), the error has
  * `code: "not_found"`, and it wins over another node being unreachable.
  */
-export function fetchRawTx(txidDisplayHex: string, network?: Network, endpoints?: string[]): Promise<{ hex: string; height: number | null; chain: ChainStatus; endpoint: string }>;
+/** Each endpoint gets `timeoutMs` (default 20 000) before the next is tried. */
+export function fetchRawTx(txidDisplayHex: string, network?: Network, endpoints?: string[], options?: { timeoutMs?: number }): Promise<{ hex: string; height: number | null; chain: ChainStatus; endpoint: string }>;
 /** The chain tip over gRPC-web (`GetLatestBlock`), from the same endpoints and with the same failover as `fetchRawTx`. */
-export function fetchChainTip(network?: Network, endpoints?: string[]): Promise<{ height: number; endpoint: string }>;
+export function fetchChainTip(network?: Network, endpoints?: string[], options?: { timeoutMs?: number }): Promise<{ height: number; endpoint: string }>;
 /** Confirmations of a transaction mined at `height` with the tip at `tip` (`tip - height + 1`, Zcash's convention); null when unknown or the tip is below the height. */
 export function confirmations(height: number | null, tip: number | null): number | null;

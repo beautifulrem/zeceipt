@@ -144,6 +144,14 @@ export function chainStatus(height) {
 }
 
 /**
+ * Each gRPC-web endpoint gets this long (the whole request, body included) before the next is tried (slice A1b): an
+ * endpoint that accepts the connection and then hangs would otherwise block failover. zeceipt-lwd allows 15 s to
+ * connect and 60 s in all; a page failing over wants less.
+ */
+const FETCH_TIMEOUT_MS = 20_000;
+const timedOut = (e, ep, ms) => (e?.name === "TimeoutError" ? new Error(`${ep}: no answer within ${ms / 1000} s`) : e);
+
+/**
  * The one message of a unary gRPC-web response. A non-zero grpc-status, in the headers or in the trailer frame, is
  * an error: `mapStatus(status, message)` may turn it into a specific one, or return null for the generic error.
  */
@@ -170,7 +178,7 @@ async function grpcWebMessage(res, mapStatus = () => null) {
  * `chain` is the node's view (mined at a height, in the mempool, or on a fork);
  * `height` is the mined height, or null when not mined in the main chain.
  */
-export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = GRPC_WEB_ENDPOINTS[network]) {
+export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = GRPC_WEB_ENDPOINTS[network], { timeoutMs = FETCH_TIMEOUT_MS } = {}) {
   if (!Array.isArray(endpoints) || endpoints.length === 0) {
     throw new Error(`no public gRPC-web endpoint for ${network}; pass endpoints or load the raw transaction from a file`);
   }
@@ -186,13 +194,14 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
         method: "POST",
         headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
         body: encodeTxFilter(txidDisplayHex),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const message = await grpcWebMessage(res, failure);
       const { data, height } = decodeRawTransaction(message);
       if (!data || data.length === 0) throw notFound();
       const chain = chainStatus(height);
       return { hex: bytesToHex(data), height: chain.status === "mined" ? chain.height : null, chain, endpoint: ep };
-    } catch (e) { if (e.code === "not_found") missing = e; else lastErr = e; }
+    } catch (e) { if (e.code === "not_found") missing = e; else lastErr = timedOut(e, ep, timeoutMs); }
   }
   throw missing ?? lastErr;
 }
@@ -202,7 +211,7 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
  * hash = 2; }` (walletrpc/service.proto), from the same endpoints as `fetchRawTx`, with the same failover (slice A1;
  * R132). Ask the node that served the transaction, so that the depth is one node's view. Returns { height, endpoint }.
  */
-export async function fetchChainTip(network = "main", endpoints = GRPC_WEB_ENDPOINTS[network]) {
+export async function fetchChainTip(network = "main", endpoints = GRPC_WEB_ENDPOINTS[network], { timeoutMs = FETCH_TIMEOUT_MS } = {}) {
   if (!Array.isArray(endpoints) || endpoints.length === 0) {
     throw new Error(`no public gRPC-web endpoint for ${network}; the chain tip cannot be asked`);
   }
@@ -213,6 +222,7 @@ export async function fetchChainTip(network = "main", endpoints = GRPC_WEB_ENDPO
         method: "POST",
         headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
         body: new Uint8Array(5), // one empty ChainSpec message
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const message = await grpcWebMessage(res);
       let i = 0, height = null;
@@ -225,7 +235,7 @@ export async function fetchChainTip(network = "main", endpoints = GRPC_WEB_ENDPO
       }
       if (height === null || height === 0n || height >= 2n ** 53n) throw new Error("the node gave no usable chain tip");
       return { height: Number(height), endpoint: ep };
-    } catch (e) { lastErr = e; }
+    } catch (e) { lastErr = timedOut(e, ep, timeoutMs); }
   }
   throw lastErr;
 }

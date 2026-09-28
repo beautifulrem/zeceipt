@@ -55,9 +55,9 @@ const result = verifyReceipt(receiptJson, rawTxHex);
 | `verifyReceipt(receipt, rawTxHex, { challenge?, requireSignature? })` | Verifies a receipt against the raw transaction. Returns `valid`, and the recovered `recipient`, `value_zat`, `value_zec` and `memo`, or the failing `stage` and `error`, plus `proves` and `does_not_prove`. |
 | `parseReceipt(input)` | Parses a receipt from JSON, a receipt link or its base64url payload. |
 | `checkSignature(receipt)` | Checks only the issuer signature (no transaction needed). |
-| `fetchRawTx(txid, network?, endpoints?)` | Fetches one raw transaction over gRPC-web, with the node's view of where it is (`mined` at a height, `mempool`, or `fork`). |
+| `fetchRawTx(txid, network?, endpoints?, { timeoutMs }?)` | Fetches one raw transaction over gRPC-web, with the node's view of where it is (`mined` at a height, `mempool`, or `fork`). Each endpoint gets `timeoutMs` (20 s by default) before the next is tried. |
 | `chainStatus(height)` | That view, from lightwalletd's height field. |
-| `fetchChainTip(network?, endpoints?)` | Fetches the chain tip's height over gRPC-web from the same endpoints, with the same failover; ask the node that served the transaction. |
+| `fetchChainTip(network?, endpoints?, { timeoutMs }?)` | Fetches the chain tip's height over gRPC-web from the same endpoints, with the same failover; ask the node that served the transaction. |
 | `confirmations(height, tip)` | `tip − height + 1`, Zcash's count (Monero's is one fewer); `null` when either is unknown or the tip is below the height. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender. |
 | `GRPC_WEB_ENDPOINTS` | The default public gRPC-web endpoints, tried in order: `zjs.zec.rocks`, then ChainSafe's, for mainnet and for testnet (none for regtest). ChainSafe's are proxies to zec.rocks, so every default reaches one operator's lightwalletd, and a lookup through ChainSafe is seen by both. Pass your own endpoints to avoid them. |
 | `issuerClaim(receipt)` | The domain a signed key id claims (spec §7), without any request. |

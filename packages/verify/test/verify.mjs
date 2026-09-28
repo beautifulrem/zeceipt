@@ -191,6 +191,25 @@ check("tip: regtest without endpoints is refused clearly", /no public gRPC-web e
 check("confirmations: 1 at the tip, tip - height + 1 below it", confirmations(100, 100) === 1 && confirmations(100, 109) === 10);
 check("confirmations: null for a tip below the height, an unknown height or tip, or a non-positive height",
   [confirmations(100, 99), confirmations(null, 100), confirmations(100, null), confirmations(0, 5), confirmations(100.5, 200)].every((c) => c === null));
+// Per-endpoint timeouts (slice A1b): an endpoint that accepts the request and then never answers is abandoned after
+// timeoutMs, and the next is tried; with every endpoint hanging, the error says so.
+// Node's AbortSignal.timeout timer is unref'd: with only these mocked, hanging promises pending, nothing else would keep
+// the process alive until it fires (a real socket would), so a ref'd interval holds the loop open for these checks.
+const keepAlive = setInterval(() => {}, 1000);
+const hang = (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+const hangFirst = (answer) => (url, init) => url.startsWith("https://hang.test") ? hang(url, init) : answer;
+const txAfterHang = await withFetch(hangFirst(ok200(grpcBody(rawTxMessage(rawTx, 12n)))), () => fetchRawTx(TXID, "main", ["https://hang.test", "https://up.test"], { timeoutMs: 50 }));
+check("timeout: fetchRawTx moves past a hanging endpoint", txAfterHang.endpoint === "https://up.test");
+const tipAfterHang = await withFetch(hangFirst(ok200(grpcBody(blockId(12n)))), () => fetchChainTip("main", ["https://hang.test", "https://up.test"], { timeoutMs: 50 }));
+check("timeout: fetchChainTip moves past a hanging endpoint", tipAfterHang.endpoint === "https://up.test" && tipAfterHang.height === 12);
+const allHang = await rejects(withFetch(hang, () => fetchChainTip("main", ["https://hang.test"], { timeoutMs: 50 })));
+check("timeout: with every endpoint hanging, the error names the wait", /https:\/\/hang\.test: no answer within 0\.05 s/.test(allHang ?? ""), allHang);
+const txAllHang = await rejects(withFetch(hang, () => fetchRawTx(TXID, "main", ["https://hang.test"], { timeoutMs: 50 })));
+check("timeout: the same for fetchRawTx", /no answer within 0\.05 s/.test(txAllHang ?? ""), txAllHang);
+seen.length = 0;
+await withFetch(() => ok200(grpcBody(blockId(1n))), () => fetchChainTip("main", ["https://node.test"]));
+check("timeout: every request carries an abort signal", seen[0]?.init?.signal instanceof AbortSignal);
+clearInterval(keepAlive);
 const regtestErr = await rejects(fetchRawTx(TXID, "regtest"));
 check("fetch: regtest without endpoints is refused clearly", /no public gRPC-web endpoint for regtest; pass endpoints or load the raw transaction from a file/.test(regtestErr ?? ""), regtestErr);
 const regtestOk = await withFetch(() => ok200(grpcBody(rawTxMessage(rawTx, 2875n))), () => fetchRawTx(TXID, "regtest", ["http://127.0.0.1:9"]));
