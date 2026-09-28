@@ -77,7 +77,7 @@ after(async () => {
 });
 
 /** A fresh browser context that records requests, CSP violations and page errors. */
-async function openPage({ height = 3491284n, nodeHex = SYNTH_HEX, holdWasm = null, using = browser, contextOptions = {} } = {}) {
+async function openPage({ height = 3491284n, tip = 3491293n, nodeHex = SYNTH_HEX, holdWasm = null, using = browser, contextOptions = {} } = {}) {
   const context = await using.newContext(contextOptions);
   const requests = [];
   const errors = [];
@@ -85,8 +85,15 @@ async function openPage({ height = 3491284n, nodeHex = SYNTH_HEX, holdWasm = nul
     window.__csp = [];
     document.addEventListener("securitypolicyviolation", (e) => window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`));
   });
-  await context.route("https://zjs.zec.rocks/**", (route) =>
-    route.fulfill({ status: 200, headers: { "content-type": "application/grpc-web+proto", "access-control-allow-origin": "*", "access-control-allow-headers": "*" }, body: grpcWeb(nodeHex, height) }));
+  const grpcHeaders = { "content-type": "application/grpc-web+proto", "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
+  await context.route("https://zjs.zec.rocks/**", (route) => {
+    // GetLatestBlock answers a BlockID { height = 1 } (slice A2); `tip: null` makes the node fail it.
+    if (route.request().url().endsWith("/GetLatestBlock")) {
+      if (tip === null) return route.fulfill({ status: 503, headers: grpcHeaders, body: "" });
+      return route.fulfill({ status: 200, headers: grpcHeaders, body: Buffer.concat([frame(0, [0x08, ...varint(tip)]), frame(0x80, Buffer.from("grpc-status:0\r\n"))]) });
+    }
+    return route.fulfill({ status: 200, headers: grpcHeaders, body: grpcWeb(nodeHex, height) });
+  });
   await context.route("https://zcash-mainnet.chainsafe.dev/**", (route) => route.abort());
   await context.route("https://zcash-testnet.chainsafe.dev/**", (route) => route.abort()); // no test uses testnet; keeps one off the network
   if (holdWasm) await context.route("**/pkg/zeceipt_wasm_bg.wasm", async (route) => { await holdWasm; await route.continue(); });
@@ -124,7 +131,10 @@ async function assertPrivate({ page, requests, errors }, { issuerChecks = 0, exp
     assert.ok(!/"referer"/i.test(r.headers) && !/"cookie"/i.test(r.headers), "no Referer or cookie on the issuer check");
   }
   for (const r of foreign.filter((x) => !checks.includes(x))) {
-    assert.match(r.url, /\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/GetTransaction$/, `unexpected outside request ${r.url}`);
+    // The node requests: GetTransaction (the txid filter), and GetLatestBlock (slice A2), which carries nothing: one
+    // empty ChainSpec frame.
+    assert.match(r.url, /\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/(GetTransaction|GetLatestBlock)$/, `unexpected outside request ${r.url}`);
+    if (r.url.endsWith("/GetLatestBlock")) assert.equal(r.body, "\0\0\0\0\0", "the tip request carries nothing");
     assert.ok(!/"referer"/i.test(r.headers), "no Referer on the node request");
   }
   const stored = await page.evaluate(async () => ({
@@ -152,14 +162,29 @@ test("a bearer receipt opened by its link: summary first, then VALID with the th
   await verified(s.page);
   assert.equal(await text(s.page, "#headline"), "VALID");
   assert.match(await text(s.page, "#payment"), /2\.50000000 ZEC \(250000000 zat\).*INV-2026-0142/);
-  assert.equal(await text(s.page, "#inclusion"), "Mined at height 3491284, according to zjs.zec.rocks/mainnet. This page does not count confirmations: check the depth on an explorer or your own node.");
+  assert.equal(await text(s.page, "#inclusion"), "Mined at height 3491284, 10 confirmations, according to zjs.zec.rocks/mainnet. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender.");
   const issuer = await text(s.page, "#issuer");
   assert.match(issuer, /Signed by key [0-9a-f]{64} \(key id 2026-09\)/);
   assert.match(issuer, /issuer binding: unknown/);
   assert.match(await text(s.page, "#challenge-line"), /Not bound to a challenge/);
   assert.equal(await s.page.getAttribute("#outcome", "class"), "ok", "green only when a node reports it mined");
-  assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 1, "exactly one outside request: GetTransaction");
+  const outside = s.requests.filter((r) => !r.url.startsWith(base));
+  assert.deepEqual(outside.map((r) => r.url.split("/").pop()), ["GetTransaction", "GetLatestBlock"], "two outside requests: the transaction, then the same node's tip");
+  assert.equal(outside[1].body, "\0\0\0\0\0", "the tip request carries nothing (one empty ChainSpec)");
   await assertPrivate(s);
+  await s.context.close();
+});
+
+test("a node without a usable tip leaves the depth unknown and the verdict alone (slice A2)", { skip: !RUN }, async () => {
+  const s = await openPage({ tip: null });
+  await s.page.goto(`${base}/r/#${b64(BEARER)}`);
+  await ready(s.page);
+  await s.page.click("#fetch");
+  await verified(s.page);
+  assert.equal(await text(s.page, "#headline"), "VALID");
+  assert.equal(await text(s.page, "#inclusion"), "Mined at height 3491284, according to zjs.zec.rocks/mainnet; the depth is unknown (the node gave no usable chain tip). Check it on an explorer or your own node.");
+  assert.equal(await s.page.getAttribute("#outcome", "class"), "ok", "still mined: green");
+  await assertPrivate(s, { expectedErrors: [/status of 503/] }); // Chrome logs the node's refused tip request
   await s.context.close();
 });
 
@@ -173,6 +198,7 @@ test("chain inclusion follows the node: mempool is pending, a fork is not on the
     assert.equal(await text(s.page, "#headline"), "VALID", "the disclosure itself is valid");
     assert.match(await text(s.page, "#inclusion"), re);
     assert.equal(await s.page.getAttribute("#outcome", "class"), cls);
+    assert.equal(s.requests.filter((r) => !r.url.startsWith(base) && r.url.endsWith("/GetLatestBlock")).length, 0, "no tip is asked for an unmined transaction");
     await assertPrivate(s);
     await s.context.close();
   }

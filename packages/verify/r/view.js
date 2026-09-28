@@ -1,5 +1,6 @@
 // Pure display logic for the public receipt page (r/index.html): verifier output in,
 // plain strings and rows out. No DOM here; r/page.js renders these with textContent only.
+import { confirmations } from "../src/index.js";
 
 /** User copy per verifier stage (docs/product/04_ux_flows.md §4). */
 export const STAGE_COPY = {
@@ -45,12 +46,16 @@ export function summaryRows(r) {
 /** How the page can get the transaction for this receipt's network. */
 export function fetchPlan(network, endpoints) {
   if (Array.isArray(endpoints) && endpoints.length > 0) {
-    return { canFetch: true, note: `The node (${endpoints.map(nodeHost).join(", then ")}), and any service behind it, learns which transaction you look up. Nothing else is sent.` };
+    return { canFetch: true, note: `The node (${endpoints.map(nodeHost).join(", then ")}), and any service behind it, learns which transaction you look up. Nothing else is sent; the page then asks the same node for its chain tip, a request that carries nothing.` };
   }
   return { canFetch: false, note: `No public node serves the ${NETWORK_NAME[network] ?? network}. Load the raw transaction from a file instead.` };
 }
 
-/** Part 2 of the outcome. `source` is {kind: "node", chain, endpoint} or {kind: "file"}. */
+/**
+ * Part 2 of the outcome. `source` is {kind: "node", chain, endpoint, tip} or {kind: "file"}; `tip` is the same node's
+ * chain tip, or null when it was not given. Depth is counted as Zcash counts it (confirmations = tip - height + 1) and
+ * read against ZIP 315's policy for funds from others (slice A2; R132).
+ */
 export function inclusion(source) {
   if (source.kind === "file") {
     return { state: "unknown", text: "Unknown: the transaction was loaded from a file. Check the txid on an explorer or your own node." };
@@ -58,7 +63,13 @@ export function inclusion(source) {
   const node = nodeHost(source.endpoint);
   switch (source.chain.status) {
     case "mined":
-      return { state: "mined", text: `Mined at height ${source.chain.height}, according to ${node}. This page does not count confirmations: check the depth on an explorer or your own node.` };
+    {
+      const depth = confirmations(source.chain.height, source.tip ?? null);
+      if (depth === null) {
+        return { state: "mined", confirmations: null, text: `Mined at height ${source.chain.height}, according to ${node}; the depth is unknown (the node gave no usable chain tip). Check it on an explorer or your own node.` };
+      }
+      return { state: "mined", confirmations: depth, text: `Mined at height ${source.chain.height}, ${depth} confirmation${depth === 1 ? "" : "s"}, according to ${node}. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender.` };
+    }
     case "mempool":
       return { state: "pending", text: `Pending: ${node} has it in the mempool; it is not mined yet. Check again later.` };
     case "fork":

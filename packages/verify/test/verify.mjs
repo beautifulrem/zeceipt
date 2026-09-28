@@ -236,8 +236,13 @@ const bad = pageView.outcome({ valid: false, stage: "recovery", error: "x" }, nu
 check("receipt page: INVALID carries the stage copy and the verifier's message", bad.headline === "INVALID" && bad.stageCopy === pageView.STAGE_COPY.recovery && bad.error === "x");
 check("receipt page: an unknown stage falls back to 'other'", pageView.outcome({ valid: false, stage: "new-stage" }, null).stageCopy === pageView.STAGE_COPY.other);
 const good = { valid: true, txid: "ab", pool: "ironwood", output_index: 1, recipient: "u1x", value_zat: 250000000, value_zec: "2.50000000", memo: { kind: "text", text: "m" }, label: "L", issuer_pubkey: "e".repeat(64), issuer_key_id: "k1", challenge_checked: false };
-const node = (chain) => ({ kind: "node", chain, endpoint: "https://zjs.zec.rocks/mainnet" });
-check("receipt page: mined inclusion names the node and disclaims depth", /^Mined at height 12, according to zjs\.zec\.rocks\/mainnet\. This page does not count confirmations/.test(pageView.outcome(good, node({ status: "mined", height: 12 })).inclusion.text));
+const node = (chain, tip = null) => ({ kind: "node", chain, endpoint: "https://zjs.zec.rocks/mainnet", tip });
+// Depth (slice A2; R132): Zcash's count from the same node's tip, read against ZIP 315; no tip, no depth.
+const deep = pageView.outcome(good, node({ status: "mined", height: 12 }, 21)).inclusion;
+check("receipt page: mined inclusion names the node and counts confirmations", deep.confirmations === 10 && deep.text === "Mined at height 12, 10 confirmations, according to zjs.zec.rocks/mainnet. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender.", deep.text);
+check("receipt page: one confirmation at the tip is singular", /, 1 confirmation, according/.test(pageView.inclusion(node({ status: "mined", height: 12 }, 12)).text));
+const shallow = pageView.inclusion(node({ status: "mined", height: 12 }, 11));
+check("receipt page: no tip, or a tip below the height, leaves the depth unknown", shallow.state === "mined" && shallow.confirmations === null && /the depth is unknown/.test(shallow.text) && /the depth is unknown/.test(pageView.inclusion(node({ status: "mined", height: 12 })).text), shallow.text);
 check("receipt page: mempool is pending, fork is not the main chain, a file is unknown",
   pageView.inclusion(node({ status: "mempool" })).state === "pending" && pageView.inclusion(node({ status: "fork" })).state === "fork" && pageView.inclusion({ kind: "file" }).state === "unknown");
 check("receipt page: signed issuer says binding unknown; unsigned says the label is unauthenticated",

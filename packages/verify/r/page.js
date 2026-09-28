@@ -3,7 +3,11 @@
 // Nothing is stored; a request outside this site is made only when the user asks: the transaction
 // lookup (fetchRawTx, which carries the txid and nothing else) and the issuer check (checkIssuerBinding,
 // a GET of the claimed domain's well-known file, spec §7, which carries nothing from the receipt).
-import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, issuerClaim, checkIssuerBinding, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, issuerClaim, checkIssuerBinding, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+
+// Each node gets 12 s here, not the package's 20 s: two hanging default nodes would otherwise keep a person waiting
+// 40 s before the page says so (review A1b).
+const PAGE_TIMEOUT_MS = 12_000;
 import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, bindingOffer, bindingText } from "./view.js";
 
 const $ = (id) => document.getElementById(id);
@@ -111,9 +115,17 @@ $("fetch").addEventListener("click", async () => {
   $("fetch").disabled = true;
   $("source-status").textContent = "Fetching the transaction…";
   try {
-    const got = await fetchRawTx(receipt.txid, receipt.network);
+    const got = await fetchRawTx(receipt.txid, receipt.network, undefined, { timeoutMs: PAGE_TIMEOUT_MS });
     if (mine !== generation) return;
-    transactionLoaded(got.hex, { kind: "node", chain: got.chain, endpoint: got.endpoint }, "Transaction fetched.");
+    // Depth from the same node (slice A2): its tip, which carries nothing about the transaction. A node without a
+    // usable tip leaves the depth unknown; it never changes the verdict.
+    let tip = null;
+    if (got.chain.status === "mined") {
+      $("source-status").textContent = "Transaction fetched; asking the node for its chain tip…";
+      tip = await fetchChainTip(receipt.network, [got.endpoint], { timeoutMs: PAGE_TIMEOUT_MS }).then((t) => t.height, () => null);
+      if (mine !== generation) return;
+    }
+    transactionLoaded(got.hex, { kind: "node", chain: got.chain, endpoint: got.endpoint, tip }, "Transaction fetched.");
   } catch (e) {
     if (mine !== generation) return;
     const msg = String(e);
