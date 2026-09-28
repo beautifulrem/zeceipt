@@ -247,7 +247,19 @@ pub fn parse_transaction(bytes: &[u8]) -> Result<Transaction, CoreError> {
     }
     // The branch id argument only matters for pre-v5 transactions; v5/v6 carry
     // their consensus branch id in the serialized form.
-    Transaction::read(bytes, BranchId::Nu6_3).map_err(|e| CoreError::Malformed(e.to_string()))
+    let tx = Transaction::read(bytes, BranchId::Nu6_3)
+        .map_err(|e| CoreError::Malformed(e.to_string()))?;
+    // `read` does not check that a v5/v6 transaction's own branch is one its version is valid in (a v6 transaction
+    // under NU6.1 parses, and its bundle is one the v6 writer refuses): Zebra's GHSA-h5rr-8pqv-grp9, fixed by rejecting
+    // it at parse time (#11533). Such a transaction can never be consensus-valid, so it is malformed here too (R127).
+    let (version, branch) = (tx.version(), tx.consensus_branch_id());
+    if matches!(version, TxVersion::V5 | TxVersion::V6) && !version.valid_in_branch(branch) {
+        return Err(CoreError::Malformed(format!(
+            "a {version:?} transaction cannot use consensus branch {:#010x} ({branch:?})",
+            u32::from(branch)
+        )));
+    }
+    Ok(tx)
 }
 
 /// Display-order (explorer) hex of the transaction id.

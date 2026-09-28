@@ -149,3 +149,46 @@ fn garbage_is_malformed_not_an_unknown_branch() {
         );
     }
 }
+
+/// A real mainnet v6 transaction whose shielded parts are Orchard and Sapling only (block 3,498,992; slice U2).
+const ORCHARD_V6: &str = include_str!(
+    "../../../fixtures/368ff5b2a985d39594fd69281bfad0531a7f495d4cb23f443e73d5e1ca93d047.hex"
+);
+
+/// Zebra's GHSA-h5rr-8pqv-grp9 (R127): `zcash_primitives` parses a v6 transaction under a pre-NU6.3 branch, whose
+/// Orchard bundle the v6 writer refuses. It can never be consensus-valid, so it is refused as malformed (slice U2); the
+/// same bytes under NU6.3, as mined, still parse.
+#[test]
+fn a_v6_transaction_under_a_pre_nu6_3_branch_is_malformed() {
+    use zcash_protocol::consensus::BranchId;
+    let mined = hex::decode(ORCHARD_V6.trim()).unwrap();
+    assert_eq!(
+        u32::from_le_bytes(mined[8..12].try_into().unwrap()),
+        u32::from(BranchId::Nu6_3)
+    );
+    let tx = parse_transaction(&mined).expect("the mined transaction parses");
+    assert_eq!(
+        zeceipt_core::txid_hex(&tx),
+        "368ff5b2a985d39594fd69281bfad0531a7f495d4cb23f443e73d5e1ca93d047"
+    );
+    for branch in [
+        BranchId::Nu5,
+        BranchId::Nu6,
+        BranchId::Nu6_1,
+        BranchId::Nu6_2,
+    ] {
+        let mut bytes = mined.clone();
+        bytes[8..12].copy_from_slice(&u32::from(branch).to_le_bytes());
+        match parse_transaction(&bytes) {
+            Err(CoreError::Malformed(text)) => assert!(
+                text.contains("a V6 transaction cannot use consensus branch")
+                    && text.contains(&format!("{:#010x}", u32::from(branch))),
+                "{branch:?}: {text}"
+            ),
+            other => panic!(
+                "{branch:?}: {:?}",
+                other.map(|t| zeceipt_core::txid_hex(&t))
+            ),
+        }
+    }
+}

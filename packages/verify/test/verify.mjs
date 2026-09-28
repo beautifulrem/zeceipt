@@ -63,7 +63,14 @@ check("label flip -> signature", flip((c) => { c.label += "!"; }).stage === "sig
 check("wrong challenge -> challenge", verify_receipt(receipt, rawTx, "nope", true).stage === "challenge");
 const unsignedTamper = (() => { const c = JSON.parse(receipt); delete c.signature; delete c.issuer_pubkey; c.ock = c.ock.slice(0, -1) + (c.ock.endsWith("A") ? "B" : "A"); return verify_receipt(JSON.stringify(c), rawTx, "auditor-nonce-7", false); })();
 check("tampered ock (unsigned) -> recovery", unsignedTamper.stage === "recovery", JSON.stringify(unsignedTamper));
-check("wrong tx -> txid", verify_receipt(receipt, fs.readFileSync(path.join(here, "../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex"), "utf8").trim(), "auditor-nonce-7", true).stage === "txid");
+// Slice U2 (R127, Zebra's GHSA-h5rr-8pqv-grp9): a real mainnet v6 Orchard transaction with a pre-NU6.3 branch in its
+// header can never be consensus-valid; the WASM refuses it at stage "tx", as malformed.
+const orchardV6 = fs.readFileSync(path.join(here, "../../../fixtures/368ff5b2a985d39594fd69281bfad0531a7f495d4cb23f443e73d5e1ca93d047.hex"), "utf8").trim();
+const nu61 = orchardV6.slice(0, 16) + "f04dec4d" + orchardV6.slice(24); // NU6.1's branch 0x4dec4df0, little-endian
+const preNu63 = verify_receipt(receipt, nu61, "auditor-nonce-7", true);
+check("v6 under a pre-NU6.3 branch -> tx (malformed)", preNu63.stage === "tx" && /cannot use consensus branch 0x4dec4df0/.test(preNu63.error), JSON.stringify(preNu63));
+check("the same transaction as mined -> txid (it parses)", verify_receipt(receipt, orchardV6, "auditor-nonce-7", true).stage === "txid");
+check("wrong tx -> txid",verify_receipt(receipt, fs.readFileSync(path.join(here, "../../../fixtures/0e85513c8ac28fcd6ea5324e08bde3360e5cb78e176f536d6659f14fee87da69.hex"), "utf8").trim(), "auditor-nonce-7", true).stage === "txid");
 
 // Format-derived coverage: every committed vector (all Network x Pool variants) must parse
 // and its signed form must verify exactly as the vector says, so a variant added to the
