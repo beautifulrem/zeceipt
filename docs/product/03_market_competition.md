@@ -44,7 +44,7 @@ Legend: ● has it · ○ partial · — none. Columns are the capabilities a ju
 | Monero prove-payment | Monero | — | — | — | ● per-tx key | — | — | shipped | `[R31]` |
 | Solana confidential balances | Solana | — | — | — | ○ auditor key per mint (all-or-nothing) | — | — | re-enabled on mainnet 2026-06-04 (proof program) / launch post 2026-06-10 | `[R41]` |
 
-Reading: nobody on Zcash (or elsewhere in the table) combines chain-verifiable per-payment receipts with audit packs and accounting exports; the closest shipped analogue is Monero's per-transaction proof, which has no batch, memo or accounting layer.
+Reading: nobody on Zcash (or elsewhere in the table) combines chain-verifiable per-payment receipts with audit packs and accounting exports; the closest shipped analogue is Monero's per-transaction proof, which has no batch, memo or accounting layer. Rechecked on 2026-09-28: no Zcash wallet, Zallet included, implements ZIP 311 or a payment-disclosure RPC `[R124]`.
 
 ## 4. Positioning statement
 

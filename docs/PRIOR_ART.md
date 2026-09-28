@@ -17,4 +17,11 @@ Colosseum rules require disclosure of pre-existing work. Nothing below is copied
 | Monero `get_tx_key` / `check_tx_key` | Shipped per-transaction proof of payment in a privacy coin. | UX reference (Prove/Check in the wallet). |
 | [OpenZcash](https://openzcash.org) | Public mirror of the ZCG disbursement ledger. | Consumer: rows can link to receipts. |
 
+Status rechecked on 2026-09-28 through the GitHub API (`docs/product/10_research_log.md` R121, R124):
+- ZIP 311 is still a draft, and its text is unchanged in substance since 2024. zips #387 has had no activity since 2026-03-24.
+- ZCG #437 is unchanged since 2026-09-22 (open, "Ready For ZCG Review").
+- Glasspane has had no commit since 2026-07-13.
+- Konclave's last release is v0.6.0 (2026-09-22), with no receipt work.
+- No wallet implements ZIP 311 or a payment-disclosure RPC; a search of Zallet's issues and pull requests found none.
+
 Libraries used unmodified: `orchard`, `sapling-crypto`, `zcash_note_encryption`, `zcash_primitives`, `zcash_keys`, `zcash_address`, `zcash_client_backend` (proto client), `tonic`, `ed25519-dalek`.
