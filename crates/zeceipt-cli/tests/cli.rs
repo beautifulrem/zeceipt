@@ -235,6 +235,60 @@ fn inspect_issue_pack_and_verify_pack_offline() {
     let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
     assert_eq!(v["all_valid"], true);
     assert_eq!(v["verified_total_zat"], 250_000_000);
+    assert_eq!(v["duplicates"], 0);
+}
+
+/// A receipt listed twice verifies twice but is counted once, so the lower bound stays a lower bound (slice U4; found
+/// in review U3: the total had doubled). A second receipt for the same output would be the same case.
+#[test]
+fn verify_pack_counts_each_output_once() {
+    let dir = std::env::temp_dir().join(format!("zeceipt-dup-pack-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("raw")).unwrap();
+    let txid = "58794a9b32a9c051a7e9e44f319c114aabd6bfe2c334a85f0ca7321810c8a011";
+    std::fs::copy(
+        fixture(&format!("regtest-{txid}.hex")),
+        dir.join("raw").join(format!("{txid}.hex")),
+    )
+    .unwrap();
+    let receipt = fixture("regtest-20kb-receipt.json");
+    let (c, pack, _) = run(&[
+        "pack",
+        "--title",
+        "dup",
+        "--declared-total-zat",
+        "28702091",
+        &receipt,
+        &receipt,
+    ]);
+    assert_eq!(c, 0);
+    let pack_path = dir.join("pack.json");
+    std::fs::write(&pack_path, &pack).unwrap();
+    let (c, o, _) = run(&[
+        "verify-pack",
+        pack_path.to_str().unwrap(),
+        "--regtest",
+        "--raw-tx-dir",
+        dir.join("raw").to_str().unwrap(),
+        "--challenge",
+        "auditor-nonce-7",
+        "--require-signature",
+    ]);
+    assert_eq!(c, 0, "{o}");
+    let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    assert_eq!(v["all_valid"], true);
+    assert_eq!(v["verified_total_zat"], 28_702_091, "one output, once: {o}");
+    assert_eq!(v["duplicates"], 1);
+    let rows = v["receipts"].as_array().unwrap();
+    assert_eq!(
+        (rows[0]["counted"].clone(), rows[1]["counted"].clone()),
+        (true.into(), false.into())
+    );
+    assert_eq!(rows[1]["duplicate_of"], 0);
+    assert_eq!(
+        rows[1]["valid"], true,
+        "the repeated receipt itself is valid"
+    );
 }
 
 /// `issue` prints links with the payload in the fragment (spec §2), and `verify` takes

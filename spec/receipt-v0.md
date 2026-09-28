@@ -135,7 +135,7 @@ None of these changes whether the receipt is cryptographically valid: a binding 
 
 ## 8. Audit packs
 
-`{"version":"zeceipt-v0","title":…,"declared_total_zat":…,"receipts":[…]}`. Verifiers verify each receipt and sum recovered values. The sum is a **lower bound** on what the issuer paid; a pack cannot prove completeness.
+`{"version":"zeceipt-v0","title":…,"declared_total_zat":…,"receipts":[…]}`. Verifiers verify each receipt and sum recovered values, **counting each output (txid, pool, output index) once**: a receipt listed twice, or two receipts for one output, would otherwise double it. The sum is a **lower bound** on what the issuer paid; a pack cannot prove completeness.
 
 ## 9. Privacy notes
 

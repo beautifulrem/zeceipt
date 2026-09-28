@@ -1,17 +1,17 @@
 //! No mutated transaction, receipt, audit pack or well-known file makes the core panic (slice U3). Zebra's
-//! GHSA-h5rr-8pqv-grp9 was found by fuzzing (OSS-Fuzz): a parsed transaction that a later step could not handle aborted the node (R127). Here every committed transaction is mutated
-//! with a seeded generator (bit flips, byte overwrites, truncation, deletions, insertions, a swapped branch id) and each
-//! result goes through every step a receipt takes: parse, txid, output listing, issuing with the fixtures' keys (each
-//! issued receipt must verify), and verifying a receipt made for that transaction's own txid with a real OCK. The
-//! second test mutates what a verifier receives from outside: a signed receipt (JSON and link forms), an audit pack and
-//! a well-known file, through parsing, the signature, the challenge, the OCK, verification and the issuer binding.
-//! Errors are expected; a panic fails. In the browser a panic traps the WASM, so the page would lose its verifier.
-//! Unset, the counts are 40 per transaction fixture and 1,000 per receipt input (about 20 s in a debug build); set,
-//! `ZECEIPT_MUTATIONS` is the count per transaction fixture and ten times it per receipt input, and `0` skips both
-//! tests. The deep run the slice records is
-//! `ZECEIPT_MUTATIONS=5000 cargo test --release -p zeceipt-core --test mutation -- --nocapture`. The success paths
-//! reached are Ironwood's: the fixtures' keys open Ironwood outputs only, so Orchard and Sapling recovery run up to
-//! their authenticated decryption, which no mutation gets past.
+//! GHSA-h5rr-8pqv-grp9 was found by fuzzing (OSS-Fuzz): a parsed transaction that a later step could not handle aborted
+//! the node (R127). Here every committed transaction is mutated with a seeded generator (bit flips, byte overwrites,
+//! truncation, deletions, insertions, a swapped branch id) and each result goes through every step a receipt takes:
+//! parse, txid, output listing, issuing with the fixtures' keys (each issued receipt must verify), and verifying a
+//! receipt made for that transaction's own txid with a real OCK. The second test mutates what a verifier receives from
+//! outside: a signed receipt (JSON and link forms), an audit pack and a well-known file, through parsing, the
+//! signature, the challenge, the OCK, verification and the issuer binding. Errors are expected; a panic fails. In the
+//! browser a panic traps the WASM, so the page would lose its verifier. Unset, the counts are 40 per transaction
+//! fixture and 1,000 per receipt input (about 20 s in a debug build); set, `ZECEIPT_MUTATIONS` is the count per
+//! transaction fixture and ten times it per receipt input, and `0` skips both tests. The deep run the slice records is
+//! `ZECEIPT_MUTATIONS=5000 cargo test --release -p zeceipt-core --test mutation -- --nocapture`.
+//! The success paths reached are Ironwood's: the fixtures' keys open Ironwood outputs only, so Orchard and Sapling
+//! recovery run up to their authenticated decryption, which no mutation gets past.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 

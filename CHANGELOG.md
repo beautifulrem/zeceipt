@@ -15,7 +15,7 @@ The first release. This section becomes `0.1.0` when the tag is cut.
 - **Receipt format v0** (`spec/receipt-v0.md`). A receipt is an optionally signed envelope that discloses one shielded output by its Outgoing Cipher Key, so that anyone can recover exactly that output's recipient, amount and memo from the chain without a viewing key. It is the `outputs` half of ZIP 311, without the spend-authority proof, which needs the spending key, and without ZIP 311's requirements that only a sender can create a disclosure and that it cannot be re-signed (`docs/outreach/zips-387-comment.md`).
   - Canonical signing bytes with an ed25519 issuer signature.
   - Challenges, for receipts made out to one verifier.
-  - Audit packs, whose total is a lower bound.
+  - Audit packs, whose total is a lower bound; each output is counted once, so a receipt listed twice cannot inflate it.
   - An optional binding of an issuer key to a domain: `/.well-known/zeceipt.json`, which can only confirm a claim, never change a verdict.
   - Receipt links that carry the receipt in the URL fragment.
   - Committed test vectors: `spec/test-vectors/receipt-v0.json`.

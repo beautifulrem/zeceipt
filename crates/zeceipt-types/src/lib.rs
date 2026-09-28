@@ -330,8 +330,9 @@ impl Receipt {
 
 /// A set of receipts plus the issuer's declared total.
 ///
-/// Verifying an audit pack proves a *lower bound*: the sum of recovered values is
-/// at least what the receipts show. It cannot prove that no other payments exist.
+/// Verifying an audit pack proves a *lower bound*: the sum of recovered values, each
+/// output counted once, is at least what the receipts show. It cannot prove that no
+/// other payments exist.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuditPack {
     pub version: String,

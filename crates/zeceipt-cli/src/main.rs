@@ -557,7 +557,12 @@ async fn run() -> anyhow::Result<ExitCode> {
             let mut total = 0u64;
             let mut rows = Vec::new();
             let mut all_ok = true;
-            for r in &p.receipts {
+            // Each output is counted once (slice U4): a receipt listed twice, or two receipts for one output, still
+            // verify, but the lower bound would double. Glasspane's rooms sum every row the same way (R130).
+            let mut counted: std::collections::HashMap<(String, String, u32), usize> =
+                std::collections::HashMap::new();
+            let mut duplicates = 0usize;
+            for (row, r) in p.receipts.iter().enumerate() {
                 let net = NetArgs {
                     testnet: matches!(r.network, Network::Test) || net.testnet,
                     regtest: matches!(r.network, Network::Regtest) || net.regtest,
@@ -575,8 +580,18 @@ async fn run() -> anyhow::Result<ExitCode> {
                         zeceipt_core::verify(r, &tx, expected.as_bytes(), require_signature)
                     }) {
                         Ok(v) => {
-                            total += v.recovered.value_zat;
-                            json!({"txid": r.txid, "index": r.output_index, "valid": true, "recipient": v.recovered.recipient, "value_zat": v.recovered.value_zat, "label": r.label})
+                            let output = (v.txid.clone(), format!("{:?}", r.pool), r.output_index);
+                            if let Some(&first) = counted.get(&output) {
+                                duplicates += 1;
+                                json!({"txid": r.txid, "index": r.output_index, "valid": true, "counted": false, "duplicate_of": first, "recipient": v.recovered.recipient, "value_zat": v.recovered.value_zat, "label": r.label})
+                            } else if let Some(sum) = total.checked_add(v.recovered.value_zat) {
+                                total = sum;
+                                counted.insert(output, row);
+                                json!({"txid": r.txid, "index": r.output_index, "valid": true, "counted": true, "recipient": v.recovered.recipient, "value_zat": v.recovered.value_zat, "label": r.label})
+                            } else {
+                                all_ok = false;
+                                json!({"txid": r.txid, "index": r.output_index, "valid": false, "error": "the verified total would overflow"})
+                            }
                         }
                         Err(e) => {
                             all_ok = false;
@@ -597,7 +612,8 @@ async fn run() -> anyhow::Result<ExitCode> {
                     "all_valid": all_ok,
                     "declared_total_zat": p.declared_total_zat,
                     "verified_total_zat": total,
-                    "note": "verified total is a lower bound: receipts prove these payments exist, not that no others do",
+                    "duplicates": duplicates,
+                    "note": "verified total is a lower bound: receipts prove these payments exist, not that no others do; each output is counted once",
                     "receipts": rows,
                 }))?
             );
