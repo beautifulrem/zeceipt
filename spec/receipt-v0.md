@@ -60,7 +60,7 @@ Given a receipt, the raw transaction bytes, and the expected challenge (empty if
 2. If the receipt carries a `signature`, verify it over the canonical bytes with the inline `issuer_pubkey`; **reject** on failure. Unsigned receipts are accepted only if the caller allows it.
 3. **Reject** if the bound challenge differs from the expected challenge.
 4. Select the output by (`pool`, `output_index`); **reject** if out of range.
-5. `try_output_recovery_with_ock(domain, ock, output, out_ciphertext)`; **reject** if it returns nothing, or if the recovered value is above `MAX_MONEY` (2.1 × 10¹⁵ zatoshi): a note value is in {0 .. MAX_MONEY} (protocol spec §3.2), so only a transaction that could never be mined carries a larger one. Issuers apply the same check.
+5. `try_output_recovery_with_ock(domain, ock, output, out_ciphertext)`; **reject** if it returns nothing, or if the recovered value is above `MAX_MONEY` (2.1 × 10¹⁵ zatoshi), which no valid transaction can carry. The protocol specification types Sprout and Sapling note values as {0 .. MAX_MONEY}; its Orchard-like note type (Orchard, Ironwood) allows 64 bits, but a sender selects each Action's value in {0 .. MAX_MONEY}, and a note is funded from a pool whose balance cannot go negative (ZIP 209) out of a total supply that cannot exceed `MAX_MONEY`. Issuers apply the same check.
 6. Report: recipient address, value (zatoshi), memo, txid, pool, index, confirmations (from the data source), issuer public key if signed.
 
 There is no partial success. Any failure is "invalid"; a transaction that cannot be found is "pending", never "invalid".

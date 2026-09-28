@@ -111,7 +111,7 @@ fn base64url(b: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
-/// A note value is in {0 .. MAX_MONEY} (protocol spec §3.2). A spliced output one zatoshi above it is refused when
+/// No valid transaction carries a note worth more than MAX_MONEY (R131). A spliced output one zatoshi above it is refused when
 /// issuing and when verifying, by name, while one exactly at it issues and verifies (slice U5, R131).
 #[test]
 fn a_note_value_above_max_money_is_refused() {

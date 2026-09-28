@@ -146,7 +146,7 @@ Pending: receipts on a public chain (the testnet run is prepared and waits on fa
   - wasm-pack 0.15.0 (with its wasm-opt, version 117);
   - wasm-bindgen 0.2.128 (`Cargo.lock`);
   - Homebrew clang 23.1.1.
-- The committed WASM's sha256 is `b1f18db53b30e96f39dca0dbbbffa6805e07c2c42aff93dbebe28583f8d4ded3` (rebuilt in slice U5).
+- The committed WASM's sha256 is `23f8a2c60b32412dd83c8eeb473de8957c6ca3b3872b17a8ccec9c5987f0fdf9` (rebuilt in slice U5).
 - To check it, run `scripts/build_wasm.sh --check`. It builds into a temporary directory and compares the result with the committed package:
   - the wasm-bindgen outputs (the JS glue, the `.d.ts` files, `package.json`) must be identical;
   - the `.wasm` is reported identical or different (`--require-identical-wasm` makes a difference fail).

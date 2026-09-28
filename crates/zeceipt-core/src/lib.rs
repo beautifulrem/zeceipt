@@ -57,9 +57,12 @@ pub enum CoreError {
     },
     #[error("recovery failed: the ock does not open {pool} output {index}")]
     RecoveryFailed { pool: &'static str, index: u32 },
-    /// The opened note's value is above MAX_MONEY. A note value is in {0 .. MAX_MONEY} (protocol spec §3.2); only a
-    /// transaction that could never be mined carries one, and JavaScript could not hold it exactly (slice U5, R131).
-    #[error("{pool} output {index} opens to a value of {value} zatoshis, above MAX_MONEY ({max}); no Zcash note can hold it", max = MAX_MONEY)]
+    /// The opened note's value is above MAX_MONEY, so no valid transaction carries it (slice U5, R131). Sprout and
+    /// Sapling note values are typed {0 .. MAX_MONEY}. The Orchard-like note type (Orchard, Ironwood) allows 64 bits, but
+    /// a sender selects an Action's value in {0 .. MAX_MONEY}, and a note is funded from a pool whose balance cannot go
+    /// negative (ZIP 209) out of a supply that cannot exceed MAX_MONEY, so no mined note holds more. JavaScript could
+    /// not show such a value exactly either.
+    #[error("{pool} output {index} opens to a value of {value} zatoshis, above MAX_MONEY ({max}); no valid transaction can carry it", max = MAX_MONEY)]
     ValueOutOfRange {
         pool: &'static str,
         index: u32,
@@ -100,7 +103,7 @@ pub struct Recovered {
     pub is_change: bool,
 }
 
-/// A recovered note's value, if it is one a Zcash note can hold: {0 .. MAX_MONEY} (protocol spec §3.2, R131).
+/// A recovered note's value, if a valid transaction can carry it: at most MAX_MONEY (see `ValueOutOfRange`; R131).
 fn note_value(pool: Pool, index: u32, value: u64) -> Result<u64, CoreError> {
     if value > MAX_MONEY {
         return Err(CoreError::ValueOutOfRange {
