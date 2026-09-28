@@ -59,4 +59,5 @@ Not in this release:
 - receipts on a public chain (the testnet run waits on faucet funds; `docs/PROOF.md` §4);
 - `@zeceipt/verify` on npm (it is packaged, not published);
 - sign-in for the console;
+- transactions made after NU7 activates: its consensus branch (`0x77190AD9`, ZIP 259) isn't known to the Zcash crates this release is built on, and such a transaction is refused with an error naming NU7;
 - the spend-authority proof of full ZIP 311.

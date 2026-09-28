@@ -63,6 +63,7 @@ fn stage(e: &CoreError) -> &'static str {
         CoreError::Types(T::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",
         CoreError::RecoveryFailed { .. } => "recovery",
+        CoreError::UnsupportedBranch { .. } => "tx",
         _ => "other",
     }
 }

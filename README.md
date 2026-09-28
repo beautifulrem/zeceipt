@@ -17,7 +17,7 @@ It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority
 **About ten minutes on a recent laptop.** You need Rust with `protoc`, Node 24 or later, and Python 3 (for the demo server). The first run downloads crates and npm packages; after that nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 47 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 51 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed browser verifier (WASM) against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 489 console tests: 459 run, 30 are opt-in (build-and-serve, regtest)
 
@@ -146,7 +146,7 @@ Pending: receipts on a public chain (the testnet run is prepared and waits on fa
   - wasm-pack 0.15.0 (with its wasm-opt, version 117);
   - wasm-bindgen 0.2.128 (`Cargo.lock`);
   - Homebrew clang 23.1.1.
-- The committed WASM's sha256 is `bf60dfe80d19d79c09454d25a994f95e05d7c16ef95af08aeeeb1d2dfee7d3f1`.
+- The committed WASM's sha256 is `41c844c83adf722c5f2a9cf870abad23fbfd6a837da5af8b3d7be7305b7985d1` (rebuilt in slice U1a).
 - To check it, run `scripts/build_wasm.sh --check`. It builds into a temporary directory and compares the result with the committed package:
   - the wasm-bindgen outputs (the JS glue, the `.d.ts` files, `package.json`) must be identical;
   - the `.wasm` is reported identical or different (`--require-identical-wasm` makes a difference fail).

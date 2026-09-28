@@ -40,6 +40,10 @@ pub enum CoreError {
     Malformed(String),
     #[error("transaction version {0:?} is not supported")]
     UnsupportedTxVersion(String),
+    /// The transaction's header names a consensus branch the Zcash crates in this build do not know, such as NU7's
+    /// before a release of `zcash_protocol` supports it (R121). Reported by name, not as malformed bytes.
+    #[error("the transaction was made for consensus branch {id:#010x}{name}, which this build of zeceipt does not support yet; a version built on Zcash crates that support it is needed")]
+    UnsupportedBranch { id: u32, name: &'static str },
     #[error("txid mismatch: receipt says {expected}, transaction is {actual}")]
     TxidMismatch { expected: String, actual: String },
     #[error("transaction has no {0} bundle")]
@@ -211,8 +215,40 @@ impl OutgoingKeys {
     }
 }
 
+/// The consensus branch id in a v5 or v6 transaction's header (bytes 8..12, little-endian), if it has one.
+fn header_branch_id(bytes: &[u8]) -> Option<u32> {
+    let word = |i: usize| {
+        bytes
+            .get(i..i + 4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    };
+    let header = word(0)?;
+    let (overwintered, version) = (header >> 31 == 1, header & 0x7fff_ffff);
+    if overwintered && version >= 5 {
+        word(8)
+    } else {
+        None
+    }
+}
+
+/// Branches this build cannot read yet that deserve a name in the error (ZIP 259: NU7 is `0x77190AD9`).
+fn branch_name(id: u32) -> &'static str {
+    match id {
+        0x7719_0ad9 => " (NU7, ZIP 259)",
+        _ => "",
+    }
+}
+
 /// Parse a raw Zcash transaction (v4, v5 or v6).
 pub fn parse_transaction(bytes: &[u8]) -> Result<Transaction, CoreError> {
+    if let Some(id) = header_branch_id(bytes) {
+        if BranchId::try_from(id).is_err() {
+            return Err(CoreError::UnsupportedBranch {
+                id,
+                name: branch_name(id),
+            });
+        }
+    }
     // The branch id argument only matters for pre-v5 transactions; v5/v6 carry
     // their consensus branch id in the serialized form.
     Transaction::read(bytes, BranchId::Nu6_3).map_err(|e| CoreError::Malformed(e.to_string()))
