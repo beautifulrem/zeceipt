@@ -57,6 +57,8 @@ const result = verifyReceipt(receiptJson, rawTxHex);
 | `checkSignature(receipt)` | Checks only the issuer signature (no transaction needed). |
 | `fetchRawTx(txid, network?, endpoints?)` | Fetches one raw transaction over gRPC-web, with the node's view of where it is (`mined` at a height, `mempool`, or `fork`). |
 | `chainStatus(height)` | That view, from lightwalletd's height field. |
+| `fetchChainTip(network?, endpoints?)` | Fetches the chain tip's height over gRPC-web from the same endpoints, with the same failover; ask the node that served the transaction. |
+| `confirmations(height, tip)` | `tip − height + 1`, Zcash's count (Monero's is one fewer); `null` when either is unknown or the tip is below the height. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender. |
 | `GRPC_WEB_ENDPOINTS` | The default public gRPC-web endpoints, tried in order: `zjs.zec.rocks`, then ChainSafe's, for mainnet and for testnet (none for regtest). ChainSafe's are proxies to zec.rocks, so every default reaches one operator's lightwalletd, and a lookup through ChainSafe is seen by both. Pass your own endpoints to avoid them. |
 | `issuerClaim(receipt)` | The domain a signed key id claims (spec §7), without any request. |
 | `checkIssuerBinding(receipt, { fetchImpl?, timeoutMs? })` | Looks up that domain's `/.well-known/zeceipt.json` and reports `confirmed`, `not_listed` or `unknown`. It never changes whether a receipt is valid. |

@@ -24,7 +24,7 @@ Each slice runs as before: a PRD, the work, and an independent review until it s
 
 ## A. Verification depth and wording (engineering, planned for 10-01 → 10-03's slack)
 
-Area A is new scope. It is planned for the slack §8 leaves in 10-01 → 10-03 (0.45 pd). When it starts, it gets a WBS leaf and a §8 line, which the checker requires of an open kept leaf. It must land before the 10-10 freeze on `crates/`, `packages/verify/pkg` and `spec/`. If the slack is gone, A waits until after the submission, and nothing else here depends on it except B2.2's optional confirmations.
+Area A is new scope. It is planned for the slack §8 leaves in 10-01 → 10-03 (0.45 pd). When it started (09-28), it got an unpriced WBS leaf, 3.2.3.5. Being unpriced, it has no §8 line; §8 schedules priced leaves only, and records work done early in its paragraph. It must land before the 10-10 freeze on `crates/`, `packages/verify/pkg` and `spec/`. If the slack is gone, A waits until after the submission, and nothing else here depends on it except B2.2's optional confirmations.
 
 - **A1. The chain tip over gRPC-web** in `@zeceipt/verify`.
   - **A1.1** `fetchChainTip(network, endpoints)`: a hand-encoded `GetLatestBlock(ChainSpec{})` to the same endpoints as `fetchRawTx`, with the same failover.

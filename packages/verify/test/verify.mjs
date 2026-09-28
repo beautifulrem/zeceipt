@@ -166,6 +166,31 @@ check("fetch: fails over to the next endpoint", failover.endpoint === "https://u
 const req = seen[1];
 const body = Buffer.from(req.init.body);
 check("fetch: the request is GetTransaction carrying only the txid filter", req.url === "https://up.test/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetTransaction" && body.length === 5 + 2 + 32 && body.subarray(7).equals(Buffer.from(TXID, "hex").reverse()), req.url);
+
+// fetchChainTip and confirmations (slice A1; R132): GetLatestBlock over gRPC-web, as a hand-built BlockID
+// { uint64 height = 1; bytes hash = 2 }, and Zcash's count of confirmations (tip - height + 1).
+const { fetchChainTip, confirmations } = await import("../src/index.js");
+const blockId = (height) => new Uint8Array([0x08, ...varint(height), 0x12, 32, ...new Uint8Array(32).fill(7)]);
+seen.length = 0;
+const tip = await withFetch(() => ok200(grpcBody(blockId(3499230n))), () => fetchChainTip("main", ["https://node.test"]));
+check("tip: the BlockID height comes back as a number, with the endpoint", tip.height === 3499230 && tip.endpoint === "https://node.test", JSON.stringify(tip));
+check("tip: the request is GetLatestBlock with one empty ChainSpec", seen[0]?.url === "https://node.test/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLatestBlock" && seen[0]?.init?.body?.length === 5 && [...seen[0].init.body].every((b) => b === 0), JSON.stringify(seen[0]?.url));
+seen.length = 0;
+const tipFailover = await withFetch((url) => url.startsWith("https://down.test") ? new Response("", { status: 503 }) : ok200(grpcBody(blockId(12n))), () => fetchChainTip("main", ["https://down.test", "https://up.test"]));
+check("tip: fails over to the next endpoint", tipFailover.endpoint === "https://up.test" && tipFailover.height === 12 && seen.length === 2);
+const tipEmpty = await rejects(withFetch(() => ok200(grpcBody(null)), () => fetchChainTip("main", ["https://node.test"])));
+check("tip: a response without a message is an error", /empty gRPC-web response/.test(tipEmpty ?? ""), tipEmpty);
+const tipZero = await rejects(withFetch(() => ok200(grpcBody(new Uint8Array([0x12, 0]))), () => fetchChainTip("main", ["https://node.test"])));
+check("tip: a BlockID without a height is no usable tip", /no usable chain tip/.test(tipZero ?? ""), tipZero);
+const tipGarbled = await rejects(withFetch(() => ok200(grpcBody(new Uint8Array([0x0b, 1, 2]))), () => fetchChainTip("main", ["https://node.test"])));
+check("tip: a garbled message is an error", /unexpected wire type/.test(tipGarbled ?? ""), tipGarbled);
+const tipStatus = await rejects(withFetch(() => ok200(grpcBody(null, 14, "unavailable")), () => fetchChainTip("main", ["https://node.test"])));
+check("tip: a non-zero grpc-status trailer is an error", /grpc trailer/.test(tipStatus ?? ""), tipStatus);
+const tipRegtest = await rejects(fetchChainTip("regtest", undefined));
+check("tip: regtest without endpoints is refused clearly", /no public gRPC-web endpoint for regtest/.test(tipRegtest ?? ""), tipRegtest);
+check("confirmations: 1 at the tip, tip - height + 1 below it", confirmations(100, 100) === 1 && confirmations(100, 109) === 10);
+check("confirmations: null for a tip below the height, an unknown height or tip, or a non-positive height",
+  [confirmations(100, 99), confirmations(null, 100), confirmations(100, null), confirmations(0, 5), confirmations(100.5, 200)].every((c) => c === null));
 const regtestErr = await rejects(fetchRawTx(TXID, "regtest"));
 check("fetch: regtest without endpoints is refused clearly", /no public gRPC-web endpoint for regtest; pass endpoints or load the raw transaction from a file/.test(regtestErr ?? ""), regtestErr);
 const regtestOk = await withFetch(() => ok200(grpcBody(rawTxMessage(rawTx, 2875n))), () => fetchRawTx(TXID, "regtest", ["http://127.0.0.1:9"]));

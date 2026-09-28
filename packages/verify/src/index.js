@@ -144,6 +144,27 @@ export function chainStatus(height) {
 }
 
 /**
+ * The one message of a unary gRPC-web response. A non-zero grpc-status, in the headers or in the trailer frame, is
+ * an error: `mapStatus(status, message)` may turn it into a specific one, or return null for the generic error.
+ */
+async function grpcWebMessage(res, mapStatus = () => null) {
+  const grpcStatus = res.headers.get("grpc-status");
+  if (grpcStatus && grpcStatus !== "0") throw mapStatus(grpcStatus, res.headers.get("grpc-message") ?? "") ?? new Error(`HTTP ${res.status} grpc-status ${grpcStatus} ${res.headers.get("grpc-message") ?? ""}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} grpc-status ${grpcStatus ?? "?"} ${res.headers.get("grpc-message") ?? ""}`);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  // frames: [flag][len BE][payload]...; flag 0 = message, 0x80 = trailers
+  let pos = 0, message = null;
+  while (pos + 5 <= buf.length) {
+    const flag = buf[pos]; const len = new DataView(buf.buffer, buf.byteOffset + pos + 1, 4).getUint32(0, false);
+    const payload = buf.slice(pos + 5, pos + 5 + len); pos += 5 + len;
+    if (flag === 0) message = payload;
+    else if (flag & 0x80) { const t = new TextDecoder().decode(payload); const m = /grpc-status:\s*(\d+)/i.exec(t); if (m && m[1] !== "0") throw mapStatus(m[1], t) ?? new Error("grpc trailer: " + t.trim()); }
+  }
+  if (!message) throw new Error("empty gRPC-web response");
+  return message;
+}
+
+/**
  * Fetch a raw transaction over gRPC-web from a public lightwalletd. Note: the
  * node learns which txid you asked for. Returns { hex, height, chain, endpoint }:
  * `chain` is the node's view (mined at a height, in the mempool, or on a fork);
@@ -166,19 +187,7 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
         headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
         body: encodeTxFilter(txidDisplayHex),
       });
-      const grpcStatus = res.headers.get("grpc-status");
-      if (grpcStatus && grpcStatus !== "0") throw failure(grpcStatus, res.headers.get("grpc-message") ?? "") ?? new Error(`HTTP ${res.status} grpc-status ${grpcStatus} ${res.headers.get("grpc-message") ?? ""}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status} grpc-status ${grpcStatus ?? "?"} ${res.headers.get("grpc-message") ?? ""}`);
-      const buf = new Uint8Array(await res.arrayBuffer());
-      // frames: [flag][len BE][payload]...; flag 0 = message, 0x80 = trailers
-      let pos = 0, message = null;
-      while (pos + 5 <= buf.length) {
-        const flag = buf[pos]; const len = new DataView(buf.buffer, buf.byteOffset + pos + 1, 4).getUint32(0, false);
-        const payload = buf.slice(pos + 5, pos + 5 + len); pos += 5 + len;
-        if (flag === 0) message = payload;
-        else if (flag & 0x80) { const t = new TextDecoder().decode(payload); const m = /grpc-status:\s*(\d+)/i.exec(t); if (m && m[1] !== "0") throw failure(m[1], t) ?? new Error("grpc trailer: " + t.trim()); }
-      }
-      if (!message) throw new Error("empty gRPC-web response");
+      const message = await grpcWebMessage(res, failure);
       const { data, height } = decodeRawTransaction(message);
       if (!data || data.length === 0) throw notFound();
       const chain = chainStatus(height);
@@ -186,4 +195,47 @@ export async function fetchRawTx(txidDisplayHex, network = "main", endpoints = G
     } catch (e) { if (e.code === "not_found") missing = e; else lastErr = e; }
   }
   throw missing ?? lastErr;
+}
+
+/**
+ * The chain tip over gRPC-web: `GetLatestBlock(ChainSpec {})`, whose answer is `BlockID { uint64 height = 1; bytes
+ * hash = 2; }` (walletrpc/service.proto), from the same endpoints as `fetchRawTx`, with the same failover (slice A1;
+ * R132). Ask the node that served the transaction, so that the depth is one node's view. Returns { height, endpoint }.
+ */
+export async function fetchChainTip(network = "main", endpoints = GRPC_WEB_ENDPOINTS[network]) {
+  if (!Array.isArray(endpoints) || endpoints.length === 0) {
+    throw new Error(`no public gRPC-web endpoint for ${network}; the chain tip cannot be asked`);
+  }
+  let lastErr = null;
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(`${ep}/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLatestBlock`, {
+        method: "POST",
+        headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
+        body: new Uint8Array(5), // one empty ChainSpec message
+      });
+      const message = await grpcWebMessage(res);
+      let i = 0, height = null;
+      while (i < message.length) {
+        const [tag, p1] = readVarint(message, i); i = p1;
+        const field = Number(tag >> 3n), wire = Number(tag & 7n);
+        if (wire === 0) { const [v, p2] = readVarint(message, i); i = p2; if (field === 1) height = v; }
+        else if (wire === 2) { const [len, p2] = readVarint(message, i); i = p2 + Number(len); }
+        else throw new Error("unexpected wire type " + wire);
+      }
+      if (height === null || height === 0n || height >= 2n ** 53n) throw new Error("the node gave no usable chain tip");
+      return { height: Number(height), endpoint: ep };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+
+/**
+ * Confirmations of a transaction mined at `height` when the tip is `tip`: `tip − height + 1`, Zcash's convention
+ * ("confirmations are one more than the depth", after zcashd's getblock; Monero counts one fewer) (R132). Null when
+ * either is unknown, or when the tip is below the height (a reorganisation, or a node behind the one that answered).
+ */
+export function confirmations(height, tip) {
+  if (!Number.isSafeInteger(height) || !Number.isSafeInteger(tip) || height <= 0 || tip < height) return null;
+  return tip - height + 1;
 }
