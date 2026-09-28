@@ -1,11 +1,16 @@
-//! No input makes the core panic (slice U3). Zebra's GHSA-h5rr-8pqv-grp9 was found by fuzzing (OSS-Fuzz): a parsed
+//! No mutated transaction, receipt, audit pack or well-known file makes the core panic (slice U3). Zebra's GHSA-h5rr-8pqv-grp9 was found by fuzzing (OSS-Fuzz): a parsed
 //! transaction that a later step could not handle aborted the node (R127). Here every committed transaction is mutated
 //! with a seeded generator (bit flips, byte overwrites, truncation, deletions, insertions, a swapped branch id) and each
-//! result goes through every step a receipt takes: parse, txid, output listing, issuing with the fixtures' keys, and
-//! verifying a receipt made for that transaction's own txid with a real OCK. Errors are expected; a panic fails. In the
-//! browser a panic traps the WASM, so the page would lose its verifier. `ZECEIPT_MUTATIONS` sets the count per
-//! fixture: 40 by default (about 12 s in a debug build), and the deep run the slice records is
-//! `ZECEIPT_MUTATIONS=5000 cargo test --release -p zeceipt-core --test mutation -- --nocapture`.
+//! result goes through every step a receipt takes: parse, txid, output listing, issuing with the fixtures' keys (each
+//! issued receipt must verify), and verifying a receipt made for that transaction's own txid with a real OCK. The
+//! second test mutates what a verifier receives from outside: a signed receipt (JSON and link forms), an audit pack and
+//! a well-known file, through parsing, the signature, the challenge, the OCK, verification and the issuer binding. Errors are expected; a panic fails. In the
+//! browser a panic traps the WASM, so the page would lose its verifier. `ZECEIPT_MUTATIONS` sets the count: per
+//! transaction fixture, and ten times that per receipt input. The default, 40, takes about 20 s in a debug build; `0`
+//! skips both tests. The deep run the slice records is
+//! `ZECEIPT_MUTATIONS=5000 cargo test --release -p zeceipt-core --test mutation -- --nocapture`. The success paths
+//! reached are Ironwood's: the fixtures' keys open Ironwood outputs only, so Orchard and Sapling recovery run up to
+//! their authenticated decryption, which no mutation gets past.
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -96,26 +101,33 @@ fn mutate(rng: &mut Rng, mut b: Vec<u8>) -> Vec<u8> {
     b
 }
 
-/// Every step a receipt takes, on one input. Errors are fine; only a panic is a failure.
-fn exercise(bytes: &[u8], keys: &[OutgoingKeys], ock: [u8; 32]) {
+/// Every step a receipt takes, on one input. Errors are fine; a panic fails, and so does a receipt `issue` made for
+/// this transaction that `verify` then refuses (review U3 round 1).
+fn exercise(bytes: &[u8], keys: &[OutgoingKeys], ock: [u8; 32]) -> Result<usize, String> {
     let Ok(tx) = parse_transaction(bytes) else {
-        return;
+        return Ok(0);
     };
     let txid = txid_hex(&tx);
     let outputs = enumerate_outputs(&tx);
+    let mut issued = 0;
     for k in keys {
         for include_change in [false, true] {
-            let _ = issue(
-                &tx,
-                k,
-                &IssueOptions {
-                    label: String::new(),
-                    challenge: None,
-                    key_id: None,
-                    include_change,
-                    signer: None,
-                },
-            );
+            let opts = IssueOptions {
+                label: String::new(),
+                challenge: None,
+                key_id: None,
+                include_change,
+                signer: None,
+            };
+            for (r, _) in issue(&tx, k, &opts).unwrap_or_default() {
+                verify(&r, &tx, b"", false).map_err(|e| {
+                    format!(
+                        "an issued receipt for output {} does not verify: {e}",
+                        r.output_index
+                    )
+                })?;
+                issued += 1;
+            }
         }
     }
     let mut txid_bytes = [0u8; 32];
@@ -135,6 +147,7 @@ fn exercise(bytes: &[u8], keys: &[OutgoingKeys], ock: [u8; 32]) {
             let _ = verify(&beyond, &tx, b"", false);
         }
     }
+    Ok(issued)
 }
 
 #[test]
@@ -151,7 +164,7 @@ fn mutated_transactions_never_panic() {
         ),
     ];
     let ock = Receipt::from_json(RECEIPT).unwrap().ock_bytes().unwrap();
-    let (mut parsed, mut total) = (0usize, 0usize);
+    let (mut parsed, mut total, mut issued) = (0usize, 0usize, 0usize);
     for (f, (name, hex_tx)) in FIXTURES.iter().enumerate() {
         let original = hex::decode(hex_tx.trim()).unwrap();
         assert!(
@@ -161,12 +174,14 @@ fn mutated_transactions_never_panic() {
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15 ^ (f as u64 + 1));
         for i in 0..per_fixture {
             let input = mutate(&mut rng, original.clone());
-            let outcome = catch_unwind(AssertUnwindSafe(|| exercise(&input, &keys, ock)));
-            assert!(
-                outcome.is_ok(),
-                "{name}, mutation {i} panicked; input {}",
-                hex::encode(&input)
-            );
+            match catch_unwind(AssertUnwindSafe(|| exercise(&input, &keys, ock))) {
+                Ok(Ok(n)) => issued += n,
+                Ok(Err(e)) => panic!("{name}, mutation {i}: {e}; input {}", hex::encode(&input)),
+                Err(_) => panic!(
+                    "{name}, mutation {i} panicked; input {}",
+                    hex::encode(&input)
+                ),
+            }
             total += 1;
             if parse_transaction(&input).is_ok() {
                 parsed += 1;
@@ -174,9 +189,137 @@ fn mutated_transactions_never_panic() {
         }
     }
     // Some mutations must survive parsing, or the later steps would never run.
+    // (`ZECEIPT_MUTATIONS=0` skips the run.)
     assert!(
-        parsed > total / 50,
+        total == 0 || parsed > total / 50,
         "only {parsed} of {total} mutated inputs parsed"
     );
-    eprintln!("{total} mutated transactions, {parsed} parsed, none panicked");
+    eprintln!("{total} mutated transactions, {parsed} parsed, {issued} receipts issued and verified, none panicked");
+}
+
+/// Flip, overwrite, cut or insert bytes of a text input; the result is read as UTF-8, lossily, as a page would.
+fn mutate_text(rng: &mut Rng, s: &str) -> String {
+    let mut b = s.as_bytes().to_vec();
+    for _ in 0..1 + rng.below(3) {
+        let len = b.len();
+        match rng.below(4) {
+            0 if len > 0 => {
+                let i = rng.below(len);
+                b[i] ^= 1 << rng.below(8);
+            }
+            1 if len > 0 => {
+                let i = rng.below(len);
+                const PALETTE: &[u8] = b"{}[]\",:0aZ-_#/+=\\ \n";
+                b[i] = PALETTE[rng.below(PALETTE.len())];
+            }
+            2 => b.truncate(rng.below(len + 1)),
+            _ => {
+                let i = rng.below(len + 1);
+                let extra: Vec<u8> = (0..1 + rng.below(16)).map(|_| rng.next() as u8).collect();
+                b.splice(i..i, extra);
+            }
+        }
+    }
+    String::from_utf8_lossy(&b).into_owned()
+}
+
+#[test]
+fn mutated_receipts_packs_and_well_known_files_never_panic() {
+    use zeceipt_core::zeceipt_types::binding::{
+        evaluate, receipt_claim, WellKnownFile, WellKnownKey,
+    };
+    use zeceipt_core::zeceipt_types::ed25519_dalek::SigningKey;
+    use zeceipt_core::zeceipt_types::AuditPack;
+
+    let per_input: usize = std::env::var("ZECEIPT_MUTATIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .map(|n: usize| n * 10)
+        .unwrap_or(1_000);
+    let tx = parse_transaction(&hex::decode(FIXTURES[3].1.trim()).unwrap()).unwrap();
+    // A throwaway key whose id claims a domain, so the issuer binding reads the well-known file.
+    let key = SigningKey::from_bytes(&[7u8; 32]);
+    let base = Receipt::from_json(RECEIPT).unwrap();
+    let mut signed = base.clone();
+    signed.issuer_key_id = None;
+    signed.issuer_pubkey = None;
+    signed.signature = None;
+    let signed = signed
+        .with_key_id("2026-09@pay.example.org")
+        .sign(&key)
+        .unwrap();
+    assert!(
+        verify(&signed, &tx, b"auditor-nonce-7", true).is_ok(),
+        "the base receipt verifies"
+    );
+    let mut file = WellKnownFile::new();
+    file.put(WellKnownKey {
+        key_id: "2026-09@pay.example.org".into(),
+        pubkey: hex::encode(key.verifying_key().to_bytes()),
+        note: None,
+    })
+    .unwrap();
+    let file_json = serde_json::to_string(&file).unwrap();
+    let pack_json = AuditPack::new("audit", vec![base.clone(), signed.clone()], 1)
+        .to_json()
+        .unwrap();
+    let inputs = [
+        ("receipt JSON", RECEIPT.trim().to_string()),
+        ("signed receipt JSON", signed.to_json().unwrap()),
+        (
+            "receipt link",
+            signed.to_url("https://pay.example.org").unwrap(),
+        ),
+    ];
+
+    let (mut total, mut parsed) = (0usize, 0usize);
+    let mut rng = Rng(0x5eed_0f7e_c319_17a0);
+    for (name, original) in &inputs {
+        for i in 0..per_input {
+            let input = mutate_text(&mut rng, original);
+            let outcome = catch_unwind(AssertUnwindSafe(|| {
+                let Ok(r) = Receipt::parse(&input) else {
+                    return false;
+                };
+                let _ = r.verify_signature();
+                let _ = r.check_challenge(b"auditor-nonce-7");
+                let _ = r.ock_bytes();
+                let _ = verify(&r, &tx, b"auditor-nonce-7", true);
+                let _ = verify(&r, &tx, b"", false);
+                let _ = receipt_claim(&r);
+                let _ = evaluate(&r, "pay.example.org", file_json.as_bytes());
+                true
+            }));
+            let Ok(ok) = outcome else {
+                panic!("{name}, mutation {i} panicked; input {input:?}")
+            };
+            total += 1;
+            parsed += ok as usize;
+        }
+    }
+    for i in 0..per_input {
+        let body = mutate_text(&mut rng, &file_json);
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            evaluate(&signed, "pay.example.org", body.as_bytes())
+        }));
+        assert!(
+            outcome.is_ok(),
+            "well-known file, mutation {i} panicked; body {body:?}"
+        );
+        let pack = mutate_text(&mut rng, &pack_json);
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            if let Ok(p) = AuditPack::from_json(&pack) {
+                for r in &p.receipts {
+                    let _ = verify(r, &tx, b"auditor-nonce-7", false);
+                }
+            }
+        }));
+        assert!(
+            outcome.is_ok(),
+            "audit pack, mutation {i} panicked; pack {pack:?}"
+        );
+        total += 2;
+    }
+    assert!(total == 0 || parsed > 0, "no mutated receipt parsed");
+    eprintln!("{total} mutated receipts, packs and well-known files, {parsed} receipts parsed, none panicked");
 }

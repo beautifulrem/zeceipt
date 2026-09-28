@@ -17,7 +17,7 @@ It is **not** a full ZIP 311 disclosure: ZIP 311 also requires a spend-authority
 **About ten minutes on a recent laptop.** You need Rust with `protoc`, Node 24 or later, and Python 3 (for the demo server). The first run downloads crates and npm packages; after that nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 57 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 58 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed browser verifier (WASM) against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 489 console tests: 459 run, 30 are opt-in (build-and-serve, regtest)
 
