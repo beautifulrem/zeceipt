@@ -50,13 +50,18 @@ def enables_synthetic(table, where):
     found = []
     sections = [("dependencies", table.get("dependencies", {})), ("build-dependencies", table.get("build-dependencies", {}))]
     sections += [(f"target.{t}.{k}", v.get(k, {})) for t, v in table.get("target", {}).items() for k in ("dependencies", "build-dependencies")]
+    keys = {"zeceipt-core"}  # the dependency's key, or keys it is renamed to (`package = "zeceipt-core"`)
     for name, deps in sections:
-        spec = deps.get("zeceipt-core")
-        if isinstance(spec, dict) and "synthetic" in spec.get("features", []):
-            found.append(f"{where}: [{name}] zeceipt-core enables the synthetic feature")
+        for key, spec in deps.items():
+            package = spec.get("package", key) if isinstance(spec, dict) else key
+            if package != "zeceipt-core":
+                continue
+            keys.add(key)
+            if isinstance(spec, dict) and "synthetic" in spec.get("features", []):
+                found.append(f"{where}: [{name}] {key} (zeceipt-core) enables the synthetic feature")
     for feature, members in table.get("features", {}).items():
-        if any(m in ("zeceipt-core/synthetic", "zeceipt-core?/synthetic") for m in members):
-            found.append(f"{where}: feature `{feature}` enables zeceipt-core/synthetic")
+        if any(m in (f"{k}/synthetic", f"{k}?/synthetic") for k in keys for m in members):
+            found.append(f"{where}: feature `{feature}` enables zeceipt-core's synthetic feature")
     return found
 
 
