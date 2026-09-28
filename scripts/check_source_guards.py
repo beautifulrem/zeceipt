@@ -13,13 +13,15 @@
    passes a renamed variable). One file is exempt from this identifier rule, by name:
    `crates/zeceipt-core/src/synthetic.rs`, test support that builds throwaway keys for synthetic fixtures, compiled
    only with the `synthetic` feature; the guard fails if `lib.rs` stops gating it behind that feature, if any other
-   `mod` or `#[path]` reaches it, or if a crate's (non-dev) dependencies enable the feature.
+   `mod` or `#[path]` reaches it, or if anything but `[dev-dependencies]` enables the feature (the crates' dependencies,
+   build and target-specific dependencies and `[features]`, and the workspace's dependencies; parsed as TOML).
 2. No log macro line (`trace!/debug!/info!/warn!/error!`) mentions `ock`, `ovk` or `memo` as a
    whole word, in any crate source (tests included).
 Exit 1 on a hit; prints each offending line.
 """
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 repo = Path(__file__).resolve().parent.parent
@@ -40,14 +42,34 @@ if not re.search(r'#\[cfg\(feature = "synthetic"\)\]\s*pub mod synthetic;', core
 # reaches the file from any crate, and no crate's dependencies turn the feature on.
 for rs in sorted((repo / "crates").glob("*/src/**/*.rs")):
     for n, line in enumerate(rs.read_text(encoding="utf-8").splitlines(), 1):
-        if re.search(r"#\[path\s*=\s*\"[^\"]*synthetic", line) or (re.search(r"\bmod\s+synthetic", line) and not (rs.name == "lib.rs" and "zeceipt-core" in rs.parts and line.strip() == "pub mod synthetic;")):
+        if re.search(r"#\[path\s*=\s*\"[^\"]*synthetic", line) or (re.search(r"\bmod\s+synthetic\b", line) and not (rs.name == "lib.rs" and "zeceipt-core" in rs.parts and line.strip() == "pub mod synthetic;")):
             print(f"{rs.relative_to(repo)}:{n}: another way into the synthetic module; its exemption no longer holds: {line.strip()}")
             sys.exit(1)
+def enables_synthetic(table, where):
+    """`where` enables zeceipt-core's synthetic feature through `table` (a Cargo.toml, or the workspace's table)."""
+    found = []
+    sections = [("dependencies", table.get("dependencies", {})), ("build-dependencies", table.get("build-dependencies", {}))]
+    sections += [(f"target.{t}.{k}", v.get(k, {})) for t, v in table.get("target", {}).items() for k in ("dependencies", "build-dependencies")]
+    for name, deps in sections:
+        spec = deps.get("zeceipt-core")
+        if isinstance(spec, dict) and "synthetic" in spec.get("features", []):
+            found.append(f"{where}: [{name}] zeceipt-core enables the synthetic feature")
+    for feature, members in table.get("features", {}).items():
+        if any(m in ("zeceipt-core/synthetic", "zeceipt-core?/synthetic") for m in members):
+            found.append(f"{where}: feature `{feature}` enables zeceipt-core/synthetic")
+    return found
+
+
+# Parsed as TOML, so a multi-line dependency table, a [features] section anywhere, target-specific dependencies and the
+# workspace's inherited dependencies all count; only [dev-dependencies] (tests and examples) may enable it (review G1).
+feature_hits = []
 for toml in sorted((repo / "crates").glob("*/Cargo.toml")):
-    deps = toml.read_text(encoding="utf-8").split("[dev-dependencies]")[0]
-    if re.search(r'zeceipt-core[^\n]*features\s*=\s*\[[^\]]*"synthetic"', deps) or re.search(r'"zeceipt-core/synthetic"', deps.split("[features]")[-1] if "[features]" in deps else ""):
-        print(f"{toml.relative_to(repo)}: a shipped crate enables zeceipt-core's synthetic feature; its exemption no longer holds")
-        sys.exit(1)
+    feature_hits += enables_synthetic(tomllib.loads(toml.read_text(encoding="utf-8")), str(toml.relative_to(repo)))
+root = tomllib.loads((repo / "Cargo.toml").read_text(encoding="utf-8"))
+feature_hits += enables_synthetic({"dependencies": root.get("workspace", {}).get("dependencies", {})}, "Cargo.toml [workspace]")
+if feature_hits:
+    print("\n".join(f"{h}; the synthetic module's exemption no longer holds" for h in feature_hits))
+    sys.exit(1)
 log_re = re.compile(r"\b(trace|debug|info|warn|error)!\s*\(")
 secret_re = re.compile(r"\b(ock|ovk|memo)\b", re.I)
 files = sorted((repo / "crates").glob("*/src/**/*.rs"))
