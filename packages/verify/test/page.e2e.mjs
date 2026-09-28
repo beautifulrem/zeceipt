@@ -88,6 +88,7 @@ async function openPage({ height = 3491284n, nodeHex = SYNTH_HEX, holdWasm = nul
   await context.route("https://zjs.zec.rocks/**", (route) =>
     route.fulfill({ status: 200, headers: { "content-type": "application/grpc-web+proto", "access-control-allow-origin": "*", "access-control-allow-headers": "*" }, body: grpcWeb(nodeHex, height) }));
   await context.route("https://zcash-mainnet.chainsafe.dev/**", (route) => route.abort());
+  await context.route("https://zcash-testnet.chainsafe.dev/**", (route) => route.abort()); // no test uses testnet; keeps one off the network
   if (holdWasm) await context.route("**/pkg/zeceipt_wasm_bg.wasm", async (route) => { await holdWasm; await route.continue(); });
   const page = await context.newPage();
   page.on("request", async (req) => {
