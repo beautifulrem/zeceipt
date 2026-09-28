@@ -274,6 +274,7 @@ fn verify_pack_counts_each_output_once() {
         "auditor-nonce-7",
         "--require-signature",
     ]);
+    std::fs::remove_dir_all(&dir).unwrap();
     assert_eq!(c, 0, "{o}");
     let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
     assert_eq!(v["all_valid"], true);
