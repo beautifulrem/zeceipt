@@ -175,7 +175,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.2.3.2 ✅ T — `@zeceipt/verify` wrapper with types; gRPC-web `fetchRawTx`. `packages/verify/src`.
 - 3.2.3.3 ✅ T — Demo page verified in Chrome incl. tamper and XSS checks. PROOF §2b.
 - 3.2.3.4 ✅ T — Committed pkg + node staleness guard in CI. `packages/verify/test/verify.mjs`.
-- 3.2.3.5 🟡 T — Verification depth (`docs/product/12_next_steps.md` area A, `[R132]`): the chain tip over gRPC-web and a `confirmations` helper in `@zeceipt/verify` (A1, done 2026-09-28: `fetchChainTip`, `confirmations`), then the receipt page (A2), the CLI (A3) and the `does_not_prove` line (A4). Unpriced: taken from §8's slack, not scheduled, and it must land before the 10-10 freeze.
+- 3.2.3.5 🟡 T — Verification depth (`docs/product/12_next_steps.md` area A, `[R132]`): the chain tip over gRPC-web and a `confirmations` helper in `@zeceipt/verify` (A1, done 2026-09-28: `fetchChainTip`, `confirmations`), then the receipt page (A2), the CLI (A3) and the `does_not_prove` line (A4). Unpriced: taken from §8's slack, not scheduled, and it must land before the 10-10 freeze. Estimates for the rest, in person-days: A2 0.15, A3 0.1, A4 0.15 and per-endpoint timeouts (A1b) 0.05, so 0.45 against §8's 0.45 of slack in 10-01 → 10-03; if A overruns, A4 goes first and waits until after the submission.
 
 ### 3.3 Product surfaces (open)
 #### 3.3.1 Payout console — foundations (child task `09-21-payout-console`; stack decided: Next.js App Router, TypeScript strict, Tailwind (set up with the first styled page, leaf 3.3.5.2), SQLite via better-sqlite3 + Drizzle (libSQL rejected 2026-09-23 on a durability defect `[R47]`); `.trellis/spec/frontend/index.md`)
