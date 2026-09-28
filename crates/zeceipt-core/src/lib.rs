@@ -188,6 +188,21 @@ impl OutgoingKeys {
         })
     }
 
+    /// Keys for one Sapling diversifiable full viewing key, for the synthetic Sapling tests (slice U5b): the released
+    /// `zcash_keys` builds a UFVK from parts only under its test features.
+    #[cfg(feature = "synthetic")]
+    pub fn from_sapling_dfvk(network: Network, dfvk: SaplingDfvk) -> Self {
+        OutgoingKeys {
+            network,
+            orchard_external: None,
+            orchard_internal: None,
+            sapling_external: Some(dfvk.to_ovk(Scope::External)),
+            sapling_internal: Some(dfvk.to_ovk(Scope::Internal)),
+            orchard_fvk: None,
+            sapling_dfvk: Some(dfvk),
+        }
+    }
+
     /// Build from a bare 32-byte Orchard/Ironwood outgoing viewing key.
     pub fn from_orchard_ovk(network: Network, ovk: [u8; 32]) -> Self {
         OutgoingKeys {

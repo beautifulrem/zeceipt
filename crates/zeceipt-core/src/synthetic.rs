@@ -134,3 +134,94 @@ pub fn splice_ironwood_output(
         ock: ock_bytes,
     })
 }
+
+/// A throwaway Sapling key for a synthetic output, as `random_fvk` is for Ironwood.
+fn random_sapling_dfvk() -> sapling_crypto::zip32::DiversifiableFullViewingKey {
+    let mut b = [0u8; 32];
+    OsRng.fill_bytes(&mut b);
+    sapling_crypto::zip32::ExtendedSpendingKey::master(&b).to_diversifiable_full_viewing_key()
+}
+
+/// Result of splicing a synthetic Sapling output (slice U5b).
+pub struct SyntheticSapling {
+    /// Raw bytes of the modified transaction.
+    pub tx_bytes: Vec<u8>,
+    /// The sender's diversifiable full viewing key (its external OVK encrypted the output; the recipient is another key).
+    pub dfvk: sapling_crypto::zip32::DiversifiableFullViewingKey,
+    pub recipient: sapling_crypto::PaymentAddress,
+    pub value_zat: u64,
+    /// The output's Outgoing Cipher Key, derived as an issuer would.
+    pub ock: [u8; 32],
+}
+
+/// Replace Sapling output 0 of `template_tx` (v5 or v6) with an output paying `value_zat` and `memo` from a fresh
+/// random sender key to another random key. The value commitment stays the template's, so the transaction is not consensus-valid; the note
+/// commitment, ephemeral key and both ciphertexts are new, so recovery with the OVK or the OCK succeeds.
+pub fn splice_sapling_output(
+    template_tx: &[u8],
+    value_zat: u64,
+    memo: [u8; 512],
+) -> Result<SyntheticSapling, CoreError> {
+    use sapling_crypto::note_encryption::{sapling_note_encryption, SaplingDomain};
+    use sapling_crypto::value::NoteValue as SNoteValue;
+    use sapling_crypto::{Note as SNote, Rseed};
+
+    let tx = parse_transaction(template_tx)?;
+    let bundle = tx.sapling_bundle().ok_or(CoreError::NoBundle("sapling"))?;
+    let template = bundle
+        .shielded_outputs()
+        .first()
+        .ok_or(CoreError::NoBundle("sapling"))?;
+    let dfvk = random_sapling_dfvk();
+    // The recipient is another key's address: a payment to the sender's own address is change, which `issue` skips.
+    let (_, recipient) = random_sapling_dfvk().default_address();
+    let ovk = dfvk.to_ovk(Scope::External);
+    let mut rseed = [0u8; 32];
+    OsRng.fill_bytes(&mut rseed);
+    let note = SNote::from_parts(
+        recipient,
+        SNoteValue::from_raw(value_zat),
+        Rseed::AfterZip212(rseed),
+    );
+    let cmu = note.cmu();
+    let cv = template.cv().clone();
+    let encryptor = sapling_note_encryption(Some(ovk), note, memo, &mut OsRng);
+    let epk = SaplingDomain::epk_bytes(encryptor.epk());
+    let enc = encryptor.encrypt_note_plaintext();
+    let out_ct = encryptor.encrypt_outgoing_plaintext(&cv, &cmu, &mut OsRng);
+    let ock = <SaplingDomain as Domain>::derive_ock(&ovk, &cv, &cmu.to_bytes(), &epk);
+
+    // v5/v6 serialize each output as cv || cmu || epk || enc || out (the proofs follow separately): locate output 0
+    // by its (cv, cmu) prefix and overwrite cmu || epk || enc || out in place.
+    let mut prefix = Vec::with_capacity(64);
+    prefix.extend_from_slice(&template.cv().to_bytes());
+    prefix.extend_from_slice(&template.cmu().to_bytes());
+    let pos = template_tx
+        .windows(prefix.len())
+        .position(|w| w == prefix.as_slice())
+        .ok_or_else(|| {
+            CoreError::Malformed("could not locate Sapling output 0 on the wire".into())
+        })?;
+    let len = 32 + 32 + 32 + 580 + 80;
+    if pos + len > template_tx.len() {
+        return Err(CoreError::Malformed("Sapling output 0 truncated".into()));
+    }
+    let mut out = template_tx.to_vec();
+    let mut cursor = pos + 32;
+    out[cursor..cursor + 32].copy_from_slice(&cmu.to_bytes());
+    cursor += 32;
+    out[cursor..cursor + 32].copy_from_slice(&epk.0);
+    cursor += 32;
+    out[cursor..cursor + 580].copy_from_slice(&enc);
+    cursor += 580;
+    out[cursor..cursor + 80].copy_from_slice(&out_ct);
+    let mut ock_bytes = [0u8; 32];
+    ock_bytes.copy_from_slice(ock.as_ref());
+    Ok(SyntheticSapling {
+        tx_bytes: out,
+        dfvk,
+        recipient,
+        value_zat,
+        ock: ock_bytes,
+    })
+}

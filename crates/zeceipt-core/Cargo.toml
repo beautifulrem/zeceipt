@@ -32,3 +32,7 @@ base64.workspace = true
 [[example]]
 name = "make_synthetic"
 required-features = ["synthetic"]
+
+[[example]]
+name = "make_above_max_money"
+required-features = ["synthetic"]

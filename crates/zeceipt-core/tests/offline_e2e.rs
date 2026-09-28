@@ -6,7 +6,7 @@ use zeceipt_core::synthetic::splice_ironwood_output;
 use zeceipt_core::zeceipt_types::ed25519_dalek::SigningKey;
 use zeceipt_core::zeceipt_types::{Network, Pool, Receipt, TypesError};
 use zeceipt_core::{
-    issue, parse_transaction, verify, CoreError, IssueOptions, MemoView, OutgoingKeys,
+    issue, parse_transaction, verify, CoreError, IssueOptions, MemoView, OutgoingKeys, Recovered,
 };
 
 const TEMPLATE: &str = include_str!(
@@ -148,6 +148,119 @@ fn a_note_value_above_max_money_is_refused() {
                     "{e}"
                 );
             }
+            (i, v, _) => panic!(
+                "value {value}: issue {:?}, verify {:?}",
+                i.map(|x| x.len()),
+                v.map(|x| x.recovered.value_zat)
+            ),
+        }
+    }
+}
+
+/// A mainnet v6 transaction with two Orchard and two Sapling outputs (block 3,498,992): the template for Sapling.
+const SAPLING_TEMPLATE: &str = include_str!(
+    "../../../fixtures/368ff5b2a985d39594fd69281bfad0531a7f495d4cb23f443e73d5e1ca93d047.hex"
+);
+
+/// Sapling through the public API (slice U5b): a spliced Sapling output issues from the sender's keys and verifies
+/// with its receipt, and a changed OCK fails. Until now only the Sapling helpers had a round trip.
+#[test]
+fn sapling_output_issues_and_verifies_through_the_public_api() {
+    use zeceipt_core::synthetic::splice_sapling_output;
+    let template = hex::decode(SAPLING_TEMPLATE.trim()).unwrap();
+    let mut memo = [0u8; 512];
+    memo[..11].copy_from_slice(b"SAPLING-001");
+    let syn = splice_sapling_output(&template, 77_000, memo).unwrap();
+    let tx = parse_transaction(&syn.tx_bytes).unwrap();
+    let keys = OutgoingKeys::from_sapling_dfvk(Network::Main, syn.dfvk.clone());
+    let opts = IssueOptions {
+        label: String::new(),
+        challenge: None,
+        key_id: None,
+        include_change: false,
+        signer: None,
+    };
+    let issued = issue(&tx, &keys, &opts).unwrap();
+    assert_eq!(
+        issued.len(),
+        1,
+        "exactly the spliced Sapling output is ours"
+    );
+    let (receipt, recovered) = &issued[0];
+    assert_eq!((receipt.pool, receipt.output_index), (Pool::Sapling, 0));
+    assert_eq!(
+        receipt.ock_bytes().unwrap(),
+        syn.ock,
+        "issue derives the same OCK"
+    );
+    assert_eq!(recovered.value_zat, 77_000);
+    assert_eq!(recovered.memo, MemoView::Text("SAPLING-001".into()));
+    assert!(
+        recovered.recipient.starts_with("zs1"),
+        "{}",
+        recovered.recipient
+    );
+    let v = verify(receipt, &tx, b"", false).unwrap();
+    assert_eq!(
+        v.recovered,
+        Recovered {
+            is_change: false,
+            ..recovered.clone()
+        }
+    );
+    let mut bad = syn.ock;
+    bad[5] ^= 1;
+    let mut txid = [0u8; 32];
+    txid.copy_from_slice(&hex::decode(zeceipt_core::txid_hex(&tx)).unwrap());
+    let tampered = Receipt::new(Network::Main, Pool::Sapling, txid, 0, bad, "");
+    assert!(matches!(
+        verify(&tampered, &tx, b"", false),
+        Err(CoreError::RecoveryFailed { .. })
+    ));
+}
+
+/// The MAX_MONEY check on Sapling's two recovery sites (slice U5b; U5 verified them by review only).
+#[test]
+fn a_sapling_note_value_above_max_money_is_refused() {
+    use zcash_protocol::value::MAX_MONEY;
+    use zeceipt_core::synthetic::splice_sapling_output;
+    let template = hex::decode(SAPLING_TEMPLATE.trim()).unwrap();
+    for (value, allowed) in [(MAX_MONEY, true), (MAX_MONEY + 1, false), (u64::MAX, false)] {
+        let syn = splice_sapling_output(&template, value, [0u8; 512]).unwrap();
+        let tx = parse_transaction(&syn.tx_bytes).unwrap();
+        let keys = OutgoingKeys::from_sapling_dfvk(Network::Main, syn.dfvk.clone());
+        let opts = IssueOptions {
+            label: String::new(),
+            challenge: None,
+            key_id: None,
+            include_change: false,
+            signer: None,
+        };
+        let mut txid = [0u8; 32];
+        txid.copy_from_slice(&hex::decode(zeceipt_core::txid_hex(&tx)).unwrap());
+        let receipt = Receipt::new(Network::Main, Pool::Sapling, txid, 0, syn.ock, "");
+        match (
+            issue(&tx, &keys, &opts),
+            verify(&receipt, &tx, b"", false),
+            allowed,
+        ) {
+            (Ok(issued), Ok(v), true) => {
+                assert_eq!(issued[0].1.value_zat, value);
+                assert_eq!(v.recovered.value_zat, value);
+            }
+            (
+                Err(CoreError::ValueOutOfRange {
+                    pool: "sapling",
+                    value: a,
+                    ..
+                }),
+                Err(CoreError::ValueOutOfRange {
+                    pool: "sapling",
+                    value: b,
+                    ..
+                }),
+                false,
+            ) => assert_eq!((a, b), (value, value)),
             (i, v, _) => panic!(
                 "value {value}: issue {:?}, verify {:?}",
                 i.map(|x| x.len()),
