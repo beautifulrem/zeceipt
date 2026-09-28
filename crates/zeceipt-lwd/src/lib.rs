@@ -225,6 +225,13 @@ fn mined_height(raw: u64) -> Option<u64> {
 }
 
 /// Endpoint list for a network.
+/// Confirmations of a transaction mined at `height` when the tip is `tip`: `tip - height + 1`, Zcash's convention
+/// ("confirmations are one more than the depth", Zebra's RPC after zcashd's getblock; R132). None when the tip is
+/// below the height (a reorganisation, or a node behind) or the height is 0.
+pub fn confirmations(height: u64, tip: u64) -> Option<u64> {
+    (height > 0 && tip >= height).then(|| tip - height + 1)
+}
+
 pub fn default_endpoints(testnet: bool) -> &'static [&'static str] {
     if testnet {
         TESTNET_ENDPOINTS
@@ -235,6 +242,18 @@ pub fn default_endpoints(testnet: bool) -> &'static [&'static str] {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn confirmations_count_as_zcash_does() {
+        assert_eq!(super::confirmations(100, 100), Some(1));
+        assert_eq!(super::confirmations(100, 109), Some(10));
+        assert_eq!(
+            super::confirmations(100, 99),
+            None,
+            "a tip below the height is no depth"
+        );
+        assert_eq!(super::confirmations(0, 5), None);
+    }
+
     use super::*;
 
     #[test]

@@ -485,6 +485,8 @@ fn regtest_receipt_verifies_offline_and_tamper_fails() {
     assert_eq!(c, 0, "stderr: {err}");
     let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
     assert_eq!(v["valid"], true);
+    // Depth needs a node (slice A3): a transaction from a file has no height and no confirmations field.
+    assert!(v.get("confirmations").is_none(), "{o}");
     assert_eq!(v["pool"], "ironwood");
     assert_eq!(v["output_index"], 1);
     assert_eq!(v["value_zat"], 250_000_000);

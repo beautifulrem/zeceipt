@@ -459,7 +459,7 @@ async fn run() -> anyhow::Result<ExitCode> {
                 txid: Some(r.txid.clone()),
                 raw_tx_file,
             };
-            let (bytes, height) = match load_tx(&net, &src).await {
+            let (bytes, height, tip) = match load_tx_with_tip(&net, &src).await {
                 Ok(v) => v,
                 Err(e) => {
                     if is_pending(&e) {
@@ -513,6 +513,12 @@ async fn run() -> anyhow::Result<ExitCode> {
                             "proves": "this transaction pays the shown value to the shown recipient with the shown memo; whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it; a signature attributes the receipt to a key, not the OCK to the sender",
                             "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
                     });
+                    // Depth (slice A3; R132): only when a node was asked; null when it gave no usable tip.
+                    if let Some(tip) = tip {
+                        out["confirmations"] = json!(height
+                            .zip(tip)
+                            .and_then(|(h, t)| zeceipt_lwd::confirmations(h, t)));
+                    }
                     if let Some(b) = issuer_binding {
                         out["issuer_binding"] = serde_json::to_value(b)?;
                     }
@@ -669,6 +675,30 @@ async fn connect(net: &NetArgs) -> anyhow::Result<Client> {
 }
 
 /// Returns (raw tx bytes, mined height if known).
+/// As `load_tx`, and for a transaction a node reports mined, the same node's tip (slice A3): `None` when loaded from a
+/// file, `Some(None)` when the node gave no usable tip or the transaction is not mined. The tip never changes a
+/// verdict.
+async fn load_tx_with_tip(
+    net: &NetArgs,
+    src: &TxSource,
+) -> anyhow::Result<(Vec<u8>, Option<u64>, Option<Option<u64>>)> {
+    if src.raw_tx_file.is_some() {
+        let (bytes, height) = load_tx(net, src).await?;
+        return Ok((bytes, height, None));
+    }
+    let txid = src
+        .txid
+        .as_ref()
+        .ok_or_else(|| anyhow!("--txid or --raw-tx-file is required"))?;
+    let mut client = connect(net).await?;
+    let raw = client.get_transaction(txid.trim()).await?;
+    let tip = match raw.height {
+        Some(_) => client.latest_height().await.ok(),
+        None => None,
+    };
+    Ok((raw.bytes, raw.height, Some(tip)))
+}
+
 async fn load_tx(net: &NetArgs, src: &TxSource) -> anyhow::Result<(Vec<u8>, Option<u64>)> {
     if let Some(p) = &src.raw_tx_file {
         let s = std::fs::read_to_string(p).with_context(|| format!("read {}", p.display()))?;
