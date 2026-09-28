@@ -240,7 +240,7 @@ The system resolver gave a public address (104.20.26.136), and TLS was verified 
 
 `ironwood_round_trip_ock_derivation_and_recovery`: encrypt a V3 (Ironwood) note with a random FVK using the `orchard` crate's `IronwoodNoteEncryption`, derive the OCK with `Domain::derive_ock`, recover with `try_output_recovery_with_ock`, and check that a flipped OCK bit and another key's OCK both fail.
 
-## 4. testnet — prepared, blocked on a human faucet claim
+## 4. testnet — rehearsed, waiting on a faucet claim (the user's call)
 
 A testnet light wallet was created with `zcash-devtool` (built from source at `raw/tools/zcash-devtool`, wallet dir `raw/tools/testnet-wallet`, mnemonic encrypted to a local age identity; nothing from it is in this repository):
 

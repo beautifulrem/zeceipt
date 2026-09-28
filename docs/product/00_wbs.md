@@ -227,7 +227,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.1 ✅ R — mainnet-read. PROOF §1.
 - 3.4.1.2 ✅ R — synthetic (CLI + browser). PROOF §2/§2b.
 - 3.4.1.3 ✅ R — regtest consensus-valid transaction. PROOF §5. The console on the same chain: §5c–§5g. Slice P2, Trellis `09-26-proof-payables-live`, added the payables path: USD payables, a batch at Kraken's live rate, and receipts issued by the worker on its own (§5g).
-- 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (faucet claim, PoW/CAPTCHA gate). PROOF §4/§6.
+- 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (the faucet claim is the user's decision: fauzec's API has no human gate "for now", while its web form and jinolabs's have one `[R126]`). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
 - 3.4.2.1 ✅ R — 54 Rust tests + 459 TypeScript console tests (and 3 opt-in regtest e2e: the library, PROOF §5c; the app through HTTP, §5d; the payables path, §5g; the 26 build-and-serve tests, four of them in Chrome, run in CI with `ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1`; the public receipt page's 13 Chrome tests, `packages/verify/test/page.e2e.mjs`, also run in CI), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`, `packages/verify/test/pack.mjs` (the npm tarball as published, slice R1b1).
@@ -304,7 +304,7 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 | 2026-09-28 | 2.4.3.4 | Confirm the product name (default: Zeceipt) | README, npm scope, domain |
 | 2026-09-28 | 4.1.1.1 | Create the GitHub org/repo, push, enable CI | CI has never run; judges need a public URL; dead links in README/package.json; the forum and zips #387 drafts wait on it |
 | 2026-09-28 | 5.1.1.3 | Record and post weekly update 1 (60 s; script and footage ready; most likely on the Arena dashboard, inferred from `isCurrentWeekUpdateSubmitted` and needing the project registered, with X tagging @colosseum as an extra) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8); 4.2.2.4 counts the posts | the officially "strongly recommend"-ed weekly update; fallback: by 09-30 or skipped |
-| 2026-09-30 | 3.4.1.4 | Claim testnet TAZ from a faucet (human CAPTCHA/PoW gate) | first public-chain receipt (PROOF §6) |
+| 2026-09-30 | 3.4.1.4 | Claim testnet TAZ from a faucet: the user's decision (fauzec's API has no human gate "for now"; its web form and jinolabs's have one; PROOF §4 `[R126]`) | first public-chain receipt (PROOF §6) |
 | 2026-09-30 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | public-chain receipts (solo target ≥ 3), which must land by 10-03, before the videos |
 | 2026-10-01 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
 | 2026-10-01 | 4.1.2.3 | Decide whether to contact Konclave's author (default: yes). The adapter was dropped with the solo branch (`11_plan.md` §1.1), so this is now only a pilot channel | a second pilot candidate |
