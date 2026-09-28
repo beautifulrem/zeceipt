@@ -20,7 +20,8 @@
     "demo": "python3 -m http.server 8787 --directory .",
     "test": "node test/verify.mjs",
     "test:page": "ZECEIPT_BROWSER_E2E=1 node test/page.e2e.mjs",
-    "test:pack": "node test/pack.mjs"
+    "test:pack": "node test/pack.mjs",
+    "test:timing": "node test/timing.mjs"
   },
   "keywords": [
     "zcash",

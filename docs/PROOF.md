@@ -145,6 +145,17 @@ The timings below were measured on the 2026-09-22 build. Since then, the crates 
 
 Timing (2026-09-22, NFR-4). Chrome 153 on `demo/index.html` served locally, `performance.now()` around `verifyReceipt` from `src/index.js`, 20-run averages, signed and challenge-bound receipts: **7.28 ms** on the synthetic fixture (9,166-byte tx) and **6.05 ms** on the Zkool batch fixture `regtest-48db254a…` (15,478 bytes, 4 Ironwood actions, receipt for output 1). 69 % more bytes cost no more time: verification decrypts exactly one output, so the cost is dominated by that single trial decryption and is roughly flat in transaction size across 9–15 KB. At 6–7 ms the measurement is **more than 130× inside the 1 s budget**; the remaining 23 % to the NFR's 20 KB bound is not measured but cannot plausibly change that order of magnitude. Node 26 on the committed wasm: init 13.9 ms; `verify_receipt` 4.11 ms (regtest fixture) / 3.19 ms (synthetic). CLI (release build, `/usr/bin/time`): `zeceipt inspect --txid 0e85513c…da69` fetching the mainnet tx from `zec.rocks` over gRPC/TLS 1.15 s wall; `zeceipt issue --regtest --raw-tx-file … --ufvk …` (trial-decrypt of both outputs + signing, offline) 0.00 s wall; `zeceipt verify --regtest --raw-tx-file …` offline 0.01 s. So a public-node `issue` is fetch-bound at ≈ 1–2 s. The page shows the mined height for fetched transactions and tells the user to confirm depth on an explorer or their own node; it does not compute confirmations itself.
 
+Timing at the bound (2026-09-28, slice P3). `packages/verify/test/timing.mjs` (`npm run test:timing` in `packages/verify`) repeats the measurement on four committed transaction and receipt pairs, through the package's entry point: in Chrome 154 (served locally) and in Node 26, 20 runs after one warm-up call, signed and challenge-bound receipts. Every run was valid:
+
+| Fixture | Bytes | Chrome mean / max | Node mean / max |
+|---|---|---|---|
+| synthetic (`synthetic-ironwood.hex`, `synthetic-receipt.json`) | 9,166 | 3.36 / 3.90 ms | 3.69 / 5.76 ms |
+| zcash-devtool payment (`regtest-48be62e2….hex`, `regtest-receipt.json`) | 9,166 | 3.02 / 3.60 ms | 3.42 / 6.28 ms |
+| Zkool batch (`regtest-48db254a….hex`, `regtest-zkool-batch-receipt.json`) | 15,478 | 3.20 / 4.10 ms | 3.59 / 4.85 ms |
+| console batch of five payments (`regtest-58794a9b….hex`, `regtest-20kb-receipt.json`) | 21,790 | 3.41 / 4.20 ms | 4.05 / 6.33 ms |
+
+The largest is a consensus-valid regtest transaction (six Ironwood outputs), above NFR-4's 20 KB bound, so the bound is now measured rather than argued; the cost stays flat in size. A correction: the 6.05 ms above for the Zkool batch used a receipt that was not committed (the committed `regtest-receipt.json` belongs to the zcash-devtool transaction `48be62e2…`); `regtest-zkool-batch-receipt.json` now makes that pair reproducible.
+
 ## 2c. synthetic + regtest — the public receipt page in Chrome (2026-09-23)
 
 The page a receipt link opens: `packages/verify/r/` (slice F2b, Trellis `09-23-public-receipt-page`), static, served at `/r/` from the same root as the demo (`npm run demo`, then `http://localhost:8787/r/#<payload>`). It reads the receipt from the link's fragment (spec §2.1) and verifies it with the committed WASM through `src/index.js`, the wrapper npm users get.
