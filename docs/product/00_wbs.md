@@ -271,9 +271,9 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 5.1.1 Videos
 - 5.1.1.1 ⬜ PM — Pitch video ≤ 3 min (beat sheet `11_plan.md` §5). 0.75 pd, 2026-10-04 → 10-07. Pre-production done: the script `docs/outreach/pitch-video.md` (slices V2a, V2b), with every shot recorded on the live regtest chain by `apps/console/test/shots/demo-video.ts` (slices L2, V2c1, V2c2) and cued from frames; the team lines, narration, editing and upload remain (the user's).
 - 5.1.1.2 ⬜ R — Technical demo 2–3 min (outline `11_plan.md` §5; recorded by the Rust engineer, who narrates the stack). 0.75 pd, 2026-10-04 → 10-07. Pre-production done: the script `docs/outreach/tech-demo-video.md` (slice V2d), with the terminal, custody and proof shots recorded (slice V2e) and the receipt page reused (slice L2); narration, editing and upload remain.
-- 5.1.1.3 ⬜ PM — Weekly update video 1 (60 s, 09-28). 0.125 pd, 2026-09-27 → 09-28.
+- 5.1.1.3 ⬜ PM — Weekly update video 1 (60 s, 09-28). 0.125 pd, 2026-09-27 → 09-28. Pre-production done: the script `docs/outreach/weekly-update-1.md` (slice V1), on the regtest footage of slice L2; recording and posting remain (the user's).
 - 5.1.1.4 ⬜ PM — Upload to YouTube (unlisted) and test links. 0.25 pd, 2026-10-08 → 10-09.
-- 5.1.1.5 ⬜ PM — Weekly update video 2 (60 s, 10-05). 0.125 pd, 2026-10-04 → 10-07.
+- 5.1.1.5 ⬜ PM — Weekly update video 2 (60 s, 10-05). 0.125 pd, 2026-10-04 → 10-07. Pre-production done on 2026-09-28: the script `docs/outreach/weekly-update-2.md`, with rows that depend on the week, and its NU7 footage recorded by `apps/console/test/shots/nu7-refusal.ts` (slice WU2); applying those rows, recording and posting remain (the user's).
 #### 5.1.2 Written
 - 5.1.2.1 ✅ PM — README with proof, prior art, status. `README.md`.
 - 5.1.2.2 🟡 PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2 and §2b. 0.5 pd, 2026-10-04 → 10-07. Drafted 2026-09-26 (slices D8 and D9); the placeholders (team, public-chain receipts, pilot, traction, post status) are filled at the 10-05 upload.
