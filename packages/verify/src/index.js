@@ -94,7 +94,7 @@ async function readCapped(res, max) {
 /** Default gRPC-web endpoints that serve lightwalletd over HTTPS. */
 export const GRPC_WEB_ENDPOINTS = {
   main: ["https://zjs.zec.rocks/mainnet", "https://zcash-mainnet.chainsafe.dev"],
-  test: ["https://zjs.zec.rocks/testnet"],
+  test: ["https://zjs.zec.rocks/testnet", "https://zcash-testnet.chainsafe.dev"],
 };
 
 const hexToBytes = (h) => Uint8Array.from(h.match(/../g), (b) => parseInt(b, 16));

@@ -145,7 +145,7 @@ test("a bearer receipt opened by its link: summary first, then VALID with the th
   assert.match(summary, /Zcash mainnet/);
   assert.match(summary, /bearer receipt/);
   assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 0, "nothing is fetched before the click");
-  assert.match(await text(s.page, "#fetch-note"), /zjs\.zec\.rocks\/mainnet.*learns which transaction you look up/);
+  assert.match(await text(s.page, "#fetch-note"), /zjs\.zec\.rocks\/mainnet.*, and any service behind it, learns which transaction you look up/);
   assert.equal(await visible(s.page, "challenge-row"), false);
   await s.page.click("#fetch");
   await verified(s.page);

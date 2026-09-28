@@ -189,6 +189,10 @@ check("receipt page: challenge line for bound and bearer receipts", /matched/.te
 check("receipt page: memo text for text, empty and bytes", pageView.memoText({ kind: "text", text: "a" }) === "a" && pageView.memoText({ kind: "empty" }) === "(empty)" && pageView.memoText({ kind: "bytes", hex: "00ff" }) === "bytes 00ff");
 check("receipt page: fetch plan names the nodes, and explains regtest",
   /zjs\.zec\.rocks\/mainnet, then zcash-mainnet\.chainsafe\.dev/.test(pageView.fetchPlan("main", GRPC_WEB_ENDPOINTS.main).note) && pageView.fetchPlan("regtest", undefined).canFetch === false);
+// Slice RS4 (R125): testnet has a fallback, and the note says a proxy's backend (ChainSafe's is zec.rocks) also learns the txid.
+const testPlan = pageView.fetchPlan("test", GRPC_WEB_ENDPOINTS.test);
+check("receipt page: testnet fetch plan names both endpoints, and any service behind them",
+  testPlan.canFetch && /\(zjs\.zec\.rocks\/testnet, then zcash-testnet\.chainsafe\.dev\), and any service behind it, learns which transaction you look up/.test(testPlan.note), testPlan.note);
 const pageHtml = fs.readFileSync(path.join(here, "../r/index.html"), "utf8");
 check("receipt page states what a valid result proves, and what it does not", /What a valid result proves/.test(pageHtml) && /What it does not prove/.test(pageHtml));
 check("receipt page has no inline script or style (CSP allows 'self' only)", !/<script(?![^>]*\bsrc=)[^>]*>/i.test(pageHtml) && !/<style|\sstyle=/i.test(pageHtml));

@@ -45,7 +45,7 @@ export function summaryRows(r) {
 /** How the page can get the transaction for this receipt's network. */
 export function fetchPlan(network, endpoints) {
   if (Array.isArray(endpoints) && endpoints.length > 0) {
-    return { canFetch: true, note: `The node (${endpoints.map(nodeHost).join(", then ")}) learns which transaction you look up. Nothing else is sent.` };
+    return { canFetch: true, note: `The node (${endpoints.map(nodeHost).join(", then ")}), and any service behind it, learns which transaction you look up. Nothing else is sent.` };
   }
   return { canFetch: false, note: `No public node serves the ${NETWORK_NAME[network] ?? network}. Load the raw transaction from a file instead.` };
 }
