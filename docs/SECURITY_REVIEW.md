@@ -43,6 +43,27 @@ This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.
 
 Since the first pass closed (829617a), 178 commits were added. `Cargo.lock` gained no crate (304 before and after), only six dependency edges from `zeceipt-cli` to crates already locked (`hyper`, `hyper-util`, `http-body-util`, `rustls`, `tokio-rustls`, `webpki-roots`), for the issuer-binding fetch (slice W2b). The two `package.json` files changed scripts, `publishConfig` and the homepage field, not dependencies; no `package-lock.json` changed. The committed WASM was rebuilt without local paths (slice X3a).
 
+## Interim pass: 2026-09-28 (slice SR1, a second dry run at 122105d)
+
+`scripts/security_review.sh` exited 0 again, ten days before the formal rerun:
+
+| Check | Result |
+|---|---|
+| Rust dependencies (`Cargo.lock`, 304 crates) | cargo-audit, RustSec database of 1,273 advisories: 0 vulnerabilities; the accepted RUSTSEC-2023-0089 warning is unchanged |
+| npm, `apps/console` and `packages/verify` | 0 vulnerabilities each |
+| Secrets, git history (472 commits) and the working tree | gitleaks: no leaks |
+| Key material in code, secrets in logs | source guards passed, now with the spend-authority identifier rule (slice G1) |
+
+**Changed since the first dry run.** One upstream advisory, and four findings from this repository's own reviews:
+
+| Change | Why | Evidence |
+|---|---|---|
+| A v5/v6 transaction under a branch its version is not valid in (such as v6 under NU6.1) is refused as malformed (slice U2) | Zebra's GHSA-h5rr-8pqv-grp9 (high, fixed in Zebra 6.4.2): `zcash_primitives` parses such a transaction, and Zebra 6.4.0–6.4.1 aborted re-serializing it. zeceipt never re-serializes, so it did not crash, but it accepted bytes that are never valid. The local regtest zebrad is 6.3.0, which the advisory lists as unaffected `[R127]` | `crates/zeceipt-core/tests/branch.rs` (mined mainnet v5 and v6 fixtures; every mutant of the check killed); the WASM at stage `tx` |
+| Seeded mutation tests over every committed transaction, and over receipts, audit packs and well-known files (slice U3) | The advisory above was found by fuzzing; in the browser a panic traps the WASM | `crates/zeceipt-core/tests/mutation.rs`: no panic in 50,000 transactions (29,626 issued receipts verified) and 250,000 receipt-side inputs in the release run; a smaller run in every `cargo test` |
+| `verify-pack` counts each output once (slice U4) | Found in review U3: a receipt listed twice doubled the "lower bound" (Glasspane's rooms sum the same way) `[R130]` | `crates/zeceipt-cli/tests/cli.rs`: a repeat, and two batches with overlapping indices; mutants of the key killed |
+| A recovered note value above MAX_MONEY is refused, in every pool, and the WASM never returns `null` (slices U5, U5b) | A crafted file-loaded output worth MAX_MONEY + 1 verified as valid; above 2^53 the WASM returned `null` `[R131]` | `crates/zeceipt-core/tests/offline_e2e.rs` (Ironwood and Sapling, each recovery site pinned); `packages/verify/test/verify.mjs` |
+| The source guard matches spend-authority identifiers and names its one exemption; CI builds without the `synthetic` feature (slice G1) | Review U5b: the word list passed a renamed variable, and CI could not catch a featureless build break | `scripts/check_source_guards.py` (every probe caught: identifiers, a `#[path]` side door, the feature enabled any non-dev way); `.github/workflows/ci.yml` |
+
 ## Manual checklist
 
 Each item is re-read at every run; the evidence is where it is proven.
@@ -61,6 +82,8 @@ Each item is re-read at every run; the evidence is where it is proven.
 | Payment integrity | One nonce per batch (REQ-CON-7); the rate guard (REQ-CON-21); the approval HMAC over the lines, lock and paying account, required before every attempt (REQ-CON-5, slice I3); the wallet's mined history read before every `pay` call, so a database restored from a backup or edited back to "unpaid" adopts the transaction instead of paying again (slice S5, RSK-21, `[R99]`) |
 | Audit trail holds no secret | `audit_log` details are chosen non-secret columns, checked against real receipts and approvals (slice I4) |
 | Dependencies pinned | `Cargo.lock`, and `package-lock.json` in each package; CI installs with `npm ci` |
+| Untrusted transaction and receipt bytes cannot crash the verifier | Seeded mutation tests through parse, issue, verify, packs and the binding (slice U3); nothing re-serializes a parsed transaction; a transaction under a branch its version is not valid in is refused (slice U2) |
+| Totals and values stay within what the chain allows | Each output counted once in an audit pack (slice U4); a recovered value above MAX_MONEY refused in every pool (slices U5, U5b) |
 
 ## Not done (recorded)
 - **CI integration.** The repository has no remote yet, so a CI step cannot be verified here; add the runner to CI when it is pushed.
