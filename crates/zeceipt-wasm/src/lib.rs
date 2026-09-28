@@ -62,7 +62,7 @@ fn stage(e: &CoreError) -> &'static str {
         CoreError::Types(T::SignatureInvalid) | CoreError::Types(T::Unsigned) => "signature",
         CoreError::Types(T::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",
-        CoreError::RecoveryFailed { .. } => "recovery",
+        CoreError::RecoveryFailed { .. } | CoreError::ValueOutOfRange { .. } => "recovery",
         CoreError::UnsupportedBranch { .. } => "tx",
         _ => "other",
     }
@@ -106,7 +106,14 @@ pub fn verify_receipt(
     require_signature: bool,
 ) -> JsValue {
     let out = verify_inner(receipt, raw_tx_hex, challenge, require_signature);
-    serde_wasm_bindgen::to_value(&out).unwrap_or(JsValue::NULL)
+    // Never `null` (slice U5): a result that cannot be represented is reported as a failure, not dropped.
+    serde_wasm_bindgen::to_value(&out).unwrap_or_else(|e| {
+        serde_wasm_bindgen::to_value(&fail(
+            "other",
+            format!("the result cannot be represented: {e}"),
+        ))
+        .unwrap_or(JsValue::NULL)
+    })
 }
 
 fn verify_inner(

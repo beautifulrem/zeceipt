@@ -14,7 +14,7 @@ use orchard::value::NoteValue;
 use orchard::Note;
 use rand::rngs::OsRng;
 use rand::RngCore;
-use zcash_note_encryption::Domain;
+use zcash_note_encryption::{Domain, EphemeralKeyBytes};
 
 use crate::{parse_transaction, CoreError};
 
@@ -34,6 +34,9 @@ pub struct Synthetic {
     pub recipient: orchard::Address,
     pub value_zat: u64,
     pub memo: [u8; 512],
+    /// The Outgoing Cipher Key of the spliced output, derived as an issuer would; lets a test build a receipt for an
+    /// output whose recovery the core refuses (slice U5).
+    pub ock: [u8; 32],
 }
 
 fn random_fvk() -> FullViewingKey {
@@ -113,6 +116,14 @@ pub fn splice_ironwood_output(
 
     let mut ovk = [0u8; 32];
     ovk.copy_from_slice(fvk.to_ovk(Scope::External).as_ref());
+    let ock = <IronwoodDomain as Domain>::derive_ock(
+        &fvk.to_ovk(Scope::External),
+        &cv_net,
+        &cmx.to_bytes(),
+        &EphemeralKeyBytes(enc.epk_bytes),
+    );
+    let mut ock_bytes = [0u8; 32];
+    ock_bytes.copy_from_slice(ock.as_ref());
     Ok(Synthetic {
         tx_bytes: out,
         fvk,
@@ -120,5 +131,6 @@ pub fn splice_ironwood_output(
         recipient,
         value_zat,
         memo,
+        ock: ock_bytes,
     })
 }

@@ -110,3 +110,49 @@ fn base64url(b: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
+
+/// A note value is in {0 .. MAX_MONEY} (protocol spec §3.2). A spliced output one zatoshi above it is refused when
+/// issuing and when verifying, by name, while one exactly at it issues and verifies (slice U5, R131).
+#[test]
+fn a_note_value_above_max_money_is_refused() {
+    use zcash_protocol::value::MAX_MONEY;
+    let template = hex::decode(TEMPLATE.trim()).unwrap();
+    for (value, allowed) in [(MAX_MONEY, true), (MAX_MONEY + 1, false), (u64::MAX, false)] {
+        let syn = splice_ironwood_output(&template, value, [0u8; 512]).unwrap();
+        let tx = parse_transaction(&syn.tx_bytes).unwrap();
+        let keys = OutgoingKeys::from_orchard_ovk(Network::Main, syn.ovk);
+        let opts = IssueOptions {
+            label: String::new(),
+            challenge: None,
+            key_id: None,
+            include_change: false,
+            signer: None,
+        };
+        let mut txid = [0u8; 32];
+        txid.copy_from_slice(&hex::decode(zeceipt_core::txid_hex(&tx)).unwrap());
+        let receipt = Receipt::new(Network::Main, Pool::Ironwood, txid, 0, syn.ock, "");
+        match (
+            issue(&tx, &keys, &opts),
+            verify(&receipt, &tx, b"", false),
+            allowed,
+        ) {
+            (Ok(issued), Ok(v), true) => {
+                assert_eq!(issued[0].1.value_zat, value);
+                assert_eq!(v.recovered.value_zat, value);
+            }
+            (Err(CoreError::ValueOutOfRange { value: got, .. }), Err(e), false) => {
+                assert_eq!(got, value);
+                assert!(
+                    matches!(e, CoreError::ValueOutOfRange { .. })
+                        && e.to_string().contains("above MAX_MONEY"),
+                    "{e}"
+                );
+            }
+            (i, v, _) => panic!(
+                "value {value}: issue {:?}, verify {:?}",
+                i.map(|x| x.len()),
+                v.map(|x| x.recovered.value_zat)
+            ),
+        }
+    }
+}

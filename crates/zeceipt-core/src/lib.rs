@@ -25,6 +25,7 @@ use zcash_primitives::transaction::{Transaction, TxVersion};
 use zcash_protocol::consensus::{BranchId, MainNetwork, NetworkType, TestNetwork};
 use zcash_protocol::local_consensus::LocalNetwork;
 use zcash_protocol::memo::{Memo, MemoBytes};
+use zcash_protocol::value::MAX_MONEY;
 use zeceipt_types::ed25519_dalek::SigningKey;
 use zeceipt_types::{Network, Pool, Receipt, TypesError};
 
@@ -56,6 +57,14 @@ pub enum CoreError {
     },
     #[error("recovery failed: the ock does not open {pool} output {index}")]
     RecoveryFailed { pool: &'static str, index: u32 },
+    /// The opened note's value is above MAX_MONEY. A note value is in {0 .. MAX_MONEY} (protocol spec §3.2); only a
+    /// transaction that could never be mined carries one, and JavaScript could not hold it exactly (slice U5, R131).
+    #[error("{pool} output {index} opens to a value of {value} zatoshis, above MAX_MONEY ({max}); no Zcash note can hold it", max = MAX_MONEY)]
+    ValueOutOfRange {
+        pool: &'static str,
+        index: u32,
+        value: u64,
+    },
     #[error("viewing key has no {0} component")]
     MissingKey(&'static str),
     #[error("viewing key could not be decoded: {0}")]
@@ -89,6 +98,18 @@ pub struct Recovered {
     /// ZIP 32 scope), i.e. a change output. Only known on the issuing side when
     /// a full viewing key was supplied; verifiers and bare-OVK issuers see `false`.
     pub is_change: bool,
+}
+
+/// A recovered note's value, if it is one a Zcash note can hold: {0 .. MAX_MONEY} (protocol spec §3.2, R131).
+fn note_value(pool: Pool, index: u32, value: u64) -> Result<u64, CoreError> {
+    if value > MAX_MONEY {
+        return Err(CoreError::ValueOutOfRange {
+            pool: pool.as_str(),
+            index,
+            value,
+        });
+    }
+    Ok(value)
 }
 
 /// Human-friendly view of a 512-byte memo.
@@ -551,7 +572,7 @@ macro_rules! impl_orchard_family {
                             pool: Self::POOL,
                             index,
                             recipient: encode_orchard_address(&addr, keys.network)?,
-                            value_zat: note.value().inner(),
+                            value_zat: note_value(Self::POOL, index, note.value().inner())?,
                             memo: MemoView::from_raw(&memo),
                             is_change: keys.owns_orchard(&addr),
                         },
@@ -576,7 +597,7 @@ macro_rules! impl_orchard_family {
                     pool: Self::POOL,
                     index,
                     recipient: encode_orchard_address(&addr, network)?,
-                    value_zat: note.value().inner(),
+                    value_zat: note_value(Self::POOL, index, note.value().inner())?,
                     memo: MemoView::from_raw(&memo),
                     is_change: false,
                 })
@@ -662,21 +683,20 @@ impl PoolOps for SaplingPool {
         keys: &OutgoingKeys,
     ) -> Result<Option<([u8; 32], Recovered)>, CoreError> {
         let od = sapling_output(tx, index)?;
-        Ok(
-            sapling_recover_with_ovk(od, ovk).map(|(ock, note, addr, memo)| {
-                (
-                    ock_bytes(ock),
-                    Recovered {
-                        pool: Pool::Sapling,
-                        index,
-                        recipient: encode_sapling_address(&addr, keys.network),
-                        value_zat: note.value().inner(),
-                        memo: MemoView::from_raw(&memo),
-                        is_change: keys.owns_sapling(&addr),
-                    },
-                )
-            }),
-        )
+        let Some((ock, note, addr, memo)) = sapling_recover_with_ovk(od, ovk) else {
+            return Ok(None);
+        };
+        Ok(Some((
+            ock_bytes(ock),
+            Recovered {
+                pool: Pool::Sapling,
+                index,
+                recipient: encode_sapling_address(&addr, keys.network),
+                value_zat: note_value(Pool::Sapling, index, note.value().inner())?,
+                memo: MemoView::from_raw(&memo),
+                is_change: keys.owns_sapling(&addr),
+            },
+        )))
     }
     fn recover_with_ock(
         tx: &Transaction,
@@ -694,7 +714,7 @@ impl PoolOps for SaplingPool {
             pool: Pool::Sapling,
             index,
             recipient: encode_sapling_address(&addr, network),
-            value_zat: note.value().inner(),
+            value_zat: note_value(Pool::Sapling, index, note.value().inner())?,
             memo: MemoView::from_raw(&memo),
             is_change: false,
         })

@@ -698,7 +698,7 @@ fn stage(e: &CoreError) -> &'static str {
         }
         CoreError::Types(TypesError::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",
-        CoreError::RecoveryFailed { .. } => "recovery",
+        CoreError::RecoveryFailed { .. } | CoreError::ValueOutOfRange { .. } => "recovery",
         _ => "other",
     }
 }
