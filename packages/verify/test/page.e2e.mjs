@@ -224,6 +224,37 @@ test("the verdict is shown before the tip arrives, then the depth fills in (slic
   await s.context.close();
 });
 
+test("a late tip is dropped when a file or a new receipt replaced the source (slice A2b)", { skip: !RUN }, async () => {
+  // A file loaded while the tip is on its way: the file's verdict stands, with its own inclusion line.
+  let s = await openPage({ tipDelayMs: 1500 });
+  await s.page.goto(`${base}/r/#${b64(BEARER)}`);
+  await ready(s.page);
+  await s.page.click("#fetch");
+  await verified(s.page);
+  assert.match(await text(s.page, "#inclusion"), /asking it for its chain tip…$/);
+  await s.page.setInputFiles("#rawfile", path.join(root, "demo/fixtures/synthetic-ironwood.hex"));
+  await s.page.waitForFunction(() => /^Unknown: the transaction was loaded from a file/.test(document.querySelector("#inclusion").textContent));
+  await s.page.waitForTimeout(2500); // past the tip's arrival
+  assert.equal(await text(s.page, "#inclusion"), "Unknown: the transaction was loaded from a file. Check the txid on an explorer or your own node.", "the late tip did not overwrite the file's line");
+  assert.equal(s.requests.filter((r) => r.url.endsWith("/GetLatestBlock")).length, 1, "the tip was asked, and arrived late");
+  await assertPrivate(s);
+  await s.context.close();
+
+  // A new receipt link while the tip is on its way: the page starts over, and the old tip writes nothing.
+  s = await openPage({ tipDelayMs: 1500 });
+  await s.page.goto(`${base}/r/#${b64(BEARER)}`);
+  await ready(s.page);
+  await s.page.click("#fetch");
+  await verified(s.page);
+  await s.page.evaluate((p) => { location.hash = p; }, b64(UNSIGNED_HTML));
+  await s.page.waitForFunction(() => document.getElementById("outcome").hidden);
+  await s.page.waitForTimeout(2500);
+  assert.equal(await s.page.evaluate(() => document.getElementById("outcome").hidden), true, "the new receipt waits for its own fetch");
+  assert.doesNotMatch(await text(s.page, "#inclusion"), /confirmations/, "the old tip wrote nothing");
+  await assertPrivate(s);
+  await s.context.close();
+});
+
 test("chain inclusion follows the node: mempool is pending, a fork is not on the main chain", { skip: !RUN }, async () => {
   for (const [height, re, cls] of [[0n, /^Pending: zjs\.zec\.rocks\/mainnet has it in the mempool; it is not mined yet/, "pending"], [0xffffffffffffffffn, /^Not on the main chain: zjs\.zec\.rocks\/mainnet reports it mined on a fork/, "pending"]]) {
     const s = await openPage({ height });
