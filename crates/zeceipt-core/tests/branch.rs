@@ -198,6 +198,11 @@ const ORCHARD_V5: &str = include_str!(
     "../../../fixtures/5f1c6bfa4e97c9aa5e918b6912dc70cb7a46aee01d91599bdb8e657306650e0a.hex"
 );
 
+/// A real mainnet v5 transaction with transparent parts only, mined under NU6.1 (block 3,200,000; 137 bytes).
+const TRANSPARENT_V5: &str = include_str!(
+    "../../../fixtures/5a60fe6a8188e5216dab8ae8c9a0969debf4ef458be7d5385ae21c51bc9763e6.hex"
+);
+
 /// The check refuses only what can never be consensus-valid: a v5 transaction parses under every branch from NU5 to
 /// NU6.3 (the mined one under NU6, with its txid), and is malformed under Canopy, before v5 existed.
 #[test]
@@ -224,10 +229,25 @@ fn a_v5_transaction_parses_under_nu5_to_nu6_3_and_not_before() {
         bytes[8..12].copy_from_slice(&u32::from(branch).to_le_bytes());
         parse_transaction(&bytes).unwrap_or_else(|e| panic!("v5 under {branch:?}: {e}"));
     }
-    let mut canopy = mined.clone();
-    canopy[8..12].copy_from_slice(&u32::from(BranchId::Canopy).to_le_bytes());
-    assert!(
-        matches!(parse_transaction(&canopy), Err(CoreError::Malformed(_))),
-        "v5 under Canopy is malformed"
+    // Under Canopy, `read` itself refuses this one (its Orchard bundle cannot exist before NU5), so the "not before"
+    // half uses a transparent-only v5 transaction, which only U2's check refuses (review U2 round 2).
+    let transparent = hex::decode(TRANSPARENT_V5.trim()).unwrap();
+    let tx =
+        parse_transaction(&transparent).expect("the mined transparent-only v5 transaction parses");
+    assert_eq!(
+        zeceipt_core::txid_hex(&tx),
+        "5a60fe6a8188e5216dab8ae8c9a0969debf4ef458be7d5385ae21c51bc9763e6"
     );
+    let mut canopy = transparent.clone();
+    canopy[8..12].copy_from_slice(&u32::from(BranchId::Canopy).to_le_bytes());
+    match parse_transaction(&canopy) {
+        Err(CoreError::Malformed(text)) => assert!(
+            text.contains("a V5 transaction cannot use consensus branch 0xe9ff75a6"),
+            "{text}"
+        ),
+        other => panic!(
+            "v5 under Canopy: {:?}",
+            other.map(|t| zeceipt_core::txid_hex(&t))
+        ),
+    }
 }
