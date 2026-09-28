@@ -558,7 +558,9 @@ async fn run() -> anyhow::Result<ExitCode> {
             let mut rows = Vec::new();
             let mut all_ok = true;
             // Each output is counted once (slice U4): a receipt listed twice, or two receipts for one output, still
-            // verify, but the lower bound would double. Glasspane's rooms sum every row the same way (R130).
+            // verify, but the lower bound would double. Glasspane's rooms sum every row the same way (R130). The key is the
+            // output: the transaction's own txid, the pool (indices restart in each pool, so index 0 can be both an
+            // Ironwood action and a Sapling output) and the index; distinct outputs of one transaction all count.
             let mut counted: std::collections::HashMap<(String, String, u32), usize> =
                 std::collections::HashMap::new();
             let mut duplicates = 0usize;

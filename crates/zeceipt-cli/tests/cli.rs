@@ -291,6 +291,81 @@ fn verify_pack_counts_each_output_once() {
     );
 }
 
+/// A batch pack: the five receipts of one transaction are five outputs, each counted, and a repeat of one is not
+/// (review U4 round 1: a key of the txid alone would collapse the batch to one payment and pass the test above).
+#[test]
+fn verify_pack_counts_every_output_of_one_transaction() {
+    let dir = std::env::temp_dir().join(format!("zeceipt-batch-pack-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("raw")).unwrap();
+    let txid = "58794a9b32a9c051a7e9e44f319c114aabd6bfe2c334a85f0ca7321810c8a011";
+    let raw = fixture(&format!("regtest-{txid}.hex"));
+    std::fs::copy(&raw, dir.join("raw").join(format!("{txid}.hex"))).unwrap();
+    let key = dir.join("issuer.key");
+    assert_eq!(run(&["keygen", "--out", key.to_str().unwrap()]).0, 0);
+    let out_dir = dir.join("receipts");
+    let (c, issued, err) = run(&[
+        "issue",
+        "--regtest",
+        "--raw-tx-file",
+        &raw,
+        "--ufvk-file",
+        &fixture("regtest-issuer-ufvk.txt"),
+        "--key-file",
+        key.to_str().unwrap(),
+        "--out-dir",
+        out_dir.to_str().unwrap(),
+    ]);
+    assert_eq!(c, 0, "stderr: {err}");
+    let issued: serde_json::Value = serde_json::from_str(issued.trim()).unwrap();
+    let values: Vec<u64> = issued["receipts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["recovered"]["value_zat"].as_u64().unwrap())
+        .collect();
+    assert_eq!(values.len(), 5, "five payments, the change skipped");
+    let mut files: Vec<String> = std::fs::read_dir(&out_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path().to_string_lossy().into_owned())
+        .collect();
+    files.sort();
+    files.push(files[2].clone()); // one repeat
+    let mut args = vec![
+        "pack",
+        "--title",
+        "batch",
+        "--declared-total-zat",
+        "81800958",
+    ];
+    args.extend(files.iter().map(String::as_str));
+    let (c, pack, _) = run(&args);
+    assert_eq!(c, 0);
+    let pack_path = dir.join("pack.json");
+    std::fs::write(&pack_path, &pack).unwrap();
+    let (c, o, _) = run(&[
+        "verify-pack",
+        pack_path.to_str().unwrap(),
+        "--regtest",
+        "--raw-tx-dir",
+        dir.join("raw").to_str().unwrap(),
+        "--require-signature",
+    ]);
+    assert_eq!(c, 0, "{o}");
+    let v: serde_json::Value = serde_json::from_str(o.trim()).unwrap();
+    let rows = v["receipts"].as_array().unwrap();
+    assert_eq!(rows.len(), 6);
+    assert_eq!(
+        rows.iter().filter(|r| r["counted"] == true).count(),
+        5,
+        "{o}"
+    );
+    assert_eq!(rows[5]["duplicate_of"], 2);
+    assert_eq!(v["duplicates"], 1);
+    assert_eq!(v["verified_total_zat"], values.iter().sum::<u64>());
+    assert_eq!(v["verified_total_zat"], 81_800_958);
+}
+
 /// `issue` prints links with the payload in the fragment (spec §2), and `verify` takes
 /// that link as well as the v0 path form.
 #[test]
