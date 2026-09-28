@@ -13,6 +13,8 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --features zeceipt-core/synthetic -- -D warnings
       - run: cargo test --workspace --features zeceipt-core/synthetic
+      - name: the workspace without the synthetic feature builds, as a plain `cargo test` does (slice G1)
+        run: cargo check --workspace --all-targets
       - run: cargo run -q -p zeceipt-core --features synthetic --example make_synthetic
       - run: |
           ./target/debug/zeceipt keygen --out /tmp/k.key >/dev/null

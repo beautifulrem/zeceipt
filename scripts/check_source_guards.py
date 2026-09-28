@@ -7,6 +7,11 @@
    whole words `seed`, `mnemonic`, `spending` (case-insensitive) in `crates/*/src/**/*.rs`,
    ignoring line comments (whole-line or trailing), `/* */` block comments and everything after `#[cfg(test)]`. Integration tests and examples
    are excluded (they may build keys for fixtures).
+   Zcash spending-key construction is matched as well, by identifier (`SpendingKey`, `ExtendedSpendingKey`,
+   `UnifiedSpendingKey`, `spending_key`/`spendingKey`, `from_seed`), in the same crate, console and verifier code (slice
+   G1: a word list alone passes a renamed variable). One file is exempt from this identifier rule, by name:
+   `crates/zeceipt-core/src/synthetic.rs`, test support that builds throwaway keys for synthetic fixtures, compiled
+   only with the `synthetic` feature; the guard fails if `lib.rs` stops gating it behind that feature.
 2. No log macro line (`trace!/debug!/info!/warn!/error!`) mentions `ock`, `ovk` or `memo` as a
    whole word, in any crate source (tests included).
 Exit 1 on a hit; prints each offending line.
@@ -18,6 +23,11 @@ from pathlib import Path
 repo = Path(__file__).resolve().parent.parent
 hits = []
 key_re = re.compile(r"\b(seed|mnemonic|spending)\b", re.I)
+spend_re = re.compile(r"\b(?:unified|extended)?spending_?key\b|\bfrom_seed\b", re.I)
+SYNTHETIC = repo / "crates" / "zeceipt-core" / "src" / "synthetic.rs"
+if not re.search(r'#\[cfg\(feature = "synthetic"\)\]\s*pub mod synthetic;', (repo / "crates" / "zeceipt-core" / "src" / "lib.rs").read_text(encoding="utf-8")):
+    print("crates/zeceipt-core/src/lib.rs: the synthetic module is no longer behind `#[cfg(feature = \"synthetic\")]`, so its exemption no longer holds")
+    sys.exit(1)
 log_re = re.compile(r"\b(trace|debug|info|warn|error)!\s*\(")
 secret_re = re.compile(r"\b(ock|ovk|memo)\b", re.I)
 files = sorted((repo / "crates").glob("*/src/**/*.rs"))
@@ -59,6 +69,8 @@ for path in files:
         code = code.split("//", 1)[0]  # drop trailing // comments (also skips whole-line //, /// and //!)
         if key_re.search(code):
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term: {line.strip()}")
+        if path != SYNTHETIC and spend_re.search(code):
+            hits.append(f"{path.relative_to(repo)}:{i}: spending-key construction: {line.strip()}")
     for i, line in enumerate(text.splitlines(), 1):
         if log_re.search(line) and secret_re.search(line):
             hits.append(f"{path.relative_to(repo)}:{i}: log line mentions ock/ovk/memo: {line.strip()}")
@@ -70,6 +82,8 @@ for path in [*ts_files, *web_files]:
             continue
         if key_re.search(code):
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term in shipped code: {line.strip()}")
+        if spend_re.search(code):
+            hits.append(f"{path.relative_to(repo)}:{i}: spending-key construction in shipped code: {line.strip()}")
         if log_re.search(code) or re.search(r"console\.(log|info|warn|error|debug)\(", code):
             if secret_re.search(code):
                 hits.append(f"{path.relative_to(repo)}:{i}: log line mentions ock/ovk/memo: {line.strip()}")
@@ -95,7 +109,7 @@ for path in py_files:
             if carved and "key-material-allowed" in tail:
                 continue
             hits.append(f"{path.relative_to(repo)}:{i}: key-material term in a script line without a per-line `# key-material-allowed` tag: {line.strip()}")
-print(f"source guards: {len(files)} crate files + {len(ts_files)} console lib/db/app files + {len(web_files)} browser verifier files + {py_scanned} scripts scanned (carve-out files: {carve_outs})")
+print(f"source guards: {len(files)} crate files + {len(ts_files)} console lib/db/app files + {len(web_files)} browser verifier files + {py_scanned} scripts scanned (carve-out files: {carve_outs}; feature-gated exemption: 1)")
 if hits:
     print("\n".join(hits))
     sys.exit(1)
