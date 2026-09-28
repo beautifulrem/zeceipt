@@ -17,6 +17,7 @@ If your team pays contributors in shielded ZEC, you can already keep amounts and
 
 **It does not prove**:
 - who is showing it: a receipt is a bearer document. For an interactive check, bind a challenge.
+- that the output is still unspent, or that whoever shows it can spend it (a receipt carries no spending ability);
 - anything about the transaction's other outputs, or about balances;
 - which organisation holds the signing key, unless the key id names a domain and that domain lists the key when you check it (then it vouches for the key now, not for when the receipt was made);
 - spend authority (full ZIP 311 is a roadmap item).
