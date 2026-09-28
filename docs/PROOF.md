@@ -154,7 +154,7 @@ Timing at the bound (2026-09-28, slice P3). `packages/verify/test/timing.mjs` (`
 | Zkool batch (`regtest-48db254a….hex`, `regtest-zkool-batch-receipt.json`) | 15,478 | 3.20 / 4.10 ms | 3.59 / 4.85 ms |
 | console batch of five payments (`regtest-58794a9b….hex`, `regtest-20kb-receipt.json`) | 21,790 | 3.41 / 4.20 ms | 4.05 / 6.33 ms |
 
-The largest is a consensus-valid regtest transaction (six Ironwood outputs), above NFR-4's 20 KB bound, so the bound is now measured rather than argued; the cost stays flat in size. A correction: the 6.05 ms above for the Zkool batch used a receipt that was not committed (the committed `regtest-receipt.json` belongs to the zcash-devtool transaction `48be62e2…`); `regtest-zkool-batch-receipt.json` now makes that pair reproducible.
+Maxima vary by a few milliseconds between runs (the review's own run peaked at 5.90 ms in Chrome, on the synthetic fixture). The largest is a consensus-valid regtest transaction (six Ironwood outputs), above NFR-4's 20 KB bound, so the bound is now measured rather than argued; the cost stays flat in size. A correction: the 6.05 ms above for the Zkool batch used a receipt that was not committed (the committed `regtest-receipt.json` belongs to the zcash-devtool transaction `48be62e2…`); `regtest-zkool-batch-receipt.json` now makes that pair reproducible.
 
 ## 2c. synthetic + regtest — the public receipt page in Chrome (2026-09-23)
 

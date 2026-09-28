@@ -25,8 +25,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/html" }).end("<!doctype html><title>timing</title>");
     return;
   }
+  // Only the package and the fixtures are served (review P3: not the whole checkout).
   const file = path.join(repo, path.normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, ""));
-  if (!file.startsWith(repo) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404).end(); return; }
+  const allowed = [path.join(repo, "packages/verify") + path.sep, path.join(repo, "fixtures") + path.sep];
+  if (!allowed.some((dir) => file.startsWith(dir)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404).end(); return; }
   res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" });
   fs.createReadStream(file).pipe(res);
 });
