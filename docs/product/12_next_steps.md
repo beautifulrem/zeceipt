@@ -16,13 +16,15 @@ Each slice runs as before: a PRD, the work, and an independent review until it s
 
 ## Decisions taken from the research
 
-1. **Report depth, not only the height.** Monero's `check_tx_proof` returns `confirmations` and `in_pool` alongside `good` and `received`. ZIP 315 says sent and incoming transactions SHOULD be reported with their number of confirmations. It recommends 10 confirmations for funds from an untrusted party and 3 for trusted ones. Zeceipt's receipt page now says it "does not count confirmations". The CLI already has `GetLatestBlock`, and the chain tip is available over gRPC-web: it was measured from `zjs.zec.rocks` on 09-28. So the verifier can report `confirmations = tip − height + 1`, and it can say that a recipient who does not trust the payer should wait for 10 (ZIP 315). Area A.
+1. **Report depth, not only the height.** Monero's `check_tx_proof` returns `confirmations` and `in_pool` alongside `good` and `received`. ZIP 315 says sent and incoming transactions SHOULD be reported with their number of confirmations. It recommends 10 confirmations for funds from an untrusted party and 3 for trusted ones. Zeceipt's receipt page now says it "does not count confirmations". The CLI already has `GetLatestBlock`, and the chain tip is available over gRPC-web: it was measured from `zjs.zec.rocks` on 09-28. So the verifier can report `confirmations = tip − height + 1`: Zcash's convention, where "confirmations are one more than the depth" (Zebra's `zebra-rpc` `methods.rs`, after zcashd's `getblock`). Monero counts the blocks mined after the transaction, one fewer. The verifier can also say what ZIP 315 recommends: 10 confirmations before spending funds from an untrusted sender. Area A.
 2. **Say what a proof does not settle.** Monero's docs warn that transaction proofs "do not guarantee that funds associated with a proof are spendable". A receipt likewise shows that an output was paid. It does not show that the note is still unspent, or spendable by whoever presents the receipt. The receipt's `does_not_prove` gains that. Area A.
 3. **Keep the three-state outcome.** BIP-322 defines `valid`, `invalid` and `inconclusive` ("the validator was unable to check"), and adds "valid at time T and age S" for timelocks. Zeceipt already separates `pending` (the transaction is not found) from `invalid` (spec §4). No change is needed; the plan keeps that separation, and the depth work must not merge the two. Area A.
-4. **Versioned formats with vectors, as the mature proofs have.** Monero's proofs are versioned strings (`InProofV1`/`V2`, `SpendProofV1`). BIP-322 ships test vectors in several implementations. Zeceipt has `zeceipt-v0` and committed vectors. Any field added by A is optional, and outside the signed bytes (spec §5), so v0 receipts and vectors are unchanged. Area A.
+4. **Versioned formats with vectors, as the mature proofs have.** Monero's proofs are versioned strings (`InProofV1`, `SpendProofV1`, `ReserveProofV1` on the page read). BIP-322 ships test vectors in several implementations. Zeceipt has `zeceipt-v0` and committed vectors. Any field added by A is optional, and outside the signed bytes (spec §5), so v0 receipts and vectors are unchanged. Area A.
 5. **The lower bound, as Monero's reserve proof has it.** Monero reports `total` and `spent` for a reserve. The audit pack's total is a lower bound, now counting each output once (slice U4). Showing whether each output is spent needs the recipient's viewing key, so it stays out of scope. The pack says "a lower bound", and it stays that way.
 
-## A. Verification depth and wording (engineering, 10-01 → 10-03 slack)
+## A. Verification depth and wording (engineering, planned for 10-01 → 10-03's slack)
+
+Area A is new scope. It is planned for the slack §8 leaves in 10-01 → 10-03 (0.45 pd). When it starts, it gets a WBS leaf and a §8 line, which the checker requires of an open kept leaf. It must land before the 10-10 freeze on `crates/`, `packages/verify/pkg` and `spec/`. If the slack is gone, A waits until after the submission, and nothing else here depends on it except B2.2's optional confirmations.
 
 - **A1. The chain tip over gRPC-web** in `@zeceipt/verify`.
   - **A1.1** `fetchChainTip(network, endpoints)`: a hand-encoded `GetLatestBlock(ChainSpec{})` to the same endpoints as `fetchRawTx`, with the same failover.
@@ -33,7 +35,7 @@ Each slice runs as before: a PRD, the work, and an independent review until it s
   - **A1.3** Types in `index.d.ts`, and README API rows.
     - Check: the export-to-README drift check (the one run on 09-28) finds no gap.
 - **A2. The receipt page shows depth.**
-  - **A2.1** After a node fetch, ask the same node for the tip. Show "Mined at height H, N confirmations, according to <node>". Beside it: "ZIP 315 suggests waiting for 10 when the payer is not trusted".
+  - **A2.1** After a node fetch, ask the same node for the tip. Show "Mined at height H, N confirmations, according to <node>". Beside it: "ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender".
     - Check: page e2e with mocked gRPC-web for both calls; the copy is shown, with no CSP violation.
     - Check: when the tip fails, the page keeps "Mined at height H" and says depth is unknown. It never shows an invalid verdict.
   - **A2.2** File-loaded transactions keep "Chain inclusion: Unknown". No request is made.
@@ -49,7 +51,7 @@ Each slice runs as before: a PRD, the work, and an independent review until it s
   - **A4.2** The same sentence goes in spec §4 ("What verification proves"), the page's "What it does not prove" and the pitch's "Do not say" list.
     - Check: a grep finds every copy, and they agree.
 
-## B. Public-chain evidence (Must 6; the deadline is testnet NU7 activation on 10-06)
+## B. Public-chain evidence (Must 6: scheduled 09-27 → 09-30 in §8; cut-off 10-02 in RSK-3; hard limit 10-06, when NU7 activates on testnet `[R128]`)
 
 - **B1. U: the faucet claim.** PROOF §4 has the fauzec API command, which needs no human check "for now" `[R126]`.
   - **B1.1** U decides and claims. The drip is spendable after 10 confirmations, about 12.5 min.
