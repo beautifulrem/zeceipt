@@ -28,7 +28,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 ### 1.2 Domain and technology research
 #### 1.2.1 Zcash protocol state
 - 1.2.1.1 ✅ R — Ironwood/NU6.3 status, Orchard sealed, migration progress. `[R20]`.
-- 1.2.1.2 ✅ R — NU7 timeline (testnet 2026-10-06, mainnet target 2026-11-05; ZSA deferred). `[R20]`; `06_risk_register.md` RSK-14. Updated by ZIP 259 (2026-09-22): the testnet activation height is set on 10-05 and mainnet's on 10-20, and NU7 adds consensus branch `0x77190AD9` `[R121]`.
+- 1.2.1.2 ✅ R — NU7 timeline (testnet 2026-10-06, mainnet target 2026-11-05; ZSA deferred). `[R20]`; `06_risk_register.md` RSK-14. Updated by ZIP 259 (2026-09-22): the testnet activation height is set on 10-05 and mainnet's on 10-20, and NU7 adds consensus branch `0x77190AD9` `[R121]`. The activation dates stand: testnet 2026-10-06, mainnet 2026-11-05 (the forum's "NU7 Timeline", 2026-09-17, and Zebra 6.4.0's notes) `[R128]`.
 - 1.2.1.3 ✅ R — ZIP 311/303/304/310/316/321/324 read; ZIP 311 input requirement understood. `[R7]`.
 - 1.2.1.4 ✅ R — Ironwood note-encryption domain and key hierarchy confirmed in crate source. `[R21]`.
 #### 1.2.2 Tooling and wallets

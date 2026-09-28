@@ -274,7 +274,7 @@ $Z verify --testnet --require-signature receipts/<file>.json         # exit 0, w
 # One tampered copy (the first character of the OCK changed, as in §5) must exit 1.
 ```
 
-- **Before NU7 activates on testnet.** ZIP 259's testnet height is to be set on 2026-10-05; this build refuses NU7's branch (slice U1a), so the run uses transactions made before activation `[R121]`.
+- **Before NU7 activates on testnet, on 2026-10-06** (announced; ZIP 259's height is assigned on 10-05). This build refuses NU7's branch (slice U1a), so the run's transactions must be mined before activation; receipts for them keep verifying after it, since the branch is read from each transaction's own header `[R121]` `[R128]`.
 - **Endpoints.** The CLI's only testnet default is `testnet.zec.rocks`; if it is down, `--endpoint https://zaino.testnet.unsafe.zec.rocks:443` answered the same `inspect` (zec.rocks' experimental Zaino, the same operator, so not a default). ChainSafe's testnet endpoint serves gRPC-web only (native gRPC gets HTTP 464): it is the receipt page's fallback, not the CLI's `[R125]` `[R126]`.
 - **The receipt page** fetches a testnet transaction from `zjs.zec.rocks/testnet`, then ChainSafe's (slice RS4); open one link there and record its outcome.
 

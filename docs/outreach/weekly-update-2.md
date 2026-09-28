@@ -35,7 +35,7 @@ Say these only if they are true when recording. Each replaces the 0:44 row, keep
 - **"NU7 transaction"** without saying it is a stand-in. No NU7 transaction exists yet: the second file is the batch's own bytes with the header's branch id changed, and it is not consensus-valid, because its signatures commit to the old branch. The on-screen comment says so, and "test transaction" in the voice-over covers it.
 - **"Ready for NU7" or "supports NU7":** the released build refuses NU7's branch. Support waits for Zcash's crates to release it (U1c, RSK-14).
 - **"on mainnet" or "on testnet"** over the export and pack footage: both are regtest.
-- **"NU7 has been released" or "NU7 is live":** ZIP 259 is a draft, and its activation heights are to be set on 10-05 (testnet) and 10-20 (mainnet) (R121).
+- **"NU7 has been released" or "NU7 is live":** ZIP 259 is a draft; activation is announced for 2026-10-06 on testnet and 2026-11-05 on mainnet (R121, R128). Recorded on 10-05, neither is live.
 - **"Independent nodes"** or **"a second node":** both testnet endpoints reach one operator, zec.rocks, because ChainSafe's is a proxy to it (R125).
 - **"audited":** the security work is a self-review (`docs/SECURITY_REVIEW.md`).
 - **Solana, or exports for accounting software** (not the OpenZcash CSV, which is built): dropped, or planned and not built.
