@@ -242,6 +242,7 @@ const deep = pageView.outcome(good, node({ status: "mined", height: 12 }, 21)).i
 check("receipt page: mined inclusion names the node and counts confirmations", deep.confirmations === 10 && deep.text === "Mined at height 12, 10 confirmations, according to zjs.zec.rocks/mainnet. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender.", deep.text);
 check("receipt page: one confirmation at the tip is singular", /, 1 confirmation, according/.test(pageView.inclusion(node({ status: "mined", height: 12 }, 12)).text));
 const shallow = pageView.inclusion(node({ status: "mined", height: 12 }, 11));
+check("receipt page: while the tip is being asked (undefined), the line says so", /; asking it for its chain tip…$/.test(pageView.inclusion({ kind: "node", chain: { status: "mined", height: 12 }, endpoint: "https://zjs.zec.rocks/mainnet" }).text));
 check("receipt page: no tip, or a tip below the height, leaves the depth unknown", shallow.state === "mined" && shallow.confirmations === null && /the depth is unknown/.test(shallow.text) && /the depth is unknown/.test(pageView.inclusion(node({ status: "mined", height: 12 })).text), shallow.text);
 check("receipt page: mempool is pending, fork is not the main chain, a file is unknown",
   pageView.inclusion(node({ status: "mempool" })).state === "pending" && pageView.inclusion(node({ status: "fork" })).state === "fork" && pageView.inclusion({ kind: "file" }).state === "unknown");

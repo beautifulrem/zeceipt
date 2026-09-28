@@ -8,7 +8,7 @@ import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, i
 // Each node gets 12 s here, not the package's 20 s: two hanging default nodes would otherwise keep a person waiting
 // 40 s before the page says so (review A1b).
 const PAGE_TIMEOUT_MS = 12_000;
-import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, bindingOffer, bindingText } from "./view.js";
+import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText } from "./view.js";
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
@@ -117,15 +117,17 @@ $("fetch").addEventListener("click", async () => {
   try {
     const got = await fetchRawTx(receipt.txid, receipt.network, undefined, { timeoutMs: PAGE_TIMEOUT_MS });
     if (mine !== generation) return;
-    // Depth from the same node (slice A2): its tip, which carries nothing about the transaction. A node without a
-    // usable tip leaves the depth unknown; it never changes the verdict.
-    let tip = null;
+    // The verdict is shown as soon as the transaction is in (slice A2b); the depth follows from the same node's tip
+    // (slice A2), a request that carries nothing about the transaction. Only the inclusion line changes when it
+    // arrives, so an issuer check started meanwhile is kept; a node without a usable tip leaves the depth unknown, and
+    // the verdict never depends on it.
+    const source = { kind: "node", chain: got.chain, endpoint: got.endpoint, tip: got.chain.status === "mined" ? undefined : null };
+    transactionLoaded(got.hex, source, "Transaction fetched.");
     if (got.chain.status === "mined") {
-      $("source-status").textContent = "Transaction fetched; asking the node for its chain tip…";
-      tip = await fetchChainTip(receipt.network, [got.endpoint], { timeoutMs: PAGE_TIMEOUT_MS }).then((t) => t.height, () => null);
-      if (mine !== generation) return;
+      source.tip = await fetchChainTip(receipt.network, [got.endpoint], { timeoutMs: PAGE_TIMEOUT_MS }).then((t) => t.height, () => null);
+      if (mine !== generation || current.source !== source) return;
+      if (!$("parts").hidden) $("inclusion").textContent = inclusion(source).text;
     }
-    transactionLoaded(got.hex, { kind: "node", chain: got.chain, endpoint: got.endpoint, tip }, "Transaction fetched.");
   } catch (e) {
     if (mine !== generation) return;
     const msg = String(e);

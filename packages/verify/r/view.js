@@ -53,7 +53,7 @@ export function fetchPlan(network, endpoints) {
 
 /**
  * Part 2 of the outcome. `source` is {kind: "node", chain, endpoint, tip} or {kind: "file"}; `tip` is the same node's
- * chain tip, or null when it was not given. Depth is counted as Zcash counts it (confirmations = tip - height + 1) and
+ * chain tip, null when it was not given, or undefined while the page is still asking (the verdict is shown first). Depth is counted as Zcash counts it (confirmations = tip - height + 1) and
  * read against ZIP 315's policy for funds from others (slice A2; R132).
  */
 export function inclusion(source) {
@@ -64,7 +64,10 @@ export function inclusion(source) {
   switch (source.chain.status) {
     case "mined":
     {
-      const depth = confirmations(source.chain.height, source.tip ?? null);
+      if (source.tip === undefined) {
+        return { state: "mined", confirmations: null, text: `Mined at height ${source.chain.height}, according to ${node}; asking it for its chain tip…` };
+      }
+      const depth = confirmations(source.chain.height, source.tip);
       if (depth === null) {
         return { state: "mined", confirmations: null, text: `Mined at height ${source.chain.height}, according to ${node}; the depth is unknown (the node gave no usable chain tip). Check it on an explorer or your own node.` };
       }
