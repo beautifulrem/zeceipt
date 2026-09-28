@@ -514,10 +514,8 @@ async fn run() -> anyhow::Result<ExitCode> {
                             "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
                     });
                     // Depth (slice A3; R132): only when a node was asked; null when it gave no usable tip.
-                    if let Some(tip) = tip {
-                        out["confirmations"] = json!(height
-                            .zip(tip)
-                            .and_then(|(h, t)| zeceipt_lwd::confirmations(h, t)));
+                    if let Some(depth) = depth_field(height, tip) {
+                        out["confirmations"] = depth;
                     }
                     if let Some(b) = issuer_binding {
                         out["issuer_binding"] = serde_json::to_value(b)?;
@@ -675,36 +673,18 @@ async fn connect(net: &NetArgs) -> anyhow::Result<Client> {
 }
 
 /// Returns (raw tx bytes, mined height if known).
-/// As `load_tx`, and for a transaction a node reports mined, the same node's tip (slice A3): `None` when loaded from a
-/// file, `Some(None)` when the node gave no usable tip or the transaction is not mined. The tip never changes a
-/// verdict.
-async fn load_tx_with_tip(
-    net: &NetArgs,
-    src: &TxSource,
-) -> anyhow::Result<(Vec<u8>, Option<u64>, Option<Option<u64>>)> {
-    if src.raw_tx_file.is_some() {
-        let (bytes, height) = load_tx(net, src).await?;
-        return Ok((bytes, height, None));
-    }
-    let txid = src
-        .txid
-        .as_ref()
-        .ok_or_else(|| anyhow!("--txid or --raw-tx-file is required"))?;
-    let mut client = connect(net).await?;
-    let raw = client.get_transaction(txid.trim()).await?;
-    let tip = match raw.height {
-        Some(_) => client.latest_height().await.ok(),
-        None => None,
-    };
-    Ok((raw.bytes, raw.height, Some(tip)))
+/// The transaction, from a file (`Loaded::File`) or from a node, keeping the client the node answered on so that a
+/// caller can ask it more (slice A3b: one node path for `load_tx` and `load_tx_with_tip`).
+enum Loaded {
+    File(Vec<u8>),
+    Node(Box<Client>, zeceipt_lwd::RawTx),
 }
 
-async fn load_tx(net: &NetArgs, src: &TxSource) -> anyhow::Result<(Vec<u8>, Option<u64>)> {
+async fn load(net: &NetArgs, src: &TxSource) -> anyhow::Result<Loaded> {
     if let Some(p) = &src.raw_tx_file {
         let s = std::fs::read_to_string(p).with_context(|| format!("read {}", p.display()))?;
-        return Ok((
+        return Ok(Loaded::File(
             hex::decode(s.trim()).context("raw tx file must be hex")?,
-            None,
         ));
     }
     let txid = src
@@ -713,7 +693,44 @@ async fn load_tx(net: &NetArgs, src: &TxSource) -> anyhow::Result<(Vec<u8>, Opti
         .ok_or_else(|| anyhow!("--txid or --raw-tx-file is required"))?;
     let mut client = connect(net).await?;
     let raw = client.get_transaction(txid.trim()).await?;
-    Ok((raw.bytes, raw.height))
+    Ok(Loaded::Node(Box::new(client), raw))
+}
+
+/// As `load_tx`, and for a transaction a node reports mined, the same node's tip (slice A3): `None` when loaded from a
+/// file, `Some(None)` when the node gave no usable tip or the transaction is not mined. The tip never changes a
+/// verdict.
+async fn load_tx_with_tip(
+    net: &NetArgs,
+    src: &TxSource,
+) -> anyhow::Result<(Vec<u8>, Option<u64>, Option<Option<u64>>)> {
+    Ok(match load(net, src).await? {
+        Loaded::File(bytes) => (bytes, None, None),
+        Loaded::Node(mut client, raw) => {
+            let tip = match raw.height {
+                Some(_) => client.latest_height().await.ok(),
+                None => None,
+            };
+            (raw.bytes, raw.height, Some(tip))
+        }
+    })
+}
+
+/// The transaction and its mined height; never asks for the tip (`issue`, `inspect` and `verify-pack` do not need it).
+async fn load_tx(net: &NetArgs, src: &TxSource) -> anyhow::Result<(Vec<u8>, Option<u64>)> {
+    Ok(match load(net, src).await? {
+        Loaded::File(bytes) => (bytes, None),
+        Loaded::Node(_, raw) => (raw.bytes, raw.height),
+    })
+}
+
+/// `verify`'s `confirmations` field (slice A3b): absent when no node was asked (`tip` None), null when a node was
+/// asked but the transaction is not mined or the tip is unusable, else `tip - height + 1`.
+fn depth_field(height: Option<u64>, tip: Option<Option<u64>>) -> Option<serde_json::Value> {
+    tip.map(|tip| {
+        json!(height
+            .zip(tip)
+            .and_then(|(h, t)| zeceipt_lwd::confirmations(h, t)))
+    })
 }
 
 fn is_pending(e: &anyhow::Error) -> bool {
@@ -781,4 +798,37 @@ fn read_secret(path: &PathBuf) -> anyhow::Result<SigningKey> {
         .try_into()
         .map_err(|_| anyhow!("key file must contain 32 bytes"))?;
     Ok(SigningKey::from_bytes(&arr))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::depth_field;
+    use serde_json::json;
+
+    #[test]
+    fn depth_field_is_absent_null_or_a_count() {
+        assert_eq!(depth_field(None, None), None, "a file: no field");
+        assert_eq!(
+            depth_field(Some(10), None),
+            None,
+            "a file never has a depth"
+        );
+        assert_eq!(
+            depth_field(None, Some(None)),
+            Some(json!(null)),
+            "a node, not mined"
+        );
+        assert_eq!(
+            depth_field(Some(10), Some(None)),
+            Some(json!(null)),
+            "a node without a usable tip"
+        );
+        assert_eq!(
+            depth_field(Some(10), Some(Some(9))),
+            Some(json!(null)),
+            "a tip below the height"
+        );
+        assert_eq!(depth_field(Some(10), Some(Some(10))), Some(json!(1)));
+        assert_eq!(depth_field(Some(10), Some(Some(19))), Some(json!(10)));
+    }
 }
