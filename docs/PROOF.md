@@ -248,16 +248,32 @@ A testnet light wallet was created with `zcash-devtool` (built from source at `r
 - Receiving address (testnet UA): `utest1jlj43jsyqkek9nwnt80p50dl4tr4helrvlvh7fwykpalnn0y7xz2z4f9xhemvgrn5rnacu8h7r70tneqf78d20yzlm2rf7580fu6shql0s7520p99gu9sdq4y5rcqd4kf6rwjwu698pm4vq6g7k5mxyqcy8p6uq7xa8de3446al7chh5x5hpf0tare89x2898kvlzxfzef49vwyzhjt`
 - UFVK: `uviewtest1llrzcdcc6v26y5rppkmff3mcu2sd0lyfkalt82qlsr5fxwc9842t8v3lyz02lnhtkuufze5x8t33gj3e9j6dlv4xk86vjp3c4ar9dxd2mj2vp2zp0g0ua2cwhzhju8eaqxcdvh963dun3d7uujpvg97w509nhm8ywlaudyf0637arudw5625usjq4gnw9rf7a29e7624m4dldsyj2tp2zjp6fnwfz7nt03syt8ns24k57lz7qsd8slv3vd8t2dwcqnxxewyccea50zmdqkm7jjc48uf3k4szg4uftlwtgvf3zu8tfgxmpzg99akzk3mtah77775vqkhv0z8vr3axphkflex8gvrlagjllx9xayp7yyyv5ajgyt3qfvkrx8qahz3urepkd4dk6eaau5mtq75m4t445808n47fmnuwcgf4ra64j66c325ax89z366um62k7jw6wtefux084ndd64rzdgm7e3mxuhchcmurl37nrxz9e55g24wh`
 
-Remaining human step: paste the address into `https://zcashfaucet.jinolabs.xyz` (browser proof-of-work gate) or `https://fauzec.com` (Turnstile) to receive ~0.1 TAZ. Then:
+**Rehearsed without funds on 2026-09-28 (slice RB1, `[R126]`), up to the funding step.** The wallet synced from its birthday to the tip (4,407,531) in 42 s against `testnet.zec.rocks`, with a balance of 0; `propose` for 0.01 TAZ stopped only at "Insufficient balance (have 0, need 1010000 including fee)" (the ZIP 317 fee, 10,000 zat); and `zeceipt inspect --testnet` read a live v6 transaction with two Ironwood outputs (`6e01882b…dbf5`, height 4,407,227) from the CLI's default endpoint.
+
+Remaining human step (3.4.1.4): claim TAZ into the receiving address above. Both faucets were up on 09-28, and both gate a claim behind a human check, which stays the user's: `https://fauzec.com` (1 TAZ per address every 24 hours, to Unified or Sapling addresses; Cloudflare Turnstile) or `https://zcashfaucet.jinolabs.xyz` (0.1 TAZ per address every 24 hours; a browser puzzle). One fauzec drip pays for well over three receipts.
+
+Then, from the workspace root (paths only: the age identity and the issuer key are never printed or copied):
 
 ```bash
 D=raw/tools/zcash-devtool/target/release/zcash-devtool; W=raw/tools/testnet-wallet
-$D wallet -w $W sync
-$D wallet -w $W send --address <second utest address> --value 1000000 --memo "INV-T-001"   # 0.01 TAZ
-zeceipt issue --testnet --ufvk uviewtest1… --txid <txid> --label "INV-T-001" --key-file issuer.key --out-dir receipts
-zeceipt verify --testnet receipts/<file>.json --require-signature
+$D wallet -w $W sync && $D wallet -w $W balance                       # the claim shows as spendable
+# A recipient that is not the issuer: a payment to the issuer's own address is change, which `issue` skips.
+$D wallet -w $W generate-account -i $W/identity.txt --name recipient   # then list-addresses for its UA
+# With two accounts, name the paying one (the issuer, account 0 above) in both commands:
+$D wallet -w $W propose --address <recipient utest…> --value 1000000 c1637de7-cd41-4567-9a61-7383aea12f90   # dry run: nothing signed
+$D wallet -w $W send -i $W/identity.txt --address <recipient utest…> --value 1000000 --memo "INV-T-001" c1637de7-cd41-4567-9a61-7383aea12f90
+# Repeat the send with INV-T-002 and INV-T-003 for three receipts (the solo target, `11_plan.md` §4).
+# The UFVK above, saved to a file outside this repository, keeps it off the process list:
+zeceipt issue --testnet --txid <txid> --ufvk-file raw/tools/testnet-wallet/ufvk.txt --key-file <issuer.key path> --label "INV-T-001" --host <the receipt page's host> --out-dir receipts
+zeceipt verify --testnet --require-signature receipts/<file>.json         # exit 0, with the block height
+# One tampered copy (the first character of the OCK changed, as in §5) must exit 1.
 ```
-Record txid, receipt URL and outputs here as a **testnet** entry.
+
+- **Before NU7 activates on testnet.** ZIP 259's testnet height is to be set on 2026-10-05; this build refuses NU7's branch (slice U1a), so the run uses transactions made before activation `[R121]`.
+- **Endpoints.** The CLI's only testnet default is `testnet.zec.rocks`; if it is down, `--endpoint https://zaino.testnet.unsafe.zec.rocks:443` answered the same `inspect` (zec.rocks' experimental Zaino, the same operator, so not a default). ChainSafe's testnet endpoint serves gRPC-web only (native gRPC gets HTTP 464): it is the receipt page's fallback, not the CLI's `[R125]` `[R126]`.
+- **The receipt page** fetches a testnet transaction from `zjs.zec.rocks/testnet`, then ChainSafe's (slice RS4); open one link there and record its outcome.
+
+Record the txids, the receipt URLs' hosts, the `verify` outputs (never an OCK) and the tampered copy's exit code in §6 as a **testnet** entry.
 
 ## 5. regtest — consensus-valid Ironwood transaction, UFVK issuance, gRPC verification (2026-09-22, verbatim transcript)
 
