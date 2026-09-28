@@ -33,6 +33,7 @@ The first release. This section becomes `0.1.0` when the tag is cut.
   - `zeceipt-wasm` is packaged as `@zeceipt/verify` in `packages/verify`, with the built WASM committed.
   - `fetchChainTip` and `confirmations` in `@zeceipt/verify`: the chain tip over gRPC-web, and a transaction's depth (`tip − height + 1`).
   - Each gRPC-web endpoint gets 20 s (`timeoutMs`) before the next is tried, so a hanging node cannot block failover.
+  - What a receipt does not prove now includes the output being unspent, or spendable by whoever presents the receipt: in `does_not_prove` (WASM and CLI), spec §4 and both pages.
   - `zeceipt verify` reports `confirmations` beside `height` when it asked a node (null when the node gives no usable tip; no field for a transaction from a file).
   - The receipt page shows how many confirmations a fetched, mined transaction has, from the same node's chain tip, next to ZIP 315's recommendation of 10 for funds from an untrusted sender; without a usable tip it says the depth is unknown and the verdict is unchanged.
   - The receipt page at `/r/` verifies a receipt link in the browser, against the transaction fetched from a public node when you ask, or loaded from a file, and says where the transaction is on chain.

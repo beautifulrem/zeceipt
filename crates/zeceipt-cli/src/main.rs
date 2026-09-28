@@ -511,7 +511,7 @@ async fn run() -> anyhow::Result<ExitCode> {
                             "issuer_pubkey": v.issuer_pubkey,
                             "challenge_checked": v.challenge_checked,
                             "proves": "this transaction pays the shown value to the shown recipient with the shown memo; whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it; a signature attributes the receipt to a key, not the OCK to the sender",
-                            "does_not_prove": "who is presenting this receipt; anything about other outputs, transactions or balances",
+                            "does_not_prove": "who is presenting this receipt; that the output is still unspent, or spendable by whoever presents the receipt; anything about other outputs, transactions or balances",
                     });
                     // Depth (slice A3; R132): only when a node was asked; null when it gave no usable tip.
                     if let Some(depth) = depth_field(height, tip) {

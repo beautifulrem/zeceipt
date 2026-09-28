@@ -35,6 +35,7 @@ Say these only when they are true at the time of recording:
 
 ## Do not say
 
+- **"the money is still there"** or **"the recipient can spend it"**: a receipt shows a payment was made, not that the output is unspent (Monero's payment proofs carry the same warning, `docs/product/12_next_steps.md`).
 - **"on mainnet" or "on testnet"** over this footage: every shot is regtest.
 - **"automatically"** about these receipts: the footage shows the Issue receipts button.
 - **"from the chain"** over the receipt page: it shows "Chain inclusion: Unknown", because the transaction was loaded from a file.

@@ -72,7 +72,8 @@
 <ul>
   <li>Who is showing you the receipt, unless it is bound to a challenge you sent.</li>
   <li>Which organisation holds the issuer key, unless the key id names a domain and that domain lists the key when you check it; even then, it vouches for the key now, not for when the receipt was made.</li>
-  <li>How many confirmations the transaction has: check the depth on an explorer or your own node.</li>
+  <li>That the output is still unspent, or spendable by whoever shows you the receipt: it shows a payment was made, not what happened to it since.</li>
+  <li>How deep the transaction is when it was loaded from a file. A node's count of confirmations is that node's view; for funds that matter, check your own node.</li>
   <li>Anything about other outputs, other transactions or balances.</li>
 </ul>
 <p class="muted">Privacy: this page makes a request outside this site only when you ask. The transaction lookup tells the node which transaction you looked up. The issuer check tells the named domain that one of its receipts is being checked. The page stores nothing.</p>

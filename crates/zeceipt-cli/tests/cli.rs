@@ -487,6 +487,14 @@ fn regtest_receipt_verifies_offline_and_tamper_fails() {
     assert_eq!(v["valid"], true);
     // Depth needs a node (slice A3): a transaction from a file has no height and no confirmations field.
     assert!(v.get("confirmations").is_none(), "{o}");
+    // What a receipt does not prove includes the output being unspent (slice A4).
+    assert!(
+        v["does_not_prove"]
+            .as_str()
+            .unwrap()
+            .contains("that the output is still unspent"),
+        "{o}"
+    );
     assert_eq!(v["pool"], "ironwood");
     assert_eq!(v["output_index"], 1);
     assert_eq!(v["value_zat"], 250_000_000);
