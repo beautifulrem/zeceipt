@@ -250,22 +250,27 @@ A testnet light wallet was created with `zcash-devtool` (built from source at `r
 
 **Rehearsed without funds on 2026-09-28 (slice RB1, `[R126]`), up to the funding step.** The wallet synced from its birthday to the tip (4,407,531) in 42 s against `testnet.zec.rocks`, with a balance of 0; `propose` for 0.01 TAZ stopped only at "Insufficient balance (have 0, need 1010000 including fee)" (the ZIP 317 fee, 10,000 zat); and `zeceipt inspect --testnet` read a live v6 transaction with two Ironwood outputs (`6e01882b…dbf5`, height 4,407,227) from the CLI's default endpoint.
 
-Remaining human step (3.4.1.4): claim TAZ into the receiving address above. Both faucets were up on 09-28, and both gate a claim behind a human check, which stays the user's: `https://fauzec.com` (1 TAZ per address every 24 hours, to Unified or Sapling addresses; Cloudflare Turnstile) or `https://zcashfaucet.jinolabs.xyz` (0.1 TAZ per address every 24 hours; a browser puzzle). One fauzec drip pays for well over three receipts.
+Remaining step (3.4.1.4), the user's call: claim TAZ into the receiving address above. `https://fauzec.com` gives 1 TAZ per address every 24 hours, to Unified or Sapling addresses; its web form uses Cloudflare Turnstile, but its documented API omits the human check "for now while we settle the long-term automation policy" (its FAQ, read 2026-09-28), so one command claims (below). `https://zcashfaucet.jinolabs.xyz` gives 0.1 TAZ per 24 hours behind a browser puzzle (its page was served on 09-28; its status panel fills in client-side). One fauzec drip pays for well over three receipts.
 
 Then, from the workspace root (paths only: the age identity and the issuer key are never printed or copied):
 
 ```bash
-D=raw/tools/zcash-devtool/target/release/zcash-devtool; W=raw/tools/testnet-wallet
-$D wallet -w $W sync && $D wallet -w $W balance                       # the claim shows as spendable
+D=raw/tools/zcash-devtool/target/release/zcash-devtool; W=raw/tools/testnet-wallet; Z=zeceipt/target/release/zeceipt
+# The claim (fauzec's API; poll the returned request_id until it is terminal):
+curl -sS https://fauzec.com/api/v1/claim -H 'content-type: application/json' --data '{"network":"testnet","address":"<the receiving address above>"}'
+curl -sS https://fauzec.com/api/v1/status/testnet/<request_id>
+$D wallet -w $W sync && $D wallet -w $W balance                       # spendable after 10 confirmations (about 12.5 min)
 # A recipient that is not the issuer: a payment to the issuer's own address is change, which `issue` skips.
 $D wallet -w $W generate-account -i $W/identity.txt --name recipient   # then list-addresses for its UA
 # With two accounts, name the paying one (the issuer, account 0 above) in both commands:
 $D wallet -w $W propose --address <recipient utest…> --value 1000000 c1637de7-cd41-4567-9a61-7383aea12f90   # dry run: nothing signed
 $D wallet -w $W send -i $W/identity.txt --address <recipient utest…> --value 1000000 --memo "INV-T-001" c1637de7-cd41-4567-9a61-7383aea12f90
-# Repeat the send with INV-T-002 and INV-T-003 for three receipts (the solo target, `11_plan.md` §4).
+# Repeat the send with INV-T-002 and INV-T-003 for three receipts (the solo target, `11_plan.md` §4): each waits
+# for the previous send's change to reach 3 confirmations (devtool's default policy: 3 trusted, 10 untrusted).
 # The UFVK above, saved to a file outside this repository, keeps it off the process list:
-zeceipt issue --testnet --txid <txid> --ufvk-file raw/tools/testnet-wallet/ufvk.txt --key-file <issuer.key path> --label "INV-T-001" --host <the receipt page's host> --out-dir receipts
-zeceipt verify --testnet --require-signature receipts/<file>.json         # exit 0, with the block height
+$Z keygen --out <issuer.key path>                                     # only if there is no testnet issuer key yet
+$Z issue --testnet --txid <txid> --ufvk-file raw/tools/testnet-wallet/ufvk.txt --key-file <issuer.key path> --label "INV-T-001" --host <the receipt page's host> --out-dir receipts
+$Z verify --testnet --require-signature receipts/<file>.json         # exit 0, with the block height
 # One tampered copy (the first character of the OCK changed, as in §5) must exit 1.
 ```
 
