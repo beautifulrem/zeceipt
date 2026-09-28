@@ -31,6 +31,10 @@ const FIXTURES: &[(&str, &str)] = &[
     ("mainnet-368ff5b2", include_str!("../../../fixtures/368ff5b2a985d39594fd69281bfad0531a7f495d4cb23f443e73d5e1ca93d047.hex")),
     ("mainnet-5f1c6bfa", include_str!("../../../fixtures/5f1c6bfa4e97c9aa5e918b6912dc70cb7a46aee01d91599bdb8e657306650e0a.hex")),
     ("mainnet-5a60fe6a", include_str!("../../../fixtures/5a60fe6a8188e5216dab8ae8c9a0969debf4ef458be7d5385ae21c51bc9763e6.hex")),
+    (
+        "synthetic-above-max-money",
+        include_str!("../../../fixtures/synthetic-above-max-money.hex"),
+    ),
 ];
 const UFVK: &str = include_str!("../../../fixtures/regtest-issuer-ufvk.txt");
 const OVK: &str = include_str!("../../../fixtures/synthetic-ovk.hex");
