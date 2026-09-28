@@ -111,7 +111,7 @@ All cryptography comes from `orchard 0.15.5`, `sapling-crypto 0.7`, `zcash_note_
 ## What a receipt proves / does not prove
 
 Proves: the named transaction pays the shown value to the shown recipient with the shown memo, and whoever produced the receipt knew that output's OCK (deriving it takes the sender's outgoing viewing key, but anyone holding an earlier receipt for that output knows it too). If signed: the holder of the issuer key produced this envelope.
-Does not prove: who is presenting it (use a challenge for interactive proofs), anything about other outputs/transactions/balances, or spend authority.
+Does not prove: who is presenting it (use a challenge for interactive proofs), that the output is still unspent or that whoever presents it can spend it (a receipt carries no spending ability), anything about other outputs/transactions/balances, or spend authority.
 
 ## Integrations
 
@@ -146,7 +146,7 @@ Pending: receipts on a public chain (the testnet run is prepared and waits on fa
   - wasm-pack 0.15.0 (with its wasm-opt, version 117);
   - wasm-bindgen 0.2.128 (`Cargo.lock`);
   - Homebrew clang 23.1.1.
-- The committed WASM's sha256 is `b6297176cd7c2927a443db9b53229740e549c21bade57f783f5ccc20b1ca178e` (rebuilt in slice A4).
+- The committed WASM's sha256 is `9bf1366cc6d094c516c81228fdfe5ca6c096efc745bc1a7bb271654055a6f8c5` (rebuilt in slice A4).
 - To check it, run `scripts/build_wasm.sh --check`. It builds into a temporary directory and compares the result with the committed package:
   - the wasm-bindgen outputs (the JS glue, the `.d.ts` files, `package.json`) must be identical;
   - the `.wasm` is reported identical or different (`--require-identical-wasm` makes a difference fail).

@@ -51,8 +51,9 @@ check("value is 2.5 ZEC", ok.value_zat === 250000000, ok.value_zat);
 check("recipient is a mainnet UA", typeof ok.recipient === "string" && ok.recipient.startsWith("u1"), ok.recipient);
 check("memo text", ok.memo && ok.memo.text === "INV-2026-0142", JSON.stringify(ok.memo));
 check("challenge bound", ok.challenge_checked === true);
-check("does_not_prove names the output being unspent, as spec §4 does (slice A4; R132)", /that the output is still unspent, or spendable by whoever presents the receipt/.test(ok.does_not_prove) && /^who is presenting this receipt;/.test(ok.does_not_prove), ok.does_not_prove);
-check("receipt page: its 'does not prove' list names the unspent point, and no longer sends depth to an explorer", /That the output is still unspent/.test(fs.readFileSync(path.join(here, "../r/index.html"), "utf8")) && !/How many confirmations the transaction has/.test(fs.readFileSync(path.join(here, "../r/index.html"), "utf8")));
+check("does_not_prove names the output being unspent, as spec §4 does (slice A4; R132)", /that the output is still unspent, or that whoever presents the receipt can spend it/.test(ok.does_not_prove) && /^who is presenting this receipt;/.test(ok.does_not_prove), ok.does_not_prove);
+check("the package README quotes does_not_prove word for word (review A4)", fs.readFileSync(path.join(here, "../README.md"), "utf8").includes(`**Does not prove:** ${ok.does_not_prove};`), ok.does_not_prove);
+check("receipt page: its 'does not prove' list names the unspent point, and no longer sends depth to an explorer", /That the output is still unspent, or that whoever shows you the receipt can spend it/.test(fs.readFileSync(path.join(here, "../r/index.html"), "utf8")) && !/How many confirmations the transaction has/.test(fs.readFileSync(path.join(here, "../r/index.html"), "utf8")));
 check("proves says what spec §4 says: whoever produced the receipt knew the OCK, never 'the issuer' (slice D5)",
   /whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it/.test(ok.proves) && !/the issuer knew/.test(ok.proves), ok.proves);
 

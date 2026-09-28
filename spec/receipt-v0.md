@@ -72,7 +72,7 @@ For **unsigned** receipts every field, including `network`, is caller-controlled
 
 ### What it does not prove
 - That the person **showing** the receipt is the sender or the recipient (use a challenge, §6, for interactive proofs).
-- That the output is **still unspent**, or spendable by whoever presents the receipt: a receipt shows that a payment was made, not what happened to the note since. Monero's payment proofs carry the same warning ("do not guarantee that funds associated with a proof are spendable").
+- That the output is **still unspent**, or that whoever presents the receipt can spend it (a receipt carries no spending ability): a receipt shows that a payment was made, not what happened to the note since. Monero's payment proofs carry the same warning ("do not guarantee that funds associated with a proof are spendable").
 - Anything about other outputs of the same transaction, other transactions, or balances.
 - Spend authority (full ZIP 311). This is a roadmap item.
 
