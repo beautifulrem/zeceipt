@@ -11,8 +11,10 @@ const TONE: Record<Tone, string> = {
   danger: "tone-danger",
 };
 
-export function StatusBadge({ view }: { view: Pick<StateView, "label" | "tone"> }) {
-  return <span className={`badge ${TONE[view.tone]}`}>{view.label}</span>;
+export function StatusBadge({ view, wrap = false }: { view: Pick<StateView, "label" | "tone">; wrap?: boolean }) {
+  // `wrap`: in a narrow cell the label may take two lines rather than widen the table (CI's Linux fonts measured
+  // "Sent, awaiting receipts" wide enough to make the phone batch list scroll).
+  return <span className={`badge ${TONE[view.tone]}${wrap ? " whitespace-normal" : ""}`}>{view.label}</span>;
 }
 
 const MARK = { done: "Done", current: "Current", blocked: "Needs attention", ahead: "Not yet" } as const;

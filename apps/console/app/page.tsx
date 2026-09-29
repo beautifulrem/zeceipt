@@ -73,7 +73,7 @@ export default async function Home() {
                     </Link>
                     {/* On a phone the stage sits under the title (review F round 3). */}
                     <div className="mt-1.5 sm:hidden">
-                      <StatusBadge view={stages.get(b.id)!} />
+                      <StatusBadge view={stages.get(b.id)!} wrap />
                     </div>
                   </td>
                   <td className="hidden sm:table-cell">
