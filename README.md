@@ -26,7 +26,6 @@
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
   <img alt="524 tests" src="https://img.shields.io/badge/tests-524-2ea44f?style=flat-square">
-  <img alt="Crypto World's Fair 2026, Zcash track" src="https://img.shields.io/badge/Crypto%20World's%20Fair%202026-Zcash%20track-1d2230?style=flat-square">
 </p>
 
 ---
@@ -36,7 +35,7 @@
 
 <p align="center">
   <img src="docs/assets/receipt-page.png" alt="The receipt page showing VALID: the payment's recipient, value and memo, its chain inclusion, and the issuer's signature" width="720"><br>
-  <sub>The receipt page verifying a receipt in the browser (WebAssembly). This is the committed synthetic fixture, with the node's answer simulated as in the page's test suite (<code>packages/verify/test/shots/receipt-page.mjs</code>).</sub>
+  <sub>The receipt page verifying a receipt in the browser (WebAssembly). The transaction is the committed synthetic fixture, which is on no chain: the network, height and confirmations shown are simulated, as in the page's test suite (<code>packages/verify/test/shots/receipt-page.mjs</code>).</sub>
 </p>
 
 ## Why
@@ -77,9 +76,11 @@ A receipt is a small signed JSON envelope, `zeceipt-v0` ([`spec/receipt-v0.md`](
 | A valid receipt proves | It does not prove |
 |---|---|
 | The named transaction pays the shown value to the shown recipient, with the shown memo | Who is presenting it (bind it to a challenge for interactive proofs) |
-| Whoever made it knew that output's OCK | That the output is still unspent, or that whoever presents the receipt can spend it |
+| Whoever made it knew that output's OCK | That the output is still unspent, or that whoever presents the receipt can spend it (a receipt carries no spending ability) |
 | If signed: the holder of the issuer key made this envelope and wrote its label | Anything about other outputs, transactions or balances |
-| The chain depth, as reported by the node it asked | Spend authority: it is not a full ZIP 311 disclosure (see below) |
+| | Spend authority: it is not a full ZIP 311 disclosure (see below) |
+
+Verification also reports the transaction's depth in confirmations, as the node it asked sees it.
 
 > [!IMPORTANT]
 > Zeceipt is **not** a full ZIP 311 payment disclosure. ZIP 311 also requires a spend-authority signature, which needs the spending key, and zeceipt never touches spending keys. The issuer is attested by an application-layer ed25519 signature instead. It follows that anyone who holds the sender's viewing key, or an earlier receipt for the same output, can also produce a receipt for that output.
@@ -91,7 +92,7 @@ A receipt is a small signed JSON envelope, `zeceipt-v0` ([`spec/receipt-v0.md`](
 | [`crates/zeceipt-core`](crates/zeceipt-core) | Parses v4, v5 and v6 transactions. Derives the OCK, recovers individual outputs for Ironwood, Orchard and Sapling, and issues and verifies receipts |
 | [`crates/zeceipt-types`](crates/zeceipt-types) | The `zeceipt-v0` envelope, canonical signing bytes, ed25519 and the URL form (no Zcash dependencies) |
 | [`crates/zeceipt-lwd`](crates/zeceipt-lwd) | A lightwalletd/Zaino gRPC client (`GetTransaction`, `GetLatestBlock`, block-range scan) |
-| [`crates/zeceipt-cli`](crates/zeceipt-cli) | The `zeceipt` binary: `inspect`, `keygen`, `issue`, `verify`, `pack`, `verify-pack`, `well-known` |
+| [`crates/zeceipt-cli`](crates/zeceipt-cli) | The `zeceipt` binary: `inspect`, `find-ironwood`, `keygen`, `issue`, `verify`, `pack`, `verify-pack`, `well-known` |
 | [`packages/verify`](packages/verify) | `@zeceipt/verify`: the WASM verifier for the browser and Node, the static receipt page (`r/`) and a paste-a-receipt demo |
 | [`apps/console`](apps/console) | A self-hosted payout console (Next.js, SQLite, loopback only). It pays a batch in one shielded transaction and issues a receipt for each line |
 
@@ -99,7 +100,7 @@ All the cryptography comes from the Zcash crates (`orchard 0.15.5`, `sapling-cry
 
 ## Quick start
 
-You need Rust (with `protoc`), Node 24+ and Python 3. Issue and verify a receipt **offline**, from the committed synthetic fixture:
+You need Rust (`protoc` is optional), Node 24+ and Python 3. Issue and verify a receipt **offline**, from the committed synthetic fixture:
 
 ```bash
 cargo build --release && Z=target/release/zeceipt && T=$(mktemp -d)
@@ -215,7 +216,7 @@ node packages/verify/test/verify.mjs                       # the committed WASM 
 | [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) | Other Zcash receipt and disclosure work, and how this differs |
 | [`docs/product/`](docs/product) | Requirements, the plan and what a one-person team dropped and why (`11_plan.md` §1.1), and the research log behind each decision |
 
-**Built during the hackathon.** The repository started on 2026-09-21 PT. The first commit, `0667b7d`, is timestamped +08:00, so `git log` shows it as 2026-09-22 00:07. No product code predates the event. Third-party code is limited to published crates and npm packages, pinned by the lockfiles ([`docs/PRE_EVENT_STATE.md`](docs/PRE_EVENT_STATE.md), [`NOTICE`](NOTICE)).
+**Built during the hackathon.** The repository started on 2026-09-21 PT. The first commit, `0667b7d`, is timestamped +08:00, so `git log` shows it as 2026-09-22 00:07. No product code predates the event. Third-party material is published crates and npm packages (pinned by the lockfiles), test vectors from `zcash-test-vectors`, and one sample CSV from zecpay, each attributed in [`NOTICE`](NOTICE) ([`docs/PRE_EVENT_STATE.md`](docs/PRE_EVENT_STATE.md), [`NOTICE`](NOTICE)).
 
 **Team.** Designed and built by one developer, [@beautifulrem](https://github.com/beautifulrem).
 

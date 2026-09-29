@@ -15,7 +15,7 @@ Run it with one command: `scripts/security_review.sh`. It needs `cargo-audit` (`
 | Rust dependencies (`Cargo.lock`, 304 crates) | cargo-audit 0.22.2; RustSec advisory database, 1,269 advisories, updated 2026-09-25 | 0 vulnerabilities; 1 warning: RUSTSEC-2023-0089, `atomic-polyfill` 1.0.3 unmaintained | **Accepted, never compiled.** It enters `Cargo.lock` only through reddsa 0.5.2's optional `frost` feature (frost-rerandomized → frost-core → postcard → heapless 0.7 → atomic-polyfill), which no workspace crate enables. `cargo tree --all-features --target all -e all` prints none of them. Ignored in `.cargo/audit.toml`; re-check when reddsa or the zcash crates move. |
 | npm, `apps/console` (full tree) | npm audit; GitHub Advisory Database | Before: 4 moderate, all GHSA-67mh-4wv8-2f99 (esbuild ≤ 0.24.2: "enables any website to send any requests to the development server and read the response"), through drizzle-kit 0.31.11 → the deprecated `@esbuild-kit/esm-loader` → esbuild 0.18.20. The production tree (`--omit=dev`) had 0. | **Fixed.** `overrides` pins `@esbuild-kit/core-utils`'s esbuild to `^0.25.12`, deduped with drizzle-kit's own (the override targets the binary-bearing package, not its wrapper). Upstream: drizzle-orm issue #5145 is fixed only in the 1.0 beta, which changes the migrations folder format this repository's checkers rely on. After: `npm audit` 0; a fresh `npm ci` has no esbuild 0.18; `drizzle-kit generate` reports "No schema changes". |
 | npm, `packages/verify` | npm audit | 0 | — |
-| Secrets, git history (234 commits) | gitleaks 8.30.1, default rules | 3 `generic-api-key` hits | **False positives.** A test's HKDF call over a dummy key and a fixed salt (`apps/console/test/seal.test.ts`), and the doc checker's tuple of product file names (`scripts/check_product_docs.py`, twice). The historic findings are in `.gitleaksignore` by fingerprint (commit-bound, so stable); the current lines carry `gitleaks:allow` (the checker's tuple became one `POLICY_DOCS` constant). |
+| Secrets, git history (234 commits, counted before the 2026-09-29 history rewrite) | gitleaks 8.30.1, default rules | 3 `generic-api-key` hits | **False positives.** A test's HKDF call over a dummy key and a fixed salt (`apps/console/test/seal.test.ts`), and the doc checker's tuple of product file names (`scripts/check_product_docs.py`, twice). The historic findings are in `.gitleaksignore` by fingerprint (commit-bound, so stable); the current lines carry `gitleaks:allow` (the checker's tuple became one `POLICY_DOCS` constant). |
 | Secrets, working tree (untracked files included) | gitleaks 8.30.1 (`.gitleaks.toml`: the default rules, with `node_modules/`, `target/` and `.next/` left out; none of them is tracked. Round 1 also left out `packages/verify/pkg/`, which **is** committed, so a secret there went unseen by both scans; review J1 round 1 found it, and it is scanned since, clean) | Same false positives, now allowed | As above. |
 | Exclusions cover only untracked paths | `scripts/security_review.sh` `gitleaks-exclusions-untracked` (every `.gitleaks.toml` allowlist path matched against `git ls-files`) | passed | Added in round 2, after the reviewer found a committed directory excluded. |
 | Key material in code, secrets in logs | `scripts/check_source_guards.py` (NFR-1, NFR-6) | passed | — |
@@ -36,7 +36,7 @@ This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.
 | Rust dependencies (`Cargo.lock`, 304 crates) | cargo-audit 0.22.2; RustSec advisory database, 1,271 advisories (fetched at the run) | 0 vulnerabilities. The accepted RUSTSEC-2023-0089 warning is unchanged and still covered by `.cargo/audit.toml` |
 | npm, `apps/console` | npm audit | 0 vulnerabilities |
 | npm, `packages/verify` | npm audit | 0 vulnerabilities |
-| Secrets, git history (417 commits) | gitleaks 8.30.1 | no leaks (about 7.65 MB scanned) |
+| Secrets, git history (417 commits, counted before the 2026-09-29 history rewrite) | gitleaks 8.30.1 | no leaks (about 7.65 MB scanned) |
 | Secrets, working tree | gitleaks 8.30.1 | no leaks |
 | Exclusions cover only untracked paths | `gitleaks-exclusions-untracked` | passed |
 | Key material in code, secrets in logs | `scripts/check_source_guards.py` | passed |
@@ -51,7 +51,7 @@ Since the first pass closed (b6b40a8), `Cargo.lock` gained no crate (304 before 
 |---|---|
 | Rust dependencies (`Cargo.lock`, 304 crates) | cargo-audit, RustSec database of 1,273 advisories: 0 vulnerabilities; the accepted RUSTSEC-2023-0089 warning is unchanged |
 | npm, `apps/console` and `packages/verify` | 0 vulnerabilities each |
-| Secrets, git history (472 commits) and the working tree | gitleaks: no leaks |
+| Secrets, git history (472 commits, counted before the 2026-09-29 history rewrite) and the working tree | gitleaks: no leaks |
 | Key material in code, secrets in logs | source guards passed, now with the spend-authority identifier rule (slice G1) |
 
 **Changed since the first dry run.** One upstream advisory, and four findings from this repository's own reviews:
