@@ -196,17 +196,14 @@ h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 6
 .pill.tone-danger { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-line); }
 /* A link with no receipt, or not a receipt at all: what a valid result proves is beside the point (review F round 3). */
 body[data-state="empty"] .scope, body[data-state="unreadable"] .scope { display: none; }
+/* Once a result is shown, the intro has done its job: the verdict moves up (review F round 5). */
+body[data-state="checked"] .lede { display: none; }
 .verdict-detail { margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
 /* What the receipt claims: not a verdict, so a quieter, dashed frame */
 .claims { border-style: dashed; border-color: var(--line-strong); box-shadow: none; background: color-mix(in srgb, var(--surface) 70%, transparent); }
 /* Once checked, the claims fold away (page.js): the verdict above already says them. */
 details.claims > summary { cursor: pointer; list-style: none; margin-bottom: 0; }
 details.claims > summary::-webkit-details-marker { display: none; }
-details.claims > summary h2::after {
-  content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin: 0 0 0.2rem 0.6rem;
-  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms ease;
-}
-details.claims[open] > summary h2::after { transform: rotate(45deg); }
 details.claims[open] > summary { margin-bottom: 0.6rem; }
 table.kv tr[data-failed] td { color: var(--danger); font-weight: 550; }
 table.kv tr[data-failed] td:first-child::after { content: " · did not match"; font-weight: 500; }
@@ -283,8 +280,12 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 .note { padding-left: 0.9rem; border-left: 2px solid var(--line-strong); font-size: 0.8125rem; }
 .source-more > summary { cursor: pointer; width: fit-content; font-size: 0.8125rem; color: var(--muted); list-style: none; }
 .source-more > summary::-webkit-details-marker { display: none; }
-.source-more > summary::after { content: " +"; }
-.source-more[open] > summary::after { content: " −"; }
+.source-more > summary::after, details.claims > summary h2::after {
+  content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin: 0 0 0.2rem 0.6rem;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms ease;
+}
+.source-more > summary::after { width: 0.4rem; height: 0.4rem; margin-bottom: 0.1rem; }
+.source-more[open] > summary::after, details.claims[open] > summary h2::after { transform: rotate(45deg); }
 /* Once checked, the transaction's source is a detail: a compact card (page.js sets data-checked). */
 .source[data-checked] { padding-top: 0.9rem; padding-bottom: 0.9rem; }
 .source[data-checked] h2 { font-size: 0.9rem; margin-bottom: 0.4rem; }
@@ -395,8 +396,14 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
   /* The transaction's source is how you checked, not what you print. */
   #receipt > .card:not(.claims) { display: none !important; }
   .card, #outcome { box-shadow: none; }
-  /* No shadow on paper; a transparent filter keeps the slip composited, so its torn-edge mask prints. */
-  .slip-wrap { filter: drop-shadow(0 0 0 transparent) !important; }
+  /* On paper the white teeth vanish into the white page, so the slip ends in a dashed cut line instead. */
+  .slip-wrap { filter: none !important; }
+  .slip-wrap #outcome:is(.ok, .pending) {
+    -webkit-mask: none; mask: none;
+    padding-bottom: 1.35rem;
+    border-bottom: 2px dashed var(--line-strong);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
   #outcome, .result { outline: none !important; }
   /* Folded claims (they matched) print as nothing rather than a stub to click. */
   details#claims:not([open]) { display: none !important; }

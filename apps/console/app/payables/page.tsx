@@ -45,7 +45,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   const byId = new Map(recipients.map((r) => [r.id, r]));
   const tab = (k: PayableKind | undefined, label: string) => (
     <li key={k ?? "all"}>
-      <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium transition-colors ${k === filter ? "bg-primary text-primary-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}>
+      <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[0.8125rem] font-medium transition-colors sm:px-3 sm:text-sm ${k === filter ? "bg-primary text-primary-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}>
         {label}
       </Link>
     </li>
@@ -64,7 +64,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
         }
       />
       <nav aria-label="Filter by kind">
-        <ul className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-surface p-1 shadow-card">
+        <ul className="scroll-shadows inline-flex max-w-full gap-0.5 overflow-x-auto rounded-full border border-line p-1 shadow-card sm:gap-1">
           {tab(undefined, "All")}
           {PAYABLE_KINDS.map((k) => tab(k, KIND[k].many))}
         </ul>

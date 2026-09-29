@@ -44,6 +44,7 @@ function render() {
   clearOutcome();
   for (const id of ["empty", "unreadable", "receipt"]) show(id, false);
   delete document.body.dataset.state;
+  $("source-status").hidden = false;
   const link = location.hash;
   if (link.length <= 1) { current = null; show("empty", true); document.body.dataset.state = "empty"; return; }
   let receipt;
@@ -128,6 +129,9 @@ function verifyNow() {
   $("source-card").dataset.checked = "";
   $("source-more").open = false;
   $("status").textContent = "Checked in this page.";
+  document.body.dataset.state = "checked";
+  // "Transaction fetched." only repeats the source card's state once the result is shown (review F round 5).
+  if (/^Transaction (fetched|loaded)/.test($("source-status").textContent)) $("source-status").hidden = true;
   $("status").dataset.state = "checked";
   show("outcome", true);
   $("outcome").focus({ preventScroll: true });

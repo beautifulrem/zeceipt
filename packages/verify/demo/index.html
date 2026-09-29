@@ -90,14 +90,15 @@ initVerifier().then((v) => { status.textContent = "Ready: verification runs in t
 // What a node said about the bytes now in the box: green only if they are exactly what it served and it reports them
 // mined, as on the receipt page; anything pasted or loaded from a file is amber.
 let fetched = null; // { hex, chain, endpoint }: what a node served
-let fromFile = null; // the text of the last file loaded (the sample is one)
+let fromFile = null; // the text of the last file loaded
+let fromSample = null; // the sample transaction's text
 
 // The committed synthetic fixture (not on any chain): a signed receipt and the transaction it opens.
 $("sample").addEventListener("click", async () => {
   const [receipt, raw] = await Promise.all(["fixtures/synthetic-receipt-bearer.json", "fixtures/synthetic-ironwood.hex"].map((f) => fetch(f).then((r) => r.text())));
   $("receipt").value = receipt.trim();
   $("rawtx").value = raw.trim();
-  fromFile = raw.trim();
+  fromSample = raw.trim();
   status.textContent = "Sample loaded: a synthetic transaction, on no chain. Press Verify locally.";
 });
 
@@ -143,7 +144,7 @@ $("verify").addEventListener("click", () => {
   // The page's own view model (r/view.js outcome), so the rows, their order, the numbered parts and the wording are
   // the receipt page's. The source is what put exactly these bytes in the box: a node, a file, or typing/pasting.
   const bytes = $("rawtx").value.trim();
-  const source = fetched && fetched.hex === bytes ? { kind: "node", chain: fetched.chain, endpoint: fetched.endpoint, tip: null } : fromFile === bytes ? { kind: "file" } : { kind: "pasted" };
+  const source = fetched && fetched.hex === bytes ? { kind: "node", chain: fetched.chain, endpoint: fetched.endpoint, tip: null } : fromSample === bytes ? { kind: "sample" } : fromFile === bytes ? { kind: "file" } : { kind: "pasted" };
   const view = outcome(r, source);
   if (!view.valid) { show("bad", "INVALID", view.stageCopy, el("p", "verdict-detail", view.error)); return; }
   const payment = el("table", "kv");

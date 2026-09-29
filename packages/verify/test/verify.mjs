@@ -340,6 +340,7 @@ check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|doc
 {
   const scope = (f) => { const h = fs.readFileSync(path.join(here, f), "utf8"); return h.slice(h.indexOf('<div class="scope">'), h.indexOf("</div>", h.indexOf("</ul>\n</section>\n</div>")) + 6); };
   check("the demo's proves / does-not-prove lists are the page's", scope("../demo/index.html") === scope("../r/index.html"));
+  check("the demo's sample is named as the synthetic sample", /synthetic sample, which is on no chain/.test(pageView.inclusion({ kind: "sample" }).text));
   check("pasted bytes are named as pasted, not as a file", /supplied on this page/.test(pageView.inclusion({ kind: "pasted" }).text) && pageView.inclusion({ kind: "pasted" }).state === "unknown");
 }
 

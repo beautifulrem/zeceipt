@@ -511,8 +511,11 @@
     box-shadow: var(--shadow-card);
     padding: 0.25rem 1.25rem 0.5rem;
     overflow-x: auto;
-    /* Scroll shadows: covers that move with the content hide edge shadows that stay put, so an edge shows a shadow
-       only while there is more table beyond it (no script). */
+  }
+  /* Scroll shadows (table cards, the payables filter): covers that move with the content hide edge shadows that stay
+     put, so an edge shows a shadow only while there is more beyond it (no script). */
+  .table-card,
+  .scroll-shadows {
     background:
       linear-gradient(to right, var(--surface) 40%, transparent) left center / 2.5rem 100% no-repeat local,
       linear-gradient(to left, var(--surface) 40%, transparent) right center / 2.5rem 100% no-repeat local,

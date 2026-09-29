@@ -60,6 +60,10 @@ export function inclusion(source) {
   if (source.kind === "file") {
     return { state: "unknown", text: "Unknown: the transaction was loaded from a file. Check the txid on an explorer or your own node." };
   }
+  if (source.kind === "sample") {
+    // The paste demo's sample (review F round 5): the committed synthetic transaction, which is on no chain.
+    return { state: "unknown", text: "Unknown: this is the synthetic sample, which is on no chain." };
+  }
   if (source.kind === "pasted") {
     // The paste demo (review F round 4): bytes typed or pasted into the page, not fetched and not from a file.
     return { state: "unknown", text: "Unknown: the transaction bytes were supplied on this page, not fetched from a node. Check the txid on an explorer or your own node." };
