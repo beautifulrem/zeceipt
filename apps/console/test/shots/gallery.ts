@@ -105,6 +105,9 @@ try {
       const page = await context.newPage();
       for (const [name, path] of pages) {
         await page.goto(`http://${self}${path}`);
+        // Measure in the page's own fonts: until Geist has loaded, the fallback's wider metrics were measured (CI on
+        // Linux failed three tables that fit, one by one).
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
         // No page may be wider than the viewport (review F round 2: a nowrap cell once widened the whole layout).
         const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         if (over > 0) throw new Error(`${name} (${scheme}, ${tag}) overflows the viewport by ${over}px`);
