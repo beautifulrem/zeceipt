@@ -70,7 +70,8 @@ for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
 
 test("the amount's lighter digits use the checked muted token (review G1d)", () => {
   const src = readFileSync(join(import.meta.dirname, "..", "app", "components", "amount.tsx"), "utf8");
-  assert.match(src, /className="text-\[0\.85em\] text-muted"/);
+  assert.match(src, /className="amount-zeros"/);
+  assert.match(css, /\.amount-zeros \{[^}]*color: var\(--muted\);/, "the shared rule draws them in the checked muted token");
   assert.ok(ratio("#8a8f9b", "#ffffff") < 4.5, "negative control: the first placeholder grey fails 4.5:1 on white");
 });
 

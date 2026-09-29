@@ -500,6 +500,14 @@
     overflow-x: auto;
   }
 
+  /* The digits after an amount's significant ones, lighter (R73); the same rule on the receipt page (page.css),
+     checked by scripts/check_design_tokens.py. Scaled with the amount, never below 11px. */
+  .amount-zeros {
+    font-size: max(0.6em, 11px);
+    font-weight: 500;
+    color: var(--muted);
+  }
+
   /* Stat tiles */
   .stat {
     background: var(--surface);

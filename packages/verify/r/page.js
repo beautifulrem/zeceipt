@@ -8,48 +8,14 @@ import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, i
 // Each node gets 12 s here, not the package's 20 s: two hanging default nodes would otherwise keep a person waiting
 // 40 s before the page says so (review A1b).
 const PAGE_TIMEOUT_MS = 12_000;
-import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, verdictNote, valueParts } from "./view.js";
+import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, verdictNote } from "./view.js";
+import { issuerLine, kvRows } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
-const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text !== undefined) e.textContent = text; return e; };
-// A copy button for a long identifier (slice F2): icon only, so the cell's text is still exactly the value.
-const COPYABLE = { Transaction: "Copy the transaction id", Recipient: "Copy the recipient address" };
-function copyButton(value, label) {
-  const b = el("button", "copy");
-  b.type = "button";
-  b.setAttribute("aria-label", label);
-  b.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(value); b.dataset.copied = ""; b.setAttribute("aria-label", "Copied"); }
-    catch { b.setAttribute("aria-label", "Copy failed: select the text instead"); }
-    setTimeout(() => { delete b.dataset.copied; b.setAttribute("aria-label", label); }, 1600);
-  });
-  return b;
-}
-const rows = (table, pairs) => {
-  table.replaceChildren(...pairs.map(([k, v]) => {
-    const tr = document.createElement("tr");
-    tr.dataset.key = k; // lets the stylesheet give the value row its weight (slice F2); text stays textContent
-    tr.append(el("td", "", k));
-    const td = el("td");
-    if (k === "Value") {
-      // Joined, the parts are the value string itself (view.js valueParts); the zeros and the zatoshi are lighter.
-      const { major, zeros, unit, zat } = valueParts(v);
-      td.append(el("span", "amount", major), el("span", "amount-zeros", zeros), el("span", "amount-unit", unit), el("span", "amount-zat", zat));
-    } else {
-      td.append(el("span", "", v));
-      if (COPYABLE[k] && navigator.clipboard) td.append(copyButton(v, COPYABLE[k]));
-    }
-    tr.append(td);
-    return tr;
-  }));
-};
-// Issuer lines with a 64-hex key: the key in the mono face, the words as they are (text nodes only).
-const issuerLine = (line) => {
-  const li = el("li");
-  for (const part of line.split(/([0-9a-f]{64})/)) if (part) li.append(/^[0-9a-f]{64}$/.test(part) ? el("code", "", part) : document.createTextNode(part));
-  return li;
-};
+const rows = (table, pairs, opts) => table.replaceChildren(...kvRows(pairs, { live: $("copy-live"), ...opts }));
+// On INVALID, the claim the check failed on is marked in the claims card (review F round 2).
+const FAILED_ROW = { txid: "Transaction", signature: "Issuer signature", challenge: "Challenge", output: "Output", recovery: "Output" };
 
 let generation = 0; // bumps on every new link, so a late result for an old link is dropped
 let current = null; // { link, receipt, raw, source }
@@ -60,6 +26,8 @@ function clearOutcome() {
   $("verdict-note").textContent = "";
   $("verdict-live").textContent = "";
   $("claims-state").textContent = "Not yet checked";
+  $("claims").open = true;
+  for (const tr of $("summary").querySelectorAll("tr[data-failed]")) delete tr.dataset.failed;
   $("fetch").className = "btn btn-primary";
   $("source-status").textContent = "";
   show("binding-row", false);
@@ -99,11 +67,12 @@ function verifyNow() {
   if (!current || current.raw === null) return;
   const result = verifyReceipt(current.link, current.raw, { challenge: $("challenge").value, requireSignature: false });
   const view = outcome(result, current.source);
+  current.lastStage = result?.valid ? undefined : result?.stage;
   $("headline").textContent = view.headline;
   show("invalid", !view.valid);
   show("parts", view.valid);
   if (view.valid) {
-    rows($("payment"), view.payment);
+    rows($("payment"), view.payment, { amount: view.amount });
     $("inclusion").textContent = view.inclusion.text;
     $("issuer").replaceChildren(...view.issuer.map(issuerLine));
     $("challenge-line").textContent = view.challenge;
@@ -133,7 +102,14 @@ function verifyNow() {
   const note = verdictNote(view);
   $("verdict-note").textContent = note;
   $("verdict-live").textContent = `${view.headline}. ${note || view.stageCopy}`;
-  $("claims-state").textContent = view.valid ? "Checked: see the result above" : "Did not check out: see the result above";
+  $("claims-state").textContent = view.valid ? "Matched" : "Did not match";
+  // Checked: the claims now repeat the verdict, so they fold away; a failure keeps them open with the failed row marked.
+  $("claims").open = !view.valid;
+  if (!view.valid) {
+    const key = FAILED_ROW[current.lastStage];
+    const tr = key && $("summary").querySelector(`tr[data-key="${key}"]`);
+    if (tr) tr.dataset.failed = "";
+  }
   $("print-meta").textContent = `Checked ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC on ${location.host || "this page"}.`;
   $("fetch").className = "btn btn-secondary";
   show("outcome", true);
@@ -209,6 +185,6 @@ $("verify").addEventListener("click", verifyNow);
 window.addEventListener("hashchange", render);
 
 initVerifier().then(
-  (v) => { $("status").textContent = `${v}: verification runs in this page.`; $("status").dataset.state = "ready"; render(); },
+  (v) => { $("status").textContent = "Ready: verification runs in this page."; $("status").dataset.state = "ready"; $("version").textContent = v; render(); },
   (e) => { $("status").textContent = `The verifier failed to load: ${e}`; $("status").dataset.state = "error"; },
 );

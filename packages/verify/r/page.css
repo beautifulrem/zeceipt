@@ -191,6 +191,17 @@ h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 6
 .pill { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
 /* What the receipt claims: not a verdict, so a quieter, dashed frame */
 .claims { border-style: dashed; border-color: var(--line-strong); box-shadow: none; background: color-mix(in srgb, var(--surface) 70%, transparent); }
+/* Once checked, the claims fold away (page.js): the verdict above already says them. */
+details.claims > summary { cursor: pointer; list-style: none; margin-bottom: 0; }
+details.claims > summary::-webkit-details-marker { display: none; }
+details.claims > summary h2::after {
+  content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin: 0 0 0.2rem 0.6rem;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms ease;
+}
+details.claims[open] > summary h2::after { transform: rotate(45deg); }
+details.claims[open] > summary { margin-bottom: 0.6rem; }
+table.kv tr[data-failed] td { color: var(--danger); font-weight: 550; }
+table.kv tr[data-failed] td:first-child::after { content: " · did not match"; font-weight: 500; }
 
 /* Key–value tables (rows written by page.js with data-key) */
 table.kv { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -201,10 +212,19 @@ table.kv tr[data-key="Transaction"] td:last-child,
 table.kv tr[data-key="Recipient"] td:last-child,
 table.kv tr[data-key="Output"] td:last-child { font-family: var(--mono); font-size: 0.82rem; }
 table.kv tr[data-key="Memo"] td:last-child { font-weight: 550; }
-.amount { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.amount-zeros { font-size: 1.75rem; font-weight: 500; letter-spacing: -0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.amount-unit { font-size: 1.1rem; font-weight: 600; }
-.amount-zat { display: block; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.amount { font-weight: 650; letter-spacing: -0.02em; }
+td:has(> .amount) { font-size: 1.75rem; line-height: 1.2; }
+/* The digits after an amount's significant ones, lighter: the console's rule (globals.css), checked by
+   scripts/check_design_tokens.py. Scaled with the amount, never below 11px. */
+.amount-zeros {
+  font-size: max(0.6em, 11px);
+  font-weight: 500;
+  color: var(--muted);
+}
+table.kv tr[data-key="Value"] td:last-child { font-variant-numeric: tabular-nums; }
+.amount-unit { font-size: 0.6em; font-weight: 600; }
+.amount-zat { display: block; font-size: 0.8rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+#unreadable .detail { margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; overflow-wrap: anywhere; }
 .copy {
   display: inline-grid; place-items: center; vertical-align: -0.2rem;
   width: 1.6rem; height: 1.6rem; margin-left: 0.35rem; padding: 0;
@@ -273,14 +293,15 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
   content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0; background: var(--tone);
 }
-/* Scrolled to on arrival (page.js): clear of the sticky top bar. */
-#outcome { scroll-margin-top: 5rem; }
+/* Scrolled to on arrival (page.js, the demo): clear of the sticky top bar. */
+#outcome, .result { scroll-margin-top: 5rem; }
 #outcome:focus { outline: none; }
-#outcome:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+#outcome:focus-visible { outline: 2px solid var(--ring); outline-offset: -5px; }
 /* The verified result is the receipt: a slip with a torn bottom edge, like the mark (a mask, so it prints and sits on
    any background); the wrapper keeps its shadow, which the mask would clip. */
 .slip-wrap { filter: drop-shadow(0 8px 18px rgb(20 22 28 / 0.08)); }
-.slip-wrap #outcome {
+/* Only a result that holds is a receipt; INVALID keeps a plain card (review F round 2). */
+.slip-wrap #outcome:is(.ok, .pending) {
   box-shadow: none;
   padding-bottom: 2rem;
   --z: 11px;
@@ -340,19 +361,21 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 @media (max-width: 560px) {
   main { padding-top: 1.5rem; }
   .card, #outcome, #unreadable, .result { padding: 1.1rem; }
-  .slip-wrap #outcome { padding-bottom: 1.75rem; }
+  .slip-wrap #outcome:is(.ok, .pending) { padding-bottom: 1.75rem; }
   table.kv td { display: block; width: auto !important; padding: 0.1rem 0; border: 0; }
   table.kv tr { display: block; padding: 0.55rem 0; border-bottom: 1px dashed var(--line); }
   table.kv tr:last-child { border-bottom: 0; }
-  .amount, .amount-zeros { font-size: 1.5rem; }
+  td:has(> .amount) { font-size: 1.5rem; }
   .verdict-word { font-size: 1.6rem; }
 }
 
 @media print {
   body { background: #fff; font-size: 12px; }
-  .topbar, .actions, #challenge-row, #binding-row, #fetch-note, #source-status, #status, .copy, .foot a { display: none !important; }
-  .card, #outcome, .slip-wrap { box-shadow: none; filter: none; }
-  table.kv tr, .checks li, .limits li { break-inside: avoid; }
-  #outcome::before, .verdict-icon, .verdict-icon::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topbar, .actions, #challenge-row, #binding-row, #status, .copy, .foot a { display: none !important; }
+  /* The transaction's source is how you checked, not what you print. */
+  #receipt > .card:not(.claims) { display: none !important; }
+  .card, #outcome, .slip-wrap { box-shadow: none; }
+  .claims, .scope .card, table.kv tr { break-inside: avoid; }
+  #outcome, #outcome::before, .verdict-icon, .verdict-icon::after, .checks li::before, .limits li::before, .i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-only { display: block; margin-top: 1rem; font-family: var(--mono); font-size: 10px; color: var(--muted); }
 }

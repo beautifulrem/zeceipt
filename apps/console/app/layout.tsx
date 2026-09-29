@@ -18,7 +18,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:shadow-raised">
           Skip to content
         </a>
-        <div className="lg:grid lg:min-h-dvh lg:grid-cols-[16rem_1fr]">
+        <div className="lg:grid lg:min-h-dvh lg:grid-cols-[16rem_minmax(0,1fr)]">
           <aside className="no-print sticky top-0 z-10 border-b border-line bg-surface/85 backdrop-blur lg:static lg:border-b-0 lg:border-r">
             <div className="flex flex-col gap-4 px-4 py-3 lg:sticky lg:top-0 lg:h-dvh lg:py-6">
             <div className="flex flex-col gap-3 lg:gap-8">
@@ -41,7 +41,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </div>
             </div>
           </aside>
-          <main id="main" className="mx-auto w-full max-w-6xl space-y-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+          <main id="main" className="mx-auto w-full min-w-0 max-w-6xl space-y-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
             {children}
           </main>
         </div>

@@ -6,7 +6,7 @@ import { batchStage } from "../lib/view/stage.ts";
 test("stage: voided first, then receipts (all or some), then sent, else draft; never 'confirmed'", () => {
   const f = { voided: false, submitted: false, receipts: 0, items: 3 };
   assert.deepEqual(batchStage(f), { label: "Draft", tone: "neutral" });
-  assert.deepEqual(batchStage({ ...f, submitted: true }), { label: "Sent", tone: "info" });
+  assert.deepEqual(batchStage({ ...f, submitted: true }), { label: "Sent, awaiting receipts", tone: "warning" });
   assert.deepEqual(batchStage({ ...f, submitted: true, receipts: 3 }), { label: "Receipts issued", tone: "success" });
   assert.deepEqual(batchStage({ ...f, submitted: true, receipts: 1 }), { label: "Receipts 1 of 3", tone: "warning" });
   assert.deepEqual(batchStage({ ...f, voided: true }), { label: "Voided", tone: "neutral" });

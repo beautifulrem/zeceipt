@@ -34,6 +34,7 @@
   <p id="status" class="muted status" role="status" data-state="loading">Loading the verifier…</p>
 </div>
 <p id="verdict-live" class="sr-only" role="status"></p>
+<p id="copy-live" class="sr-only" role="status"></p>
 
 <section id="empty" class="card" hidden>
   <h2>This link has no receipt in it</h2>
@@ -43,10 +44,9 @@
 <section id="unreadable" class="bad" hidden>
   <div class="verdict">
     <span class="verdict-icon" aria-hidden="true"></span>
-    <div><h2 class="verdict-word">Not a receipt</h2><p class="verdict-sub">This link does not hold a readable receipt.</p></div>
+    <div><h2 class="verdict-word">Not a receipt</h2><p id="unreadable-copy" class="verdict-sub"></p></div>
   </div>
-  <p id="unreadable-copy"></p>
-  <p id="unreadable-error" class="muted"></p>
+  <p id="unreadable-error" class="muted detail"></p>
 </section>
 
 <div class="slip-wrap">
@@ -75,10 +75,10 @@
 </div>
 
 <section id="receipt" hidden>
-  <div class="card claims">
-    <div class="card-head"><h2>What the receipt claims</h2><span id="claims-state" class="pill">Not yet checked</span></div>
+  <details id="claims" class="card claims" open>
+    <summary class="card-head"><h2>What the receipt claims</h2><span id="claims-state" class="pill">Not yet checked</span></summary>
     <table id="summary" class="kv"></table>
-  </div>
+  </details>
   <div class="card">
     <h2>The transaction</h2>
     <div class="actions">
@@ -115,7 +115,7 @@
 <p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: this page makes a request outside this site only when you ask. The transaction lookup tells the node which transaction you looked up. The issuer check tells the named domain that one of its receipts is being checked. The page stores nothing.</span></p>
 </main>
 <footer class="foot">
-  <span>zeceipt-v0 · open source (Apache-2.0)</span>
+  <span><span id="version">zeceipt-v0</span> · open source (Apache-2.0)</span>
   <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a>
 </footer>
 </body>

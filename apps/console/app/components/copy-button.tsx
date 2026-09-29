@@ -13,6 +13,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState<"no" | "yes" | "failed">("no");
   if (!ready) return null;
   return (
+    <>
     <button
       type="button"
       className="copy-btn"
@@ -30,5 +31,10 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
     >
       {copied === "yes" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
     </button>
+    {/* A label change on a focused button is not reliably read out; this live region is (review F round 2). */}
+    <span role="status" className="sr-only">
+      {copied === "yes" ? "Copied" : copied === "failed" ? "Copy failed" : ""}
+    </span>
+    </>
   );
 }

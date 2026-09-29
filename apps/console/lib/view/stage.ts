@@ -13,6 +13,6 @@ export interface StageFacts {
 export function batchStage(f: StageFacts): { label: string; tone: Tone } {
   if (f.voided) return { label: "Voided", tone: "neutral" };
   if (f.receipts > 0) return f.receipts >= f.items ? { label: "Receipts issued", tone: "success" } : { label: `Receipts ${f.receipts} of ${f.items}`, tone: "warning" };
-  if (f.submitted) return { label: "Sent", tone: "info" };
+  if (f.submitted) return { label: "Sent, awaiting receipts", tone: "warning" };
   return { label: "Draft", tone: "neutral" };
 }

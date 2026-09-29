@@ -145,6 +145,8 @@ export function outcome(result, source) {
       ["Label", result.label ? result.label : "(none)"],
       ["Output", `${result.pool} output ${result.output_index} of ${result.txid}`],
     ],
+    // The value as data too (review F round 2), so the page lays it out from the numbers, not by parsing its text.
+    amount: { zec: result.value_zec, zat: result.value_zat },
     inclusion: inclusion(source),
     issuer: issuerLines(result),
     challenge: challengeLine(result),
@@ -160,13 +162,11 @@ export function verdictNote(view) {
     : "The payment is proven. Its chain inclusion is not confirmed: see 2. Chain inclusion.";
 }
 
-/** A value string as the page writes it ("2.50000000 ZEC (250000000 zat)") split for display: the digits up to the
- * last significant one, the trailing zeros (shown lighter, as the console does), the unit and the zatoshi line. Joined, the
- * parts are the string itself; anything else comes back whole. */
-export function valueParts(text) {
-  const m = /^(\d+\.\d*?)(0*)( ZEC)( \(\d+ zat\))$/.exec(text);
-  if (!m) return { major: text, zeros: "", unit: "", zat: "" };
-  const [, major, zeros, unit, zat] = m;
-  // Keep one digit after the point: "2.5", never "2.".
-  return major.endsWith(".") ? { major: major + zeros.slice(0, 1), zeros: zeros.slice(1), unit, zat } : { major, zeros, unit, zat };
+/** A ZEC amount string ("2.50000000") split for display: the digits up to the last significant one (at least one
+ * after the point) and the trailing zeros, which are shown lighter, as the console does. Joined, they are the string. */
+export function valueParts(zec) {
+  const m = /^(\d+\.\d*?)(0*)$/.exec(zec);
+  if (!m) return { major: zec, zeros: "" };
+  const [, major, zeros] = m;
+  return major.endsWith(".") ? { major: major + zeros.slice(0, 1), zeros: zeros.slice(1) } : { major, zeros };
 }

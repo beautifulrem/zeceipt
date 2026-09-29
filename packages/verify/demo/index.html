@@ -49,7 +49,8 @@
   <p><button id="verify" type="button" class="btn btn-primary">Verify locally</button></p>
 </section>
 
-<div id="out" aria-live="polite"></div>
+<p id="result-live" class="sr-only" role="status"></p>
+<div id="out"></div>
 
 <div class="scope">
 <section class="card">
@@ -71,17 +72,23 @@
 </div>
 </main>
 <footer class="foot">
-  <span>zeceipt-v0 · open source (Apache-2.0)</span>
+  <span><span id="version">zeceipt-v0</span> · open source (Apache-2.0)</span>
   <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a>
 </footer>
 
 <script type="module">
 import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/index.js";
-const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+import { el, issuerLine, kvRows } from "../r/ui.js";
+import { verdictNote } from "../r/view.js";
 const $ = (id) => document.getElementById(id);
 const status = $("status"), out = $("out");
 status.textContent = "Loading the verifier…";
-initVerifier().then((v) => { status.textContent = `${v}: verification runs in this page.`; status.dataset.state = "ready"; }).catch((e) => { status.textContent = `The verifier failed to load: ${e}`; status.dataset.state = "error"; });
+initVerifier().then((v) => { status.textContent = "Ready: verification runs in this page."; status.dataset.state = "ready"; $("version").textContent = v; })
+  .catch((e) => { status.textContent = `The verifier failed to load: ${e}`; status.dataset.state = "error"; });
+
+// What a node said about the bytes now in the box: green only if they are exactly what it served and it reports them
+// mined, as on the receipt page; anything pasted or loaded from a file is amber.
+let fetched = null; // { hex, mined }
 
 // The committed synthetic fixture (not on any chain): a signed receipt and the transaction it opens.
 $("sample").addEventListener("click", async () => {
@@ -102,38 +109,47 @@ $("fetch").addEventListener("click", async () => {
     status.textContent = `Fetching ${r.txid.slice(0, 16)}… from a public node.`;
     const got = await fetchRawTx(r.txid, r.network);
     $("rawtx").value = got.hex;
+    fetched = { hex: got.hex, mined: got.chain.status === "mined", endpoint: got.endpoint };
     const where = { mined: `mined at height ${got.chain.height}`, mempool: "in the mempool, not mined yet", fork: "on a fork, not the main chain" }[got.chain.status];
     status.textContent = `Fetched from ${got.endpoint} (${where}).`;
   } catch (e) { status.textContent = `The fetch failed: ${e}`; }
 });
 
-const verdict = (tone, word, note, body) => `<section class="result ${tone}"><div class="verdict"><span class="verdict-icon" aria-hidden="true"></span><div><h2 class="verdict-word">${word}</h2><p class="verdict-sub">${note}</p></div></div>${body}</section>`;
+function show(tone, word, note, ...body) {
+  const icon = el("span", "verdict-icon"); icon.setAttribute("aria-hidden", "true");
+  const head = el("div", "verdict");
+  const words = el("div");
+  words.append(el("h2", "verdict-word", word), el("p", "verdict-sub", note));
+  head.append(icon, words);
+  const section = el("section", `result ${tone}`);
+  section.tabIndex = -1;
+  section.setAttribute("aria-label", `${word}. ${note}`);
+  section.append(head, ...body);
+  out.replaceChildren(section);
+  $("result-live").textContent = `${word}. ${note}`;
+  section.focus({ preventScroll: true });
+  section.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
 
 $("verify").addEventListener("click", () => {
-  out.innerHTML = "";
   let r;
   try {
     r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
-  } catch (e) { out.innerHTML = verdict("bad", "Verifier error", "The verifier could not run on this input.", `<p class="muted">${esc(e)}</p>`); return; }
-  if (!r.valid) {
-    out.innerHTML = verdict("bad", "INVALID", `Failed at the ${esc(r.stage)} check.`, `<p class="muted">${esc(r.error)}</p>`);
-    return;
-  }
+  } catch (e) { show("bad", "Verifier error", "The verifier could not run on this input.", el("p", "muted", String(e))); return; }
+  if (!r.valid) { show("bad", "INVALID", `Failed at the ${r.stage} check.`, el("p", "muted", r.error)); return; }
   const memo = r.memo.kind === "text" ? r.memo.text : r.memo.kind === "empty" ? "(empty)" : "bytes " + r.memo.hex;
-  // Amber, as the receipt page does for a file: the payment is proven from the bytes you gave, but nothing here says
-  // those bytes are a mined transaction (page.e2e.mjs: no success colour for a transaction nobody vouched for).
-  out.innerHTML = verdict("pending", "VALID", "The payment is proven. Its chain inclusion is not checked: this page verified the bytes you supplied.", `
-    <table class="kv">
-      <tr data-key="Transaction"><td>Transaction</td><td>${esc(r.txid)}</td></tr>
-      <tr data-key="Output"><td>Output</td><td>${esc(r.pool)} output ${esc(r.output_index)}</td></tr>
-      <tr data-key="Recipient"><td>Recipient</td><td>${esc(r.recipient)}</td></tr>
-      <tr data-key="Value"><td>Value</td><td>${esc(r.value_zec)} ZEC (${esc(r.value_zat)} zat)</td></tr>
-      <tr data-key="Memo"><td>Memo</td><td>${esc(memo)}</td></tr>
-      <tr><td>Label</td><td>${r.label ? esc(r.label) : "(none)"}</td></tr>
-      <tr><td>Issuer</td><td>${r.issuer_pubkey ? `<code>${esc(r.issuer_pubkey)}</code> (key id ${esc(r.issuer_key_id ?? "-")}). Which organisation holds this key is not checked here.` : "Unsigned"}</td></tr>
-      <tr><td>Challenge</td><td>${r.challenge_checked ? "Bound, and it matched" : "None"}</td></tr>
-    </table>
-    <p class="muted">For depth, confirm the transaction on an explorer or your own node.</p>`);
+  const mined = Boolean(fetched && fetched.mined && fetched.hex === $("rawtx").value.trim());
+  const note = mined ? verdictNote({ valid: true, inclusion: { state: "mined" } }) : "The payment is proven. Its chain inclusion is not checked: this page verified the bytes you supplied.";
+  const table = el("table", "kv");
+  table.append(...kvRows([
+    ["Transaction", r.txid], ["Output", `${r.pool} output ${r.output_index}`], ["Recipient", r.recipient],
+    ["Value", `${r.value_zec} ZEC (${r.value_zat} zat)`], ["Memo", memo], ["Label", r.label || "(none)"],
+    ["Challenge", r.challenge_checked ? "Bound, and it matched" : "None"],
+  ], { amount: { zec: r.value_zec, zat: r.value_zat }, live: $("result-live") }));
+  const issuer = el("ul", "issuer");
+  issuer.append(issuerLine(r.issuer_pubkey ? `Signed by key ${r.issuer_pubkey}${r.issuer_key_id ? ` (key id ${r.issuer_key_id})` : ""}. Which organisation holds this key is not checked here.` : "Unsigned: no issuer key."));
+  show(mined ? "ok" : "pending", "VALID", note, table, el("h3", "", "The issuer"), issuer,
+    el("p", "muted", mined ? `According to ${fetched.endpoint}. For funds that matter, check your own node.` : "For depth, confirm the transaction on an explorer or your own node."));
 });
 </script>
 </body>

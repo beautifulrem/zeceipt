@@ -99,6 +99,9 @@ try {
       const page = await context.newPage();
       for (const [name, path] of pages) {
         await page.goto(`http://${self}${path}`);
+        // No page may be wider than the viewport (review F round 2: a nowrap cell once widened the whole layout).
+        const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        if (over > 0) throw new Error(`${name} (${scheme}, ${tag}) overflows the viewport by ${over}px`);
         await page.screenshot({ path: join(OUT, `${name}-${scheme}-${tag}.png`), fullPage: true });
       }
       await context.close();
@@ -108,10 +111,12 @@ try {
   if (process.env.ZECEIPT_GALLERY_README === "1") {
     const assets = resolve(APP, "../../docs/assets");
     for (const scheme of ["light", "dark"] as const) {
-      const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme, reducedMotion: "reduce" });
+      const context = await browser.newContext({ viewport: { width: 1280, height: 1120 }, deviceScaleFactor: 2, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await context.newPage();
       await page.goto(`http://${self}/batches/${String(issued.id)}`);
-      await page.screenshot({ path: join(assets, scheme === "light" ? "console-batch.png" : "console-batch-dark.png"), fullPage: true });
+      // The first screen only (review F round 2: a full page is too tall for a README); a receipted batch shows its
+      // receipts before its lines, so they are in it.
+      await page.screenshot({ path: join(assets, scheme === "light" ? "console-batch.png" : "console-batch-dark.png") });
       await context.close();
     }
   }

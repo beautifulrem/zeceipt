@@ -62,6 +62,84 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   // REQ-CON-6 (slice H6): the batch validation report's linkability part, while the operator can still act on it
   // (nothing sent: the draft can be voided and made again with a fresh address).
   const linkable = canVoid ? batchLinkability(await disclosedReceivers(ctx.db, rec.orgId), rec) : [];
+  // Once issued, the receipts are the batch's product, so they come before the lines (review F round 2).
+  const receiptsSection = (
+    <section aria-labelledby="receipts-heading" className="space-y-3">
+      <h2 id="receipts-heading" className="section-title">
+        Receipts
+      </h2>
+      {receipts.length === 0 ? (
+        <p className="card flex items-center gap-3 text-sm text-muted">
+          <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-5 flex-none text-subtle" />
+          {status?.next === "issue_receipts"
+            ? "No receipts yet. The payment is confirmed: press Issue receipts above."
+            : "No receipts yet. They are issued once the payment is confirmed."}
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-muted">Anyone with a receipt link can verify that one payment in their browser, and nothing else.</p>
+          <div className="table-card">
+            <table className={TABLE_CLASS}>
+              <caption className="sr-only">Receipts of this batch</caption>
+              <thead>
+                <tr>
+                  <th>Payee</th>
+                  <th className="hidden sm:table-cell">Memo</th>
+                  <th className="text-right">Amount</th>
+                  <th>Receipt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receipts.map((r) => {
+                  const line = rec.items.find((i) => i.idx === r.idx);
+                  const who = line?.label || line?.memo || r.payableId;
+                  return (
+                    <tr key={r.idx}>
+                      <td className="font-medium">
+                        {who}
+                        <div className="font-mono text-xs font-normal text-muted">{r.payableId}</div>
+                      </td>
+                      <td className="hidden whitespace-nowrap sm:table-cell">
+                        <code>{line?.memo}</code>
+                      </td>
+                      <td className="whitespace-nowrap text-right">{line && <ZecAmount zat={line.zat} />}</td>
+                      <td className="whitespace-nowrap">
+                        {r.openError || !r.url ? (
+                          <span className="text-danger">could not be opened ({r.openError})</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <a href={r.url} rel="noreferrer" className="link inline-flex items-center gap-1 font-medium">
+                              Receipt for {who}
+                              <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                            </a>
+                            <CopyButton value={r.url} label={`Copy the receipt link for ${who}`} />
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what it discloses (lib/view/export-offer.ts). */}
+      {offer.kind === "unopenable" && <p className="text-sm text-muted">{offer.text}</p>}
+      {offer.kind === "offer" && (
+        <div className="callout tone-warning flex-col gap-2">
+          <p id="export-scope">{offer.scope}</p>
+          <p id="export-disclosure" className="text-muted">
+            {offer.disclosure}
+          </p>
+          <p className="flex items-center gap-2">
+            <Download aria-hidden="true" className="size-4 text-warning" />
+            <a href={offer.href} aria-describedby="export-scope export-disclosure" className="link font-medium">Download for OpenZcash (CSV)</a>
+          </p>
+        </div>
+      )}
+    </section>
+  );
   const confirmations = status?.detail.confirmations;
   const required = status?.detail.required ?? ctx.config.confirmations;
   return (
@@ -86,7 +164,15 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="stat">
           <dt className="eyebrow">ZEC/USD</dt>
-          <dd className="stat-value">{lock ? rateText(lock.rate) : <span className="text-muted">Not locked</span>}</dd>
+          <dd className="stat-value">
+            {lock ? (
+              <>
+                {rateText(lock.rate).replace(/^1 ZEC = /, "")} <span className="text-sm font-normal text-muted">per ZEC</span>
+              </>
+            ) : (
+              <span className="text-muted">Not locked</span>
+            )}
+          </dd>
         </div>
         <div className="stat">
           <dt className="eyebrow">Confirmations</dt>
@@ -94,6 +180,10 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             {confirmations !== undefined ? (
               <>
                 {confirmations} <span className="text-sm font-normal text-muted">of {required}</span>
+              </>
+            ) : status?.state === "receipts_issued" ? (
+              <>
+                Final <span className="text-sm font-normal text-muted">receipts issued</span>
               </>
             ) : (
               <span className="text-muted">—</span>
@@ -210,6 +300,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               <LinkabilityNote />
             </section>
           )}
+          {receipts.length > 0 && receiptsSection}
         </div>
 
         <aside className="space-y-6">
@@ -278,7 +369,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                 <th className="hidden sm:table-cell">Address</th>
                 <th>Memo</th>
                 <th className="text-right">Amount</th>
-                {lock && <th className="text-right">USD at lock</th>}
+                {lock && <th className="hidden text-right sm:table-cell">USD at lock</th>}
               </tr>
             </thead>
             <tbody>
@@ -291,13 +382,13 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                   <td className="hidden sm:table-cell">
                     <Address value={i.address} />
                   </td>
-                  <td>
+                  <td className="whitespace-nowrap">
                     <code>{i.memo}</code>
                   </td>
                   <td className="whitespace-nowrap text-right">
                     <ZecAmount zat={i.zat} />
                   </td>
-                  {lock && <td className="whitespace-nowrap text-right tabular-nums">{usdText(i.zat, lock.rate)}</td>}
+                  {lock && <td className="hidden whitespace-nowrap text-right tabular-nums sm:table-cell">{usdText(i.zat, lock.rate)}</td>}
                 </tr>
               ))}
             </tbody>
@@ -314,78 +405,30 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                 <td className="whitespace-nowrap text-right font-semibold">
                   <ZecAmount zat={total} />
                 </td>
-                {lock && <td className="whitespace-nowrap text-right font-semibold tabular-nums">{usdText(total, lock.rate)}</td>}
+                {lock && <td className="hidden whitespace-nowrap text-right font-semibold tabular-nums sm:table-cell">{usdText(total, lock.rate)}</td>}
               </tr>
             </tfoot>
           </table>
         </div>
       </section>
 
-      <section aria-labelledby="receipts-heading" className="space-y-3">
-        <h2 id="receipts-heading" className="section-title">
-          Receipts
-        </h2>
-        {receipts.length === 0 ? (
-          <p className="card flex items-center gap-3 text-sm text-muted">
-            <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-5 flex-none text-subtle" />
-            {status?.next === "issue_receipts"
-              ? "No receipts yet. The payment is confirmed: press Issue receipts above."
-              : "No receipts yet. They are issued once the payment is confirmed."}
-          </p>
-        ) : (
-          <ul className="card divide-y divide-line p-0 text-sm">
-            {receipts.map((r) => {
-              const line = rec.items.find((i) => i.idx === r.idx);
-              const who = line?.label || line?.memo || r.payableId;
-              return (
-                <li key={r.idx} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
-                  <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-4 flex-none text-success" />
-                  <code>{r.payableId}</code>:{" "}
-                  {r.openError || !r.url ? (
-                    <span className="text-danger">could not be opened ({r.openError})</span>
-                  ) : (
-                    <>
-                      <a href={r.url} rel="noreferrer" className="link inline-flex items-center gap-1 font-medium">
-                        Receipt for {who}
-                        <ArrowUpRight aria-hidden="true" className="size-3.5" />
-                      </a>
-                      <CopyButton value={r.url} label={`Copy the receipt link for ${who}`} />
-                    </>
-                  )}{" "}
-                  <span className="text-muted">(anyone with this link can verify the payment)</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what it discloses (lib/view/export-offer.ts). */}
-        {offer.kind === "unopenable" && <p className="text-sm text-muted">{offer.text}</p>}
-        {offer.kind === "offer" && (
-          <div className="callout tone-accent flex-col gap-2">
-            <p id="export-scope">{offer.scope}</p>
-            <p id="export-disclosure" className="text-muted">
-              {offer.disclosure}
-            </p>
-            <p className="flex items-center gap-2">
-              <Download aria-hidden="true" className="size-4 text-accent-strong" />
-              <a href={offer.href} aria-describedby="export-scope export-disclosure" className="link font-medium">Download for OpenZcash (CSV)</a>
-            </p>
-          </div>
-        )}
-      </section>
+
+      {receipts.length === 0 && receiptsSection}
 
       <section aria-labelledby="history-heading" className="space-y-3">
         <h2 id="history-heading" className="section-title">
           History
         </h2>
-        <ol className="card timeline">
-          {history.map((e) => (
-            <li key={e.id}>
-              <time dateTime={e.at}>{e.at.replace("T", " ").slice(0, 19)} UTC</time>
-              <span className="break-all">{eventText(e)}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="card">
+          <ol className="timeline">
+            {history.map((e) => (
+              <li key={e.id}>
+                <time dateTime={e.at}>{e.at.replace("T", " ").slice(0, 19)} UTC</time>
+                <span className="break-all">{eventText(e)}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </section>
     </>
   );

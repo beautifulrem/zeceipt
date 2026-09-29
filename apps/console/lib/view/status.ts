@@ -44,7 +44,7 @@ export const NEXT_TEXT: Record<NextAction, string> = {
   resend_expired: "Decide whether to re-send",
   record_expiry: "Record the expiry bound",
   investigate: "Investigate: the records disagree",
-  none: "Done",
+  none: "Nothing left to do",
 };
 
 export interface StateView {

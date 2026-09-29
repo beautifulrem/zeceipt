@@ -325,12 +325,15 @@ check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|doc
   check("verdictNote: mined says proven and mined", /proven, and the node reports its transaction mined/.test(verdictNote({ valid: true, inclusion: { state: "mined" } })));
   for (const state of ["file", "mempool", "fork", "unknown"]) check(`verdictNote: ${state} says inclusion not confirmed`, /not confirmed/.test(verdictNote({ valid: true, inclusion: { state } })));
   check("verdictNote: INVALID has none (the stage copy speaks)", verdictNote({ valid: false }) === "");
-  for (const t of ["2.50000000 ZEC (250000000 zat)", "0.00000000 ZEC (0 zat)", "12.34567891 ZEC (1234567891 zat)", "not a value"]) {
+  for (const t of ["2.50000000", "0.00000000", "12.34567891", "not a value"]) {
     const v = valueParts(t);
-    check(`valueParts joins back to ${JSON.stringify(t)}`, v.major + v.zeros + v.unit + v.zat === t, JSON.stringify(v));
+    check(`valueParts joins back to ${JSON.stringify(t)}`, v.major + v.zeros === t, JSON.stringify(v));
   }
-  const v = valueParts("2.50000000 ZEC (250000000 zat)");
+  const v = valueParts("2.50000000");
   check("valueParts: 2.5 with seven lighter zeros", v.major === "2.5" && v.zeros === "0000000", JSON.stringify(v));
+  check("valueParts: 0.0 keeps one digit after the point", valueParts("0.00000000").major === "0.0");
+  const view = pageView.outcome({ valid: true, recipient: "u1x", value_zec: "2.50000000", value_zat: "250000000", memo: { kind: "empty" }, label: "", pool: "ironwood", output_index: 0, txid: "ab" }, { kind: "file" });
+  check("outcome carries the amount as data (review F round 2)", view.amount.zec === "2.50000000" && view.amount.zat === "250000000", JSON.stringify(view.amount));
 }
 
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);

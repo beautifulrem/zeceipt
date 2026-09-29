@@ -4,8 +4,8 @@
 apps/console/app/globals.css is the source; packages/verify/r/page.css carries a copy, because the receipt page is a
 static page with no build step and a CSP that loads nothing from elsewhere. Every custom property the console defines
 in its light `:root` block and in its dark block must appear in the page's matching block with the same value.
-The radii (the console's `@theme inline` scale) and the shared button rules (`.btn`, `.btn-primary`,
-`.btn-secondary`) must also match, declaration by declaration, so the two surfaces cannot drift apart.
+The radii (the console's `@theme inline` scale) and the shared rules (`.btn`, `.btn-primary`, `.btn-secondary`,
+`.amount-zeros`) must also match, declaration by declaration, so the two surfaces cannot drift apart.
 Exit 1 on any difference, naming each one.
 """
 import re
@@ -44,7 +44,7 @@ def main() -> int:
     for k, v in radii.items():
         if copy[0].get(k) != v:
             errors.append(f"{PAGE.relative_to(repo)}: --{k} is {copy[0].get(k)}, the console's is {v}")
-    for sel in (".btn", ".btn-primary", ".btn-secondary"):
+    for sel in (".btn", ".btn-primary", ".btn-secondary", ".amount-zeros"):
         want, have = rule(console_css, sel), rule(page_css, sel)
         if want != have:
             diff = sorted(set(want.items()) ^ set(have.items()))
@@ -57,7 +57,7 @@ def main() -> int:
                 errors.append(f"{PAGE.relative_to(repo)} ({scheme}): --{k} is {have[k]}, the console's is {v}")
     for e in errors:
         print(e)
-    print(f"design tokens: {len(source[0])} light + {len(source[1])} dark tokens, {len(radii)} radii and 3 button rules compared, {len(errors)} difference(s)")
+    print(f"design tokens: {len(source[0])} light + {len(source[1])} dark tokens, {len(radii)} radii and 4 shared rules compared, {len(errors)} difference(s)")
     return 1 if errors else 0
 
 
