@@ -128,10 +128,25 @@ try {
           return need + slack > room;
         }).map((c) => (c as HTMLElement).dataset.label ?? ""), SLACK);
         const allowed = tag === "phone" ? PHONE_SCROLL[name] ?? [] : [];
+        if (process.env.GALLERY_WIDTHS) {
+          // Diagnostics: each table's narrowest width against its card's room, and the fonts the page actually uses.
+          console.log(`${name} ${tag}`, await page.evaluate(() => [...document.querySelectorAll(".table-card")].map((c) => {
+            const t = c.querySelector("table")!;
+            const cs = getComputedStyle(c);
+            const room = c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            const before = t.style.width;
+            t.style.width = "min-content";
+            const need = Math.round(t.getBoundingClientRect().width);
+            t.style.width = before;
+            return `${(c as HTMLElement).dataset.label}: needs ${need} of ${Math.round(room)}`;
+          }).join("; ")), await page.evaluate(() => [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family).join(",")));
+        }
         const unexpected = scrolling.filter((l) => !allowed.includes(String(l)));
         if (unexpected.length) {
           const widths = await page.evaluate((l) => [...document.querySelectorAll(`.table-card[data-label="${l}"] th`)].map((th) => `${th.textContent}:${Math.round(th.getBoundingClientRect().width)}`).join(" "), unexpected[0]);
-          throw new Error(`${name} (${scheme}, ${tag}): table cards scroll sideways: ${unexpected.join(", ")} (columns ${widths})`);
+          const fonts = await page.evaluate(() => [...document.fonts].map((f) => `${f.family}:${f.status}`).join(","));
+          const body = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+          throw new Error(`${name} (${scheme}, ${tag}): table cards scroll sideways: ${unexpected.join(", ")} (columns ${widths}; fonts ${fonts}; body ${body})`);
         }
         // Accessibility (review F round 6): axe's WCAG 2.0–2.2 A and AA rules, every page, both schemes, both widths.
         // Bounded: a paused animation's `finished` never settles (it once hung the suite).
