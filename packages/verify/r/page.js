@@ -26,6 +26,7 @@ function clearOutcome() {
   $("verdict-note").textContent = "";
   $("verdict-live").textContent = "";
   $("claims-state").textContent = "Not yet checked";
+  $("claims-state").className = "pill";
   $("claims").open = true;
   for (const tr of $("summary").querySelectorAll("tr[data-failed]")) delete tr.dataset.failed;
   $("fetch").className = "btn btn-primary";
@@ -39,8 +40,9 @@ function render() {
   generation++;
   clearOutcome();
   for (const id of ["empty", "unreadable", "receipt"]) show(id, false);
+  delete document.body.dataset.state;
   const link = location.hash;
-  if (link.length <= 1) { current = null; show("empty", true); return; }
+  if (link.length <= 1) { current = null; show("empty", true); document.body.dataset.state = "empty"; return; }
   let receipt;
   try {
     receipt = parseReceipt(link);
@@ -49,6 +51,7 @@ function render() {
     $("unreadable-copy").textContent = STAGE_COPY.parse;
     $("unreadable-error").textContent = String(e);
     show("unreadable", true);
+    document.body.dataset.state = "unreadable";
     return;
   }
   current = { link, receipt, raw: null, source: null };
@@ -103,6 +106,12 @@ function verifyNow() {
   $("verdict-note").textContent = note;
   $("verdict-live").textContent = `${view.headline}. ${note || view.stageCopy}`;
   $("claims-state").textContent = view.valid ? "Matched" : "Did not match";
+  $("claims-state").className = view.valid ? "pill tone-success" : "pill tone-danger";
+  // The signature row said "checked when you verify": now say what the check found (review F round 3).
+  const sig = $("summary").querySelector('tr[data-key="Issuer signature"] td:last-child span');
+  if (sig && / — checked when you verify$/.test(sig.textContent)) {
+    sig.textContent = sig.textContent.replace(/ — checked when you verify$/, current.lastStage === "signature" ? " — does not cover these contents" : view.valid ? " — checked: it covers these contents" : " — checked when you verify");
+  }
   // Checked: the claims now repeat the verdict, so they fold away; a failure keeps them open with the failed row marked.
   $("claims").open = !view.valid;
   if (!view.valid) {

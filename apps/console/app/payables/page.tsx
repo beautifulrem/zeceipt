@@ -4,7 +4,8 @@ import { listPayables, PAYABLE_KINDS, type PayableKind } from "../../lib/data/pa
 import { listRecipients } from "../../lib/data/recipients.ts";
 import { serverContext } from "../../lib/server/context.ts";
 import { centsText, recipientLabel, shortAddress } from "../../lib/view/format.ts";
-import { AccessNotice } from "../components/panels.tsx";
+import { TableCard } from "../components/table-card.tsx";
+import { Words } from "../components/words.tsx";
 import { PageHeader } from "../components/page-header.tsx";
 import { ListPlus } from "lucide-react";
 import { ImportForm } from "./import-form.tsx";
@@ -51,7 +52,6 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   );
   return (
     <>
-      <AccessNotice />
       <PageHeader
         eyebrow="Obligations"
         title="Payables"
@@ -72,36 +72,50 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
       {list.length === 0 ? (
         <p className="card text-sm text-muted">{filter ? `No ${KIND[filter].one.toLowerCase()} payables.` : "No payables yet."}</p>
       ) : (
-        <div className="table-card">
+        <TableCard label="Payables">
         <table className={TABLE_CLASS}>
           <caption className="sr-only">Payables{filter ? `: ${KIND[filter].many}` : ""}</caption>
           <thead>
             <tr>
               <th>Reference</th>
-              <th>Recipient</th>
-              <th>Kind</th>
-              <th className="text-right">Amount</th>
-              <th>Source</th>
-              <th>Created (UTC)</th>
+              <th className="hidden md:table-cell">Recipient</th>
+              <th className="hidden sm:table-cell">Kind</th>
+              <th className="hidden text-right sm:table-cell">Amount</th>
+              <th className="hidden 2xl:table-cell">Source</th>
+              <th className="hidden md:table-cell">Created (UTC)</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {list.map((p) => (
               <tr key={p.id}>
-                <td className="whitespace-nowrap">
-                  <code>{p.reference}</code>
-                </td>
                 <td>
+                  <code>
+                    <Words text={p.reference} />
+                  </code>
+                  {/* On a phone the recipient and the amount sit under the reference (review F round 3). */}
+                  <div className="mt-0.5 text-xs text-muted md:hidden">
+                    {byId.get(p.recipientId)?.displayName}
+                    <span className="sm:hidden"> · {centsText(p.usdCents)}</span>
+                  </div>
+                  {p.sourceUrl && (
+                    <div className="2xl:hidden">
+                      <a href={p.sourceUrl} rel="noopener noreferrer" className="link text-xs">
+                        {hostOf(p.sourceUrl)}
+                      </a>
+                    </div>
+                  )}
+                </td>
+                <td className="hidden md:table-cell">
                   {byId.get(p.recipientId)?.displayName}
                   {/* Names need not be unique: the address prefix tells two "Alice"s apart (review H4). */}
-                  <div className="font-mono text-xs text-muted">{shortAddress(byId.get(p.recipientId)?.address ?? "")}</div>
+                  <div className="max-w-[11rem] truncate font-mono text-xs text-muted">{shortAddress(byId.get(p.recipientId)?.address ?? "")}</div>
                 </td>
-                <td>
+                <td className="hidden sm:table-cell">
                   <span className="badge badge-plain">{KIND[p.kind].one}</span>
                 </td>
-                <td className="text-right tabular-nums">{centsText(p.usdCents)}</td>
-                <td>
+                <td className="hidden text-right tabular-nums sm:table-cell">{centsText(p.usdCents)}</td>
+                <td className="hidden 2xl:table-cell">
                   {p.sourceUrl ? (
                     <a href={p.sourceUrl} rel="noopener noreferrer" className="link">
                       {hostOf(p.sourceUrl)}
@@ -110,12 +124,12 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                     "—"
                   )}
                 </td>
-                <td className="whitespace-nowrap tabular-nums">{p.createdAt.slice(0, 10)}</td>
+                <td className="hidden whitespace-nowrap tabular-nums md:table-cell">{p.createdAt.slice(0, 10)}</td>
                 <td>
                   {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
                   {holders.has(p.id) ? (
-                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="badge tone-info badge-plain no-underline hover:border-info">
-                      In batch {holders.get(p.id)!.title}
+                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} title={`In batch ${holders.get(p.id)!.title}`} className="badge tone-info badge-plain max-w-[8rem] no-underline hover:border-info sm:max-w-[12rem]">
+                      <span className="truncate">In batch {holders.get(p.id)!.title}</span>
                     </Link>
                   ) : (
                     <span className="badge tone-neutral">Unbatched</span>
@@ -125,7 +139,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
             ))}
           </tbody>
         </table>
-        </div>
+        </TableCard>
       )}
       {recipients.length === 0 ? (
         <p className="card text-sm text-muted">

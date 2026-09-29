@@ -4,8 +4,9 @@ import { disclosedText } from "../../lib/view/linkability.ts";
 import { UA_HRP } from "../../lib/execution/address.ts";
 import { serverContext } from "../../lib/server/context.ts";
 import { Address } from "../components/address.tsx";
+import { shortAddress } from "../../lib/view/format.ts";
 import { LinkabilityNote } from "../components/linkability.tsx";
-import { AccessNotice } from "../components/panels.tsx";
+import { TableCard } from "../components/table-card.tsx";
 import { PageHeader } from "../components/page-header.tsx";
 import { RecipientForm } from "./recipient-form.tsx";
 import { TABLE_CLASS } from "../../lib/view/table.ts";
@@ -27,21 +28,20 @@ export default async function RecipientsPage() {
   const names = new Map(list.map((r) => [r.id, r.displayName]));
   return (
     <>
-      <AccessNotice />
       <PageHeader eyebrow="Directory" title="Recipients" description={<>People and wallets this org pays. Batch lines copy a recipient&apos;s name and address, so later changes here never rewrite a payment.</>} />
       {list.length === 0 ? (
         <p className="card text-sm text-muted">No recipients yet.</p>
       ) : (
-        <div className="table-card">
+        <TableCard label="Recipients">
         <table className={TABLE_CLASS}>
           <caption className="sr-only">Recipients</caption>
           <thead>
             <tr>
               <th>Name</th>
-              <th>Address</th>
+              <th className="hidden sm:table-cell">Address</th>
               <th>KYC</th>
-              <th>Tax</th>
-              <th>Settlement</th>
+              <th className="hidden md:table-cell">Tax</th>
+              <th className="hidden md:table-cell">Settlement</th>
             </tr>
           </thead>
           <tbody>
@@ -49,6 +49,8 @@ export default async function RecipientsPage() {
               <tr key={r.id}>
                 <td className="font-medium">
                   {r.displayName}
+                  {/* On a phone the address prefix sits under the name (review F round 3). */}
+                  <div className="max-w-[9rem] truncate font-mono text-xs font-normal text-muted sm:hidden">{shortAddress(r.address)}</div>
                   {r.duplicateOf.length > 0 && (
                     <p className="text-xs text-warning">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
                   )}
@@ -61,19 +63,19 @@ export default async function RecipientsPage() {
                     </p>
                   )}
                 </td>
-                <td>
+                <td className="hidden sm:table-cell">
                   <Address value={r.address} />
                 </td>
                 <td>
                   <span className={`badge ${r.kycStatus === "verified" ? "tone-success" : r.kycStatus === "not_required" ? "tone-neutral" : "tone-warning"}`}>{KYC[r.kycStatus]}</span>
                 </td>
-                <td>{TAX[r.taxFlag]}</td>
-                <td>{SETTLE[r.settlementPref]}</td>
+                <td className="hidden md:table-cell">{TAX[r.taxFlag]}</td>
+                <td className="hidden md:table-cell">{SETTLE[r.settlementPref]}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        </div>
+        </TableCard>
       )}
       {anyDisclosed && <LinkabilityNote />}
       <RecipientForm addressHint={`${UA_HRP[config.network]}1…`} />

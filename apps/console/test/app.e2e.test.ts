@@ -696,7 +696,8 @@ test("payables page through next start, posted as a browser without JavaScript: 
     const second = await add(await page(), { recipientId, kind: "salary", amount: "2500", reference: "SALARY-SEP", sourceUrl: "" });
     assert.equal(second.status, 303);
     const listed = await page();
-    assert.ok(listed.includes("<code>BOUNTY-17</code>") && listed.includes("$1,234.56") && listed.includes("$2,500.00"), "exact dollars; the reference trimmed by the form");
+    // The reference is one code element whose words never break inside (components/words.tsx; review F round 3).
+    assert.ok(/<code><span[^>]*>BOUNTY-17<\/span><\/code>/.test(listed) && listed.includes("$1,234.56") && listed.includes("$2,500.00"), "exact dollars; the reference trimmed by the form");
     assert.ok(listed.includes(`${UA.slice(0, 34)}…</div>`), "the list's recipient cell carries the address prefix, so the two 'Ops wallet's can be told apart");
     assert.ok(/href="https:\/\/github.com\/org\/repo\/issues\/17" rel="noopener noreferrer"[^>]*>github.com</.test(listed), "the source link, its host as the text");
     const bounties = await page("?kind=bounty");
@@ -806,7 +807,8 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     const batchPage = await get(String(made.location));
     assert.ok(batchPage.includes("Chosen two") && batchPage.includes("$1,234.56") && batchPage.includes("$0.29") && !batchPage.includes("CH-3"), "the batch holds the two chosen lines");
     const payables = await get("/payables");
-    assert.equal(payables.match(/In batch Chosen two/g)?.length, 2, "both chosen payables show their batch");
+    // Counted as text (">…<"): the badge also carries the full name in its title, as it truncates (review F round 3).
+    assert.equal(payables.match(/>In batch Chosen two</g)?.length, 2, "both chosen payables show their batch");
     assert.equal(payables.match(/>Unbatched</g)?.length, 1);
     const left = await get("/batches/from-payables");
     assert.ok(left.includes(`value="${ids[2]}"`) && !left.includes(`value="${ids[0]}"`), "the chooser offers only the free one");

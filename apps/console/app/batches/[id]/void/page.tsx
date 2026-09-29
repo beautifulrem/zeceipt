@@ -3,7 +3,6 @@ import { getBatch } from "../../../../lib/data/batches.ts";
 import { voidable } from "../../../../lib/data/voids.ts";
 import { serverContext } from "../../../../lib/server/context.ts";
 import { ZecAmount } from "../../../components/amount.tsx";
-import { AccessNotice } from "../../../components/panels.tsx";
 import { PageHeader } from "../../../components/page-header.tsx";
 import { VoidForm } from "./void-form.tsx";
 
@@ -21,7 +20,6 @@ export default async function VoidBatchPage({ params }: { params: Promise<{ id: 
   const can = await voidable(db, rec);
   return (
     <>
-      <AccessNotice />
       <PageHeader
         eyebrow="Void a draft"
         title={<>Void batch {rec.title}?</>}

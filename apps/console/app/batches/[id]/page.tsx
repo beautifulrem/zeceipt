@@ -19,10 +19,12 @@ import { Identifier } from "../../components/identifier.tsx";
 import { paymentMode } from "../../../lib/view/mode.ts";
 import { STATUS_UNAVAILABLE, stateView } from "../../../lib/view/status.ts";
 import { ZecAmount } from "../../components/amount.tsx";
-import { AccessNotice, ModePanel } from "../../components/panels.tsx";
+import { ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
 import { ApproveForm, IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
 import { TABLE_CLASS } from "../../../lib/view/table.ts";
+import { TableCard } from "../../components/table-card.tsx";
+import { Words } from "../../components/words.tsx";
 import { PageHeader } from "../../components/page-header.tsx";
 import { ArrowUpRight, Download, ExternalLink, FileCheck2 } from "lucide-react";
 import { CopyButton } from "../../components/copy-button.tsx";
@@ -78,14 +80,14 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
       ) : (
         <>
           <p className="text-sm text-muted">Anyone with a receipt link can verify that one payment in their browser, and nothing else.</p>
-          <div className="table-card">
+          <TableCard label="Receipts">
             <table className={TABLE_CLASS}>
               <caption className="sr-only">Receipts of this batch</caption>
               <thead>
                 <tr>
                   <th>Payee</th>
                   <th className="hidden sm:table-cell">Memo</th>
-                  <th className="text-right">Amount</th>
+                  <th className="hidden text-right sm:table-cell">Amount</th>
                   <th>Receipt</th>
                 </tr>
               </thead>
@@ -99,17 +101,20 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                         {who}
                         <div className="font-mono text-xs font-normal text-muted">{r.payableId}</div>
                       </td>
-                      <td className="hidden whitespace-nowrap sm:table-cell">
-                        <code>{line?.memo}</code>
+                      <td className="hidden sm:table-cell">
+                        <code>
+                          <Words text={line?.memo ?? ""} />
+                        </code>
                       </td>
-                      <td className="whitespace-nowrap text-right">{line && <ZecAmount zat={line.zat} />}</td>
+                      <td className="hidden whitespace-nowrap text-right sm:table-cell">{line && <ZecAmount zat={line.zat} />}</td>
                       <td className="whitespace-nowrap">
                         {r.openError || !r.url ? (
                           <span className="text-danger">could not be opened ({r.openError})</span>
                         ) : (
                           <span className="inline-flex items-center gap-1">
-                            <a href={r.url} rel="noreferrer" className="link inline-flex items-center gap-1 font-medium">
-                              Receipt for {who}
+                            <a href={r.url} rel="noreferrer" aria-label={`Receipt for ${who}`} className="link inline-flex items-center gap-1 font-medium">
+                              <span>Receipt</span>
+                              <span className="hidden sm:inline">for {who}</span>
                               <ArrowUpRight aria-hidden="true" className="size-3.5" />
                             </a>
                             <CopyButton value={r.url} label={`Copy the receipt link for ${who}`} />
@@ -121,7 +126,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                 })}
               </tbody>
             </table>
-          </div>
+          </TableCard>
         </>
       )}
       {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what it discloses (lib/view/export-offer.ts). */}
@@ -144,7 +149,6 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   const required = status?.detail.required ?? ctx.config.confirmations;
   return (
     <>
-      <AccessNotice />
       <PageHeader eyebrow="Batch" title={rec.title} actions={view ? <StatusBadge view={view} /> : undefined}>
         <p className="text-sm text-muted">
           Batch <code>{rec.id}</code> · created {rec.createdAt.replace("T", " ").slice(0, 16)} UTC
@@ -208,9 +212,11 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               </>
             ) : view && status ? (
               <>
-                <p className="text-sm">
-                  <strong>Next:</strong> {view.next}
-                </p>
+                {status.next !== "none" && (
+                  <p className="text-sm">
+                    <strong>Next:</strong> {view.next}
+                  </p>
+                )}
                 <Lifecycle view={view} />
                 <p className="text-sm">{view.explanation}</p>
                 {status.next === "approve" &&
@@ -311,7 +317,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               ZEC/USD rate
             </h2>
             {lock ? (
-              <dl className="kv">
+              <dl className="kv kv-stack">
                 <dt>Locked rate</dt>
                 <dd>
                   <strong>{rateText(lock.rate)}</strong> <span className="text-muted">(bid, exactly {lock.rate})</span>
@@ -359,7 +365,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         <h2 id="items-heading" className="section-title">
           Items
         </h2>
-        <div className="table-card">
+        <TableCard label="Items">
           <table className={TABLE_CLASS}>
             <caption className="sr-only">Items of this batch</caption>
             <thead>
@@ -382,8 +388,10 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                   <td className="hidden sm:table-cell">
                     <Address value={i.address} />
                   </td>
-                  <td className="whitespace-nowrap">
-                    <code>{i.memo}</code>
+                  <td>
+                    <code>
+                      <Words text={i.memo} />
+                    </code>
                   </td>
                   <td className="whitespace-nowrap text-right">
                     <ZecAmount zat={i.zat} />
@@ -409,7 +417,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
               </tr>
             </tfoot>
           </table>
-        </div>
+        </TableCard>
       </section>
 
 

@@ -3,8 +3,8 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { ShieldCheck } from "lucide-react";
 import { ConsoleNav } from "./components/nav.tsx";
+import { AccessNotice } from "./components/panels.tsx";
 import "./globals.css";
 
 export const metadata = { title: "Zeceipt payout console" };
@@ -32,16 +32,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               </Link>
               <ConsoleNav />
             </div>
-            <div className="mt-auto hidden rounded-lg border border-line bg-surface-2 p-3 text-xs text-muted lg:block">
-              <p className="flex items-center gap-2 font-medium text-fg">
-                <ShieldCheck aria-hidden="true" className="size-4 text-accent-strong" strokeWidth={1.75} />
-                Receipts, not viewing keys
-              </p>
-              <p className="mt-1 leading-relaxed">Each payment gets a receipt anyone can verify for that one output.</p>
-            </div>
+            <AccessNotice className="mt-auto hidden flex-col gap-1.5 px-3 text-xs lg:flex" />
             </div>
           </aside>
           <main id="main" className="mx-auto w-full min-w-0 max-w-6xl space-y-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+            <AccessNotice className="lg:hidden" />
             {children}
           </main>
         </div>

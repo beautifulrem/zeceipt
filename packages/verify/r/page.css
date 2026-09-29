@@ -189,6 +189,11 @@ h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 6
 .card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
 .card-head h2 { margin: 0; }
 .pill { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
+.pill.tone-success { color: var(--success); background: var(--success-soft); border-color: var(--success-line); }
+.pill.tone-danger { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-line); }
+/* A link with no receipt, or not a receipt at all: what a valid result proves is beside the point (review F round 3). */
+body[data-state="empty"] .scope, body[data-state="unreadable"] .scope { display: none; }
+.verdict-detail { margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
 /* What the receipt claims: not a verdict, so a quieter, dashed frame */
 .claims { border-style: dashed; border-color: var(--line-strong); box-shadow: none; background: color-mix(in srgb, var(--surface) 70%, transparent); }
 /* Once checked, the claims fold away (page.js): the verdict above already says them. */
@@ -224,7 +229,6 @@ td:has(> .amount) { font-size: 1.75rem; line-height: 1.2; }
 table.kv tr[data-key="Value"] td:last-child { font-variant-numeric: tabular-nums; }
 .amount-unit { font-size: 0.6em; font-weight: 600; }
 .amount-zat { display: block; font-size: 0.8rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
-#unreadable .detail { margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; overflow-wrap: anywhere; }
 .copy {
   display: inline-grid; place-items: center; vertical-align: -0.2rem;
   width: 1.6rem; height: 1.6rem; margin-left: 0.35rem; padding: 0;
@@ -295,8 +299,9 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 }
 /* Scrolled to on arrival (page.js, the demo): clear of the sticky top bar. */
 #outcome, .result { scroll-margin-top: 5rem; }
-#outcome:focus { outline: none; }
-#outcome:focus-visible { outline: 2px solid var(--ring); outline-offset: -5px; }
+/* Focus is moved to the verdict by the page, not tabbed to (it is not in the Tab order): no ring, which the torn
+   edge would cut and which read as a second border (review F round 3). The heading and the live line carry it. */
+#outcome:focus, .result:focus { outline: none; }
 /* The verified result is the receipt: a slip with a torn bottom edge, like the mark (a mask, so it prints and sits on
    any background); the wrapper keeps its shadow, which the mask would clip. */
 .slip-wrap { filter: drop-shadow(0 8px 18px rgb(20 22 28 / 0.08)); }
@@ -375,6 +380,9 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
   /* The transaction's source is how you checked, not what you print. */
   #receipt > .card:not(.claims) { display: none !important; }
   .card, #outcome, .slip-wrap { box-shadow: none; }
+  #outcome, .result { outline: none !important; }
+  /* Folded claims (they matched) print as nothing rather than a stub to click. */
+  details#claims:not([open]) { display: none !important; }
   .claims, .scope .card, table.kv tr { break-inside: avoid; }
   #outcome, #outcome::before, .verdict-icon, .verdict-icon::after, .checks li::before, .limits li::before, .i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .print-only { display: block; margin-top: 1rem; font-family: var(--mono); font-size: 10px; color: var(--muted); }

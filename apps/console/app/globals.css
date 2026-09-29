@@ -450,6 +450,18 @@
     overflow-wrap: anywhere;
   }
 
+  /* In a narrow column (the batch page's aside), each label above its value */
+  .kv-stack {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+  .kv-stack dt {
+    font-size: 0.75rem;
+  }
+  .kv-stack dt:not(:first-child) {
+    margin-top: 0.55rem;
+  }
+
   /* Data tables (spacing from TABLE_CLASS; this adds the chrome) */
   .data-table {
     border-collapse: separate;
@@ -492,12 +504,23 @@
     inset: 0;
   }
   .table-card {
-    background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-card);
     padding: 0.25rem 1.25rem 0.5rem;
     overflow-x: auto;
+    /* Scroll shadows: covers that move with the content hide edge shadows that stay put, so an edge shows a shadow
+       only while there is more table beyond it (no script). */
+    background:
+      linear-gradient(to right, var(--surface) 40%, transparent) left center / 2.5rem 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 40%, transparent) right center / 2.5rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.14), transparent) left center / 0.9rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.14), transparent) right center / 0.9rem 100% no-repeat scroll,
+      var(--surface);
+  }
+  .table-card:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
   /* The digits after an amount's significant ones, lighter (R73); the same rule on the receipt page (page.css),

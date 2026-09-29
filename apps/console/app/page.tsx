@@ -7,7 +7,8 @@ import { StatusBadge } from "./components/status.tsx";
 import { serverContext } from "../lib/server/context.ts";
 import { paymentMode } from "../lib/view/mode.ts";
 import { ZecAmount } from "./components/amount.tsx";
-import { AccessNotice, ModePanel } from "./components/panels.tsx";
+import { ModePanel } from "./components/panels.tsx";
+import { TableCard } from "./components/table-card.tsx";
 import { PageHeader } from "./components/page-header.tsx";
 import { TABLE_CLASS } from "../lib/view/table.ts";
 
@@ -22,7 +23,6 @@ export default async function Home() {
   const stages = new Map(await Promise.all(batches.map(async (b) => [b.id, batchStage({ voided: b.voided, submitted: await isSubmitted(db, { orgId: config.orgId, id: b.id }), receipts: counts.get(b.id) ?? 0, items: b.itemCount })] as const)));
   return (
     <>
-      <AccessNotice />
       <PageHeader
         eyebrow="Payouts"
         title="Batches"
@@ -52,15 +52,15 @@ export default async function Home() {
           <p className="max-w-md text-sm text-muted">Start from payables to convert US dollars at one locked rate, or type the lines yourself.</p>
         </div>
       ) : (
-        <div className="table-card animate-rise-3">
+        <TableCard label="Batches" className="animate-rise-3">
           <table className={TABLE_CLASS}>
             <caption className="sr-only">Batches, newest first</caption>
             <thead>
               <tr>
                 <th>Title</th>
-                <th>Stage</th>
+                <th className="hidden sm:table-cell">Stage</th>
                 <th className="hidden sm:table-cell">Created</th>
-                <th className="text-right">Items</th>
+                <th className="hidden text-right sm:table-cell">Items</th>
                 <th className="text-right">Total</th>
               </tr>
             </thead>
@@ -71,12 +71,16 @@ export default async function Home() {
                     <Link href={`/batches/${b.id}`} className="link font-medium">
                       {b.title}
                     </Link>
+                    {/* On a phone the stage sits under the title (review F round 3). */}
+                    <div className="mt-1.5 sm:hidden">
+                      <StatusBadge view={stages.get(b.id)!} />
+                    </div>
                   </td>
-                  <td>
+                  <td className="hidden sm:table-cell">
                     <StatusBadge view={stages.get(b.id)!} />
                   </td>
                   <td className="hidden whitespace-nowrap text-muted sm:table-cell">{b.createdAt.replace("T", " ").slice(0, 16)} UTC</td>
-                  <td className="text-right tabular-nums">{b.itemCount}</td>
+                  <td className="hidden text-right tabular-nums sm:table-cell">{b.itemCount}</td>
                   <td className="whitespace-nowrap text-right">
                     <ZecAmount zat={b.totalZat} />
                   </td>
@@ -84,7 +88,7 @@ export default async function Home() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableCard>
       )}
     </>
   );

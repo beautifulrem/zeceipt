@@ -1,6 +1,5 @@
 import { serverContext } from "../../../lib/server/context.ts";
 import { BLANK_LINE } from "../../../lib/view/draft-form.ts";
-import { AccessNotice } from "../../components/panels.tsx";
 import { PageHeader } from "../../components/page-header.tsx";
 import { DraftForm } from "./draft-form.tsx";
 
@@ -14,7 +13,6 @@ export default function NewBatchPage() {
   const initial = { title: "", lines: [{ ...BLANK_LINE }, { ...BLANK_LINE }, { ...BLANK_LINE }], top: [], lineErrors: {}, submission: 0 };
   return (
     <>
-      <AccessNotice />
       <PageHeader eyebrow="Payouts" title="New batch" description="Type the lines, or fill them from a Konclave CSV. Nothing is paid until the batch is approved and you press Pay." />
       <DraftForm initial={initial} addressHint={HINT[config.network]} />
     </>

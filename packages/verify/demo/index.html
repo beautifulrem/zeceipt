@@ -79,7 +79,7 @@
 <script type="module">
 import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/index.js";
 import { el, issuerLine, kvRows } from "../r/ui.js";
-import { verdictNote } from "../r/view.js";
+import { outcome, verdictNote } from "../r/view.js";
 const $ = (id) => document.getElementById(id);
 const status = $("status"), out = $("out");
 status.textContent = "Loading the verifier…";
@@ -109,7 +109,7 @@ $("fetch").addEventListener("click", async () => {
     status.textContent = `Fetching ${r.txid.slice(0, 16)}… from a public node.`;
     const got = await fetchRawTx(r.txid, r.network);
     $("rawtx").value = got.hex;
-    fetched = { hex: got.hex, mined: got.chain.status === "mined", endpoint: got.endpoint };
+    fetched = { hex: got.hex, chain: got.chain, endpoint: got.endpoint };
     const where = { mined: `mined at height ${got.chain.height}`, mempool: "in the mempool, not mined yet", fork: "on a fork, not the main chain" }[got.chain.status];
     status.textContent = `Fetched from ${got.endpoint} (${where}).`;
   } catch (e) { status.textContent = `The fetch failed: ${e}`; }
@@ -135,21 +135,21 @@ $("verify").addEventListener("click", () => {
   let r;
   try {
     r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
-  } catch (e) { show("bad", "Verifier error", "The verifier could not run on this input.", el("p", "muted", String(e))); return; }
-  if (!r.valid) { show("bad", "INVALID", `Failed at the ${r.stage} check.`, el("p", "muted", r.error)); return; }
-  const memo = r.memo.kind === "text" ? r.memo.text : r.memo.kind === "empty" ? "(empty)" : "bytes " + r.memo.hex;
-  const mined = Boolean(fetched && fetched.mined && fetched.hex === $("rawtx").value.trim());
-  const note = mined ? verdictNote({ valid: true, inclusion: { state: "mined" } }) : "The payment is proven. Its chain inclusion is not checked: this page verified the bytes you supplied.";
-  const table = el("table", "kv");
-  table.append(...kvRows([
-    ["Transaction", r.txid], ["Output", `${r.pool} output ${r.output_index}`], ["Recipient", r.recipient],
-    ["Value", `${r.value_zec} ZEC (${r.value_zat} zat)`], ["Memo", memo], ["Label", r.label || "(none)"],
-    ["Challenge", r.challenge_checked ? "Bound, and it matched" : "None"],
-  ], { amount: { zec: r.value_zec, zat: r.value_zat }, live: $("result-live") }));
+  } catch (e) { show("bad", "Verifier error", "The verifier could not run on this input.", el("p", "verdict-detail", String(e))); return; }
+  // The page's own view model (r/view.js outcome), so the rows, their order, the numbered parts and the wording are
+  // the receipt page's. The source is the node only for exactly the bytes it served; anything else is a file.
+  const fromNode = Boolean(fetched && fetched.hex === $("rawtx").value.trim());
+  const view = outcome(r, fromNode ? { kind: "node", chain: fetched.chain, endpoint: fetched.endpoint, tip: null } : { kind: "file" });
+  if (!view.valid) { show("bad", "INVALID", view.stageCopy, el("p", "verdict-detail", view.error)); return; }
+  const payment = el("table", "kv");
+  payment.append(...kvRows(view.payment, { amount: view.amount, live: $("result-live") }));
   const issuer = el("ul", "issuer");
-  issuer.append(issuerLine(r.issuer_pubkey ? `Signed by key ${r.issuer_pubkey}${r.issuer_key_id ? ` (key id ${r.issuer_key_id})` : ""}. Which organisation holds this key is not checked here.` : "Unsigned: no issuer key."));
-  show(mined ? "ok" : "pending", "VALID", note, table, el("h3", "", "The issuer"), issuer,
-    el("p", "muted", mined ? `According to ${fetched.endpoint}. For funds that matter, check your own node.` : "For depth, confirm the transaction on an explorer or your own node."));
+  issuer.append(...view.issuer.map(issuerLine));
+  show(view.inclusion.state === "mined" ? "ok" : "pending", "VALID", verdictNote(view),
+    el("h3", "", "1. The payment"), payment,
+    el("h3", "", "2. Chain inclusion"), el("p", "inclusion", view.inclusion.text),
+    el("h3", "", "3. The issuer"), issuer,
+    el("p", "muted", view.challenge));
 });
 </script>
 </body>

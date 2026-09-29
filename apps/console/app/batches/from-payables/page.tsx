@@ -7,7 +7,6 @@ import { serverContext } from "../../../lib/server/context.ts";
 import { centsText, recipientLabel } from "../../../lib/view/format.ts";
 import { disclosedText } from "../../../lib/view/linkability.ts";
 import { LinkabilityNote } from "../../components/linkability.tsx";
-import { AccessNotice } from "../../components/panels.tsx";
 import { PageHeader } from "../../components/page-header.tsx";
 import { FromPayablesForm } from "./from-payables-form.tsx";
 
@@ -30,7 +29,6 @@ export default async function FromPayablesPage() {
   });
   return (
     <>
-      <AccessNotice />
       <PageHeader eyebrow="Payouts" title="New batch from payables" description={<>Each chosen payable becomes a line: its recipient&apos;s address, its reference as the memo, and its dollars converted to ZEC at one quoted rate.</>} />
       {choices.length === 0 ? (
         <p className="card text-sm text-muted">

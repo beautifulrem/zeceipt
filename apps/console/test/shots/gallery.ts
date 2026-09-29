@@ -88,6 +88,8 @@ try {
   }
   fake.mined.push({ txid: TXID, height: fake.height - 4, expiry: fake.height + 40, recipients: LINES.map((l) => ({ address: l.address, amount: l.zat, memo: l.memo })) });
 
+  // Tables that may scroll sideways on a 390px phone: their columns are all needed to act on a row.
+  const PHONE_SCROLL: Record<string, string[]> = {};
   const pages: [string, string][] = [
     ["batches", "/"], ["batch-paid", `/batches/${paid.id}`], ["batch-draft", `/batches/${draft.id}`], ["batch-receipts", `/batches/${String(issued.id)}`],
     ["batch-new", "/batches/new"], ["from-payables", "/batches/from-payables"], ["void", `/batches/${draft.id}/void`],
@@ -102,6 +104,15 @@ try {
         // No page may be wider than the viewport (review F round 2: a nowrap cell once widened the whole layout).
         const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         if (over > 0) throw new Error(`${name} (${scheme}, ${tag}) overflows the viewport by ${over}px`);
+        // Nor may a table scroll inside its card on a desktop (review F round 3: a hidden Status column); on a phone,
+        // only the tables listed in PHONE_SCROLL may, each a deliberate choice, and their cards show it (edge shadows).
+        const scrolling = await page.evaluate(() => [...document.querySelectorAll(".table-card")].filter((c) => c.scrollWidth > c.clientWidth + 1).map((c) => c.getAttribute("aria-label")));
+        const allowed = tag === "phone" ? PHONE_SCROLL[name] ?? [] : [];
+        const unexpected = scrolling.filter((l) => !allowed.includes(String(l)));
+        if (unexpected.length) {
+          const widths = await page.evaluate((l) => [...document.querySelectorAll(`.table-card[aria-label="${l}"] th`)].map((th) => `${th.textContent}:${Math.round(th.getBoundingClientRect().width)}`).join(" "), unexpected[0]);
+          throw new Error(`${name} (${scheme}, ${tag}): table cards scroll sideways: ${unexpected.join(", ")} (columns ${widths})`);
+        }
         await page.screenshot({ path: join(OUT, `${name}-${scheme}-${tag}.png`), fullPage: true });
       }
       await context.close();
