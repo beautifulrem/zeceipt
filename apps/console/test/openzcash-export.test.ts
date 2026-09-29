@@ -1,8 +1,8 @@
 // The OpenZcash-compatible export (slice X2a; REQ-INT-2; `05` §3.1). Every expected string below, and the golden file,
 // was produced by OpenZcash's own code run in Node: its `formatUsdCents`, `formatZec` and `downloadTableCsv` (with its
 // own number pattern) and the per-cell clean-up its table applies, cut out of the JavaScript openzcash.org served on
-// 2026-09-26 (R110). The oracle scripts and their output are kept with the slice
-// (`.trellis/tasks/09-26-openzcash-csv-writer/`); the third-party file itself is not committed.
+// 2026-09-26 (R110). The oracle scripts and the third-party file
+// they cut from are not committed.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

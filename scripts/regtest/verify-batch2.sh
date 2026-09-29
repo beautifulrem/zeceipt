@@ -4,7 +4,7 @@
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 Z="${ZECEIPT_BIN:-$ROOT/target/release/zeceipt}"
-ARTIFACT_DIR="${ARTIFACT_DIR:-<workspace>/raw/tools/regtest}"
+ARTIFACT_DIR="${ARTIFACT_DIR:-$(cd "$(dirname "$0")/../../.." && pwd)/raw/tools/regtest}"
 ENDPOINT="${ENDPOINT:-http://127.0.0.1:8137}"
 cd "$ARTIFACT_DIR" || exit 2
 python3 - <<'PY'

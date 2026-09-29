@@ -1,4 +1,4 @@
-// `IdempotencyStore` on SQLite (better-sqlite3 + Drizzle; design `.trellis/tasks/09-23-store-sqlite/design.md`).
+// `IdempotencyStore` on SQLite (better-sqlite3 + Drizzle).
 // Every write is one synchronous `BEGIN IMMEDIATE` transaction, so compare-and-set, claims and the txid
 // index are atomic and cross-process safe without any lease (unlike the file store, RSK-21 clause c).
 // Being synchronous, a write cannot interleave with another write in the same process.

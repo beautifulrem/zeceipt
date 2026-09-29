@@ -12,6 +12,7 @@ The first release. This section becomes `0.1.0` when the tag is cut.
 
 ### Added
 
+- **Licence and presentation.** Apache-2.0 (`LICENSE`, `NOTICE`), an original project mark and social preview (`docs/assets/`), and a README rewritten for first-time readers.
 - **Receipt format v0** (`spec/receipt-v0.md`). A receipt is an optionally signed envelope that discloses one shielded output by its Outgoing Cipher Key, so that anyone can recover exactly that output's recipient, amount and memo from the chain without a viewing key. It is the `outputs` half of ZIP 311, without the spend-authority proof, which needs the spending key, and without ZIP 311's requirements that only a sender can create a disclosure and that it cannot be re-signed (`docs/outreach/zips-387-comment.md`).
   - Canonical signing bytes with an ed25519 issuer signature.
   - Challenges, for receipts made out to one verifier.

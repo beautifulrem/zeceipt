@@ -3,7 +3,7 @@ DRAFT (WBS 5.1.1.1; slice V2b). Recording, editing and uploading are the user's,
 Official brief: a presentation (pitch) video of 2 to 3 minutes, in English, uploaded to a platform such as YouTube (KB `04_submission.md`);
 the product demo is a separate video of at most 3 minutes (WBS 5.1.1.2).
 Beats follow `11_plan.md` §5 in order (its times are approximate; this script's are the recording's). Every sentence is backed by
-the evidence in `.trellis/tasks/09-26-pitch-script/implement.md`.
+the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 Footage (regtest only; recorded by `apps/console/test/shots/demo-video.ts`), from three takes, each named in its row: segments 1–3
 from `../raw/demo/20260925230743/` (slice L2), segment 4 (the import) from `../raw/demo/20260926144231/` (slice V2c1), segments 5
 and 6 (the OpenZcash download, the audit pack) from `../raw/demo/20260926182327/` (slice V2c2). Each take has all its segments,

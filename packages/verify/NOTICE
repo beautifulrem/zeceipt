@@ -1,0 +1,8 @@
+zeceipt
+Copyright 2026 beautifulremi
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party material:
+- Rust crates and npm packages are pinned by Cargo.lock and the npm lockfiles and
+  keep their own licenses.

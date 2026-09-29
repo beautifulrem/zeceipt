@@ -75,7 +75,7 @@ try {
     await page.waitForTimeout(KEY);
   };
   try {
-    // Navigate once before setContent: a fresh page's first document records a grey band (CLAUDE.md, footage).
+    // Navigate once before setContent: a fresh page's first document records a grey band.
     await page.goto("data:text/html,");
     await page.setContent(terminal(before));
     await step("the batch transaction as it is: v6, NU6.3's branch 0x37a5165b in its header; inspect lists its six outputs");

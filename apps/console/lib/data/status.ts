@@ -1,4 +1,4 @@
-// Derived batch status (design `.trellis/tasks/09-23-batch-status/design.md` §3.3.1.3.4.2): one state and
+// Derived batch status (`docs/product/05_data_model_api.md`): one state and
 // the next action per batch, computed from facts that each have one owner — the submission record, the
 // chain status, the receipts — and never stored. Fail closed: only a mined transaction with enough
 // confirmations counts as confirmed; an unknown outcome is never shown as progress.

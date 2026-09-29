@@ -1,8 +1,7 @@
 <!--
 DRAFT (WBS 5.1.1.2; slice V2d). Recording, narration and upload are the user's, in 2026-10-04 → 10-07 (`11_plan.md` §8).
 Official brief: a product demo of at most 3 minutes, in English (KB `04_submission.md`); the KB's advice: real product use with
-narration (KB `11_strategy.md` §六). Steps follow `11_plan.md` §5's technical demo. Every sentence is backed by the evidence in
-`.trellis/tasks/09-27-tech-demo-script/implement.md`.
+narration (KB `11_strategy.md` §六). Steps follow `11_plan.md` §5's technical demo. Every sentence is backed by the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 Footage (regtest only; recorded by `apps/console/test/shots/demo-video.ts`): `3-receipt-page.webm` from take
 `../raw/demo/20260925230743/` (slice L2); segments 7 to 9 (the terminal, the custody panels, the proof document) from take
 `../raw/demo/20260926184526/` (slice V2e), real commands run as shown, with every OCK filtered out of what is on screen. Cue times

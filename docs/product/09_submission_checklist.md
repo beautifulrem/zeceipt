@@ -20,13 +20,13 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Go-to-market (the form asks for "Go-to-market strategy, demand validation, and plans for developing distribution" `[R109]`) | draft in §2b (slice D9): first users, demand in a user's words, channels, milestones, draft pricing | 🟡 fill the status placeholder |
 | Live demo / website URL | `zeceipt.xyz` demo page (or GitHub Pages fallback) — field not in the 2026-09-17 capture; prepare anyway | ⬜ |
 | X / social handle | team handle for weekly updates — not in the capture; prepare anyway | 👤 |
-| Past development work (required: "teams must disclose all relevant past development work in the submission form" `[R109]`) | Draft, from `docs/PRE_EVENT_STATE.md`: the repository started on 2026-09-21 PT, a week into the event, and no product code predates it; before the event there was only a general study library of other hackathons' winning projects (June 2026: notes, and local clones of their public repositories for reading), not specific to this product, and none of that code is used; the competition research and the product definition were written during the event (2026-09-17 → 09-21) in a private knowledge base, before the repository started; third-party code is published crates and npm packages (lockfiles) and the workflow tooling under `.trellis/` and `.claude/` (Trellis, Claude Code), installed with those tools, which with `Cargo.lock` is most of the first commit; `docs/PRIOR_ART.md` reviews other people's projects and none of their code is used. The same statement is public in `docs/PRE_EVENT_STATE.md` and the README "For judges" section. The user adds any earlier work only they know of | ⬜ the user confirms and submits it |
+| Past development work (required: "teams must disclose all relevant past development work in the submission form" `[R109]`) | Draft, from `docs/PRE_EVENT_STATE.md`: the repository started on 2026-09-21 PT, a week into the event, and no product code predates it; before the event there was only a general study library of other hackathons' winning projects (June 2026: notes, and local clones of their public repositories for reading), not specific to this product, and none of that code is used; the competition research and the product definition were written during the event (2026-09-17 → 09-21) in a private knowledge base, before the repository started; third-party code is published crates and npm packages (lockfiles); the development workflow's local tooling is not part of the repository; `docs/PRIOR_ART.md` reviews other people's projects and none of their code is used. The same statement is public in `docs/PRE_EVENT_STATE.md` and the README "For judges" section. The user adds any earlier work only they know of | ⬜ the user confirms and submits it |
 | AI-assistance disclosure | if the form asks: AI-assisted coding and research were used; all cryptography comes from upstream crates; disclose plainly | ⬜ |
 | isUniversityProject / isSolanaMobile | no / no | ✅ |
 
 ## 2. Description draft (≤ 500 words, English; rewritten in slice D8 from what the code and PROOF show)
 
-Sources, not part of the submitted text: the ledger figures `[R105]`, the FPF quarter `[R4]`, Ironwood's activation `[R20]`; each other claim maps to evidence in `.trellis/tasks/09-26-submission-description/implement.md`.
+Sources, not part of the submitted text: the ledger figures `[R105]`, the FPF quarter `[R4]`, Ironwood's activation `[R20]`; each other claim was checked against PROOF, the tests or the research log.
 
 **Problem.** Organisations that pay contributors in shielded Zcash have no practical way to prove a single payment. Today they usually hand over a viewing key, which exposes every payment the wallet ever made, or a spreadsheet the auditor has to trust. OpenZcash mirrors ZCG's ledger of 1,016 disbursements, 825 of them marked paid (budgeted at $23.3M), and not one row is checked against the chain.
 
@@ -59,13 +59,13 @@ Receipts compose into audit packs whose totals are lower bounds. An issuer can b
 
 ## 2b. Go-to-market draft (form field "Go-to-market strategy and distribution plans"; slice D9)
 
-Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 2026-09-26), the FPF quarter `[R4]`, targets `11_plan.md` §4 (solo branch), pricing `08_gtm_pricing.md` §4; each claim maps to evidence in `.trellis/tasks/09-26-gtm-paragraph/implement.md`.
+Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 2026-09-26), the FPF quarter `[R4]`, targets `11_plan.md` §4 (solo branch), pricing `08_gtm_pricing.md` §4; each claim was checked against PROOF, the tests or the research log.
 
 **Who first.** Zcash grant and bounty programs, which pay contributors in ZEC and account for it in public: ZCG's ledger is mirrored on OpenZcash from its public sheet, and FPF made 129 ZecHub bounty payments to 33 recipients in one quarter. Our first pilot target is ZecHub's bounty program, with whoever sends its payments (today FPF) issuing the receipts from that wallet's viewing key; then ZCG's grantees and payroll teams. The community has named the gap: in a June forum thread on viewing keys for accounting, Michae2xl wrote "The encryption is done; the boring middle is not.", listing a scoped, logged disclosure for the auditor among the missing pieces.
 
 **How it spreads.**
 - A receipt travels as a link to a page that verifies it in the browser, so each payment shows the product to the person paid and to whoever checks it.
-- An open-source core (MIT): the format, test vectors, Rust crates, a CLI and a browser verifier, so wallets and payout tools can issue or check receipts without us.
+- An open-source core (Apache-2.0): the format, test vectors, Rust crates, a CLI and a browser verifier, so wallets and payout tools can issue or check receipts without us.
 - The Zcash forum: a public call for one pilot team, which pays a real batch and sends its contributors their receipt links.
 - The standard: an implementation report for ZIP 311's discussion, asking whether an outputs-only profile could be standardised, so receipts can become a common format rather than ours alone.
 
@@ -120,11 +120,11 @@ Six criteria (rules §8) `[R1]`:
 
 | Criterion | Where it is answered |
 |---|---|
-| Functionality — how well it works, code quality | 524 tests (65 Rust, 459 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow, implementation review 100/100 (journal) |
+| Functionality — how well it works, code quality | 524 tests (65 Rust, 459 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow, implementation review 100/100 |
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
 | Novelty | first per-output receipts on Ironwood; format + vectors; `docs/PRIOR_ART.md` states exactly what is new vs Glasspane/ZIP 311 |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4) |
-| Open-source, composability | MIT; crates + npm package (publishing is the user's) + vectors; the issuer's well-known key file; an OpenZcash-compatible export (built, slices X1–X2c); planned in the solo schedule: a CSV import of Konclave's format (`11_plan.md` §8; `05_data_model_api.md` §4) |
+| Open-source, composability | Apache-2.0 `[R133]`; crates + npm package (publishing is the user's) + vectors; the issuer's well-known key file; an OpenZcash-compatible export (built, slices X1–X2c); planned in the solo schedule: a CSV import of Konclave's format (`11_plan.md` §8; `05_data_model_api.md` §4) |
 | Business Plan, team ability | `08_gtm_pricing.md`; `11_plan.md` §1–§4; team section (U) |
 
 Seven FAQ factors `[R1]`:

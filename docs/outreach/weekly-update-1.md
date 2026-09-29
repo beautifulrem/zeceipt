@@ -4,7 +4,7 @@ by 09-30, or skipped (the updates are "not mandatory", strongly recommended; `11
 Where to post: the FAQ does not say. The Arena API tracks `isCurrentWeekUpdateSubmitted` (`raw/colosseum_projects_frontier.json`),
 so most likely the Arena dashboard, which needs the project registered; confirm there. Posting it on X tagging @colosseum as well is harmless.
 Official brief: "a concise, one-minute video highlighting progress and notable challenges from the previous week" (colosseum.com/hackathon).
-Every claim is backed by the evidence named in `.trellis/tasks/09-26-weekly-update-1/implement.md`.
+the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 Footage: `../raw/demo/20260925230743/` (regtest only, recorded 2026-09-25 by `apps/console/test/shots/demo-video.ts`);
 re-record with `ZECEIPT_REGTEST=1 node test/shots/demo-video.ts` after `next build` if the console changes before 09-28.
 -->

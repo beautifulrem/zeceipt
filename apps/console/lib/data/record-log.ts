@@ -1,4 +1,4 @@
-// The trail of recipients and payables (slice I4b; design `.trellis/tasks/09-25-record-trail/design.md`): read the
+// The trail of recipients and payables (slice I4b): read the
 // events the triggers of migration 0022 wrote for one record, oldest first. A change's `fields` holds
 // {previous, current} for each tracked field that changed; the triggers write null for the others, dropped here.
 

@@ -1,4 +1,4 @@
-// Console configuration (design `.trellis/tasks/09-23-console-config/design.md`). The ONLY module that
+// Console configuration. The ONLY module that
 // reads ZECEIPT_* environment variables (Twelve-Factor config; one owner for the payload, per the
 // cross-layer guide). Everything else receives the typed, frozen ConsoleConfig. Errors name the variable
 // and a fixed message of ours — never the value (zod's raw issues carry the input; they are not surfaced).

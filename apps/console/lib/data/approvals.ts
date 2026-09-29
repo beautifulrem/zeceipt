@@ -1,4 +1,4 @@
-// Approvals (slice I3; REQ-CON-5 as scaled: one approver; design `.trellis/tasks/09-25-approval/design.md` I3.1).
+// Approvals (slice I3; REQ-CON-5 as scaled: one approver).
 // An approval is an HMAC-SHA256, under a key derived from the wrap key (`Keyring.approvalKey`), over a canonical
 // message naming the batch's lines, its current lock and the backend that will pay. It binds content the way a Safe
 // confirmation binds `safe_tx_hash` and BTCPay's approve names the revision seen (R87). Validity is recomputed on

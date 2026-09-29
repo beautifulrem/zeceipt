@@ -1,4 +1,4 @@
-// Sealing secrets at rest (design `.trellis/tasks/09-23-receipts-sealed/design.md`): AES-256-GCM with a
+// Sealing secrets at rest: AES-256-GCM with a
 // 96-bit random IV (NIST SP 800-38D), a per-org key derived by HKDF-SHA256 from a deployment wrap key held
 // outside the database (RFC 5869), and an encryption context bound as additional authenticated data (the
 // AWS Encryption SDK's practice), so a sealed value only opens for the row it was written for. The

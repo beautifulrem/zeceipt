@@ -1,4 +1,4 @@
-// Batch repository (design `.trellis/tasks/09-23-batches-schema/design.md`): create a validated batch,
+// Batch repository: create a validated batch,
 // load it back as exactly the `Batch` the execution library pays, list batches with totals, and derive
 // the batch's nonce. A batch is immutable once created here, and frozen by triggers once submitted.
 

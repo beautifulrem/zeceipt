@@ -65,7 +65,7 @@ Trust boundaries:
 | **Actions cannot be attributed** (R) | Append-only audit and record trails, written in the same transaction as the change (0021–0023), and served as history on the batch, recipient and payable pages | There is one approver, `operator`, and no identity until sign-in. The two-person rule (REQ-CON-22) is dropped |
 | **A dependency is compromised** (T) | Lockfiles; `npm ci`; `scripts/security_review.sh` (cargo audit `--deny warnings`, npm audit, gitleaks over history and tree, the source guards), recorded in `docs/SECURITY_REVIEW.md` | Advisory databases lag new attacks |
 
-**Did we do a good job?** Every row names its evidence. Rows added by a slice were reviewed to 100 (`docs/product/reviews/`), and `docs/SECURITY_REVIEW.md` re-reads the checklist at every run. Open items:
+**Did we do a good job?** Every row names its evidence. Rows added by a slice were reviewed before the slice closed, and `docs/SECURITY_REVIEW.md` re-reads the checklist at every run. Open items:
 - sign-in (leaf 3.3.1.2), which closes the local-process row;
 - **The page policy is complete for what CSP governs.** Since S4c a page also loads images, styles, fonts and connections only from the console (`default-src 'self'` and friends, with the stylesheet nonced). Measured in Chrome: every page renders styled and works with no violation, and injected remote images and stylesheets are refused `[R104]`.
 - **Not governed by any CSP: top-level navigation.** Injected markup could still send the user elsewhere, with whatever it puts in the URL, through a link or a `<meta http-equiv="refresh">`. Review S4c measured it on the built console. `navigate-to` was dropped from the CSP spec. React escapes all output, so no injection path is known.

@@ -2,7 +2,7 @@
 
 Verify Zeceipt receipts locally, in the browser or in Node. A Zeceipt receipt discloses one output of a shielded Zcash transaction (Ironwood, Orchard or Sapling) by its Outgoing Cipher Key: given the receipt and the transaction, this package recovers that output's recipient, amount and memo, and checks the receipt's optional ed25519 signature and challenge. It needs no viewing key, and verifying needs no network. The verifier is the project's Rust code compiled to WebAssembly.
 
-The receipt format is specified in [`spec/receipt-v0.md`](https://github.com/zeceipt/zeceipt/blob/master/spec/receipt-v0.md).
+The receipt format is specified in [`spec/receipt-v0.md`](https://github.com/beautifulrem/zeceipt/blob/master/spec/receipt-v0.md).
 
 ## What a valid result proves
 
@@ -76,4 +76,4 @@ The package makes a request only when you call one of these:
 
 ## License
 
-MIT
+Apache-2.0

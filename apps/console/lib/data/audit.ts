@@ -1,4 +1,4 @@
-// The audit trail (slice I4; design `.trellis/tasks/09-25-audit-trail/design.md`): read the events the triggers of
+// The audit trail (slice I4): read the events the triggers of
 // migration 0021 wrote for a batch, oldest first. The triggers write in the same transaction as each change, so the
 // history is never ahead of or behind what it describes (R89).
 

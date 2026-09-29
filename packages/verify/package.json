@@ -2,10 +2,11 @@
   "name": "@zeceipt/verify",
   "version": "0.1.0",
   "description": "Verify Zeceipt receipts (per-output disclosures of shielded Zcash payments) locally in the browser or Node",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "author": "beautifulremi (https://github.com/beautifulrem)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zeceipt/zeceipt"
+    "url": "https://github.com/beautifulrem/zeceipt"
   },
   "type": "module",
   "main": "./src/index.js",
@@ -13,7 +14,8 @@
   "files": [
     "src",
     "pkg",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build:wasm": "../../scripts/build_wasm.sh",

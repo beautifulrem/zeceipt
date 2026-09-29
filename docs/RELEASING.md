@@ -8,9 +8,9 @@ Steps marked 👤 are the maintainer's own, because they publish or use the main
 
 First, check crates.io for a `zcash_protocol` release that knows NU7's consensus branch `0x77190AD9` (RSK-14): its `consensus.rs` maps `0x7719_0ad9` to `BranchId::Nu7` in `TryFrom<u32>` with no `cfg`. If one exists, do slice U1c before anything below, so v0.1.0 supports NU7:
 
-- bump the Zcash crates, and apply the API changes recorded in `.trellis/tasks/09-28-nu7-spike/spike.diff` (the released API may differ from main's);
+- bump the Zcash crates, and apply the API changes recorded in `docs/releasing/nu7-spike.diff` (the released API may differ from main's);
 - turn the two NU7-refusal tests in `crates/zeceipt-core/tests/branch.rs` into success cases;
-- decide how the console's address validator treats revision-2 `zu`/`tu` addresses (`.trellis/tasks/09-28-nu7-spike/implement.md`);
+- decide how the console's address validator treats revision-2 `zu`/`tu` addresses (on librustzcash main, `shielded_receivers`, which `--only-to` uses, accepts them, while `apps/console/lib/execution/address.ts` expects revision-0 prefixes);
 - rebuild the WASM (`scripts/build_wasm.sh`) and update the README's sha256;
 - remove the NU7 limitation from the release notes and the changelog, and update RSK-14 and THREAT_MODEL's residual.
 
@@ -19,7 +19,7 @@ If none exists, v0.1.0 ships refusing NU7 transactions by name (its release note
 Then, in this order. The last step needs a clean tree, so every earlier step that changes a file ends with a commit.
 
 1. **The repository's name** (WBS 2.4.3.4), first, because later checks read it.
-   - `packages/verify/package.json`'s `repository.url` (`https://github.com/zeceipt/zeceipt`) and the package README's links must name the repository that will be pushed.
+   - `packages/verify/package.json`'s `repository.url` (`https://github.com/beautifulrem/zeceipt`, set 2026-09-29) and the package README's links must name the repository that will be pushed.
    - If the name differs, change both and commit, so that the tag and the npm package say the same thing.
    - `pack.mjs`, in step 4, checks that every README link goes through `repository.url` and the `master` branch.
 2. **The release notes.** Write `docs/release/v0.1.0.md` (slice R1b4) and commit it. The tag's message and the GitHub release both point to it.
@@ -48,7 +48,7 @@ Then, in this order. The last step needs a clean tree, so every earlier step tha
    (cd apps/console && ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 NO_PROXY='*' node --test test/app.e2e.test.ts)
    ```
 
-   Dry run on 2026-09-28 at 88f752b, in a fresh worktree (slice C0): every command above passed (65 Rust tests, the featureless `cargo check`, the CLI smoke run, the checkers, a byte-identical WASM, the pack check, 17 page e2e, 459 console tests and 26 console e2e), and the tree stayed clean. `npm ci` warned that eslint 9.39.5 "is no longer supported" (a dev dependency, with no audit finding): look at it in the security rerun.
+   Dry run on 2026-09-28 at 5fc864e, in a fresh worktree (slice C0): every command above passed (65 Rust tests, the featureless `cargo check`, the CLI smoke run, the checkers, a byte-identical WASM, the pack check, 17 page e2e, 459 console tests and 26 console e2e), and the tree stayed clean. `npm ci` warned that eslint 9.39.5 "is no longer supported" (a dev dependency, with no audit finding): look at it in the security rerun.
 
    CI runs two more steps that are left out here on purpose, because each writes into the tree and step 6 needs it clean:
    - **`make_synthetic`** rewrites `fixtures/`.

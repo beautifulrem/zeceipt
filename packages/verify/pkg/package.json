@@ -3,7 +3,7 @@
   "type": "module",
   "description": "Browser verifier for Zeceipt receipts (wasm-bindgen)",
   "version": "0.1.0",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "files": [
     "zeceipt_wasm_bg.wasm",
     "zeceipt_wasm.js",

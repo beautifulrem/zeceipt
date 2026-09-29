@@ -25,7 +25,7 @@ try {
   const [packed] = JSON.parse(npm(["pack", "--json", "--pack-destination", tmp], pkgDir));
   const files = packed.files.map((f) => f.path).sort();
   const expected = [
-    "LICENSE", "README.md", "package.json",
+    "LICENSE", "NOTICE", "README.md", "package.json",
     "pkg/package.json", "pkg/zeceipt_wasm.d.ts", "pkg/zeceipt_wasm.js", "pkg/zeceipt_wasm_bg.wasm", "pkg/zeceipt_wasm_bg.wasm.d.ts",
     "src/index.d.ts", "src/index.js",
   ];

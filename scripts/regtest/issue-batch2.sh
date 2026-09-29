@@ -4,7 +4,7 @@
 set -u
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ZECEIPT_BIN="${ZECEIPT_BIN:-$ROOT/target/release/zeceipt}"
-ARTIFACT_DIR="${ARTIFACT_DIR:-<workspace>/raw/tools/regtest}"
+ARTIFACT_DIR="${ARTIFACT_DIR:-$(cd "$(dirname "$0")/../../.." && pwd)/raw/tools/regtest}"
 ENDPOINT="${ENDPOINT:-http://127.0.0.1:8137}"
 TXID="${TXID:-48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2}"
 cd "$ROOT" || exit 2

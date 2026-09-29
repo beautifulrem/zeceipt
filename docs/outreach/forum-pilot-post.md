@@ -2,7 +2,7 @@
 DRAFT, not posted (WBS 4.1.2.2; slice L1). Posting is the user's decision: a public action on forum.zcashcommunity.com.
 Prerequisite: push the repository (WBS 4.1.1.1), then replace every `[after the push]` with the public link.
 Suggested category: Applications, or Ecosystem Tooling if the forum has it. Suggested title below.
-Every claim is backed by the evidence named in `.trellis/tasks/09-25-forum-post-draft/implement.md` and, for slice D6's additions, `.trellis/tasks/09-26-forum-post-update/implement.md` (claim-by-claim tables).
+the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 -->
 
 # Shielded payment receipts: looking for one pilot

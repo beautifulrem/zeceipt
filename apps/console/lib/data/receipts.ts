@@ -1,4 +1,4 @@
-// Receipt repository (design `.trellis/tasks/09-23-receipts-sealed/design.md`): record the receipts
+// Receipt repository: record the receipts
 // `autoIssue` produced for a batch (only for the batch's own broadcast transaction, each matched to its item,
 // idempotently and atomically), list them back decrypted, and re-wrap them under the newest key.
 // The receipt envelope is sealed (it contains the output's OCK); the AAD is the row's identity. Links are built on

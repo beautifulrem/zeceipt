@@ -2,7 +2,7 @@
 DRAFT, not posted (WBS 5.1.1.5; slice WU2b). Recording and posting are the user's: a one-minute video, due 2026-10-05; fallback:
 by 10-07, or skipped (the updates are "not mandatory", strongly recommended; `11_plan.md` §8). Post it where update 1 went.
 Official brief: "a concise, one-minute video highlighting progress and notable challenges from the previous week" (colosseum.com/hackathon).
-Every claim is backed by the evidence named in `.trellis/tasks/09-28-weekly-update-2/implement.md`. Written on 09-28: before
+the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing. Written on 09-28: before
 recording, apply "Rows that depend on the week" below, and re-read "Do not say".
 Footage, each row naming its take: `5-export.webm` and `6-pack.webm` from `../raw/demo/20260926182327/` (regtest, slice V2c2);
 `10-nu7-refusal.webm` from `../raw/demo/20260928091704/` (no chain: the committed batch transaction and a copy with NU7's branch

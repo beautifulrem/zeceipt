@@ -2,7 +2,7 @@
 DRAFT, not posted (WBS 3.3.3.4, REQ-INT-4; slice Z1). Posting is the user's decision: a public comment on
 https://github.com/zcash/zips/issues/387 (ZIP 311, Zcash Payment Disclosures).
 Prerequisite: push the repository (WBS 4.1.1.1), then replace every `[after the push]` with the public link.
-Every claim is backed by the evidence named in `.trellis/tasks/09-26-zips-387-draft/implement.md`.
+the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 -->
 
 **An implementation report on the outputs half of ZIP 311, and a question about requiring spend authority**

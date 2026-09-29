@@ -50,4 +50,4 @@ Notes: Zeceipt's `Network` enum has main/test only; regtest addresses use testne
 - With the stack of §5e running (Zkool with `--jwt-public-key-file`), from `apps/console`: `ZECEIPT_REGTEST=1 NO_PROXY='127.0.0.1,localhost' node --test test/regtest.payables.e2e.test.ts`. It reaches Kraken through the machine's proxy (`NODE_USE_ENV_PROXY=1`), makes USD payables, a batch at Kraken's live bid, pays it once, and lets the receipt worker issue the receipts on its own; the transcript goes to `console-payables-e2e-<stamp>.json` in `ARTIFACT_DIR` (PROOF §5g).
 
 ## Demo footage (slices L2, V2c1, V2c2)
-- After `next build`, with the same stack: `ZECEIPT_REGTEST=1 node test/shots/demo-video.ts [out-dir]` from `apps/console`. It records six silent segments into `../raw/demo/<stamp>/` with `shots.json`; check a frame of each segment (the repository's `CLAUDE.md`).
+- After `next build`, with the same stack: `ZECEIPT_REGTEST=1 node test/shots/demo-video.ts [out-dir]` from `apps/console`. It records six silent segments into `../raw/demo/<stamp>/` with `shots.json`; check a frame of each segment.
