@@ -113,9 +113,11 @@ try {
         if (over > 0) throw new Error(`${name} (${scheme}, ${tag}) overflows the viewport by ${over}px`);
         // Nor may a table scroll inside its card on a desktop (review F round 3: a hidden Status column); on a phone,
         // only the tables listed in PHONE_SCROLL may, each a deliberate choice, and their cards show it (edge shadows).
-        // A table "fits" only with room to spare: its narrowest layout (min-content) must leave 16 px in its card, so a
+        // A table "fits" only with room to spare: its narrowest layout (min-content) must leave room in its card, so a
         // different font rasteriser (CI's Linux) cannot tip it into scrolling (a table that fitted to the pixel did).
-        const SLACK = 16;
+        // Locally 16 px, so a pass here predicts a pass elsewhere (Linux draws Geist about 5% wider than macOS); CI
+        // measures its own rendering, where 2 px shows the table truly fits.
+        const SLACK = process.env.CI ? 2 : 16;
         const scrolling = await page.evaluate((slack) => [...document.querySelectorAll(".table-card")].filter((c) => {
           const table = c.querySelector("table");
           if (!table) return false;

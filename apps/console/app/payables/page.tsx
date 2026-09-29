@@ -35,6 +35,11 @@ function hostOf(url: string): string {
   }
 }
 
+/** A host for a narrow column: up to 16 characters, then an ellipsis (the whole host is the link's title). */
+function shortHost(host: string): string {
+  return host.length <= 16 ? host : `${host.slice(0, 15)}…`;
+}
+
 /** What the org owes (slice H4; REQ-CON-3; 04 SCR-3): the list, a kind filter (links, no JavaScript) and the add form. */
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { config, db } = serverContext();
@@ -100,9 +105,10 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                     {holders.has(p.id) && <span className="block truncate sm:hidden">in {holders.get(p.id)!.title}</span>}
                   </div>
                   {p.sourceUrl && (
-                    <div className="max-w-[9rem] truncate 2xl:hidden">
-                      <a href={p.sourceUrl} rel="noopener noreferrer" className="link text-xs">
-                        {hostOf(p.sourceUrl)}
+                    <div className="2xl:hidden">
+                      {/* Shortened in the text itself, not by CSS, so the table's width is the same in every browser. */}
+                      <a href={p.sourceUrl} rel="noopener noreferrer" title={hostOf(p.sourceUrl)} className="link text-xs">
+                        {shortHost(hostOf(p.sourceUrl))}
                       </a>
                     </div>
                   )}
