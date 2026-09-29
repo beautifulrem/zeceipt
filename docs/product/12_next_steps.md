@@ -84,6 +84,7 @@ Progress: A1 done 2026-09-28 (with per-endpoint timeouts, A1b); A2 done 2026-09-
     - Check: `check_release.py --tag v0.1.0` passes on the tagged commit.
 - **C4. U: the push, and the first CI run.** A failing first run is fixed as its own slice.
   - Check: CI is green, including the featureless `cargo check` (slice G1).
+  - Done 2026-09-29: the repository is public at `github.com/beautifulrem/zeceipt` (Apache-2.0). The first run failed 20 console tests, because the step passed a relative `ZECEIPT_BIN`, which the configuration refuses. The fix is 2518462, and the second run is green: 65 Rust tests, 459 console tests, 17 page e2e and 26 app e2e. On the runner's clang 18, the wasm-bindgen outputs are identical and the `.wasm` differs (sha256 `59b3a12e…`), as the README's reproducibility note allows.
 - **C5. U: `npm publish @zeceipt/verify`, on 10-10,** after C2.
   - Check: `test:pack` passes on the tarball that is published.
 
