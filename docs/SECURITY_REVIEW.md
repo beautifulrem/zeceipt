@@ -27,7 +27,7 @@ Run it with one command: `scripts/security_review.sh`. It needs `cargo-audit` (`
 - (round 2) the same dummy key in an untracked file under the committed `packages/verify/pkg/`, reported by `gitleaks-tree`. In round 1 it went unseen, which is the reviewer's control;
 - (round 2) `packages/verify/pkg/` put back into `.gitleaks.toml`'s allowlist, reported by the new `gitleaks-exclusions-untracked` check: an exclusion may cover only paths with no tracked file.
 
-## Interim pass: 2026-09-27 (slice S6, a dry run at 3b1f729)
+## Interim pass: 2026-09-27 (slice S6, a dry run at c06077e)
 
 This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.2.3), so a new advisory or leak would surface while there is time to act. It does not replace the rerun. `scripts/security_review.sh` exited 0:
 
@@ -41,9 +41,9 @@ This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.
 | Exclusions cover only untracked paths | `gitleaks-exclusions-untracked` | passed |
 | Key material in code, secrets in logs | `scripts/check_source_guards.py` | passed |
 
-Since the first pass closed (b6b40a8), `Cargo.lock` gained no crate (304 before and after), only six dependency edges from `zeceipt-cli` to crates already locked (`hyper`, `hyper-util`, `http-body-util`, `rustls`, `tokio-rustls`, `webpki-roots`), for the issuer-binding fetch (slice W2b). The two `package.json` files changed scripts, `publishConfig` and the homepage field, not dependencies; no `package-lock.json` changed. The committed WASM was rebuilt without local paths (slice X3a).
+Since the first pass closed (cf23e76), `Cargo.lock` gained no crate (304 before and after), only six dependency edges from `zeceipt-cli` to crates already locked (`hyper`, `hyper-util`, `http-body-util`, `rustls`, `tokio-rustls`, `webpki-roots`), for the issuer-binding fetch (slice W2b). The two `package.json` files changed scripts, `publishConfig` and the homepage field, not dependencies; no `package-lock.json` changed. The committed WASM was rebuilt without local paths (slice X3a).
 
-## Interim pass: 2026-09-28 (slice SR1, a second dry run at feefd35)
+## Interim pass: 2026-09-28 (slice SR1, a second dry run at b1a0ee0)
 
 `scripts/security_review.sh` exited 0 again, ten days before the formal rerun:
 

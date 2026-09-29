@@ -1,7 +1,7 @@
 # Historic gitleaks false positives, by fingerprint (commit:file:rule:line; commit-bound, so stable). The current
 # lines carry `gitleaks:allow`. See docs/SECURITY_REVIEW.md.
 # A test's HKDF call over a dummy test key and a fixed salt string:
-75d95646cfb3205823dd4af1075ead94f1dc31a9:apps/console/test/seal.test.ts:generic-api-key:23
+364bec2020c3ba5da195f711afbf75a777e86ccb:apps/console/test/seal.test.ts:generic-api-key:23
 # The doc checker's tuples of product file names:
-a264b7cd191db47d1d29a958b16d8d8c51b15beb:scripts/check_product_docs.py:generic-api-key:364
-ff4d518b482e4e611df8e0820aa2a62189bc104f:scripts/check_product_docs.py:generic-api-key:370
+58d638bc7c12d8f2292dc802e28723d6bc107eb2:scripts/check_product_docs.py:generic-api-key:364
+9f37c0bc0ccb59bf5a1f4c55d99630aaa4c3dfa5:scripts/check_product_docs.py:generic-api-key:370
