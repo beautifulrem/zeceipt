@@ -73,11 +73,11 @@ export default async function Home() {
                     </Link>
                     {/* On a phone the stage sits under the title (review F round 3). */}
                     <div className="mt-1.5 sm:hidden">
-                      <StatusBadge view={stages.get(b.id)!} wrap />
+                      <StatusBadge view={stages.get(b.id)!} compact />
                     </div>
                   </td>
                   <td className="hidden sm:table-cell">
-                    <StatusBadge view={stages.get(b.id)!} />
+                    <StatusBadge view={stages.get(b.id)!} compact />
                   </td>
                   <td className="hidden whitespace-nowrap text-muted sm:table-cell">{b.createdAt.replace("T", " ").slice(0, 16)} UTC</td>
                   <td className="hidden text-right tabular-nums sm:table-cell">{b.itemCount}</td>
