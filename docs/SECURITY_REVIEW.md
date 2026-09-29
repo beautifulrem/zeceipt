@@ -27,7 +27,7 @@ Run it with one command: `scripts/security_review.sh`. It needs `cargo-audit` (`
 - (round 2) the same dummy key in an untracked file under the committed `packages/verify/pkg/`, reported by `gitleaks-tree`. In round 1 it went unseen, which is the reviewer's control;
 - (round 2) `packages/verify/pkg/` put back into `.gitleaks.toml`'s allowlist, reported by the new `gitleaks-exclusions-untracked` check: an exclusion may cover only paths with no tracked file.
 
-## Interim pass: 2026-09-27 (slice S6, a dry run at c06077e)
+## Interim pass: 2026-09-27 (slice S6, a dry run at c91729c)
 
 This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.2.3), so a new advisory or leak would surface while there is time to act. It does not replace the rerun. `scripts/security_review.sh` exited 0:
 
@@ -41,9 +41,9 @@ This run was made eleven days before the formal rerun (10-08 → 10-09, WBS 3.4.
 | Exclusions cover only untracked paths | `gitleaks-exclusions-untracked` | passed |
 | Key material in code, secrets in logs | `scripts/check_source_guards.py` | passed |
 
-Since the first pass closed (cf23e76), `Cargo.lock` gained no crate (304 before and after), only six dependency edges from `zeceipt-cli` to crates already locked (`hyper`, `hyper-util`, `http-body-util`, `rustls`, `tokio-rustls`, `webpki-roots`), for the issuer-binding fetch (slice W2b). The two `package.json` files changed scripts, `publishConfig` and the homepage field, not dependencies; no `package-lock.json` changed. The committed WASM was rebuilt without local paths (slice X3a).
+Since the first pass closed (b7d9b08), `Cargo.lock` gained no crate (304 before and after), only six dependency edges from `zeceipt-cli` to crates already locked (`hyper`, `hyper-util`, `http-body-util`, `rustls`, `tokio-rustls`, `webpki-roots`), for the issuer-binding fetch (slice W2b). The two `package.json` files changed scripts, `publishConfig` and the homepage field, not dependencies; no `package-lock.json` changed. The committed WASM was rebuilt without local paths (slice X3a).
 
-## Interim pass: 2026-09-28 (slice SR1, a second dry run at b1a0ee0)
+## Interim pass: 2026-09-28 (slice SR1, a second dry run at 880b97a)
 
 `scripts/security_review.sh` exited 0 again, ten days before the formal rerun:
 
@@ -64,7 +64,7 @@ Since the first pass closed (cf23e76), `Cargo.lock` gained no crate (304 before 
 | A recovered note value above MAX_MONEY is refused, in every pool, and the WASM never returns `null` (slices U5, U5b) | A crafted file-loaded output worth MAX_MONEY + 1 verified as valid; above 2^53 the WASM returned `null` `[R131]` | `crates/zeceipt-core/tests/offline_e2e.rs` (Ironwood and Sapling, each recovery site pinned); `packages/verify/test/verify.mjs` |
 | The source guard matches spend-authority identifiers and names its one exemption; CI builds without the `synthetic` feature (slice G1) | Review U5b: the word list passed a renamed variable, and CI could not catch a featureless build break | `scripts/check_source_guards.py` (every probe caught: identifiers, a `#[path]` side door, the feature enabled any non-dev way); `.github/workflows/ci.yml` |
 
-## Publication check: 2026-09-29 (slice P1, at 996711c)
+## Publication check: 2026-09-29 (slice P1, at 71f3004)
 
 Before the repository was made public, its history was rewritten twice: every commit is authored under the maintainer's GitHub identity, the local workflow tooling is removed from every commit, local paths are removed from old text files, and the local username is replaced in old file versions (WASM builds committed before path remapping still carry anonymised `/Users/user_/.cargo/…` paths; the current WASM carries none). Commit ids cited in these docs were remapped to the new history. Commit counts in the sections above were counted before the rewrite. `scripts/security_review.sh` exited 0 on the rewritten history:
 

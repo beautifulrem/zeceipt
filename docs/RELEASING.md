@@ -48,7 +48,7 @@ Then, in this order. The last step needs a clean tree, so every earlier step tha
    (cd apps/console && ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 NO_PROXY='*' node --test test/app.e2e.test.ts)
    ```
 
-   Dry run on 2026-09-28 at 0d7c1a3, in a fresh worktree (slice C0): every command above passed (65 Rust tests, the featureless `cargo check`, the CLI smoke run, the checkers, a byte-identical WASM, the pack check, 17 page e2e, 459 console tests and 26 console e2e), and the tree stayed clean. `npm ci` warned that eslint 9.39.5 "is no longer supported" (a dev dependency, with no audit finding): look at it in the security rerun.
+   Dry run on 2026-09-28 at 70c9150, in a fresh worktree (slice C0): every command above passed (65 Rust tests, the featureless `cargo check`, the CLI smoke run, the checkers, a byte-identical WASM, the pack check, 17 page e2e, 459 console tests and 26 console e2e), and the tree stayed clean. `npm ci` warned that eslint 9.39.5 "is no longer supported" (a dev dependency, with no audit finding): look at it in the security rerun.
 
    CI runs two more steps that are left out here on purpose, because each writes into the tree and step 6 needs it clean:
    - **`make_synthetic`** rewrites `fixtures/`.
