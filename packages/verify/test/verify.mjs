@@ -324,6 +324,8 @@ check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|doc
   const { verdictNote, valueParts } = pageView;
   check("verdictNote: mined says proven and mined", /proven; the node reports its transaction mined/.test(verdictNote({ valid: true, inclusion: { state: "mined" } })));
   const summary = verdictNote(pageView.outcome({ valid: true, recipient: "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel", value_zec: "2.50000000", value_zat: "250000000", memo: { kind: "text", text: "INV-2026-0142" }, label: "", pool: "ironwood", output_index: 0, txid: "ab" }, { kind: "file" }));
+  const parts = pageView.verdictParts(pageView.outcome({ valid: true, recipient: "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel", value_zec: "2.50000000", value_zat: "250000000", memo: { kind: "text", text: "INV-2026-0142" }, label: "", pool: "ironwood", output_index: 0, txid: "ab" }, { kind: "file" }));
+  check("verdictParts puts the address apart, for the mono face (review F round 8)", parts.addr === "u1792v3n…j5mtel" && parts.lead + parts.addr + parts.rest === summary, JSON.stringify(parts));
   check("verdictNote leads with which payment (review F round 7)", summary === "2.5 ZEC to u1792v3n…j5mtel, memo INV-2026-0142, is proven. Its chain inclusion is not confirmed: see 2. Chain inclusion.", summary);
   for (const state of ["file", "mempool", "fork", "unknown"]) check(`verdictNote: ${state} says inclusion not confirmed`, /not confirmed/.test(verdictNote({ valid: true, inclusion: { state } })));
   check("verdictNote: INVALID has none (the stage copy speaks)", verdictNote({ valid: false }) === "");

@@ -82,8 +82,8 @@
 
 <script type="module">
 import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/index.js";
-import { el, issuerLine, kvRows } from "../r/ui.js";
-import { outcome, verdictNote } from "../r/view.js";
+import { el, issuerLine, kvRows, noteNodes } from "../r/ui.js";
+import { outcome, verdictNote, verdictParts } from "../r/view.js";
 const $ = (id) => document.getElementById(id);
 const status = $("status"), out = $("out");
 status.textContent = "Loading the verifier…";
@@ -140,7 +140,10 @@ function show(tone, word, note, ...body) {
   const icon = el("span", "verdict-icon"); icon.setAttribute("aria-hidden", "true");
   const head = el("div", "verdict");
   const words = el("div");
-  words.append(el("h2", "verdict-word", word), el("p", "verdict-sub", note));
+  const sub = el("p", "verdict-sub");
+  sub.append(...(typeof note === "string" ? [document.createTextNode(note)] : noteNodes(note)));
+  words.append(el("h2", "verdict-word", word), sub);
+  if (typeof note !== "string") note = note.lead + note.addr + note.rest;
   head.append(icon, words);
   const section = el("section", `result ${tone}`);
   section.tabIndex = -1;
@@ -168,7 +171,7 @@ $("verify").addEventListener("click", () => {
   const issuer = el("ul", "issuer");
   issuer.append(...view.issuer.map(issuerLine));
   checked();
-  show(view.inclusion.state === "mined" ? "ok" : "pending", "VALID", verdictNote(view),
+  show(view.inclusion.state === "mined" ? "ok" : "pending", "VALID", verdictParts(view),
     el("h3", "", "1. The payment"), payment,
     el("h3", "", "2. Chain inclusion"), el("p", "inclusion", view.inclusion.text),
     el("h3", "", "3. The issuer"), issuer,

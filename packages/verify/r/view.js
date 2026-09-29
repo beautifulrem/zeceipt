@@ -170,15 +170,23 @@ export function middle(text, head = 8, tail = 6) {
  * words, so amber is never a bare "VALID" — as Etherscan leads with a one-line action summary. Empty for INVALID,
  * whose stage copy says what failed. */
 export function verdictNote(view) {
-  if (!view.valid) return "";
+  const { lead, addr, rest } = verdictParts(view);
+  return lead + addr + rest;
+}
+
+/** verdictNote in three parts, so the page can set the address in the mono face (review F round 8); joined, they are
+ * verdictNote's string. */
+export function verdictParts(view) {
+  if (!view.valid) return { lead: "", addr: "", rest: "" };
   const row = (k) => view.payment?.find(([key]) => key === k)?.[1];
   const memo = row("Memo");
-  const what = view.amount && row("Recipient")
-    ? `${valueParts(view.amount.zec).major} ZEC to ${middle(row("Recipient"))}${memo && memo !== "(empty)" ? `, memo ${memo},` : ""} is proven`
-    : "The payment is proven";
-  return view.inclusion.state === "mined"
-    ? `${what}; the node reports its transaction mined.`
-    : `${what}. Its chain inclusion is not confirmed: see 2. Chain inclusion.`;
+  const tail = view.inclusion.state === "mined" ? "; the node reports its transaction mined." : ". Its chain inclusion is not confirmed: see 2. Chain inclusion.";
+  if (!(view.amount && row("Recipient"))) return { lead: `The payment is proven${tail}`, addr: "", rest: "" };
+  return {
+    lead: `${valueParts(view.amount.zec).major} ZEC to `,
+    addr: middle(row("Recipient")),
+    rest: `${memo && memo !== "(empty)" ? `, memo ${memo},` : ""} is proven${tail}`,
+  };
 }
 
 /** A ZEC amount string ("2.50000000") split for display: the digits up to the last significant one (at least one

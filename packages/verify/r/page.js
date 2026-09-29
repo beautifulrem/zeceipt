@@ -8,8 +8,8 @@ import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, i
 // Each node gets 12 s here, not the package's 20 s: two hanging default nodes would otherwise keep a person waiting
 // 40 s before the page says so (review A1b).
 const PAGE_TIMEOUT_MS = 12_000;
-import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, verdictNote } from "./view.js";
-import { issuerLine, keyIdNodes, kvRows } from "./ui.js";
+import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, verdictNote, verdictParts } from "./view.js";
+import { issuerLine, keyIdNodes, kvRows, noteNodes } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
@@ -107,7 +107,7 @@ function verifyNow() {
   // The verdict comes first (review F round 1): above the claims, announced in one line, and focused, so a keyboard or
   // screen-reader user lands on it; the transaction's source is no longer the page's main action.
   const note = verdictNote(view);
-  $("verdict-note").textContent = note;
+  $("verdict-note").replaceChildren(...noteNodes(verdictParts(view)));
   $("verdict-live").textContent = `${view.headline}. ${note || view.stageCopy}`;
   $("claims-state").textContent = view.valid ? "Matched" : "Did not match";
   $("claims-state").className = view.valid ? "pill tone-success" : "pill tone-danger";

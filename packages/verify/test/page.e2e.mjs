@@ -194,6 +194,7 @@ test("the verdict comes first: above the claims, focused, announced in one line,
   assert.equal(await s.page.evaluate(() => document.activeElement?.id), "outcome", "the verdict has focus");
   assert.equal(await text(s.page, "#verdict-note"), "2.5 ZEC to u1792v3n…j5mtel, memo INV-2026-0142, is proven; the node reports its transaction mined.");
   assert.match(await text(s.page, "#verdict-live"), /^VALID\. 2\.5 ZEC to u1792v3n…j5mtel, memo INV-2026-0142, is proven/);
+  assert.equal(await s.page.locator("#verdict-note code").textContent(), "u1792v3n…j5mtel", "the address is set as an identifier");
   assert.equal(await text(s.page, "#claims-state"), "Matched");
   assert.equal(await s.page.evaluate(() => document.getElementById("claims").open), false, "checked claims fold away");
   assert.equal(await s.page.getAttribute("#fetch", "class"), "btn btn-secondary", "the source is no longer the main action");

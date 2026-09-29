@@ -44,6 +44,11 @@ export function issuerLine(line) {
   return li;
 }
 
+/** The verdict's line with its address in a <code> (text nodes only). */
+export function noteNodes({ lead, addr, rest }) {
+  return [document.createTextNode(lead), ...(addr ? [el("code", "", addr)] : []), document.createTextNode(rest)];
+}
+
 export const COPYABLE = { Transaction: "Copy the transaction id", Recipient: "Copy the recipient address" };
 
 /** Key–value rows (data-key for the stylesheet); Value laid out from `amount`, long ids with a copy button. */

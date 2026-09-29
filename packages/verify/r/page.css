@@ -338,6 +338,7 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 }
 .verdict-word { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; color: var(--tone); }
 .verdict-sub { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--fg); }
+.verdict-sub code { font-size: 0.82rem; }
 #parts h3:first-child { margin-top: 1rem; }
 #issuer { margin: 0.25rem 0; padding-left: 1.1rem; font-size: 0.9rem; overflow-wrap: anywhere; }
 #issuer li { margin: 0.25rem 0; }
