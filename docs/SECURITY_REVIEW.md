@@ -66,7 +66,7 @@ Since the first pass closed (cf23e76), `Cargo.lock` gained no crate (304 before 
 
 ## Publication check: 2026-09-29 (slice P1, at 996711c)
 
-Before the repository was made public, its history was rewritten twice: every commit is authored under the maintainer's GitHub identity, the local workflow tooling is removed from every commit, and local paths and the local username are removed from old file versions. Commit ids cited in these docs were remapped to the new history. Commit counts in the sections above were counted before the rewrite. `scripts/security_review.sh` exited 0 on the rewritten history:
+Before the repository was made public, its history was rewritten twice: every commit is authored under the maintainer's GitHub identity, the local workflow tooling is removed from every commit, local paths are removed from old text files, and the local username is replaced in old file versions (WASM builds committed before path remapping still carry anonymised `/Users/user_/.cargo/…` paths; the current WASM carries none). Commit ids cited in these docs were remapped to the new history. Commit counts in the sections above were counted before the rewrite. `scripts/security_review.sh` exited 0 on the rewritten history:
 
 | Check | Result |
 |---|---|
