@@ -64,6 +64,17 @@ Since the first pass closed (cf23e76), `Cargo.lock` gained no crate (304 before 
 | A recovered note value above MAX_MONEY is refused, in every pool, and the WASM never returns `null` (slices U5, U5b) | A crafted file-loaded output worth MAX_MONEY + 1 verified as valid; above 2^53 the WASM returned `null` `[R131]` | `crates/zeceipt-core/tests/offline_e2e.rs` (Ironwood and Sapling, each recovery site pinned); `packages/verify/test/verify.mjs` |
 | The source guard matches spend-authority identifiers and names its one exemption; CI builds without the `synthetic` feature (slice G1) | Review U5b: the word list passed a renamed variable, and CI could not catch a featureless build break | `scripts/check_source_guards.py` (every probe caught: identifiers, a `#[path]` side door, the feature enabled any non-dev way); `.github/workflows/ci.yml` |
 
+## Publication check: 2026-09-29 (slice P1, at 996711c)
+
+Before the repository was made public, its history was rewritten twice: every commit is authored under the maintainer's GitHub identity, the local workflow tooling is removed from every commit, and local paths and the local username are removed from old file versions. Commit ids cited in these docs were remapped to the new history. Commit counts in the sections above were counted before the rewrite. `scripts/security_review.sh` exited 0 on the rewritten history:
+
+| Check | Result |
+|---|---|
+| Rust dependencies (`Cargo.lock`) | cargo-audit: 0 vulnerabilities; the accepted RUSTSEC-2023-0089 warning is unchanged |
+| npm, `apps/console` and `packages/verify` | 0 vulnerabilities each |
+| Secrets, git history (354 commits) and the working tree | gitleaks: no leaks; the three recorded false positives are re-keyed to their rewritten commits in `.gitleaksignore` |
+| Key material in code, secrets in logs | source guards passed |
+
 ## Manual checklist
 
 Each item is re-read at every run; the evidence is where it is proven.
