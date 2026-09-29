@@ -1,6 +1,7 @@
 // The design gallery: every console page in a realistic state, in light and dark, at desktop and phone widths.
 // Run after `next build` from apps/console: `node test/shots/gallery.ts [out-dir]` (default: a new temp directory).
-// Not a test: it renders what a person checks by eye. It uses the fake wallet and a local ZEC/USD ticker, so no chain
+// It renders what a person checks by eye, and fails on a page wider than its viewport, a table scrolling inside its
+// card, or an axe WCAG A/AA violation. It uses the fake wallet and a local ZEC/USD ticker, so no chain
 // or network is needed; the batch it pays is paid to the fake wallet, and its txid is the fake's.
 // ZECEIPT_GALLERY_README=1 also writes docs/assets/console-batch{,-dark}.png for the README.
 import http from "node:http";
@@ -11,6 +12,7 @@ import { APP, baseEnv, raw, start, waitHealthy, within } from "../helpers/app-se
 import { FakeZkool } from "../helpers/fake-zkool.ts";
 import { ZKOOL_PUBLIC_PEM, zkoolPublicKeyFile, zkoolTokenFile } from "../helpers/zkool-token.ts";
 import { englishChrome } from "../helpers/english-chrome.ts";
+import { AxeBuilder } from "@axe-core/playwright";
 import { execFileSync } from "node:child_process";
 import { autoIssue, batchDigest, batchNonce, getBatch, Keyring, openDb, recordReceipts, SqliteIdempotencyStore, toExecutionBatch, type AutoIssueResult } from "../../lib/index.ts";
 
@@ -113,6 +115,9 @@ try {
           const widths = await page.evaluate((l) => [...document.querySelectorAll(`.table-card[aria-label="${l}"] th`)].map((th) => `${th.textContent}:${Math.round(th.getBoundingClientRect().width)}`).join(" "), unexpected[0]);
           throw new Error(`${name} (${scheme}, ${tag}): table cards scroll sideways: ${unexpected.join(", ")} (columns ${widths})`);
         }
+        // Accessibility (review F round 6): axe's WCAG 2.0–2.2 A and AA rules, every page, both schemes, both widths.
+        const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+        if (axe.violations.length) throw new Error(`${name} (${scheme}, ${tag}): axe: ${axe.violations.map((v) => `${v.id} [${v.nodes.map((n) => n.target.join(" ")).join(", ")}]`).join("; ")}`);
         await page.screenshot({ path: join(OUT, `${name}-${scheme}-${tag}.png`), fullPage: true });
       }
       await context.close();

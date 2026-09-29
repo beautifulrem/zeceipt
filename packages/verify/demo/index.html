@@ -18,9 +18,9 @@
 </header>
 <main>
 <div class="hero">
-  <p class="eyebrow">Paste a receipt</p>
-  <h1>Zeceipt verifier</h1>
-  <p class="muted lede">Private outside, provable per payment. Verification runs entirely in this page (WebAssembly). The raw transaction is fetched from the source you choose; the receipt's outgoing cipher key never leaves this page.</p>
+  <p class="eyebrow">Zeceipt · verifier</p>
+  <h1>Check a payment receipt</h1>
+  <p class="muted lede">This page checks a receipt you paste or load against the transaction it names, entirely in your browser (WebAssembly). Nothing leaves the page unless you fetch the transaction from a public node, which then learns which transaction you looked up.</p>
   <p id="status" class="muted status" role="status" data-state="loading"></p>
 </div>
 
@@ -120,6 +120,16 @@ $("fetch").addEventListener("click", async () => {
   } catch (e) { status.textContent = `The fetch failed: ${e}`; }
 });
 
+// As on the receipt page: once a result shows, the status says so and the intro steps aside; editing an input makes the
+// page ready again (review F round 6).
+function checked() { status.textContent = "Checked in this page."; status.dataset.state = "checked"; document.body.dataset.state = "checked"; }
+for (const id of ["receipt", "rawtx", "challenge"]) {
+  $(id).addEventListener("input", () => {
+    if (status.dataset.state !== "checked") return;
+    status.textContent = "Ready: verification runs in this page."; status.dataset.state = "ready"; delete document.body.dataset.state;
+  });
+}
+
 function show(tone, word, note, ...body) {
   const icon = el("span", "verdict-icon"); icon.setAttribute("aria-hidden", "true");
   const head = el("div", "verdict");
@@ -146,11 +156,12 @@ $("verify").addEventListener("click", () => {
   const bytes = $("rawtx").value.trim();
   const source = fetched && fetched.hex === bytes ? { kind: "node", chain: fetched.chain, endpoint: fetched.endpoint, tip: null } : fromSample === bytes ? { kind: "sample" } : fromFile === bytes ? { kind: "file" } : { kind: "pasted" };
   const view = outcome(r, source);
-  if (!view.valid) { show("bad", "INVALID", view.stageCopy, el("p", "verdict-detail", view.error)); return; }
+  if (!view.valid) { checked(); show("bad", "INVALID", view.stageCopy, el("p", "verdict-detail", view.error)); return; }
   const payment = el("table", "kv");
   payment.append(...kvRows(view.payment, { amount: view.amount, live: $("result-live") }));
   const issuer = el("ul", "issuer");
   issuer.append(...view.issuer.map(issuerLine));
+  checked();
   show(view.inclusion.state === "mined" ? "ok" : "pending", "VALID", verdictNote(view),
     el("h3", "", "1. The payment"), payment,
     el("h3", "", "2. Chain inclusion"), el("p", "inclusion", view.inclusion.text),

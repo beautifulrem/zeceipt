@@ -56,6 +56,9 @@ jobs:
         working-directory: apps/console
         # ZECEIPT_BROWSER_E2E: the JavaScript-path test drives the runner's Google Chrome through playwright-core.
         run: ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 node --test test/app.e2e.test.ts
+      - name: "design gallery: every console page, light and dark, desktop and phone: no overflow, no table scrolling inside its card on a desktop, no axe WCAG A/AA violation (slice F4)"
+        working-directory: apps/console
+        run: CHROME_PATH="$(command -v google-chrome)" node test/shots/gallery.ts "$RUNNER_TEMP/gallery"
   wasm:
     # Rebuilds the committed WASM on Linux with the same Rust, wasm-pack and wasm-bindgen it was measured with, and the
     # runner's clang 18 (Homebrew clang 23 on the Mac) (README, "Building the WASM package"; slices X3b, X3c): the

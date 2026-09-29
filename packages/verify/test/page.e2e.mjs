@@ -216,6 +216,51 @@ test("the verdict comes first: above the claims, focused, announced in one line,
   await s.context.close();
 });
 
+// Accessibility, automatically (review F round 6): axe's WCAG 2.0–2.2 A and AA rules on every state of the page and
+// on the demo's result, in both colour schemes. Any violation fails, named with its nodes.
+async function axe(page, where) {
+  const { AxeBuilder } = await import("@axe-core/playwright");
+  const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+  assert.deepEqual(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), [], `axe on ${where}`);
+}
+
+test("axe finds no WCAG A/AA violation on any state of the page or the demo, light and dark (review F round 6)", { skip: !RUN }, async () => {
+  for (const colorScheme of ["light", "dark"]) {
+    const s = await openPage({ contextOptions: { colorScheme } });
+    await s.page.goto(`${base}/r/#${b64(BEARER)}`);
+    await ready(s.page);
+    await axe(s.page, `${colorScheme}: receipt loaded`);
+    await s.page.click("#fetch");
+    await verified(s.page);
+    await s.page.waitForFunction(() => !/asking it for its chain tip/.test(document.querySelector("#inclusion").textContent));
+    await axe(s.page, `${colorScheme}: VALID`);
+    await s.page.goto(`${base}/r/#${b64(TAMPERED)}`);
+    await ready(s.page);
+    await s.page.click("#fetch");
+    await verified(s.page);
+    await axe(s.page, `${colorScheme}: INVALID`);
+    await s.page.goto(`${base}/r/#${b64(BEARER)}`);
+    await ready(s.page);
+    await s.page.setInputFiles("#rawfile", path.join(root, "demo/fixtures/synthetic-ironwood.hex"));
+    await verified(s.page);
+    await axe(s.page, `${colorScheme}: pending (file)`);
+    await s.page.goto(`${base}/r/`);
+    await ready(s.page);
+    await axe(s.page, `${colorScheme}: empty link`);
+    await s.page.goto(`${base}/r/#hello`);
+    await s.page.waitForSelector("#unreadable:not([hidden])");
+    await axe(s.page, `${colorScheme}: not a receipt`);
+    await s.page.goto(`${base}/demo/`);
+    await s.page.waitForFunction(() => /Ready/.test(document.getElementById("status").textContent));
+    await s.page.click("#sample");
+    await s.page.waitForFunction(() => document.getElementById("rawtx").value.length > 100);
+    await s.page.click("#verify");
+    await s.page.waitForSelector(".result");
+    await axe(s.page, `${colorScheme}: demo result`);
+    await s.context.close();
+  }
+});
+
 test("a node without a usable tip leaves the depth unknown and the verdict alone (slice A2)", { skip: !RUN }, async () => {
   const s = await openPage({ tip: null });
   await s.page.goto(`${base}/r/#${b64(BEARER)}`);

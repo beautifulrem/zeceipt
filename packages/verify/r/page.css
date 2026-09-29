@@ -133,6 +133,7 @@ p { margin: 0.5rem 0; }
 code { font-family: var(--mono); font-size: 0.92em; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .print-only { display: none; }
+.nowrap { white-space: nowrap; }
 
 /* Icons: Lucide outlines, same-origin files, tinted with the current colour */
 .i, .checks li::before, .limits li::before, .copy::before {
@@ -347,9 +348,15 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 #challenge-line { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed var(--line); color: var(--muted); }
 
 /* What it proves / does not prove */
-.scope { display: grid; gap: 1rem; margin-top: 1.5rem; }
+/* What a result proves and what it does not: one card, two columns (review F round 6: two cards of 2 and 5 items
+   left one mostly empty), as print lays them out. */
+.scope {
+  display: grid; gap: 1.25rem 2rem; margin-top: 1.5rem; align-items: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); box-shadow: var(--shadow-card);
+  padding: 1.35rem 1.5rem;
+}
 @media (min-width: 760px) { .scope { grid-template-columns: 1fr 1fr; } }
-.scope .card { margin: 0; }
+.scope .card { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
 .checks, .limits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.65rem; font-size: 0.875rem; }
 .checks li, .limits li { display: grid; grid-template-columns: 1.1rem 1fr; gap: 0.6rem; align-items: start; }
 .checks li::before, .limits li::before { content: ""; width: 1.1rem; height: 1.1rem; margin-top: 0.15rem; }
@@ -408,8 +415,7 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
   /* Folded claims (they matched) print as nothing rather than a stub to click. */
   details#claims:not([open]) { display: none !important; }
   /* One page (review F round 4): the proves / does-not-prove lists as compact text under the verdict, no cards. */
-  .scope { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; }
-  .scope .card { border: 0; padding: 0; background: none; }
+  .scope { grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; padding: 0; border: 0; box-shadow: none; }
   .scope h2 { font-size: 0.8rem; margin-bottom: 0.3rem; }
   .checks, .limits { gap: 0.25rem; font-size: 0.72rem; }
   /* How the page uses the network is not part of a printed receipt. */

@@ -31,10 +31,16 @@ export function amountNodes({ zec, zat }) {
   return [el("span", "amount", major), el("span", "amount-zeros", zeros), el("span", "amount-unit", " ZEC"), el("span", "amount-zat", ` (${zat} zat)`)];
 }
 
-/** An issuer line with its 64-hex key in the mono face (text nodes only). */
+/** Text with any "(key id …)" kept on one line (a key id such as 2026-09 must not break at its hyphen; review F
+ * round 6), as nodes. */
+export function keyIdNodes(text) {
+  return text.split(/(\(key id [^)]+\))/).filter(Boolean).map((part) => (/^\(key id /.test(part) ? el("span", "nowrap", part) : document.createTextNode(part)));
+}
+
+/** An issuer line with its 64-hex key in the mono face and its key id unbroken (text nodes only). */
 export function issuerLine(line) {
   const li = el("li");
-  for (const part of line.split(/([0-9a-f]{64})/)) if (part) li.append(/^[0-9a-f]{64}$/.test(part) ? el("code", "", part) : document.createTextNode(part));
+  for (const part of line.split(/([0-9a-f]{64})/)) if (part) li.append(...(/^[0-9a-f]{64}$/.test(part) ? [el("code", "", part)] : keyIdNodes(part)));
   return li;
 }
 
@@ -49,7 +55,9 @@ export function kvRows(pairs, { amount, live } = {}) {
     const td = el("td");
     if (k === "Value" && amount) td.append(...amountNodes(amount));
     else {
-      td.append(el("span", "", v));
+      const span = el("span");
+      span.append(...keyIdNodes(v));
+      td.append(span);
       if (COPYABLE[k] && navigator.clipboard) td.append(copyButton(v, COPYABLE[k], live));
     }
     tr.append(td);

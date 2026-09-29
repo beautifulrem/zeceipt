@@ -9,7 +9,7 @@ import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, i
 // 40 s before the page says so (review A1b).
 const PAGE_TIMEOUT_MS = 12_000;
 import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, verdictNote } from "./view.js";
-import { issuerLine, kvRows } from "./ui.js";
+import { issuerLine, keyIdNodes, kvRows } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
@@ -114,7 +114,7 @@ function verifyNow() {
   // The signature row said "checked when you verify": now say what the check found (review F round 3).
   const sig = $("summary").querySelector('tr[data-key="Issuer signature"] td:last-child span');
   if (sig && / — checked when you verify$/.test(sig.textContent)) {
-    sig.textContent = sig.textContent.replace(/ — checked when you verify$/, current.lastStage === "signature" ? " — does not cover these contents" : view.valid ? " — checked: it covers these contents" : " — checked when you verify");
+    sig.replaceChildren(...keyIdNodes(sig.textContent.replace(/ — checked when you verify$/, current.lastStage === "signature" ? " — does not cover these contents" : view.valid ? " — checked: it covers these contents" : " — checked when you verify")));
   }
   // Checked: the claims now repeat the verdict, so they fold away; a failure keeps them open with the failed row marked.
   $("claims").open = !view.valid;

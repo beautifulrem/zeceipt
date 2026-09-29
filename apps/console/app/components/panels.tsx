@@ -30,12 +30,13 @@ export function ModePanel({ mode, compact = false }: { mode: PaymentMode; compac
       </h2>
       <dl className={`grid gap-x-6 gap-y-3 text-sm ${compact ? "" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
         {rows.map(([k, v, Icon]) => (
-          <div key={k} className="flex min-w-0 gap-3">
-            <Icon aria-hidden="true" strokeWidth={1.75} className="mt-0.5 size-4 flex-none text-muted" />
-            <div className="min-w-0">
-              <dt className="text-xs text-muted">{k}</dt>
-              <dd className="mt-0.5">{v}</dd>
-            </div>
+          // A dl group holds only its dt and dd (axe definition-list, review F round 6): the icon sits in the dt.
+          <div key={k} className="min-w-0">
+            <dt className="flex items-center gap-2 text-xs text-muted">
+              <Icon aria-hidden="true" strokeWidth={1.75} className="size-4 flex-none" />
+              {k}
+            </dt>
+            <dd className="mt-0.5 pl-6">{v}</dd>
           </div>
         ))}
       </dl>

@@ -58,8 +58,13 @@ for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
 }
 
 // Non-text contrast (WCAG 2.2 1.4.11, 3:1; review F round 1): the focus ring and the input borders, on every surface
-// they sit on.
-const NON_TEXT: [string, string][] = ["canvas", "surface", "surface-2"].flatMap((bg) => [["ring", bg], ["input-line", bg]] as [string, string][]);
+// they sit on, and the status dots.
+const NON_TEXT: [string, string][] = [
+  ...["canvas", "surface", "surface-2"].flatMap((bg) => [["ring", bg], ["input-line", bg]] as [string, string][]),
+  // The status dots on the receipt page and the demo (ready and checked: success; error: danger; loading: subtle),
+  // on the canvas they sit on (review F round 6). Pill and badge tones are text on their soft fills, checked above.
+  ["success", "canvas"], ["danger", "canvas"], ["subtle", "canvas"],
+];
 for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
   test(`the focus ring and input borders meet 3:1 in the ${name} scheme (WCAG 1.4.11)`, () => {
     const failures = NON_TEXT.filter(([t, bg]) => ratio(theme[t], theme[bg]) < 3).map(([t, bg]) => `${t} ${theme[t]} on ${bg} ${theme[bg]}: ${ratio(theme[t], theme[bg]).toFixed(2)}:1`);
