@@ -376,7 +376,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                 <th className="hidden md:table-cell">Payable</th>
                 <th>Payee</th>
                 <th className="hidden sm:table-cell">Address</th>
-                <th>Memo</th>
+                <th className="hidden sm:table-cell">Memo</th>
                 <th className="text-right">Amount</th>
                 {lock && <th className="hidden text-right sm:table-cell">USD at lock</th>}
               </tr>
@@ -387,11 +387,23 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                   <td className="hidden md:table-cell">
                     <Identifier value={i.payableId} />
                   </td>
-                  <td className="font-medium">{i.label || "—"}</td>
+                  <td className="font-medium">
+
+                    {i.label || "—"}
+
+                    {/* On a phone the memo sits under the payee (review F, CI on Linux fonts). */}
+
+                    <div className="font-mono text-xs font-normal text-muted sm:hidden">
+
+                      <Words text={i.memo} />
+
+                    </div>
+
+                  </td>
                   <td className="hidden sm:table-cell">
                     <Address value={i.address} />
                   </td>
-                  <td>
+                  <td className="hidden sm:table-cell">
                     <code>
                       <Words text={i.memo} />
                     </code>
@@ -410,7 +422,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                   <span className="sm:hidden">Total</span>
                 </td>
                 <td className="hidden sm:table-cell" />
-                <td className="text-right font-semibold">
+                <td className="hidden text-right font-semibold sm:table-cell">
                   <span className="hidden sm:inline">Total</span>
                 </td>
                 <td className="whitespace-nowrap text-right font-semibold">

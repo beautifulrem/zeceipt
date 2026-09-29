@@ -90,7 +90,7 @@ try {
   }
   fake.mined.push({ txid: TXID, height: fake.height - 4, expiry: fake.height + 40, recipients: LINES.map((l) => ({ address: l.address, amount: l.zat, memo: l.memo })) });
 
-  // Tables that may scroll sideways on a 390px phone: their columns are all needed to act on a row.
+  // Tables that may scroll sideways on a 360px phone: their columns are all needed to act on a row.
   const PHONE_SCROLL: Record<string, string[]> = {};
   const pages: [string, string][] = [
     ["batches", "/"], ["batch-paid", `/batches/${paid.id}`], ["batch-draft", `/batches/${draft.id}`], ["batch-receipts", `/batches/${String(issued.id)}`],
@@ -98,7 +98,9 @@ try {
     ["recipients", "/recipients"], ["payables", "/payables"], ["not-found", "/batches/0190a0d6-7e3b-7c61-8d3f-4a2b1c0d9e8f"],
   ];
   for (const scheme of ["light", "dark"] as const) {
-    for (const [width, tag] of [[1280, "desktop"], [390, "phone"]] as const) {
+    // 360 px phones (common Android widths): narrower than an iPhone, which also leaves room for other fonts' metrics
+    // (CI's Linux fonts are wider than macOS's).
+    for (const [width, tag] of [[1280, "desktop"], [360, "phone"]] as const) {
       const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: tag === "phone" ? 2 : 1, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await context.newPage();
       for (const [name, path] of pages) {
