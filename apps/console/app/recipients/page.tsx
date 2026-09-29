@@ -50,7 +50,7 @@ export default async function RecipientsPage() {
                 <td className="font-medium">
                   {r.displayName}
                   {/* On a phone the address prefix sits under the name (review F round 3). */}
-                  <div className="max-w-[9rem] truncate font-mono text-xs font-normal text-muted sm:hidden">{shortAddress(r.address)}</div>
+                  <div className="max-w-[7rem] truncate font-mono text-xs font-normal text-muted sm:hidden">{shortAddress(r.address)}</div>
                   {r.duplicateOf.length > 0 && (
                     <p className="text-xs text-warning">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
                   )}
@@ -67,7 +67,7 @@ export default async function RecipientsPage() {
                   <Address value={r.address} />
                 </td>
                 <td>
-                  <span className={`badge ${r.kycStatus === "verified" ? "tone-success" : r.kycStatus === "not_required" ? "tone-neutral" : "tone-warning"}`}>{KYC[r.kycStatus]}</span>
+                  <span className={`badge badge-compact ${r.kycStatus === "verified" ? "tone-success" : r.kycStatus === "not_required" ? "tone-neutral" : "tone-warning"}`}>{KYC[r.kycStatus]}</span>
                 </td>
                 <td className="hidden md:table-cell">{TAX[r.taxFlag]}</td>
                 <td className="hidden md:table-cell">{SETTLE[r.settlementPref]}</td>

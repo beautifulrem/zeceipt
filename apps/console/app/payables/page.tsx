@@ -100,7 +100,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                     {holders.has(p.id) && <span className="block truncate sm:hidden">in {holders.get(p.id)!.title}</span>}
                   </div>
                   {p.sourceUrl && (
-                    <div className="2xl:hidden">
+                    <div className="max-w-[9rem] truncate 2xl:hidden">
                       <a href={p.sourceUrl} rel="noopener noreferrer" className="link text-xs">
                         {hostOf(p.sourceUrl)}
                       </a>
@@ -129,13 +129,13 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                 <td>
                   {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
                   {holders.has(p.id) ? (
-                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} title={`In batch ${holders.get(p.id)!.title}`} className="badge tone-info badge-plain max-w-[8rem] no-underline hover:border-info sm:max-w-[12rem]">
+                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} title={`In batch ${holders.get(p.id)!.title}`} className="badge badge-compact tone-info badge-plain max-w-[8rem] no-underline hover:border-info sm:max-w-[12rem]">
                       <span className="truncate">
                         In batch<span className="hidden sm:inline"> {holders.get(p.id)!.title}</span>
                       </span>
                     </Link>
                   ) : (
-                    <span className="badge tone-neutral">Unbatched</span>
+                    <span className="badge badge-compact tone-neutral">Unbatched</span>
                   )}
                 </td>
               </tr>

@@ -280,6 +280,15 @@
     background: currentColor;
     opacity: 0.85;
   }
+  /* In a narrow table cell on a phone: no dot, tighter (the word still says the state) */
+  @media (max-width: 639px) {
+    .badge-compact {
+      padding: 0.15rem 0.5rem;
+    }
+    .badge-compact::before {
+      display: none;
+    }
+  }
   .badge-plain::before {
     display: none;
   }

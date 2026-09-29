@@ -113,11 +113,24 @@ try {
         if (over > 0) throw new Error(`${name} (${scheme}, ${tag}) overflows the viewport by ${over}px`);
         // Nor may a table scroll inside its card on a desktop (review F round 3: a hidden Status column); on a phone,
         // only the tables listed in PHONE_SCROLL may, each a deliberate choice, and their cards show it (edge shadows).
-        const scrolling = await page.evaluate(() => [...document.querySelectorAll(".table-card")].filter((c) => c.scrollWidth > c.clientWidth + 1).map((c) => c.getAttribute("aria-label")));
+        // A table "fits" only with room to spare: its narrowest layout (min-content) must leave 16 px in its card, so a
+        // different font rasteriser (CI's Linux) cannot tip it into scrolling (a table that fitted to the pixel did).
+        const SLACK = 16;
+        const scrolling = await page.evaluate((slack) => [...document.querySelectorAll(".table-card")].filter((c) => {
+          const table = c.querySelector("table");
+          if (!table) return false;
+          const cs = getComputedStyle(c);
+          const room = c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const before = table.style.width;
+          table.style.width = "min-content";
+          const need = table.getBoundingClientRect().width;
+          table.style.width = before;
+          return need + slack > room;
+        }).map((c) => (c as HTMLElement).dataset.label ?? ""), SLACK);
         const allowed = tag === "phone" ? PHONE_SCROLL[name] ?? [] : [];
         const unexpected = scrolling.filter((l) => !allowed.includes(String(l)));
         if (unexpected.length) {
-          const widths = await page.evaluate((l) => [...document.querySelectorAll(`.table-card[aria-label="${l}"] th`)].map((th) => `${th.textContent}:${Math.round(th.getBoundingClientRect().width)}`).join(" "), unexpected[0]);
+          const widths = await page.evaluate((l) => [...document.querySelectorAll(`.table-card[data-label="${l}"] th`)].map((th) => `${th.textContent}:${Math.round(th.getBoundingClientRect().width)}`).join(" "), unexpected[0]);
           throw new Error(`${name} (${scheme}, ${tag}): table cards scroll sideways: ${unexpected.join(", ")} (columns ${widths})`);
         }
         // Accessibility (review F round 6): axe's WCAG 2.0–2.2 A and AA rules, every page, both schemes, both widths.

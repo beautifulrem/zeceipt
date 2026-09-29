@@ -32,7 +32,7 @@ export function TableCard({ label, className = "", children }: { label: string; 
   }, [label]);
   return (
     // tabIndex 0: a scrollable region must be reachable by keyboard (WCAG 2.1.1; axe's scrollable-region-focusable).
-    <div ref={ref} role="region" aria-label={label} tabIndex={0} className={`table-card ${className}`}>
+    <div ref={ref} role="region" aria-label={label} data-label={label} tabIndex={0} className={`table-card ${className}`}>
       {children}
     </div>
   );
