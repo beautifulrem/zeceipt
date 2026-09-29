@@ -23,6 +23,8 @@ import { AccessNotice, ModePanel } from "../../components/panels.tsx";
 import { Lifecycle, StatusBadge } from "../../components/status.tsx";
 import { ApproveForm, IssueForm, LockRateForm, PayForm } from "./action-forms.tsx";
 import { TABLE_CLASS } from "../../../lib/view/table.ts";
+import { PageHeader } from "../../components/page-header.tsx";
+import { ArrowUpRight, Download, ExternalLink, FileCheck2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -59,266 +61,312 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
   // REQ-CON-6 (slice H6): the batch validation report's linkability part, while the operator can still act on it
   // (nothing sent: the draft can be voided and made again with a fresh address).
   const linkable = canVoid ? batchLinkability(await disclosedReceivers(ctx.db, rec.orgId), rec) : [];
+  const confirmations = status?.detail.confirmations;
+  const required = status?.detail.required ?? ctx.config.confirmations;
   return (
     <>
       <AccessNotice />
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{rec.title}</h1>
-        <p className="text-sm text-slate-500">
+      <PageHeader eyebrow="Batch" title={rec.title} actions={view ? <StatusBadge view={view} /> : undefined}>
+        <p className="text-sm text-muted">
           Batch <code>{rec.id}</code> · created {rec.createdAt.replace("T", " ").slice(0, 16)} UTC
         </p>
-      </header>
+      </PageHeader>
 
-      <ModePanel mode={paymentMode(ctx.config)} />
-
-      <section aria-labelledby="status-heading" className="space-y-3 rounded-lg border border-slate-200 p-4">
-        <h2 id="status-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-          Status
-        </h2>
-        {view && unavailable ? (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <StatusBadge view={view} />
-              <span className="text-sm">
-                <strong>Next:</strong> {view.next}
-              </span>
-            </div>
-            <Lifecycle view={view} />
-            <p className="text-sm">{view.explanation}</p>
-          </>
-        ) : view && status ? (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <StatusBadge view={view} />
-              <span className="text-sm">
-                <strong>Next:</strong> {view.next}
-              </span>
-            </div>
-            <Lifecycle view={view} />
-            <p className="text-sm">{view.explanation}</p>
-            {status.next === "approve" &&
-              (lock ? (
-                // Slice I3: every payment needs an approval of the batch as shown, at this lock (re-lock: approve again).
-                <>
-                  <p className="text-sm">Check the lines, the total and the locked rate below, then approve. Pay is offered once approved.</p>
-                  <ApproveForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} lockSeq={lock.seq} rate={rateText(lock.rate)} />
-                </>
-              ) : (
-                <p className="text-sm">
-                  <strong>Lock the ZEC/USD rate below before approving.</strong> The approval and the payment are checked against it.
-                </p>
-              ))}
-            {status.next === "submit" &&
-              (lock || submitted ? (
-                <PayForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} again={status.state === "needs_attention"} />
-              ) : (
-                // REQ-CON-21 (slice G2b2): the first payment needs a rate lock, so Pay is not offered before one.
-                <p className="text-sm">
-                  <strong>Lock the ZEC/USD rate below before paying.</strong> The payment is checked against it.
-                </p>
-              ))}
-            {status.next === "issue_receipts" && <IssueForm id={rec.id} />}
-            {(status.detail.txid || status.detail.error) && (
-              <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1 text-sm">
-                {status.detail.txid && (
-                  <>
-                    <dt className="text-slate-500">Transaction</dt>
-                    <dd>
-                      <code className="break-all">{status.detail.txid}</code>
-                    </dd>
-                  </>
-                )}
-                {status.detail.confirmations !== undefined && (
-                  <>
-                    <dt className="text-slate-500">Confirmations</dt>
-                    <dd>
-                      {status.detail.confirmations} ({status.detail.required ?? ctx.config.confirmations} required)
-                    </dd>
-                  </>
-                )}
-                {status.detail.error && (
-                  <>
-                    <dt className="text-slate-500">Wallet said</dt>
-                    <dd>{status.detail.error}</dd>
-                  </>
-                )}
-              </dl>
-            )}
-          </>
-        ) : (
-          <p className="text-sm">External-signer custody: this console does not pay or track this batch.</p>
-        )}
-        {rec.voidedAt !== undefined && !status && (
-          // In hot custody the status panel above already says "Voided"; external custody has no status panel.
-          <p className="text-sm">
-            <strong>Voided</strong> on {rec.voidedAt.slice(0, 10)}: this batch can never be paid. Its lines and history stay on record.
-          </p>
-        )}
-        {canVoid && (
-          // GOV.UK (R83): the first step of a destructive action is not a button; the confirmation page has the warning button.
-          <p className="text-sm">
-            <Link href={`/batches/${rec.id}/void`} className="text-sky-700 underline">
-              Void this draft…
-            </Link>{" "}
-            <span className="text-slate-500">Possible only while nothing has been sent.</span>
-          </p>
-        )}
-      </section>
-
-      <section aria-labelledby="rate-heading" className="space-y-2 rounded-lg border border-slate-200 p-4">
-        <h2 id="rate-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-          ZEC/USD rate
-        </h2>
-        {lock ? (
-          <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1 text-sm">
-            <dt className="text-slate-500">Locked rate</dt>
-            <dd>
-              <strong>{rateText(lock.rate)}</strong> <span className="text-slate-500">(bid, exactly {lock.rate})</span>
-            </dd>
-            <dt className="text-slate-500">Source</dt>
-            <dd>
-              {sourceLabel(lock.source, lock.host)} {lock.pair} · ask {lock.ask} · last trade {lock.last}
-            </dd>
-            <dt className="text-slate-500">Fetched</dt>
-            <dd>{lock.fetchedAt.replace("T", " ").slice(0, 19)} UTC</dd>
-          </dl>
-        ) : (
-          <p className="text-sm">Not locked. Lock the rate to record the ZEC/USD value this batch is based on (source and time kept).</p>
-        )}
-        {rec.voidedAt !== undefined ? (
-          <p className="text-sm text-slate-500">Voided: the rate can no longer be locked.</p>
-        ) : rateFixed(rec) ? (
-          // Slice H5a: the lines were converted at this lock (BTCPay's fixed payout rate), so there is no Re-lock.
-          <p className="text-sm text-slate-500">
-            Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate,{" "}
-            {canVoid ? (
-              <Link href={`/batches/${rec.id}/void`} className="text-sky-700 underline">
-                void this draft
-              </Link>
+      <dl className="animate-rise-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="stat">
+          <dt className="eyebrow">Total</dt>
+          <dd className="stat-value">
+            <ZecAmount zat={total} />
+          </dd>
+        </div>
+        <div className="stat">
+          <dt className="eyebrow">Lines</dt>
+          <dd className="stat-value">{rec.items.length}</dd>
+        </div>
+        <div className="stat">
+          <dt className="eyebrow">ZEC/USD</dt>
+          <dd className="stat-value">{lock ? rateText(lock.rate) : <span className="text-muted">Not locked</span>}</dd>
+        </div>
+        <div className="stat">
+          <dt className="eyebrow">Confirmations</dt>
+          <dd className="stat-value">
+            {confirmations !== undefined ? (
+              <>
+                {confirmations} <span className="text-sm font-normal text-muted">of {required}</span>
+              </>
             ) : (
-              "void this draft"
-            )}{" "}
-            and make a new batch from its payables.
+              <span className="text-muted">—</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
+        <div className="min-w-0 space-y-6">
+          <section aria-labelledby="status-heading" className="card animate-rise-3 space-y-4">
+            <h2 id="status-heading" className="eyebrow">
+              Status
+            </h2>
+            {view && unavailable ? (
+              <>
+                <p className="text-sm">
+                  <strong>Next:</strong> {view.next}
+                </p>
+                <Lifecycle view={view} />
+                <p className="text-sm">{view.explanation}</p>
+              </>
+            ) : view && status ? (
+              <>
+                <p className="text-sm">
+                  <strong>Next:</strong> {view.next}
+                </p>
+                <Lifecycle view={view} />
+                <p className="text-sm">{view.explanation}</p>
+                {status.next === "approve" &&
+                  (lock ? (
+                    // Slice I3: every payment needs an approval of the batch as shown, at this lock (re-lock: approve again).
+                    <>
+                      <p className="text-sm text-muted">Check the lines, the total and the locked rate below, then approve. Pay is offered once approved.</p>
+                      <ApproveForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} lockSeq={lock.seq} rate={rateText(lock.rate)} />
+                    </>
+                  ) : (
+                    <p className="text-sm">
+                      <strong>Lock the ZEC/USD rate below before approving.</strong> The approval and the payment are checked against it.
+                    </p>
+                  ))}
+                {status.next === "submit" &&
+                  (lock || submitted ? (
+                    <PayForm id={rec.id} totalZat={total.toString()} totalText={zecText(total)} again={status.state === "needs_attention"} />
+                  ) : (
+                    // REQ-CON-21 (slice G2b2): the first payment needs a rate lock, so Pay is not offered before one.
+                    <p className="text-sm">
+                      <strong>Lock the ZEC/USD rate below before paying.</strong> The payment is checked against it.
+                    </p>
+                  ))}
+                {status.next === "issue_receipts" && <IssueForm id={rec.id} />}
+                {(status.detail.txid || status.detail.error) && (
+                  <dl className="kv rounded-lg border border-line bg-surface-2 p-3">
+                    {status.detail.txid && (
+                      <>
+                        <dt>Transaction</dt>
+                        <dd>
+                          <code className="break-all">{status.detail.txid}</code>
+                        </dd>
+                      </>
+                    )}
+                    {status.detail.confirmations !== undefined && (
+                      <>
+                        <dt>Confirmations</dt>
+                        <dd>
+                          {status.detail.confirmations} ({status.detail.required ?? ctx.config.confirmations} required)
+                        </dd>
+                      </>
+                    )}
+                    {status.detail.error && (
+                      <>
+                        <dt>Wallet said</dt>
+                        <dd>{status.detail.error}</dd>
+                      </>
+                    )}
+                  </dl>
+                )}
+              </>
+            ) : (
+              <p className="text-sm">External-signer custody: this console does not pay or track this batch.</p>
+            )}
+            {rec.voidedAt !== undefined && !status && (
+              // In hot custody the status panel above already says "Voided"; external custody has no status panel.
+              <p className="text-sm">
+                <strong>Voided</strong> on {rec.voidedAt.slice(0, 10)}: this batch can never be paid. Its lines and history stay on record.
+              </p>
+            )}
+            {canVoid && (
+              // GOV.UK (R83): the first step of a destructive action is not a button; the confirmation page has the warning button.
+              <p className="border-t border-line pt-3 text-sm">
+                <Link href={`/batches/${rec.id}/void`} className="link">
+                  Void this draft…
+                </Link>{" "}
+                <span className="text-muted">Possible only while nothing has been sent.</span>
+              </p>
+            )}
+          </section>
+
+          {linkable.length > 0 && (
+            <section aria-labelledby="linkability-heading" className="card space-y-3 border-warning/50">
+              <h2 id="linkability-heading" className="eyebrow">
+                Before paying: addresses already disclosed
+              </h2>
+              <ul className="list-disc pl-5 text-sm">
+                {linkable.map((l) => {
+                  const line = rec.items.find((i) => i.idx === l.idx)!;
+                  return (
+                    <li key={l.idx}>
+                      Line {l.idx + 1} ({line.label || line.memo}): {disclosedText(l.disclosedBy.map((d) => d.title))}
+                    </li>
+                  );
+                })}
+              </ul>
+              <LinkabilityNote />
+            </section>
+          )}
+        </div>
+
+        <aside className="space-y-6">
+          <ModePanel mode={paymentMode(ctx.config)} compact />
+
+          <section aria-labelledby="rate-heading" className="card space-y-3">
+            <h2 id="rate-heading" className="eyebrow">
+              ZEC/USD rate
+            </h2>
+            {lock ? (
+              <dl className="kv">
+                <dt>Locked rate</dt>
+                <dd>
+                  <strong>{rateText(lock.rate)}</strong> <span className="text-muted">(bid, exactly {lock.rate})</span>
+                </dd>
+                <dt>Source</dt>
+                <dd>
+                  {sourceLabel(lock.source, lock.host)} {lock.pair} · ask {lock.ask} · last trade {lock.last}
+                </dd>
+                <dt>Fetched</dt>
+                <dd>{lock.fetchedAt.replace("T", " ").slice(0, 19)} UTC</dd>
+              </dl>
+            ) : (
+              <p className="text-sm">Not locked. Lock the rate to record the ZEC/USD value this batch is based on (source and time kept).</p>
+            )}
+            {rec.voidedAt !== undefined ? (
+              <p className="text-sm text-muted">Voided: the rate can no longer be locked.</p>
+            ) : rateFixed(rec) ? (
+              // Slice H5a: the lines were converted at this lock (BTCPay's fixed payout rate), so there is no Re-lock.
+              <p className="text-sm text-muted">
+                Made from payables: each line was converted from its US dollars at this rate, so the rate is fixed. To pay at another rate,{" "}
+                {canVoid ? (
+                  <Link href={`/batches/${rec.id}/void`} className="link">
+                    void this draft
+                  </Link>
+                ) : (
+                  "void this draft"
+                )}{" "}
+                and make a new batch from its payables.
+              </p>
+            ) : lockFrozen ? (
+              <p className="text-sm text-muted">A payment attempt may have paid this batch: its rate can no longer be changed.</p>
+            ) : (
+              <LockRateForm id={rec.id} locked={lock !== undefined} />
+            )}
+          </section>
+
+          <p className="flex items-start gap-2 px-1 text-xs text-muted">
+            <ExternalLink aria-hidden="true" className="mt-0.5 size-3.5 flex-none" />
+            Receipt links open the public receipt page, which verifies each payment in the reader&apos;s browser.
           </p>
-        ) : lockFrozen ? (
-          <p className="text-sm text-slate-500">A payment attempt may have paid this batch: its rate can no longer be changed.</p>
-        ) : (
-          <LockRateForm id={rec.id} locked={lock !== undefined} />
-        )}
-      </section>
+        </aside>
+      </div>
 
-      {linkable.length > 0 && (
-        <section aria-labelledby="linkability-heading" className="space-y-2 rounded-lg border border-amber-300 p-4">
-          <h2 id="linkability-heading" className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-            Before paying: addresses already disclosed
-          </h2>
-          <ul className="list-disc pl-5 text-sm">
-            {linkable.map((l) => {
-              const line = rec.items.find((i) => i.idx === l.idx)!;
-              return (
-                <li key={l.idx}>
-                  Line {l.idx + 1} ({line.label || line.memo}): {disclosedText(l.disclosedBy.map((d) => d.title))}
-                </li>
-              );
-            })}
-          </ul>
-          <LinkabilityNote />
-        </section>
-      )}
-
-      <section aria-labelledby="items-heading" className="space-y-2">
-        <h2 id="items-heading" className="text-lg font-semibold">
+      <section aria-labelledby="items-heading" className="space-y-3">
+        <h2 id="items-heading" className="section-title">
           Items
         </h2>
-        <table className={TABLE_CLASS}>
-          <caption className="sr-only">Items of this batch</caption>
-          <thead className="border-b border-slate-200 text-slate-500">
-            <tr>
-              <th>Payable</th>
-              <th>Payee</th>
-              <th>Address</th>
-              <th>Memo</th>
-              <th className="text-right">Amount</th>
-              {lock && <th className="text-right">USD at lock</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rec.items.map((i) => (
-              <tr key={i.idx} className="border-b border-slate-100">
-                <td>
-                  <Identifier value={i.payableId} />
-                </td>
-                <td>{i.label || "—"}</td>
-                <td>
-                  <Address value={i.address} />
-                </td>
-                <td>{i.memo}</td>
-                <td className="whitespace-nowrap text-right">
-                  <ZecAmount zat={i.zat} />
-                </td>
-                {lock && <td className="whitespace-nowrap text-right">{usdText(i.zat, lock.rate)}</td>}
+        <div className="table-card">
+          <table className={TABLE_CLASS}>
+            <caption className="sr-only">Items of this batch</caption>
+            <thead>
+              <tr>
+                <th>Payable</th>
+                <th>Payee</th>
+                <th>Address</th>
+                <th>Memo</th>
+                <th className="text-right">Amount</th>
+                {lock && <th className="text-right">USD at lock</th>}
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={4} className="text-right font-semibold">
-                Total
-              </td>
-              <td className="whitespace-nowrap text-right font-semibold">
-                <ZecAmount zat={total} />
-              </td>
-              {lock && <td className="whitespace-nowrap text-right font-semibold">{usdText(total, lock.rate)}</td>}
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {rec.items.map((i) => (
+                <tr key={i.idx}>
+                  <td>
+                    <Identifier value={i.payableId} />
+                  </td>
+                  <td className="font-medium">{i.label || "—"}</td>
+                  <td>
+                    <Address value={i.address} />
+                  </td>
+                  <td>
+                    <code>{i.memo}</code>
+                  </td>
+                  <td className="whitespace-nowrap text-right">
+                    <ZecAmount zat={i.zat} />
+                  </td>
+                  {lock && <td className="whitespace-nowrap text-right tabular-nums">{usdText(i.zat, lock.rate)}</td>}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4} className="text-right font-semibold">
+                  Total
+                </td>
+                <td className="whitespace-nowrap text-right font-semibold">
+                  <ZecAmount zat={total} />
+                </td>
+                {lock && <td className="whitespace-nowrap text-right font-semibold tabular-nums">{usdText(total, lock.rate)}</td>}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </section>
 
-      <section aria-labelledby="receipts-heading" className="space-y-2">
-        <h2 id="receipts-heading" className="text-lg font-semibold">
+      <section aria-labelledby="receipts-heading" className="space-y-3">
+        <h2 id="receipts-heading" className="section-title">
           Receipts
         </h2>
         {receipts.length === 0 ? (
-          <p className="text-sm text-slate-600">No receipts yet. They are issued once the payment is confirmed.</p>
+          <p className="card flex items-center gap-3 text-sm text-muted">
+            <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-5 flex-none text-subtle" />
+            No receipts yet. They are issued once the payment is confirmed.
+          </p>
         ) : (
-          <ul className="space-y-1 text-sm">
+          <ul className="card divide-y divide-line p-0 text-sm">
             {receipts.map((r) => (
-              <li key={r.idx}>
-                {r.payableId}: {r.openError ? <span>could not be opened ({r.openError})</span> : <a href={r.url} rel="noreferrer" className="text-sky-700 underline">receipt link</a>}{" "}
-                <span className="text-slate-500">(anyone with this link can verify the payment)</span>
+              <li key={r.idx} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
+                <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-4 flex-none text-success" />
+                <code>{r.payableId}</code>:{" "}
+                {r.openError ? (
+                  <span className="text-danger">could not be opened ({r.openError})</span>
+                ) : (
+                  <a href={r.url} rel="noreferrer" className="link inline-flex items-center gap-1 font-medium">
+                    receipt link
+                    <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                  </a>
+                )}{" "}
+                <span className="text-muted">(anyone with this link can verify the payment)</span>
               </li>
             ))}
           </ul>
         )}
         {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what it discloses (lib/view/export-offer.ts). */}
-        {offer.kind === "unopenable" && <p className="text-sm text-slate-600">{offer.text}</p>}
+        {offer.kind === "unopenable" && <p className="text-sm text-muted">{offer.text}</p>}
         {offer.kind === "offer" && (
-          <div className="space-y-1 text-sm">
-            <p id="export-scope" className="text-slate-600">
-              {offer.scope}
-            </p>
-            <p id="export-disclosure" className="text-slate-600">
+          <div className="callout tone-accent flex-col gap-2">
+            <p id="export-scope">{offer.scope}</p>
+            <p id="export-disclosure" className="text-muted">
               {offer.disclosure}
             </p>
-            <p>
-              <a href={offer.href} aria-describedby="export-scope export-disclosure" className="text-sky-700 underline">
-                Download for OpenZcash (CSV)
-              </a>
+            <p className="flex items-center gap-2">
+              <Download aria-hidden="true" className="size-4 text-accent-strong" />
+              <a href={offer.href} aria-describedby="export-scope export-disclosure" className="link font-medium">Download for OpenZcash (CSV)</a>
             </p>
           </div>
         )}
       </section>
 
-      <section aria-labelledby="history-heading" className="space-y-2">
-        <h2 id="history-heading" className="text-lg font-semibold">
+      <section aria-labelledby="history-heading" className="space-y-3">
+        <h2 id="history-heading" className="section-title">
           History
         </h2>
-        <ol className="space-y-1 text-sm">
+        <ol className="card timeline pl-10">
           {history.map((e) => (
-            <li key={e.id} className="flex gap-3">
-              <time dateTime={e.at} className="shrink-0 text-slate-500">
-                {e.at.replace("T", " ").slice(0, 19)} UTC
-              </time>
+            <li key={e.id}>
+              <time dateTime={e.at}>{e.at.replace("T", " ").slice(0, 19)} UTC</time>
               <span className="break-all">{eventText(e)}</span>
             </li>
           ))}

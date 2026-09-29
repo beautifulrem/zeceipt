@@ -15,6 +15,7 @@ const show = (id, on) => { $(id).hidden = !on; };
 const rows = (table, pairs) => {
   table.replaceChildren(...pairs.map(([k, v]) => {
     const tr = document.createElement("tr");
+    tr.dataset.key = k; // lets the stylesheet give the value row its weight (slice F2); text stays textContent
     for (const text of [k, v]) { const td = document.createElement("td"); td.textContent = text; tr.append(td); }
     return tr;
   }));

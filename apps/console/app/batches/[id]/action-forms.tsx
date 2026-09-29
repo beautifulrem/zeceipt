@@ -5,18 +5,18 @@ import type { ActionOutcome } from "../../../lib/view/outcome.ts";
 import { approveAction, issueAction, lockRateAction, payAction } from "./actions.ts";
 
 const TONE: Record<ActionOutcome["tone"], string> = {
-  neutral: "border-slate-300 bg-slate-50",
-  info: "border-sky-300 bg-sky-50",
-  success: "border-emerald-300 bg-emerald-50",
-  warning: "border-amber-300 bg-amber-50",
-  danger: "border-rose-300 bg-rose-50",
+  neutral: "tone-neutral",
+  info: "tone-info",
+  success: "tone-success",
+  warning: "tone-warning",
+  danger: "tone-danger",
 };
 
 function Result({ outcome }: { outcome: ActionOutcome | null }) {
   return (
     <div aria-live="polite">
       {outcome && (
-        <p className={`rounded-md border px-3 py-2 text-sm ${TONE[outcome.tone]}`}>
+        <p className={`callout block ${TONE[outcome.tone]}`}>
           <strong>{outcome.headline}:</strong> {outcome.detail}
         </p>
       )}
@@ -31,7 +31,7 @@ export function PayForm({ id, totalZat, totalText, again }: { id: string; totalZ
     <form action={formAction} className="space-y-2">
       <input type="hidden" name="batchId" value={id} />
       <input type="hidden" name="confirmTotalZat" value={totalZat} />
-      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? "Paying…" : again ? "Submit again (looks for the payment on chain first)" : `Pay ${totalText}`}
       </button>
       <Result outcome={outcome} />
@@ -47,7 +47,7 @@ export function ApproveForm({ id, totalZat, totalText, lockSeq, rate }: { id: st
       <input type="hidden" name="batchId" value={id} />
       <input type="hidden" name="confirmTotalZat" value={totalZat} />
       <input type="hidden" name="lockSeq" value={lockSeq} />
-      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? "Approving…" : `Approve paying ${totalText} at ${rate}`}
       </button>
       <Result outcome={outcome} />
@@ -60,7 +60,7 @@ export function IssueForm({ id }: { id: string }) {
   return (
     <form action={formAction} className="space-y-2">
       <input type="hidden" name="batchId" value={id} />
-      <button type="submit" disabled={pending} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-accent">
         {pending ? "Issuing…" : "Issue receipts"}
       </button>
       <Result outcome={outcome} />
@@ -74,7 +74,7 @@ export function LockRateForm({ id, locked }: { id: string; locked: boolean }) {
   return (
     <form action={formAction} className="space-y-2">
       <input type="hidden" name="batchId" value={id} />
-      <button type="submit" disabled={pending} className="rounded-md border border-slate-400 px-4 py-2 text-sm font-semibold disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-secondary">
         {pending ? "Asking the source…" : locked ? "Re-lock rate" : "Lock rate"}
       </button>
       <Result outcome={outcome} />

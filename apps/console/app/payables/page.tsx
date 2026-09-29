@@ -5,6 +5,8 @@ import { listRecipients } from "../../lib/data/recipients.ts";
 import { serverContext } from "../../lib/server/context.ts";
 import { centsText, recipientLabel, shortAddress } from "../../lib/view/format.ts";
 import { AccessNotice } from "../components/panels.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import { ListPlus } from "lucide-react";
 import { ImportForm } from "./import-form.tsx";
 import { PayableForm } from "./payable-form.tsx";
 import { TABLE_CLASS } from "../../lib/view/table.ts";
@@ -42,7 +44,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   const byId = new Map(recipients.map((r) => [r.id, r]));
   const tab = (k: PayableKind | undefined, label: string) => (
     <li key={k ?? "all"}>
-      <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={k === filter ? "font-semibold text-slate-900" : "text-sky-700 underline"}>
+      <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={`inline-flex rounded-full px-3 py-1 text-sm font-medium transition-colors ${k === filter ? "bg-primary text-primary-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}>
         {label}
       </Link>
     </li>
@@ -50,27 +52,30 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <AccessNotice />
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Payables</h1>
-        <p className="text-sm text-slate-500">What this org owes, in US dollars. Each reference becomes its payment&apos;s memo, so it is unique.</p>
-        <p className="text-sm">
-          <Link href="/batches/from-payables" className="text-sky-700 underline">
+      <PageHeader
+        eyebrow="Obligations"
+        title="Payables"
+        description={<>What this org owes, in US dollars. Each reference becomes its payment&apos;s memo, so it is unique.</>}
+        actions={
+          <Link href="/batches/from-payables" className="btn btn-primary">
+            <ListPlus aria-hidden="true" strokeWidth={1.75} />
             Make a batch from payables
           </Link>
-        </p>
-      </header>
+        }
+      />
       <nav aria-label="Filter by kind">
-        <ul className="flex gap-3 text-sm">
+        <ul className="inline-flex flex-wrap gap-1 rounded-full border border-line bg-surface p-1 shadow-card">
           {tab(undefined, "All")}
           {PAYABLE_KINDS.map((k) => tab(k, KIND[k].many))}
         </ul>
       </nav>
       {list.length === 0 ? (
-        <p className="text-sm">{filter ? `No ${KIND[filter].one.toLowerCase()} payables.` : "No payables yet."}</p>
+        <p className="card text-sm text-muted">{filter ? `No ${KIND[filter].one.toLowerCase()} payables.` : "No payables yet."}</p>
       ) : (
+        <div className="table-card">
         <table className={TABLE_CLASS}>
           <caption className="sr-only">Payables{filter ? `: ${KIND[filter].many}` : ""}</caption>
-          <thead className="border-b border-slate-200 text-slate-500">
+          <thead>
             <tr>
               <th>Reference</th>
               <th>Recipient</th>
@@ -83,20 +88,22 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
           </thead>
           <tbody>
             {list.map((p) => (
-              <tr key={p.id} className="border-b border-slate-100 align-top">
+              <tr key={p.id}>
                 <td>
                   <code>{p.reference}</code>
                 </td>
                 <td>
                   {byId.get(p.recipientId)?.displayName}
                   {/* Names need not be unique: the address prefix tells two "Alice"s apart (review H4). */}
-                  <div className="font-mono text-xs text-slate-500">{shortAddress(byId.get(p.recipientId)?.address ?? "")}</div>
+                  <div className="font-mono text-xs text-muted">{shortAddress(byId.get(p.recipientId)?.address ?? "")}</div>
                 </td>
-                <td>{KIND[p.kind].one}</td>
+                <td>
+                  <span className="badge badge-plain">{KIND[p.kind].one}</span>
+                </td>
                 <td className="text-right tabular-nums">{centsText(p.usdCents)}</td>
                 <td>
                   {p.sourceUrl ? (
-                    <a href={p.sourceUrl} rel="noopener noreferrer" className="text-sky-700 underline">
+                    <a href={p.sourceUrl} rel="noopener noreferrer" className="link">
                       {hostOf(p.sourceUrl)}
                     </a>
                   ) : (
@@ -107,21 +114,22 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                 <td>
                   {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
                   {holders.has(p.id) ? (
-                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="text-sky-700 underline">
+                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="link">
                       In batch {holders.get(p.id)!.title}
                     </Link>
                   ) : (
-                    "Free"
+                    <span className="badge tone-success">Free</span>
                   )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       )}
       {recipients.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 p-4 text-sm">
-          Add a recipient first: a payable is owed to one. <Link href="/recipients" className="text-sky-700 underline">Go to recipients</Link>
+        <p className="card text-sm text-muted">
+          Add a recipient first: a payable is owed to one. <Link href="/recipients" className="link">Go to recipients</Link>
         </p>
       ) : (
         <PayableForm recipients={recipients.map((r) => ({ id: r.id, label: recipientLabel(r.displayName, r.address) }))} />

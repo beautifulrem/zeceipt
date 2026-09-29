@@ -20,7 +20,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
     <>
       <table className="w-full text-left text-sm" data-form-grid>
         <caption className="sr-only">Payment lines</caption>
-        <thead className="text-slate-500">
+        <thead className="text-muted">
           <tr>
             {COLUMNS.map((c) => (
               <th key={c.field} className="pb-1 font-medium">
@@ -44,12 +44,12 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
                       onChange={(e) => setLines((ls) => updateLine(ls, line.id, c.field, e.target.value))}
                       placeholder={c.field === "address" ? addressHint : c.placeholder}
                       inputMode={c.field === "amount" ? "decimal" : undefined}
-                      className={`${c.width} rounded border px-2 py-1 ${line.errors.length ? "border-rose-400" : "border-slate-300"}`}
+                      className={`input mt-0 ${c.width}${line.errors.length ? " input-invalid" : ""}`}
                     />
                   </td>
                 ))}
                 <td className="py-1">
-                  <button type="button" onClick={() => setLines((ls) => removeLine(ls, line.id))} className="text-sm text-slate-500 underline" aria-label={`Remove line ${n + 1}`}>
+                  <button type="button" onClick={() => setLines((ls) => removeLine(ls, line.id))} className="link text-sm text-muted" aria-label={`Remove line ${n + 1}`}>
                     Remove
                   </button>
                 </td>
@@ -57,7 +57,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
               {/* The line's problems right under it, and they move with it. */}
               {line.errors.length ? (
                 <tr>
-                  <td colSpan={6} role="alert" className="pb-2 text-sm text-rose-800">
+                  <td colSpan={6} role="alert" className="pb-2 text-sm text-danger">
                     Line {n + 1}: {line.errors.join("; ")}
                   </td>
                 </tr>
@@ -66,7 +66,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
           ))}
         </tbody>
       </table>
-      <button type="button" onClick={() => setLines((ls) => addLine(ls))} className="text-sm text-sky-700 underline">
+      <button type="button" onClick={() => setLines((ls) => addLine(ls))} className="link text-sm">
         + Add line
       </button>
     </>
@@ -76,16 +76,16 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
 export function DraftForm({ initial, addressHint }: { initial: DraftFormState; addressHint: string }) {
   const [state, formAction, pending] = useActionState(createDraftAction, initial);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="card animate-rise-2 space-y-5">
       {state.top.length > 0 && (
-        <ul role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm text-rose-900">
+        <ul role="alert" className="callout tone-danger block">
           {state.top.map((t) => (
             <li key={t}>{t}</li>
           ))}
         </ul>
       )}
       {state.notes && state.notes.length > 0 && (
-        <div role="status" className="rounded-md border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-800">
+        <div role="status" className="callout tone-neutral block">
           <ul>
             {state.notes.map((t) => (
               <li key={t}>{t}</li>
@@ -95,28 +95,28 @@ export function DraftForm({ initial, addressHint }: { initial: DraftFormState; a
       )}
       <label className="block space-y-1 text-sm">
         <span className="font-medium">Title</span>
-        <input name="title" defaultValue={state.title} key={`t${state.submission}`} required className="w-full rounded border border-slate-300 px-2 py-1" placeholder="October contributors" />
+        <input name="title" defaultValue={state.title} key={`t${state.submission}`} required className="input" placeholder="October contributors" />
       </label>
       {/* Keyed by submission: after an error the lines re-render with what was submitted. */}
       <Lines key={state.submission} initial={state.lines} errors={state.lineErrors} addressHint={addressHint} />
-      <p className="text-sm text-slate-600">Blank lines are ignored. Amounts are in ZEC with up to 8 decimal places. Nothing is paid until you press Pay on the batch page.</p>
+      <p className="text-sm text-muted">Blank lines are ignored. Amounts are in ZEC with up to 8 decimal places. Nothing is paid until you press Pay on the batch page.</p>
       {/* Slice I2 (REQ-CON-19; 05 §3.6): a Konclave payroll CSV fills the lines above for review. */}
-      <details className="space-y-2 rounded-md border border-slate-200 px-4 py-2 text-sm">
+      <details className="panel space-y-2 text-sm">
         <summary className="cursor-pointer font-medium">Fill from a Konclave CSV</summary>
-        <p className="text-slate-600">Paste a file in Konclave&apos;s format, label,address,value,memo, with amounts in ZEC. The rows are added below the lines above; nothing is created until you press Create draft.</p>
+        <p className="text-muted">Paste a file in Konclave&apos;s format, label,address,value,memo, with amounts in ZEC. The rows are added below the lines above; nothing is created until you press Create draft.</p>
         <label className="block space-y-1">
           <span>CSV</span>
-          <textarea name="csv" rows={6} className="w-full rounded border border-slate-300 px-2 py-1 font-mono text-xs" placeholder={"label,address,value,memo\nAlice,u1…,0.5,INV-042"} />
+          <textarea name="csv" rows={6} className="input" placeholder={"label,address,value,memo\nAlice,u1…,0.5,INV-042"} />
         </label>
         <label className="block space-y-1">
           <span>Memo prefix for rows without a memo</span>
-          <input name="memoPrefix" className="w-48 rounded border border-slate-300 px-2 py-1" placeholder="PAY-2026-09" />
+          <input name="memoPrefix" className="input w-48" placeholder="PAY-2026-09" />
         </label>
-        <button type="submit" name="intent" value="import" formNoValidate disabled={pending} className="rounded-md border border-sky-700 px-3 py-1 text-sm font-semibold text-sky-700 disabled:opacity-60">
+        <button type="submit" name="intent" value="import" formNoValidate disabled={pending} className="btn btn-secondary btn-sm">
           Fill from Konclave CSV
         </button>
       </details>
-      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? "Creating…" : "Create draft"}
       </button>
     </form>

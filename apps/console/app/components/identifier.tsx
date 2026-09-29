@@ -6,11 +6,11 @@ export function Identifier({ value }: { value: string }) {
   const { short, whole } = abridgeId(value);
   if (short === whole) return <code>{whole}</code>;
   return (
-    <details>
-      <summary className="cursor-pointer whitespace-nowrap" title={whole}>
+    <details className="reveal">
+      <summary title={whole}>
         <code>{short}</code>
       </summary>
-      <code className="block max-w-xs break-all text-xs">{whole}</code>
+      <code>{whole}</code>
     </details>
   );
 }

@@ -34,7 +34,7 @@ const WELL_KNOWN_OTHER = read(path.join(root, "demo/fixtures/binding-well-known-
 const SECRETS = [BEARER, BOUND, TAMPERED, UNSIGNED_HTML, REGTEST, CLAIMED].flatMap((j) => [b64(j), JSON.parse(j).ock]);
 
 // ---- a static host ----
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".wasm": "application/wasm", ".json": "application/json" };
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".wasm": "application/wasm", ".json": "application/json", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
 const served = [];
 let server, base;
 function staticHost(req, res) {

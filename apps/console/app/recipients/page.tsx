@@ -6,6 +6,7 @@ import { serverContext } from "../../lib/server/context.ts";
 import { Address } from "../components/address.tsx";
 import { LinkabilityNote } from "../components/linkability.tsx";
 import { AccessNotice } from "../components/panels.tsx";
+import { PageHeader } from "../components/page-header.tsx";
 import { RecipientForm } from "./recipient-form.tsx";
 import { TABLE_CLASS } from "../../lib/view/table.ts";
 
@@ -27,16 +28,14 @@ export default async function RecipientsPage() {
   return (
     <>
       <AccessNotice />
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Recipients</h1>
-        <p className="text-sm text-slate-500">People and wallets this org pays. Batch lines copy a recipient&apos;s name and address, so later changes here never rewrite a payment.</p>
-      </header>
+      <PageHeader eyebrow="Directory" title="Recipients" description={<>People and wallets this org pays. Batch lines copy a recipient&apos;s name and address, so later changes here never rewrite a payment.</>} />
       {list.length === 0 ? (
-        <p className="text-sm">No recipients yet.</p>
+        <p className="card text-sm text-muted">No recipients yet.</p>
       ) : (
+        <div className="table-card">
         <table className={TABLE_CLASS}>
           <caption className="sr-only">Recipients</caption>
-          <thead className="border-b border-slate-200 text-slate-500">
+          <thead>
             <tr>
               <th>Name</th>
               <th>Address</th>
@@ -47,16 +46,16 @@ export default async function RecipientsPage() {
           </thead>
           <tbody>
             {list.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100 align-top">
-                <td>
+              <tr key={r.id}>
+                <td className="font-medium">
                   {r.displayName}
                   {r.duplicateOf.length > 0 && (
-                    <p className="text-xs text-amber-800">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
+                    <p className="text-xs text-warning">Pays the same Orchard receiver as {r.duplicateOf.map((id) => names.get(id)).join(", ")}</p>
                   )}
                   {disclosedBy.get(r.id)!.length > 0 && (
-                    <p className="text-xs text-amber-800">
+                    <p className="text-xs text-warning">
                       {disclosedText(disclosedBy.get(r.id)!.map((d) => d.title))}{" "}
-                      <a href="#linkability" className="underline">
+                      <a href="#linkability" className="link">
                         Why this matters
                       </a>
                     </p>
@@ -65,13 +64,16 @@ export default async function RecipientsPage() {
                 <td>
                   <Address value={r.address} />
                 </td>
-                <td>{KYC[r.kycStatus]}</td>
+                <td>
+                  <span className={`badge ${r.kycStatus === "verified" ? "tone-success" : r.kycStatus === "not_required" ? "tone-neutral" : "tone-warning"}`}>{KYC[r.kycStatus]}</span>
+                </td>
                 <td>{TAX[r.taxFlag]}</td>
                 <td>{SETTLE[r.settlementPref]}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       )}
       {anyDisclosed && <LinkabilityNote />}
       <RecipientForm addressHint={`${UA_HRP[config.network]}1…`} />

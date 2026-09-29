@@ -4,7 +4,7 @@ import { LINKABILITY_REMEDY, LINKABILITY_SPEC } from "../../lib/view/linkability
 
 export function LinkabilityNote() {
   return (
-    <div id="linkability" className="space-y-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+    <div id="linkability" className="callout tone-warning flex-col gap-1">
       <p>
         <strong>Linkability:</strong> {LINKABILITY_SPEC}
       </p>

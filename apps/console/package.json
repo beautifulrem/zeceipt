@@ -36,6 +36,8 @@
     "@noble/hashes": "^2.4.0",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.3",
+    "geist": "^1.7.2",
+    "lucide-react": "^1.48.0",
     "next": "^16.3.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

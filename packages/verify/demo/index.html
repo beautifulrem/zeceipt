@@ -4,43 +4,76 @@
 <meta charset="utf-8">
 <title>Zeceipt — verify a shielded payment receipt</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body { font: 15px/1.5 system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #111; }
-  textarea, input { width: 100%; box-sizing: border-box; font: 13px/1.4 ui-monospace, monospace; }
-  textarea { height: 7rem; }
-  .row { margin: .75rem 0; }
-  .ok { border-left: 4px solid #1a7f37; padding-left: .75rem; }
-  .bad { border-left: 4px solid #b42318; padding-left: .75rem; }
-  .muted { color: #555; font-size: 13px; }
-  code { background: #f3f3f3; padding: 0 .25rem; }
-  table td { padding: .15rem .5rem .15rem 0; vertical-align: top; }
-</style>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="../r/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../r/page.css">
+<link rel="stylesheet" href="demo.css">
 </head>
 <body>
-<h1>Zeceipt verifier</h1>
-<p class="muted">Private outside, provable per payment. Verification runs entirely in this page (WebAssembly). The raw transaction is fetched from the source you choose; the receipt's outgoing cipher key never leaves your browser.</p>
+<header class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><img src="../r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></span>
+    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Verified in your browser</span>
+  </div>
+</header>
+<main>
+<div class="hero">
+  <p class="eyebrow">Paste a receipt</p>
+  <h1>Zeceipt verifier</h1>
+  <p class="muted lede">Private outside, provable per payment. Verification runs entirely in this page (WebAssembly). The raw transaction is fetched from the source you choose; the receipt's outgoing cipher key never leaves this page.</p>
+  <p id="status" class="muted status" role="status"></p>
+</div>
 
-<div class="row"><label>Receipt (JSON, URL, or base64url payload)<textarea id="receipt"></textarea></label></div>
-<div class="row"><label>Raw transaction hex (paste, load a file, or fetch from a public node)<textarea id="rawtx"></textarea></label></div>
-<div class="row"><button id="fetch">Fetch raw tx from public gRPC-web node</button> <span class="muted">Uses the txid inside the receipt. The node learns which txid you asked for.</span></div>
-<div class="row"><input type="file" id="rawfile"> <span class="muted">Load a <code>.hex</code> raw transaction file (offline mode).</span></div>
-<div class="row"><label>Challenge (only if the receipt was issued to you with one)<input id="challenge"></label></div>
-<div class="row"><label><input type="checkbox" id="reqsig"> Require issuer signature</label></div>
-<div class="row"><button id="verify">Verify locally</button> <span id="status" class="muted"></span></div>
-<div id="out"></div>
+<section class="card">
+  <div class="row-head">
+    <h2>1. The receipt</h2>
+    <button id="sample" type="button" class="btn btn-secondary">Load the sample receipt</button>
+  </div>
+  <label class="field">Receipt (JSON, URL, or base64url payload)<textarea id="receipt" spellcheck="false"></textarea></label>
+</section>
 
+<section class="card">
+  <h2>2. The transaction</h2>
+  <label class="field">Raw transaction hex (paste, load a file, or fetch from a public node)<textarea id="rawtx" spellcheck="false"></textarea></label>
+  <div class="actions">
+    <p><button id="fetch" type="button" class="btn btn-secondary">Fetch raw tx from public gRPC-web node</button></p>
+    <p class="file"><label>Or load a <code>.hex</code> file <input type="file" id="rawfile"></label></p>
+  </div>
+  <p class="muted note">Fetching uses the txid inside the receipt: the node learns which txid you asked for. A file keeps you offline.</p>
+</section>
+
+<section class="card">
+  <h2>3. Verify</h2>
+  <label class="field">Challenge (only if the receipt was issued to you with one)<input id="challenge" class="text" spellcheck="false" autocomplete="off"></label>
+  <p><label class="check"><input type="checkbox" id="reqsig"> Require issuer signature</label></p>
+  <p><button id="verify" type="button" class="btn btn-primary">Verify locally</button></p>
+</section>
+
+<div id="out" aria-live="polite"></div>
+
+<div class="scope">
+<section class="card">
 <h2>What a valid result proves</h2>
-<ul>
+<ul class="checks">
   <li>The named transaction pays the shown value to the shown recipient with the shown memo (recovered cryptographically from the chain data with the disclosed per-output key).</li>
   <li>If signed: the holder of the shown issuer public key produced this receipt. Binding that key to an organisation is a separate step.</li>
 </ul>
+</section>
+<section class="card">
 <h2>What it does not prove</h2>
-<ul>
+<ul class="limits">
   <li>Who is showing you the receipt (use a challenge for that).</li>
   <li>That the output is still unspent, or that whoever shows you the receipt can spend it (a receipt carries no spending ability).</li>
   <li>Anything about other outputs, other transactions, or balances.</li>
   <li>This page requests only the raw transaction; if you fetch it from a public node, that node learns which txid you looked at.</li>
 </ul>
+</section>
+</div>
+</main>
+<footer class="foot">
+  <span>zeceipt-v0 · open source (Apache-2.0)</span>
+  <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a>
+</footer>
 
 <script type="module">
 import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/index.js";
@@ -49,6 +82,14 @@ const $ = (id) => document.getElementById(id);
 const status = $("status"), out = $("out");
 status.textContent = "loading verifier…";
 initVerifier().then((v) => { status.textContent = v + " ready"; }).catch((e) => { status.textContent = "failed to load: " + e; });
+
+// The committed synthetic fixture (not on any chain): a signed receipt and the transaction it opens.
+$("sample").addEventListener("click", async () => {
+  const [receipt, raw] = await Promise.all(["fixtures/synthetic-receipt-bearer.json", "fixtures/synthetic-ironwood.hex"].map((f) => fetch(f).then((r) => r.text())));
+  $("receipt").value = receipt.trim();
+  $("rawtx").value = raw.trim();
+  status.textContent = "sample loaded (a synthetic transaction, on no chain): press Verify locally";
+});
 
 $("rawfile").addEventListener("change", async (ev) => {
   const f = ev.target.files[0]; if (!f) return;
@@ -66,30 +107,31 @@ $("fetch").addEventListener("click", async () => {
   } catch (e) { status.textContent = "fetch failed: " + e; }
 });
 
+const verdict = (tone, word, body) => `<section class="result ${tone}"><div class="verdict"><span class="verdict-icon" aria-hidden="true"></span><h2>${word}</h2></div>${body}</section>`;
+
 $("verify").addEventListener("click", () => {
   out.innerHTML = "";
   let r;
   try {
     r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
-  } catch (e) { out.innerHTML = `<div class="bad"><b>Verifier error</b><br>${esc(e)}</div>`; return; }
+  } catch (e) { out.innerHTML = verdict("bad", "Verifier error", `<p>${esc(e)}</p>`); return; }
   if (!r.valid) {
-    out.innerHTML = `<div class="bad"><b>INVALID</b> — failed at <code>${esc(r.stage)}</code><br>${esc(r.error)}</div>`;
+    out.innerHTML = verdict("bad", "INVALID", `<p>Failed at <code>${esc(r.stage)}</code></p><p class="muted">${esc(r.error)}</p>`);
     return;
   }
   const memo = r.memo.kind === "text" ? r.memo.text : r.memo.kind === "empty" ? "(empty)" : "bytes " + r.memo.hex;
-  out.innerHTML = `<div class="ok"><b>VALID</b> — cryptographic recovery succeeded
-    <table>
-      <tr><td>txid</td><td><code>${esc(r.txid)}</code></td></tr>
+  out.innerHTML = verdict("ok", "VALID", `<p class="muted">Cryptographic recovery succeeded.</p>
+    <table class="kv">
+      <tr data-key="Transaction"><td>txid</td><td>${esc(r.txid)}</td></tr>
       <tr><td>pool / index</td><td>${esc(r.pool)} / ${esc(r.output_index)}</td></tr>
-      <tr><td>recipient</td><td><code>${esc(r.recipient)}</code></td></tr>
-      <tr><td>value</td><td>${esc(r.value_zec)} ZEC (${esc(r.value_zat)} zat)</td></tr>
-      <tr><td>memo</td><td>${esc(memo)}</td></tr>
+      <tr data-key="Recipient"><td>recipient</td><td>${esc(r.recipient)}</td></tr>
+      <tr data-key="Value"><td>value</td><td>${esc(r.value_zec)} ZEC (${esc(r.value_zat)} zat)</td></tr>
+      <tr data-key="Memo"><td>memo</td><td>${esc(memo)}</td></tr>
       <tr><td>label</td><td>${esc(r.label)}</td></tr>
-      <tr><td>issuer</td><td>${r.issuer_pubkey ? `<code>${esc(r.issuer_pubkey)}</code> (key id ${esc(r.issuer_key_id ?? "-")}) — binding to an organisation: unknown unless checked against the issuer's well-known file` : "unsigned"}</td></tr>
+      <tr><td>issuer</td><td>${r.issuer_pubkey ? `<code>${esc(r.issuer_pubkey)}</code> (key id ${esc(r.issuer_key_id ?? "-")}) — binding to an organisation: unknown unless checked against the issuer's published key` : "unsigned"}</td></tr>
       <tr><td>challenge</td><td>${r.challenge_checked ? "bound and matched" : "none"}</td></tr>
     </table>
-    <p class="muted">Chain inclusion: this page verifies against the transaction bytes you supplied; confirm the txid on an explorer or your own node for confirmation depth.</p>
-  </div>`;
+    <p class="muted">Chain inclusion: this page verifies against the transaction bytes you supplied; confirm the txid on an explorer or your own node for confirmation depth.</p>`);
 });
 </script>
 </body>

@@ -34,7 +34,10 @@
 > Built for **Colosseum's Crypto World's Fair 2026** (Zcash track) by one developer, [@beautifulrem](https://github.com/beautifulrem). The repository started on 2026-09-21 PT, during the event. See [For judges](#for-judges) for a ten-minute run and where each claim's evidence is.
 
 <p align="center">
-  <img src="docs/assets/receipt-page.png" alt="The receipt page showing VALID: the payment's recipient, value and memo, its chain inclusion, and the issuer's signature" width="720"><br>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/receipt-page-dark.png">
+    <img src="docs/assets/receipt-page.png" alt="The receipt page showing VALID: the payment's recipient, value and memo, its chain inclusion, and the issuer's signature" width="720">
+  </picture><br>
   <sub>The receipt page verifying a receipt in the browser (WebAssembly). The transaction is the committed synthetic fixture, which is on no chain: the network, height and confirmations shown are simulated, as in the page's test suite (<code>packages/verify/test/shots/receipt-page.mjs</code>).</sub>
 </p>
 
@@ -146,8 +149,11 @@ In the browser:
 5. **Receipts.** One receipt is issued per payment, automatically, once it has the configured confirmations. Each is a link its recipient can verify in the browser.
 
 <p align="center">
-  <img src="docs/product/screenshots/m1b-batch-five-lines.png" alt="A five-line batch in the console: payees, addresses, memos, exact ZEC amounts and USD at the locked rate" width="720"><br>
-  <sub>A batch of five payables at a locked rate, on a local regtest chain.</sub>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/console-batch-dark.png">
+    <img src="docs/assets/console-batch.png" alt="A paid batch in the console: total, lines, locked rate and confirmations, the payment lifecycle, the payment mode and the locked rate" width="820">
+  </picture><br>
+  <sub>A batch from USD payables, paid and confirmed: the console's batch page (light or dark, following your system). Rendered by <code>apps/console/test/shots/gallery.ts</code> against a simulated wallet.</sub>
 </p>
 
 Every batch, recipient and payable keeps an append-only history. The console warns before it pays an address that an earlier receipt disclosed. The whole path, from form to payment to receipt to verification, runs on a live local regtest chain (zebrad, Zaino, Zkool): [`docs/PROOF.md`](docs/PROOF.md) §5c–§5g. How to run it: [`apps/console/README.md`](apps/console/README.md).
@@ -216,7 +222,7 @@ node packages/verify/test/verify.mjs                       # the committed WASM 
 | [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) | Other Zcash receipt and disclosure work, and how this differs |
 | [`docs/product/`](docs/product) | Requirements, the plan and what a one-person team dropped and why (`11_plan.md` §1.1), and the research log behind each decision |
 
-**Built during the hackathon.** The repository started on 2026-09-21 PT. The first commit, `683ea02`, is timestamped +08:00, so `git log` shows it as 2026-09-22 00:07. No product code predates the event. Third-party material is published crates and npm packages (pinned by the lockfiles), test vectors from `zcash-test-vectors`, and one sample CSV from zecpay, each attributed in [`NOTICE`](NOTICE) (see also [`docs/PRE_EVENT_STATE.md`](docs/PRE_EVENT_STATE.md)).
+**Built during the hackathon.** The repository started on 2026-09-21 PT. The first commit, `683ea02`, is timestamped +08:00, so `git log` shows it as 2026-09-22 00:07. No product code predates the event. Third-party material is published crates and npm packages (pinned by the lockfiles), test vectors from `zcash-test-vectors`, one sample CSV from zecpay, and the Geist fonts and Lucide icons, each attributed in [`NOTICE`](NOTICE) (see also [`docs/PRE_EVENT_STATE.md`](docs/PRE_EVENT_STATE.md)).
 
 **Team.** Designed and built by one developer, [@beautifulrem](https://github.com/beautifulrem).
 

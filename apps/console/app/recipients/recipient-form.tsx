@@ -8,7 +8,7 @@ const INITIAL: RecipientFormState = { submission: 0, values: EMPTY_RECIPIENT, to
 
 function Errors({ list }: { list?: string[] }) {
   return list?.length ? (
-    <ul role="alert" className="mt-1 text-sm text-rose-800">
+    <ul role="alert" className="mt-1 text-sm text-danger">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -16,7 +16,7 @@ function Errors({ list }: { list?: string[] }) {
   ) : null;
 }
 
-const input = (bad: boolean) => `w-full rounded border px-2 py-1 ${bad ? "border-rose-400" : "border-slate-300"}`;
+const input = (bad: boolean) => `input${bad ? " input-invalid" : ""}`;
 
 /** Add one recipient; errors appear under their field and the entered values stay (E2b's rule). */
 export function RecipientForm({ addressHint }: { addressHint: string }) {
@@ -24,8 +24,8 @@ export function RecipientForm({ addressHint }: { addressHint: string }) {
   const v = state.values;
   const f = (k: RecipientField) => state.fields[k];
   return (
-    <form action={formAction} key={state.submission} className="space-y-3 rounded-lg border border-slate-200 p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Add a recipient</h2>
+    <form action={formAction} key={state.submission} className="space-y-3 card">
+      <h2 className="eyebrow">Add a recipient</h2>
       <Errors list={state.top} />
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
@@ -70,7 +70,7 @@ export function RecipientForm({ addressHint }: { addressHint: string }) {
           <Errors list={f("notes")} />
         </label>
       </div>
-      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? "Adding…" : "Add recipient"}
       </button>
     </form>

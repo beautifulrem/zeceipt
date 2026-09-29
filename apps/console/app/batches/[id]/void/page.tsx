@@ -4,6 +4,7 @@ import { voidable } from "../../../../lib/data/voids.ts";
 import { serverContext } from "../../../../lib/server/context.ts";
 import { zecText } from "../../../../lib/view/format.ts";
 import { AccessNotice } from "../../../components/panels.tsx";
+import { PageHeader } from "../../../components/page-header.tsx";
 import { VoidForm } from "./void-form.tsx";
 
 export const dynamic = "force-dynamic";
@@ -21,11 +22,16 @@ export default async function VoidBatchPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <AccessNotice />
-      <h1 className="text-2xl font-semibold">Void batch {rec.title}?</h1>
-      <p className="text-sm text-slate-600">
-        {rec.items.length} {rec.items.length === 1 ? "line" : "lines"}, {zecText(total)} in total.
-      </p>
-      <section className="space-y-3 rounded-lg border border-slate-200 p-4">
+      <PageHeader
+        eyebrow="Void a draft"
+        title={<>Void batch {rec.title}?</>}
+        description={
+          <>
+            {rec.items.length} {rec.items.length === 1 ? "line" : "lines"}, {zecText(total)} in total.
+          </>
+        }
+      />
+      <section className="card max-w-2xl space-y-3 border-danger/40">
         {can && (
           <>
             <p className="text-sm">Nothing has been sent for this batch. Voiding is final: it can never be paid, and it cannot be undone. Its lines and history stay on record.</p>

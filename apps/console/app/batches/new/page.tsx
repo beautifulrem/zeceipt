@@ -1,6 +1,7 @@
 import { serverContext } from "../../../lib/server/context.ts";
 import { BLANK_LINE } from "../../../lib/view/draft-form.ts";
 import { AccessNotice } from "../../components/panels.tsx";
+import { PageHeader } from "../../components/page-header.tsx";
 import { DraftForm } from "./draft-form.tsx";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default function NewBatchPage() {
   return (
     <>
       <AccessNotice />
-      <h1 className="text-2xl font-semibold">New batch</h1>
+      <PageHeader eyebrow="Payouts" title="New batch" description="Type the lines, or fill them from a Konclave CSV. Nothing is paid until the batch is approved and you press Pay." />
       <DraftForm initial={initial} addressHint={HINT[config.network]} />
     </>
   );

@@ -18,7 +18,7 @@ export interface Choice {
 
 function Errors({ list }: { list?: string[] }) {
   return list?.length ? (
-    <ul role="alert" className="mt-1 text-sm text-rose-800">
+    <ul role="alert" className="mt-1 text-sm text-danger">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -34,29 +34,29 @@ export function FromPayablesForm({ choices }: { choices: Choice[] }) {
   const [state, formAction, pending] = useActionState(createBatchFromPayablesAction, INITIAL);
   const chosen = new Set(state.values.payableIds);
   return (
-    <form action={formAction} key={state.submission} className="space-y-4 rounded-lg border border-slate-200 p-4">
+    <form action={formAction} key={state.submission} className="space-y-4 card">
       <Errors list={state.top} />
       <label className="block text-sm">
         Title
-        <input name="title" defaultValue={state.values.title} placeholder="September contributors" aria-invalid={state.title.length ? true : undefined} className={`w-full rounded border px-2 py-1 ${state.title.length ? "border-rose-400" : "border-slate-300"}`} />
+        <input name="title" defaultValue={state.values.title} placeholder="September contributors" aria-invalid={state.title.length ? true : undefined} className={`input${state.title.length ? " input-invalid" : ""}`} />
         <Errors list={state.title} />
       </label>
       <fieldset aria-describedby="choose-hint" aria-invalid={state.choice.length ? true : undefined}>
         <legend className="text-sm font-semibold">Payables to pay</legend>
-        <p id="choose-hint" className="text-sm text-slate-500">
+        <p id="choose-hint" className="text-sm text-muted">
           Select up to 50.
         </p>
         <Errors list={state.choice} />
-        <ul className="mt-2 divide-y divide-slate-100">
+        <ul className="mt-2 divide-y divide-line">
           {choices.map((c) => (
             <li key={c.id} className="py-2">
               <label className="flex items-start gap-3 text-sm">
                 <input type="checkbox" name="payableIds" value={c.id} defaultChecked={chosen.has(c.id)} className="mt-1" />
                 <span>
                   <code>{c.reference}</code> · {c.dollars} · {c.kind}
-                  <span className="block text-xs text-slate-500">{c.recipient}</span>
+                  <span className="block text-xs text-muted">{c.recipient}</span>
                   {c.warning && (
-                    <span className="block text-xs text-amber-800">
+                    <span className="block text-xs text-warning">
                       {c.warning}{" "}
                       <a href="#linkability" className="underline">
                         Why this matters
@@ -70,8 +70,8 @@ export function FromPayablesForm({ choices }: { choices: Choice[] }) {
           ))}
         </ul>
       </fieldset>
-      <p className="text-sm text-slate-600">The ZEC/USD rate is quoted when you press the button and fixed for this batch: a batch made from payables cannot be re-locked.</p>
-      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <p className="text-sm text-muted">The ZEC/USD rate is quoted when you press the button and fixed for this batch: a batch made from payables cannot be re-locked.</p>
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? "Quoting the rate…" : "Make batch at today's rate"}
       </button>
     </form>

@@ -18,23 +18,23 @@ export function VoidForm({ id, canVoid, reason }: { id: string; canVoid: boolean
     <form action={formAction} key={state.submission} className="space-y-3">
       <input type="hidden" name="batchId" value={id} />
       {state.error && (
-        <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm">
+        <p role="alert" className="callout tone-danger block">
           <strong>Not voided:</strong> {state.error}
         </p>
       )}
       {canVoid ? (
         <div className="flex items-center gap-4">
-          <button type="submit" disabled={pending} className="rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="submit" disabled={pending} className="btn btn-danger">
             {pending ? "Voiding…" : "Void this batch"}
           </button>
-          <Link href={`/batches/${id}`} className="text-sm text-sky-700 underline">
+          <Link href={`/batches/${id}`} className="link text-sm">
             Cancel
           </Link>
         </div>
       ) : (
         <p className="text-sm">
           {reason}{" "}
-          <Link href={`/batches/${id}`} className="text-sky-700 underline">
+          <Link href={`/batches/${id}`} className="link">
             Back to the batch
           </Link>
         </p>

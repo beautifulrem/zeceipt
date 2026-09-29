@@ -8,7 +8,7 @@ const INITIAL: PayableFormState = { submission: 0, values: EMPTY_PAYABLE, top: [
 
 function Errors({ list }: { list?: string[] }) {
   return list?.length ? (
-    <ul role="alert" className="mt-1 text-sm text-rose-800">
+    <ul role="alert" className="mt-1 text-sm text-danger">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -16,7 +16,7 @@ function Errors({ list }: { list?: string[] }) {
   ) : null;
 }
 
-const input = (bad: boolean) => `w-full rounded border px-2 py-1 ${bad ? "border-rose-400" : "border-slate-300"}`;
+const input = (bad: boolean) => `input${bad ? " input-invalid" : ""}`;
 
 /**
  * Add one payable; errors appear under their field and the entered values stay (E2b's rule). The amount follows
@@ -29,8 +29,8 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
   const f = (k: PayableField) => state.fields[k];
   const invalid = (k: PayableField) => (f(k) ? true : undefined);
   return (
-    <form action={formAction} key={state.submission} className="space-y-3 rounded-lg border border-slate-200 p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Add a payable</h2>
+    <form action={formAction} key={state.submission} className="space-y-3 card">
+      <h2 className="eyebrow">Add a payable</h2>
       <Errors list={state.top} />
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
@@ -59,7 +59,7 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
         <label className="text-sm">
           Amount, in US dollars
           <span className="flex items-center gap-1">
-            <span aria-hidden="true" className="text-slate-600">
+            <span aria-hidden="true" className="text-muted">
               $
             </span>
             <input name="amount" defaultValue={v.amount} inputMode="decimal" spellCheck={false} placeholder="1,234.56" aria-invalid={invalid("amount")} className={`${input(!!f("amount"))} tabular-nums`} />
@@ -77,7 +77,7 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
           <Errors list={f("sourceUrl")} />
         </label>
       </div>
-      <button type="submit" disabled={pending} className="rounded-md bg-sky-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? "Adding…" : "Add payable"}
       </button>
     </form>

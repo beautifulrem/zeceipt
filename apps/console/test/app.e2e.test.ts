@@ -585,7 +585,7 @@ test("recipients page through next start, posted as a browser without JavaScript
     assert.ok(listed.includes("Verified") && listed.includes("Non-US"), "KYC and tax shown");
     // ZIP 316 (review H2): abridged to a prefix of the separator plus 25 data characters; the whole address in <details>.
     assert.ok(listed.includes(`<code>${UA.slice(0, "uregtest1".length + 25)}…</code>`), "the ZIP 316 prefix");
-    assert.ok(/<details><summary[^>]*><code>uregtest1[^<]*…<\/code><\/summary><code[^>]*>uregtest1qzj498rks3e6gfazv0fx[a-z0-9]*<\/code><\/details>/.test(listed), "the whole address one click away");
+    assert.ok(/<details[^>]*><summary[^>]*><code>uregtest1[^<]*…<\/code><\/summary><code[^>]*>uregtest1qzj498rks3e6gfazv0fx[a-z0-9]*<\/code><\/details>/.test(listed), "the whole address one click away");
 
     const bad = await add(listed, { displayName: "Wrong network", address: MAINNET, kycStatus: "unknown", taxFlag: "none", settlementPref: "zec", notes: "keep me" });
     assert.equal(bad.status, 200);
@@ -840,7 +840,7 @@ test("voiding a draft from the batch page through next start, as a browser witho
     assert.ok(page.includes(`href="/batches/${b.id}/void"`) && page.includes("Void this draft…"), "the batch page links to the confirmation (a link, not a button)");
     const confirmPage = await get(`/batches/${b.id}/void`);
     assert.ok(confirmPage.includes("Void batch Draft VOID-PAGE-1?") && confirmPage.includes("Voiding is final: it can never be paid, and it cannot be undone.") && confirmPage.includes("1.50000000 ZEC"), "the consequences, in words, and which batch");
-    assert.ok(/<button[^>]*bg-rose-700[^>]*>Void this batch<\/button>/.test(confirmPage) && confirmPage.includes(`href="/batches/${b.id}">Cancel`), "a warning button that names the action, and Cancel");
+    assert.ok(/<button[^>]*btn-danger[^>]*>Void this batch<\/button>/.test(confirmPage) && confirmPage.includes(`href="/batches/${b.id}">Cancel`), "a warning button that names the action, and Cancel");
 
     assert.equal((await confirm(confirmPage, `/batches/${b.id}/void`, { host: self, origin: "http://evil.example" })).status, 403, "cross-site");
     const done = await confirm(confirmPage, `/batches/${b.id}/void`);
@@ -1261,8 +1261,9 @@ test("pages load only from the console itself: every page renders and works with
     for (const path of ["/", "/recipients", "/payables", "/batches/new", "/batches/from-payables", `/batches/${id}`, `/batches/${id}/void`, "/no-such-page"]) {
       await page.goto(`http://${self}${path}`, { waitUntil: "networkidle" });
       assert.deepEqual(await violations(), [], `${path}: no violation`);
-      // The layout's bg-white: only the console's own stylesheet sets it (unstyled, Chrome computes rgba(0, 0, 0, 0)).
-      assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(255, 255, 255)", `${path}: styled by the console's stylesheet`);
+      // The canvas token (#f6f6f3, light scheme): only the console's own stylesheet sets it (unstyled, Chrome computes
+      // rgba(0, 0, 0, 0)).
+      assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(246, 246, 243)", `${path}: styled by the console's stylesheet`);
     }
     // JavaScript still works under the tight policy (the draft form), and a client-side navigation too.
     await page.goto(`http://${self}/batches/new`, { waitUntil: "networkidle" });

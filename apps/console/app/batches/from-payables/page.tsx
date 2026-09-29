@@ -8,6 +8,7 @@ import { centsText, recipientLabel } from "../../../lib/view/format.ts";
 import { disclosedText } from "../../../lib/view/linkability.ts";
 import { LinkabilityNote } from "../../components/linkability.tsx";
 import { AccessNotice } from "../../components/panels.tsx";
+import { PageHeader } from "../../components/page-header.tsx";
 import { FromPayablesForm } from "./from-payables-form.tsx";
 
 export const dynamic = "force-dynamic";
@@ -30,13 +31,10 @@ export default async function FromPayablesPage() {
   return (
     <>
       <AccessNotice />
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">New batch from payables</h1>
-        <p className="text-sm text-slate-500">Each chosen payable becomes a line: its recipient&apos;s address, its reference as the memo, and its dollars converted to ZEC at one quoted rate.</p>
-      </header>
+      <PageHeader eyebrow="Payouts" title="New batch from payables" description={<>Each chosen payable becomes a line: its recipient&apos;s address, its reference as the memo, and its dollars converted to ZEC at one quoted rate.</>} />
       {choices.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 p-4 text-sm">
-          No payables to pay. Every payable is in a batch, or none exist yet. <Link href="/payables" className="text-sky-700 underline">Go to payables</Link>
+        <p className="card text-sm text-muted">
+          No payables to pay. Every payable is in a batch, or none exist yet. <Link href="/payables" className="link">Go to payables</Link>
         </p>
       ) : (
         <>

@@ -7,11 +7,11 @@ export function Address({ value }: { value: string }) {
   const short = shortAddress(value);
   if (short === value) return <code>{value}</code>;
   return (
-    <details>
-      <summary className="cursor-pointer whitespace-nowrap" title={value}>
+    <details className="reveal">
+      <summary title={value}>
         <code>{short}</code>
       </summary>
-      <code className="block max-w-xs break-all text-xs">{value}</code>
+      <code>{value}</code>
     </details>
   );
 }
