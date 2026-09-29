@@ -44,7 +44,7 @@ Then, in this order. The last step needs a clean tree, so every earlier step tha
    python3 scripts/check_release.py && python3 scripts/test_check_release.py
    node packages/verify/test/verify.mjs && node packages/verify/test/pack.mjs
    (cd packages/verify && npm ci && ZECEIPT_BROWSER_E2E=1 node --test test/page.e2e.mjs)
-   (cd apps/console && npm ci && npx tsc --noEmit -p . && npm run lint && ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts)
+   (cd apps/console && npm ci && npx tsc --noEmit -p . && npm run lint && ZECEIPT_BIN="$(cd ../.. && pwd)/target/debug/zeceipt" node --test test/*.test.ts)
    (cd apps/console && ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 NO_PROXY='*' node --test test/app.e2e.test.ts)
    ```
 

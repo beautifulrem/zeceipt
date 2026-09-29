@@ -49,7 +49,7 @@ jobs:
           npm ci --no-audit --no-fund
           npx tsc --noEmit -p .
           npm run lint
-          ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts
+          ZECEIPT_BIN="$GITHUB_WORKSPACE/target/debug/zeceipt" node --test test/*.test.ts  # absolute, as the config requires (REQ-CON-17)
       - name: console app — next build without ZECEIPT_* variables; next start boots, serves the API and pages (forms posted without JavaScript, and in Chrome with it); bad configuration exits 1 before answering (REQ-CON-17)
         working-directory: apps/console
         # ZECEIPT_BROWSER_E2E: the JavaScript-path test drives the runner's Google Chrome through playwright-core.

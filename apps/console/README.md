@@ -75,7 +75,7 @@ Run (Node ≥ 24; TypeScript runs natively, `tsc` only type-checks):
 npm ci
 npx tsc --noEmit -p .
 npm run lint                                                               # ESLint (Next core-web-vitals + typescript), zero warnings
-ZECEIPT_BIN=../../target/debug/zeceipt node --test test/*.test.ts          # unit tests (fake Zkool + real zeceipt on fixtures)
+ZECEIPT_BIN="$(cd ../.. && pwd)/target/debug/zeceipt" node --test test/*.test.ts          # unit tests (fake Zkool + real zeceipt on fixtures)
 npm run test:app                                                           # next build, then next start: health passes; bad config exits 1
 ZECEIPT_REGTEST=1 node --test test/regtest.e2e.test.ts                     # live regtest, see docs/REGTEST_RUNBOOK.md and PROOF §5c
 npm run build && set -a && . ./.env && set +a && npm start  # the app, loopback only (the script binds 127.0.0.1), with a filled-in copy of .env.example
