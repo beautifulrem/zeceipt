@@ -113,8 +113,11 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                         ) : (
                           <span className="inline-flex items-center gap-1">
                             <a href={r.url} rel="noreferrer" aria-label={`Receipt for ${who}`} className="link inline-flex items-center gap-1 font-medium">
-                              <span>Receipt</span>
-                              <span className="hidden sm:inline">for {who}</span>
+                              <span>
+
+                                Receipt<span className="hidden sm:inline"> for {who}</span>
+
+                              </span>
                               <ArrowUpRight aria-hidden="true" className="size-3.5" />
                             </a>
                             <CopyButton value={r.url} label={`Copy the receipt link for ${who}`} />

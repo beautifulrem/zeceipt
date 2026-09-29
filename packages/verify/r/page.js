@@ -28,6 +28,9 @@ function clearOutcome() {
   $("claims-state").textContent = "Not yet checked";
   $("claims-state").className = "pill";
   $("claims").open = true;
+  delete $("source-card").dataset.checked;
+  $("source-more").open = true;
+  if ($("status").dataset.state === "checked") { $("status").textContent = "Ready: verification runs in this page."; $("status").dataset.state = "ready"; }
   for (const tr of $("summary").querySelectorAll("tr[data-failed]")) delete tr.dataset.failed;
   $("fetch").className = "btn btn-primary";
   $("source-status").textContent = "";
@@ -119,8 +122,13 @@ function verifyNow() {
     const tr = key && $("summary").querySelector(`tr[data-key="${key}"]`);
     if (tr) tr.dataset.failed = "";
   }
-  $("print-meta").textContent = `Checked ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC on ${location.host || "this page"}.`;
+  $("print-meta").textContent = `Checked ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC on ${location.host || "this page"} with ${$("version").textContent}.`;
   $("fetch").className = "btn btn-secondary";
+  // After a check, the source is a detail (review F round 4): the card compacts and its note folds away.
+  $("source-card").dataset.checked = "";
+  $("source-more").open = false;
+  $("status").textContent = "Checked in this page.";
+  $("status").dataset.state = "checked";
   show("outcome", true);
   $("outcome").focus({ preventScroll: true });
   $("outcome").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });

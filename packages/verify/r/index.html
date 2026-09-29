@@ -79,13 +79,16 @@
     <summary class="card-head"><h2>What the receipt claims</h2><span id="claims-state" class="pill">Not yet checked</span></summary>
     <table id="summary" class="kv"></table>
   </details>
-  <div class="card">
+  <div id="source-card" class="card source">
     <h2>The transaction</h2>
     <div class="actions">
       <p><button id="fetch" type="button" class="btn btn-primary">Fetch it from a public node</button></p>
       <p class="file"><label>Or load a raw transaction file (hex) <input type="file" id="rawfile" accept=".hex,.txt"></label></p>
     </div>
-    <p id="fetch-note" class="muted note"></p>
+    <details id="source-more" class="source-more" open>
+      <summary>What a node learns</summary>
+      <p id="fetch-note" class="muted note"></p>
+    </details>
     <p id="challenge-row" hidden><label>The challenge you sent <input id="challenge" class="text-input" autocomplete="off" spellcheck="false"></label> <button id="verify" type="button" class="btn btn-primary">Verify</button></p>
     <p id="source-status" class="muted" role="status"></p>
   </div>

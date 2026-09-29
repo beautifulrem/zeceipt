@@ -56,17 +56,18 @@
 <section class="card">
 <h2>What a valid result proves</h2>
 <ul class="checks">
-  <li>The named transaction pays the shown value to the shown recipient with the shown memo (recovered cryptographically from the chain data with the disclosed per-output key).</li>
-  <li>If signed: the holder of the shown issuer public key produced this receipt. Binding that key to an organisation is a separate step.</li>
+  <li>The named transaction pays the shown value to the shown recipient with the shown memo. This is recovered cryptographically from the transaction with the per-output key in the receipt.</li>
+  <li>If signed: the holder of the shown issuer key made this receipt and wrote its label.</li>
 </ul>
 </section>
 <section class="card">
 <h2>What it does not prove</h2>
 <ul class="limits">
-  <li>Who is showing you the receipt (use a challenge for that).</li>
-  <li>That the output is still unspent, or that whoever shows you the receipt can spend it (a receipt carries no spending ability).</li>
-  <li>Anything about other outputs, other transactions, or balances.</li>
-  <li>This page requests only the raw transaction; if you fetch it from a public node, that node learns which txid you looked at.</li>
+  <li>Who is showing you the receipt, unless it is bound to a challenge you sent.</li>
+  <li>Which organisation holds the issuer key, unless the key id names a domain and that domain lists the key when you check it; even then, it vouches for the key now, not for when the receipt was made.</li>
+  <li>That the output is still unspent, or that whoever shows you the receipt can spend it: it shows a payment was made, not what happened to it since, and it carries no spending ability.</li>
+  <li>How deep the transaction is when it was loaded from a file. A node's count of confirmations is that node's view; for funds that matter, check your own node.</li>
+  <li>Anything about other outputs, other transactions or balances.</li>
 </ul>
 </section>
 </div>
@@ -88,19 +89,22 @@ initVerifier().then((v) => { status.textContent = "Ready: verification runs in t
 
 // What a node said about the bytes now in the box: green only if they are exactly what it served and it reports them
 // mined, as on the receipt page; anything pasted or loaded from a file is amber.
-let fetched = null; // { hex, mined }
+let fetched = null; // { hex, chain, endpoint }: what a node served
+let fromFile = null; // the text of the last file loaded (the sample is one)
 
 // The committed synthetic fixture (not on any chain): a signed receipt and the transaction it opens.
 $("sample").addEventListener("click", async () => {
   const [receipt, raw] = await Promise.all(["fixtures/synthetic-receipt-bearer.json", "fixtures/synthetic-ironwood.hex"].map((f) => fetch(f).then((r) => r.text())));
   $("receipt").value = receipt.trim();
   $("rawtx").value = raw.trim();
+  fromFile = raw.trim();
   status.textContent = "Sample loaded: a synthetic transaction, on no chain. Press Verify locally.";
 });
 
 $("rawfile").addEventListener("change", async (ev) => {
   const f = ev.target.files[0]; if (!f) return;
   $("rawtx").value = (await f.text()).trim();
+  fromFile = $("rawtx").value;
 });
 
 $("fetch").addEventListener("click", async () => {
@@ -137,9 +141,10 @@ $("verify").addEventListener("click", () => {
     r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
   } catch (e) { show("bad", "Verifier error", "The verifier could not run on this input.", el("p", "verdict-detail", String(e))); return; }
   // The page's own view model (r/view.js outcome), so the rows, their order, the numbered parts and the wording are
-  // the receipt page's. The source is the node only for exactly the bytes it served; anything else is a file.
-  const fromNode = Boolean(fetched && fetched.hex === $("rawtx").value.trim());
-  const view = outcome(r, fromNode ? { kind: "node", chain: fetched.chain, endpoint: fetched.endpoint, tip: null } : { kind: "file" });
+  // the receipt page's. The source is what put exactly these bytes in the box: a node, a file, or typing/pasting.
+  const bytes = $("rawtx").value.trim();
+  const source = fetched && fetched.hex === bytes ? { kind: "node", chain: fetched.chain, endpoint: fetched.endpoint, tip: null } : fromFile === bytes ? { kind: "file" } : { kind: "pasted" };
+  const view = outcome(r, source);
   if (!view.valid) { show("bad", "INVALID", view.stageCopy, el("p", "verdict-detail", view.error)); return; }
   const payment = el("table", "kv");
   payment.append(...kvRows(view.payment, { amount: view.amount, live: $("result-live") }));

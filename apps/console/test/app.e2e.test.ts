@@ -241,7 +241,9 @@ test("submit and status through next start: pays once against a fake wallet, rep
     };
     const list = await page("/");
     assert.equal(list.status, 200);
-    for (const text of [">pay<", "Payment mode", "Loopback only, no sign-in yet"]) assert.ok(list.body.includes(text), `list shows ${text}`);
+    // Read as text too: the access notice's words are spans that never break inside (components/words.tsx).
+    const listText = list.body.replace(/<[^>]+>/g, "");
+    for (const text of [">pay<", "Payment mode", "Loopback only, no sign-in yet"]) assert.ok(list.body.includes(text) || listText.includes(text), `list shows ${text}`);
     // The amount is one visible string over two spans (the last five decimals lighter, slice G1d).
     assert.ok(list.body.replace(/<[^>]+>/g, "").includes("0.00001000 ZEC"), "list shows the total with 8 decimals");
     const draftPage = await page(`/batches/${id}`);
@@ -807,8 +809,10 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     const batchPage = await get(String(made.location));
     assert.ok(batchPage.includes("Chosen two") && batchPage.includes("$1,234.56") && batchPage.includes("$0.29") && !batchPage.includes("CH-3"), "the batch holds the two chosen lines");
     const payables = await get("/payables");
-    // Counted as text (">…<"): the badge also carries the full name in its title, as it truncates (review F round 3).
-    assert.equal(payables.match(/>In batch Chosen two</g)?.length, 2, "both chosen payables show their batch");
+    // Counted as text: the badge also carries the full name in its title (it truncates), and on a phone its name moves
+    // to a subline (review F rounds 3 and 4).
+    // (Scripts removed first: React's payload repeats the title attribute.)
+    assert.equal(payables.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, "").match(/In batch Chosen two/g)?.length, 2, "both chosen payables show their batch");
     assert.equal(payables.match(/>Unbatched</g)?.length, 1);
     const left = await get("/batches/from-payables");
     assert.ok(left.includes(`value="${ids[2]}"`) && !left.includes(`value="${ids[0]}"`), "the chooser offers only the free one");

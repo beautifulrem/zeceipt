@@ -336,5 +336,12 @@ check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|doc
   check("outcome carries the amount as data (review F round 2)", view.amount.zec === "2.50000000" && view.amount.zat === "250000000", JSON.stringify(view.amount));
 }
 
+// The demo shows the page's own proves / does-not-prove lists, word for word (review F round 4).
+{
+  const scope = (f) => { const h = fs.readFileSync(path.join(here, f), "utf8"); return h.slice(h.indexOf('<div class="scope">'), h.indexOf("</div>", h.indexOf("</ul>\n</section>\n</div>")) + 6); };
+  check("the demo's proves / does-not-prove lists are the page's", scope("../demo/index.html") === scope("../r/index.html"));
+  check("pasted bytes are named as pasted, not as a file", /supplied on this page/.test(pageView.inclusion({ kind: "pasted" }).text) && pageView.inclusion({ kind: "pasted" }).state === "unknown");
+}
+
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

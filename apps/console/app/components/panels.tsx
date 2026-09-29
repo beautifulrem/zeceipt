@@ -1,6 +1,7 @@
 import { KeyRound, Network, ShieldAlert, Timer, Wallet } from "lucide-react";
 import type { PaymentMode } from "../../lib/view/mode.ts";
 import { ACCESS_NOTICE } from "../../lib/view/mode.ts";
+import { Words } from "./words.tsx";
 
 // Shown once, in the shell (layout.tsx), on every page (review F round 3: a banner on every page's first screen
 // trained the eye to skip it and pushed the page's own state down).
@@ -9,7 +10,7 @@ export function AccessNotice({ className = "" }: { className?: string }) {
     <p role="note" className={`callout tone-warning py-2 text-[0.8125rem] ${className}`}>
       <ShieldAlert aria-hidden="true" strokeWidth={1.75} />
       <span>
-        <strong>Access:</strong> {ACCESS_NOTICE}
+        <strong>Access:</strong> <Words text={ACCESS_NOTICE} />
       </span>
     </p>
   );

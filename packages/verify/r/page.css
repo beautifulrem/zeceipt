@@ -54,6 +54,7 @@
   --info-soft: #ebf1fd;
   --info-line: #bdd0f5;
   --shadow-card: 0 1px 2px rgb(20 22 28 / 0.04), 0 2px 8px rgb(20 22 28 / 0.04);
+  --scroll-shade: rgb(0 0 0 / 0.14);
   --shadow-raised: 0 1px 2px rgb(20 22 28 / 0.06), 0 8px 24px rgb(20 22 28 / 0.08);
   --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.1), transparent 60%);
   --radius-sm: 6px;
@@ -101,6 +102,7 @@
     --info-soft: #0f1b31;
     --info-line: #243d69;
     --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
+    --scroll-shade: rgb(255 255 255 / 0.1);
     --shadow-raised: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px rgb(0 0 0 / 0.45);
     --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.08), transparent 60%);
   }
@@ -174,6 +176,7 @@ h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 6
 .status { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.9rem; font-family: var(--mono); font-size: 0.78rem; }
 .status::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--subtle); }
 .status[data-state="ready"]::before { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.status[data-state="checked"]::before { background: var(--success); }
 .status[data-state="error"]::before { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 
 /* Cards */
@@ -278,6 +281,15 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 }
 .text-input:focus { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
 .note { padding-left: 0.9rem; border-left: 2px solid var(--line-strong); font-size: 0.8125rem; }
+.source-more > summary { cursor: pointer; width: fit-content; font-size: 0.8125rem; color: var(--muted); list-style: none; }
+.source-more > summary::-webkit-details-marker { display: none; }
+.source-more > summary::after { content: " +"; }
+.source-more[open] > summary::after { content: " −"; }
+/* Once checked, the transaction's source is a detail: a compact card (page.js sets data-checked). */
+.source[data-checked] { padding-top: 0.9rem; padding-bottom: 0.9rem; }
+.source[data-checked] h2 { font-size: 0.9rem; margin-bottom: 0.4rem; }
+.source[data-checked] .btn, .source[data-checked] input[type="file"]::file-selector-button { min-height: 2rem; padding: 0.3rem 0.75rem; font-size: 0.8125rem; }
+.source[data-checked] #source-status { margin: 0.25rem 0 0; font-size: 0.8125rem; }
 
 /* The verdict: the page's #outcome and #unreadable, and the demo's .result. Colour and icon follow the words. */
 #outcome, #unreadable, .result {
@@ -375,15 +387,28 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 }
 
 @media print {
-  body { background: #fff; font-size: 12px; }
+  body { background: #fff; font-size: 11px; }
+  main { padding-top: 0; }
+  .hero { margin-bottom: 0.75rem; }
+  .lede { display: none; }
   .topbar, .actions, #challenge-row, #binding-row, #status, .copy, .foot a { display: none !important; }
   /* The transaction's source is how you checked, not what you print. */
   #receipt > .card:not(.claims) { display: none !important; }
-  .card, #outcome, .slip-wrap { box-shadow: none; }
+  .card, #outcome { box-shadow: none; }
+  /* No shadow on paper; a transparent filter keeps the slip composited, so its torn-edge mask prints. */
+  .slip-wrap { filter: drop-shadow(0 0 0 transparent) !important; }
   #outcome, .result { outline: none !important; }
   /* Folded claims (they matched) print as nothing rather than a stub to click. */
   details#claims:not([open]) { display: none !important; }
-  .claims, .scope .card, table.kv tr { break-inside: avoid; }
+  /* One page (review F round 4): the proves / does-not-prove lists as compact text under the verdict, no cards. */
+  .scope { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; }
+  .scope .card { border: 0; padding: 0; background: none; }
+  .scope h2 { font-size: 0.8rem; margin-bottom: 0.3rem; }
+  .checks, .limits { gap: 0.25rem; font-size: 0.72rem; }
+  /* How the page uses the network is not part of a printed receipt. */
+  .privacy { display: none !important; }
+  .foot { display: none !important; }
+  .claims, .scope, table.kv tr { break-inside: avoid; }
   #outcome, #outcome::before, .verdict-icon, .verdict-icon::after, .checks li::before, .limits li::before, .i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .print-only { display: block; margin-top: 1rem; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .print-only { display: block; margin-top: 0.75rem; font-family: var(--mono); font-size: 9px; color: var(--muted); }
 }

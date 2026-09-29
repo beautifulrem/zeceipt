@@ -45,7 +45,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   const byId = new Map(recipients.map((r) => [r.id, r]));
   const tab = (k: PayableKind | undefined, label: string) => (
     <li key={k ?? "all"}>
-      <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={`inline-flex rounded-full px-3 py-1 text-sm font-medium transition-colors ${k === filter ? "bg-primary text-primary-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}>
+      <Link href={k ? `/payables?kind=${k}` : "/payables"} aria-current={k === filter ? "page" : undefined} className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium transition-colors ${k === filter ? "bg-primary text-primary-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}>
         {label}
       </Link>
     </li>
@@ -64,7 +64,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
         }
       />
       <nav aria-label="Filter by kind">
-        <ul className="inline-flex flex-wrap gap-1 rounded-full border border-line bg-surface p-1 shadow-card">
+        <ul className="inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-surface p-1 shadow-card">
           {tab(undefined, "All")}
           {PAYABLE_KINDS.map((k) => tab(k, KIND[k].many))}
         </ul>
@@ -97,6 +97,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                   <div className="mt-0.5 text-xs text-muted md:hidden">
                     {byId.get(p.recipientId)?.displayName}
                     <span className="sm:hidden"> · {centsText(p.usdCents)}</span>
+                    {holders.has(p.id) && <span className="block truncate sm:hidden">in {holders.get(p.id)!.title}</span>}
                   </div>
                   {p.sourceUrl && (
                     <div className="2xl:hidden">
@@ -129,7 +130,9 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                   {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
                   {holders.has(p.id) ? (
                     <Link href={`/batches/${holders.get(p.id)!.batchId}`} title={`In batch ${holders.get(p.id)!.title}`} className="badge tone-info badge-plain max-w-[8rem] no-underline hover:border-info sm:max-w-[12rem]">
-                      <span className="truncate">In batch {holders.get(p.id)!.title}</span>
+                      <span className="truncate">
+                        In batch<span className="hidden sm:inline"> {holders.get(p.id)!.title}</span>
+                      </span>
                     </Link>
                   ) : (
                     <span className="badge tone-neutral">Unbatched</span>
