@@ -116,6 +116,8 @@ try {
           throw new Error(`${name} (${scheme}, ${tag}): table cards scroll sideways: ${unexpected.join(", ")} (columns ${widths})`);
         }
         // Accessibility (review F round 6): axe's WCAG 2.0–2.2 A and AA rules, every page, both schemes, both widths.
+        // Bounded: a paused animation's `finished` never settles (it once hung the suite).
+        await page.evaluate(() => Promise.race([Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1000))]));
         const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
         if (axe.violations.length) throw new Error(`${name} (${scheme}, ${tag}): axe: ${axe.violations.map((v) => `${v.id} [${v.nodes.map((n) => n.target.join(" ")).join(", ")}]`).join("; ")}`);
         await page.screenshot({ path: join(OUT, `${name}-${scheme}-${tag}.png`), fullPage: true });

@@ -24,6 +24,8 @@
   <p id="status" class="muted status" role="status" data-state="loading"></p>
 </div>
 
+<details id="inputs" class="inputs" open>
+<summary class="card inputs-summary">Edit the receipt and transaction</summary>
 <section class="card">
   <div class="row-head">
     <h2>1. The receipt</h2>
@@ -48,9 +50,10 @@
   <p><label class="check"><input type="checkbox" id="reqsig"> Require issuer signature</label></p>
   <p><button id="verify" type="button" class="btn btn-primary">Verify locally</button></p>
 </section>
+</details>
 
 <p id="result-live" class="sr-only" role="status"></p>
-<div id="out"></div>
+<div id="out" class="slip-wrap"></div>
 
 <div class="scope">
 <section class="card">
@@ -122,7 +125,10 @@ $("fetch").addEventListener("click", async () => {
 
 // As on the receipt page: once a result shows, the status says so and the intro steps aside; editing an input makes the
 // page ready again (review F round 6).
-function checked() { status.textContent = "Checked in this page."; status.dataset.state = "checked"; document.body.dataset.state = "checked"; }
+function checked() {
+  status.textContent = "Checked in this page."; status.dataset.state = "checked"; document.body.dataset.state = "checked";
+  $("inputs").open = false; // the inputs fold under one line, so the result sits where the page's verdict does
+}
 for (const id of ["receipt", "rawtx", "challenge"]) {
   $(id).addEventListener("input", () => {
     if (status.dataset.state !== "checked") return;

@@ -192,8 +192,8 @@ test("the verdict comes first: above the claims, focused, announced in one line,
   const order = await s.page.evaluate(() => document.getElementById("outcome").compareDocumentPosition(document.getElementById("receipt")) & Node.DOCUMENT_POSITION_FOLLOWING);
   assert.ok(order, "the verdict is above the claims in the page");
   assert.equal(await s.page.evaluate(() => document.activeElement?.id), "outcome", "the verdict has focus");
-  assert.equal(await text(s.page, "#verdict-note"), "The payment is proven, and the node reports its transaction mined.");
-  assert.match(await text(s.page, "#verdict-live"), /^VALID\. The payment is proven/);
+  assert.equal(await text(s.page, "#verdict-note"), "2.5 ZEC to u1792v3n…j5mtel, memo INV-2026-0142, is proven; the node reports its transaction mined.");
+  assert.match(await text(s.page, "#verdict-live"), /^VALID\. 2\.5 ZEC to u1792v3n…j5mtel, memo INV-2026-0142, is proven/);
   assert.equal(await text(s.page, "#claims-state"), "Matched");
   assert.equal(await s.page.evaluate(() => document.getElementById("claims").open), false, "checked claims fold away");
   assert.equal(await s.page.getAttribute("#fetch", "class"), "btn btn-secondary", "the source is no longer the main action");
@@ -220,13 +220,17 @@ test("the verdict comes first: above the claims, focused, announced in one line,
 // on the demo's result, in both colour schemes. Any violation fails, named with its nodes.
 async function axe(page, where) {
   const { AxeBuilder } = await import("@axe-core/playwright");
+  // Measure settled colours (review F round 7: a 150 ms button transition, sampled mid-way under load, once read as a
+  // contrast failure): the context asks for reduced motion, and any animation still running is awaited.
+  // Bounded: a paused animation's `finished` never settles (it once hung the suite).
+  await page.evaluate(() => Promise.race([Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 1000))]));
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
   assert.deepEqual(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), [], `axe on ${where}`);
 }
 
 test("axe finds no WCAG A/AA violation on any state of the page or the demo, light and dark (review F round 6)", { skip: !RUN }, async () => {
   for (const colorScheme of ["light", "dark"]) {
-    const s = await openPage({ contextOptions: { colorScheme } });
+    const s = await openPage({ contextOptions: { colorScheme, reducedMotion: "reduce" } });
     await s.page.goto(`${base}/r/#${b64(BEARER)}`);
     await ready(s.page);
     await axe(s.page, `${colorScheme}: receipt loaded`);

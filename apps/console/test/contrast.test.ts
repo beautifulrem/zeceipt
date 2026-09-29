@@ -65,6 +65,23 @@ const NON_TEXT: [string, string][] = [
   // on the canvas they sit on (review F round 6). Pill and badge tones are text on their soft fills, checked above.
   ["success", "canvas"], ["danger", "canvas"], ["subtle", "canvas"],
 ];
+
+// The scroll shadow's darkest edge (a translucent token) composited on the surface it shades, at 3:1 (review F round 7).
+function shade(theme: string): string {
+  const m = new RegExp(`${theme === "light" ? "^:root" : "prefers-color-scheme: dark\\)\\s*\\{\\s*:root"}\\s*\\{[^}]*--scroll-shade:\\s*rgb\\((\\d+) (\\d+) (\\d+) / ([\\d.]+)\\)`, "m").exec(css);
+  assert.ok(m, `--scroll-shade in the ${theme} block`);
+  const [r, g, b, a] = m.slice(1).map(Number);
+  const bg = (theme === "light" ? light : dark).surface;
+  const mix = [r, g, b].map((c, i) => Math.round(c * a + parseInt(bg.slice(1 + 2 * i, 3 + 2 * i), 16) * (1 - a)));
+  return `#${mix.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+for (const name of ["light", "dark"]) {
+  test(`the scroll shadow's edge meets 3:1 on the surface in the ${name} scheme (WCAG 1.4.11)`, () => {
+    const t = name === "light" ? light : dark;
+    const edge = shade(name);
+    assert.ok(ratio(edge, t.surface) >= 3, `${edge} on ${t.surface}: ${ratio(edge, t.surface).toFixed(2)}:1`);
+  });
+}
 for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
   test(`the focus ring and input borders meet 3:1 in the ${name} scheme (WCAG 1.4.11)`, () => {
     const failures = NON_TEXT.filter(([t, bg]) => ratio(theme[t], theme[bg]) < 3).map(([t, bg]) => `${t} ${theme[t]} on ${bg} ${theme[bg]}: ${ratio(theme[t], theme[bg]).toFixed(2)}:1`);

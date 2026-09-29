@@ -25,3 +25,11 @@
 .result ul.issuer code { font-size: 0.8rem; }
 .result:focus { outline: none; }
 .result:focus-visible { outline: 2px solid var(--ring); outline-offset: -5px; }
+/* After a result the three input cards fold under one line (review F round 7); open, the line is not needed. */
+details.inputs > summary { list-style: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; padding-top: 0.9rem; padding-bottom: 0.9rem; }
+details.inputs > summary::-webkit-details-marker { display: none; }
+details.inputs > summary::after {
+  content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin: 0 0 0.15rem 0.6rem;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg);
+}
+details.inputs[open] > summary { display: none; }

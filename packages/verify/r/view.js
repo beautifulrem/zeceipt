@@ -161,13 +161,24 @@ export function outcome(result, source) {
   };
 }
 
-/** The line under the verdict (slice F2, review F round 1): what a VALID means here, in words, so amber is never a bare
- * "VALID". Empty for INVALID, whose stage copy says what failed. */
+/** An address shortened in the middle for a one-line summary ("u1792v3n…j5mtel"); the table keeps it whole. */
+export function middle(text, head = 8, tail = 6) {
+  return text.length <= head + tail + 1 ? text : `${text.slice(0, head)}…${text.slice(-tail)}`;
+}
+
+/** The line under the verdict (slice F2, review F rounds 1 and 7): which payment, then what a VALID means here, in
+ * words, so amber is never a bare "VALID" — as Etherscan leads with a one-line action summary. Empty for INVALID,
+ * whose stage copy says what failed. */
 export function verdictNote(view) {
   if (!view.valid) return "";
+  const row = (k) => view.payment?.find(([key]) => key === k)?.[1];
+  const memo = row("Memo");
+  const what = view.amount && row("Recipient")
+    ? `${valueParts(view.amount.zec).major} ZEC to ${middle(row("Recipient"))}${memo && memo !== "(empty)" ? `, memo ${memo},` : ""} is proven`
+    : "The payment is proven";
   return view.inclusion.state === "mined"
-    ? "The payment is proven, and the node reports its transaction mined."
-    : "The payment is proven. Its chain inclusion is not confirmed: see 2. Chain inclusion.";
+    ? `${what}; the node reports its transaction mined.`
+    : `${what}. Its chain inclusion is not confirmed: see 2. Chain inclusion.`;
 }
 
 /** A ZEC amount string ("2.50000000") split for display: the digits up to the last significant one (at least one

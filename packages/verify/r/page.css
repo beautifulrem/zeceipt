@@ -54,7 +54,7 @@
   --info-soft: #ebf1fd;
   --info-line: #bdd0f5;
   --shadow-card: 0 1px 2px rgb(20 22 28 / 0.04), 0 2px 8px rgb(20 22 28 / 0.04);
-  --scroll-shade: rgb(0 0 0 / 0.14);
+  --scroll-shade: rgb(0 0 0 / 0.42);
   --shadow-raised: 0 1px 2px rgb(20 22 28 / 0.06), 0 8px 24px rgb(20 22 28 / 0.08);
   --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.1), transparent 60%);
   --radius-sm: 6px;
@@ -102,7 +102,7 @@
     --info-soft: #0f1b31;
     --info-line: #243d69;
     --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
-    --scroll-shade: rgb(255 255 255 / 0.1);
+    --scroll-shade: rgb(255 255 255 / 0.34);
     --shadow-raised: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px rgb(0 0 0 / 0.45);
     --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.08), transparent 60%);
   }
@@ -320,7 +320,7 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
    any background); the wrapper keeps its shadow, which the mask would clip. */
 .slip-wrap { filter: drop-shadow(0 8px 18px rgb(20 22 28 / 0.08)); }
 /* Only a result that holds is a receipt; INVALID keeps a plain card (review F round 2). */
-.slip-wrap #outcome:is(.ok, .pending) {
+.slip-wrap :is(#outcome, .result):is(.ok, .pending) {
   box-shadow: none;
   padding-bottom: 2rem;
   --z: 11px;
@@ -386,7 +386,7 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
 @media (max-width: 560px) {
   main { padding-top: 1.5rem; }
   .card, #outcome, #unreadable, .result { padding: 1.1rem; }
-  .slip-wrap #outcome:is(.ok, .pending) { padding-bottom: 1.75rem; }
+  .slip-wrap :is(#outcome, .result):is(.ok, .pending) { padding-bottom: 1.75rem; }
   table.kv td { display: block; width: auto !important; padding: 0.1rem 0; border: 0; }
   table.kv tr { display: block; padding: 0.55rem 0; border-bottom: 1px dashed var(--line); }
   table.kv tr:last-child { border-bottom: 0; }
@@ -405,7 +405,7 @@ input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
   .card, #outcome { box-shadow: none; }
   /* On paper the white teeth vanish into the white page, so the slip ends in a dashed cut line instead. */
   .slip-wrap { filter: none !important; }
-  .slip-wrap #outcome:is(.ok, .pending) {
+  .slip-wrap :is(#outcome, .result):is(.ok, .pending) {
     -webkit-mask: none; mask: none;
     padding-bottom: 1.35rem;
     border-bottom: 2px dashed var(--line-strong);

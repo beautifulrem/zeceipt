@@ -43,7 +43,7 @@
   --info-soft: #ebf1fd;
   --info-line: #bdd0f5;
   --shadow-card: 0 1px 2px rgb(20 22 28 / 0.04), 0 2px 8px rgb(20 22 28 / 0.04);
-  --scroll-shade: rgb(0 0 0 / 0.14);
+  --scroll-shade: rgb(0 0 0 / 0.42);
   --shadow-raised: 0 1px 2px rgb(20 22 28 / 0.06), 0 8px 24px rgb(20 22 28 / 0.08);
   --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.1), transparent 60%);
 }
@@ -85,7 +85,7 @@
     --info-soft: #0f1b31;
     --info-line: #243d69;
     --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
-    --scroll-shade: rgb(255 255 255 / 0.1);
+    --scroll-shade: rgb(255 255 255 / 0.34);
     --shadow-raised: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px rgb(0 0 0 / 0.45);
     --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.08), transparent 60%);
   }
@@ -450,6 +450,17 @@
   .kv dd {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  /* On a phone every key–value list stacks (review F round 7: a txid in a 20-character column took four lines) */
+  @media (max-width: 639px) {
+    .kv {
+      grid-template-columns: 1fr;
+      gap: 0.15rem;
+    }
+    .kv dt:not(:first-child) {
+      margin-top: 0.55rem;
+    }
   }
 
   /* In a narrow column (the batch page's aside), each label above its value */
