@@ -8,7 +8,7 @@ const INITIAL: RecipientFormState = { submission: 0, values: EMPTY_RECIPIENT, to
 
 function Errors({ list }: { list?: string[] }) {
   return list?.length ? (
-    <ul role="alert" className="mt-1 text-sm text-danger">
+    <ul role="alert" className="field-error">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -28,17 +28,17 @@ export function RecipientForm({ addressHint }: { addressHint: string }) {
       <h2 className="eyebrow">Add a recipient</h2>
       <Errors list={state.top} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
+        <label className="label">
           Display name
           <input name="displayName" defaultValue={v.displayName} placeholder="Alice (design)" aria-invalid={f("displayName") ? true : undefined} className={input(!!f("displayName"))} />
           <Errors list={f("displayName")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Unified address
           <input name="address" defaultValue={v.address} placeholder={addressHint} spellCheck={false} aria-invalid={f("address") ? true : undefined} className={`${input(!!f("address"))} font-mono`} />
           <Errors list={f("address")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           KYC status
           <select name="kycStatus" defaultValue={v.kycStatus} className={input(!!f("kycStatus"))}>
             <option value="unknown">Unknown</option>
@@ -47,7 +47,7 @@ export function RecipientForm({ addressHint }: { addressHint: string }) {
           </select>
           <Errors list={f("kycStatus")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Tax flag
           <select name="taxFlag" defaultValue={v.taxFlag} className={input(!!f("taxFlag"))}>
             <option value="none">None</option>
@@ -56,7 +56,7 @@ export function RecipientForm({ addressHint }: { addressHint: string }) {
           </select>
           <Errors list={f("taxFlag")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Settlement preference
           <select name="settlementPref" defaultValue={v.settlementPref} className={input(!!f("settlementPref"))}>
             <option value="zec">ZEC</option>
@@ -64,7 +64,7 @@ export function RecipientForm({ addressHint }: { addressHint: string }) {
           </select>
           <Errors list={f("settlementPref")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Notes
           <input name="notes" defaultValue={v.notes} className={input(!!f("notes"))} />
           <Errors list={f("notes")} />

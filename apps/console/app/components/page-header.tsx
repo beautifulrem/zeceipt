@@ -10,7 +10,7 @@ export function PageHeader({ eyebrow, title, description, actions, children }: {
         {description && <p className="max-w-2xl text-sm text-muted text-pretty">{description}</p>}
         {children}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">{actions}</div>}
     </header>
   );
 }

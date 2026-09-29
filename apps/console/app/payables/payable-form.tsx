@@ -8,7 +8,7 @@ const INITIAL: PayableFormState = { submission: 0, values: EMPTY_PAYABLE, top: [
 
 function Errors({ list }: { list?: string[] }) {
   return list?.length ? (
-    <ul role="alert" className="mt-1 text-sm text-danger">
+    <ul role="alert" className="field-error">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -33,7 +33,7 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
       <h2 className="eyebrow">Add a payable</h2>
       <Errors list={state.top} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
+        <label className="label">
           Recipient
           {/* Who gets paid is a question, not a setting: nothing pre-selected (GOV.UK Select, review H4). */}
           <select name="recipientId" defaultValue={v.recipientId} aria-invalid={invalid("recipientId")} className={input(!!f("recipientId"))}>
@@ -46,7 +46,7 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
           </select>
           <Errors list={f("recipientId")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Kind
           <select name="kind" defaultValue={v.kind} aria-invalid={invalid("kind")} className={input(!!f("kind"))}>
             <option value="invoice">Invoice</option>
@@ -56,7 +56,7 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
           </select>
           <Errors list={f("kind")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Amount, in US dollars
           <span className="flex items-center gap-1">
             <span aria-hidden="true" className="text-muted">
@@ -66,12 +66,12 @@ export function PayableForm({ recipients }: { recipients: { id: string; label: s
           </span>
           <Errors list={f("amount")} />
         </label>
-        <label className="text-sm">
+        <label className="label">
           Reference (becomes the memo)
           <input name="reference" defaultValue={v.reference} spellCheck={false} placeholder="INV-2026-09-01" aria-invalid={invalid("reference")} className={input(!!f("reference"))} />
           <Errors list={f("reference")} />
         </label>
-        <label className="text-sm sm:col-span-2">
+        <label className="label sm:col-span-2">
           Source link (optional: the grant, issue or invoice)
           <input name="sourceUrl" defaultValue={v.sourceUrl} inputMode="url" spellCheck={false} placeholder="https://github.com/org/repo/issues/7" aria-invalid={invalid("sourceUrl")} className={input(!!f("sourceUrl"))} />
           <Errors list={f("sourceUrl")} />

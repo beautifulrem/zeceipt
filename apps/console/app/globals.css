@@ -14,6 +14,7 @@
   --surface-2: #f2f2ee;
   --line: #e6e5df;
   --line-strong: #d3d2ca;
+  --input-line: #83868f;
   --fg: #14161c;
   --muted: #565c69;
   --subtle: #6e7380;
@@ -21,10 +22,12 @@
   --primary-fg: #ffffff;
   --primary-hover: #2c2f3a;
   --accent: #f4b728;
+  --accent-fg: #17130a;
+  --accent-hover: #f7c948;
   --accent-strong: #8a5a00;
   --accent-soft: #fdf4dc;
   --accent-line: #f0d48a;
-  --ring: #e9a21b;
+  --ring: #8a5a00;
   --success: #11703a;
   --success-soft: #e8f5ed;
   --success-line: #b3dcc1;
@@ -34,6 +37,8 @@
   --danger: #b02222;
   --danger-soft: #fdeeee;
   --danger-line: #f0c1c1;
+  --danger-solid: #b02222;
+  --on-danger: #ffffff;
   --info: #1b58c4;
   --info-soft: #ebf1fd;
   --info-line: #bdd0f5;
@@ -50,13 +55,16 @@
     --surface-2: #171a24;
     --line: #242837;
     --line-strong: #323849;
+    --input-line: #646b7e;
     --fg: #eceef3;
     --muted: #a4aab8;
     --subtle: #7b8294;
-    --primary: #f4b728;
-    --primary-fg: #17130a;
-    --primary-hover: #f7c948;
+    --primary: #eceef3;
+    --primary-fg: #10121a;
+    --primary-hover: #ffffff;
     --accent: #f4b728;
+    --accent-fg: #17130a;
+    --accent-hover: #f7c948;
     --accent-strong: #f7c948;
     --accent-soft: #231c0b;
     --accent-line: #5c4715;
@@ -70,6 +78,8 @@
     --danger: #f58a8a;
     --danger-soft: #2a1113;
     --danger-line: #5c2327;
+    --danger-solid: #c42f2f;
+    --on-danger: #ffffff;
     --info: #7fb0ff;
     --info-soft: #0f1b31;
     --info-line: #243d69;
@@ -193,10 +203,7 @@
     padding: 0.5rem 1rem;
     border-radius: var(--radius-md);
     border: 1px solid transparent;
-    font-size: 0.875rem;
-    font-weight: 600;
-    line-height: 1.25;
-    text-align: center;
+    font: 600 0.875rem/1.25 var(--font-sans);
     cursor: pointer;
     transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 100ms ease;
   }
@@ -204,8 +211,8 @@
     transform: translateY(1px);
   }
   .btn:disabled {
-    cursor: progress;
     opacity: 0.6;
+    cursor: progress;
   }
   .btn svg {
     width: 1rem;
@@ -222,26 +229,26 @@
   }
   .btn-accent {
     background: var(--accent);
-    color: #17130a;
+    color: var(--accent-fg);
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
   }
   .btn-accent:hover:not(:disabled) {
-    background: #f7c948;
+    background: var(--accent-hover);
   }
   .btn-secondary {
     background: var(--surface);
     color: var(--fg);
-    border-color: var(--line-strong);
+    border-color: var(--input-line);
   }
   .btn-secondary:hover:not(:disabled) {
     background: var(--surface-2);
   }
   .btn-danger {
-    background: var(--danger);
-    color: var(--surface);
+    background: var(--danger-solid);
+    color: var(--on-danger);
   }
   .btn-danger:hover:not(:disabled) {
-    filter: brightness(1.08);
+    filter: brightness(1.1);
   }
   .btn-sm {
     min-height: 2rem;
@@ -346,7 +353,7 @@
     min-height: 2.5rem;
     padding: 0.45rem 0.7rem;
     border-radius: var(--radius-md);
-    border: 1px solid var(--line-strong);
+    border: 1px solid var(--input-line);
     background: var(--surface);
     color: var(--fg);
     font-size: 0.875rem;
@@ -356,17 +363,13 @@
     color: var(--subtle);
   }
   .input:focus {
-    outline: none;
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
     border-color: var(--ring);
-    box-shadow: 0 0 0 3px rgb(244 183 40 / 0.25);
   }
   .input[aria-invalid="true"],
   .input-invalid {
     border-color: var(--danger);
-  }
-  .input-inline {
-    display: inline-block;
-    width: auto;
   }
   textarea.input {
     min-height: 7rem;
@@ -378,9 +381,58 @@
     font-size: 0.8125rem;
     color: var(--danger);
   }
-  .hint {
-    font-size: 0.8125rem;
-    color: var(--muted);
+
+  /* The new-batch line grid: a table on wide screens, one card per line on phones (review F round 1) */
+  @media (max-width: 639px) {
+    .form-grid thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+    }
+    .form-grid,
+    .form-grid tbody {
+      display: block;
+    }
+    .form-grid tr {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem 0.75rem;
+      margin-bottom: 0.75rem;
+      padding: 0.85rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--surface-2);
+    }
+    .form-grid td {
+      display: block;
+      padding: 0 !important;
+    }
+    .form-grid td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 0.3rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .form-grid td[data-field="address"],
+    .form-grid td[data-field="memo"],
+    .form-grid .form-grid-remove {
+      grid-column: 1 / -1;
+    }
+    .form-grid .input {
+      /* over the column's desktop width utility (w-28, …), which sits in a later layer */
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+    .form-grid tr.form-grid-errors {
+      display: block;
+      margin-top: -0.4rem;
+      padding: 0;
+      border: 0;
+      background: none;
+    }
   }
 
   /* Key–value lists */
@@ -429,6 +481,16 @@
     caption-side: top;
     padding-bottom: 0.5rem;
   }
+  /* A row that opens its record: the whole row is the link's target area (the link itself stays the one tab stop) */
+  .row-link {
+    position: relative;
+    cursor: pointer;
+  }
+  .row-link a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
   .table-card {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -448,9 +510,11 @@
     min-width: 0;
   }
   .stat-value {
-    margin-top: 0.3rem;
-    font-size: 1.05rem;
+    margin-top: 0.35rem;
+    font-size: 1.5rem;
     font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
@@ -504,7 +568,12 @@
     height: 1.1rem;
   }
   .step-mark {
-    font-size: 0.72rem;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
   .step[data-mark="done"]::before {
     background: var(--success);
@@ -639,6 +708,31 @@
   details.card[open] > summary::after,
   details.panel[open] > summary::after {
     transform: rotate(-135deg) translate(-2px, -2px);
+  }
+
+  /* Copy buttons (components/copy-button.tsx) */
+  .copy-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .copy-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--fg);
+  }
+  .copy-btn[data-copied] {
+    color: var(--success);
+  }
+  .copy-btn svg {
+    width: 0.9rem;
+    height: 0.9rem;
   }
 
   /* Navigation */

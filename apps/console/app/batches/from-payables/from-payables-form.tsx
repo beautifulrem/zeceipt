@@ -18,7 +18,7 @@ export interface Choice {
 
 function Errors({ list }: { list?: string[] }) {
   return list?.length ? (
-    <ul role="alert" className="mt-1 text-sm text-danger">
+    <ul role="alert" className="field-error">
       {list.map((e) => (
         <li key={e}>{e}</li>
       ))}
@@ -36,7 +36,7 @@ export function FromPayablesForm({ choices }: { choices: Choice[] }) {
   return (
     <form action={formAction} key={state.submission} className="space-y-4 card">
       <Errors list={state.top} />
-      <label className="block text-sm">
+      <label className="label">
         Title
         <input name="title" defaultValue={state.values.title} placeholder="September contributors" aria-invalid={state.title.length ? true : undefined} className={`input${state.title.length ? " input-invalid" : ""}`} />
         <Errors list={state.title} />

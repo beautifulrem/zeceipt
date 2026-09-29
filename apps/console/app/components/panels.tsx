@@ -4,7 +4,7 @@ import { ACCESS_NOTICE } from "../../lib/view/mode.ts";
 
 export function AccessNotice() {
   return (
-    <p role="note" className="callout tone-warning">
+    <p role="note" className="callout tone-warning py-2 text-[0.8125rem]">
       <ShieldAlert aria-hidden="true" strokeWidth={1.75} />
       <span>
         <strong>Access:</strong> {ACCESS_NOTICE}
@@ -22,7 +22,7 @@ export function ModePanel({ mode, compact = false }: { mode: PaymentMode; compac
   ] as const;
   return (
     <section aria-labelledby="mode-heading" className="card">
-      <h2 id="mode-heading" className="eyebrow mb-3">
+      <h2 id="mode-heading" className="section-title mb-3">
         Payment mode
       </h2>
       <dl className={`grid gap-x-6 gap-y-3 text-sm ${compact ? "" : "sm:grid-cols-2 lg:grid-cols-4"}`}>

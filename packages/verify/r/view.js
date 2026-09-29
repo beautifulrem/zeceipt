@@ -150,3 +150,23 @@ export function outcome(result, source) {
     challenge: challengeLine(result),
   };
 }
+
+/** The line under the verdict (slice F2, review F round 1): what a VALID means here, in words, so amber is never a bare
+ * "VALID". Empty for INVALID, whose stage copy says what failed. */
+export function verdictNote(view) {
+  if (!view.valid) return "";
+  return view.inclusion.state === "mined"
+    ? "The payment is proven, and the node reports its transaction mined."
+    : "The payment is proven. Its chain inclusion is not confirmed: see 2. Chain inclusion.";
+}
+
+/** A value string as the page writes it ("2.50000000 ZEC (250000000 zat)") split for display: the digits up to the
+ * last significant one, the trailing zeros (shown lighter, as the console does), the unit and the zatoshi line. Joined, the
+ * parts are the string itself; anything else comes back whole. */
+export function valueParts(text) {
+  const m = /^(\d+\.\d*?)(0*)( ZEC)( \(\d+ zat\))$/.exec(text);
+  if (!m) return { major: text, zeros: "", unit: "", zat: "" };
+  const [, major, zeros, unit, zat] = m;
+  // Keep one digit after the point: "2.5", never "2.".
+  return major.endsWith(".") ? { major: major + zeros.slice(0, 1), zeros: zeros.slice(1), unit, zat } : { major, zeros, unit, zat };
+}

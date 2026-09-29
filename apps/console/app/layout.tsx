@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <div className="flex flex-col gap-3 lg:gap-8">
               <Link href="/" className="flex items-center gap-3 rounded-lg lg:px-2">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a static SVG mark; next/image adds nothing here */}
-                <img src="/zeceipt-icon.svg" alt="" width={32} height={32} className="size-8 rounded-lg" />
+                <img src="/zeceipt-mark.svg" alt="" width={32} height={32} className="size-8 rounded-lg" />
                 <span className="leading-tight">
                   <span className="block text-[0.95rem] font-semibold tracking-tight">Zeceipt payout console</span>
                   <span className="hidden font-mono text-[0.68rem] uppercase tracking-[0.08em] text-muted sm:block">Shielded ZEC payouts</span>

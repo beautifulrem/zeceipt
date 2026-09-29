@@ -798,7 +798,7 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     const down = (await choose(page, "Down", [ids[0]])).body.replaceAll("<!-- -->", "");
     assert.ok(down.includes("did not give a usable quote, so nothing was made") && /value="[^"]*"[^>]*checked=""|checked=""[^>]*value="/.test(down), "the source down: said at the top, the choice kept");
     tickerUp = true;
-    assert.equal((await get("/payables")).match(/>Free</g)?.length, 3, "nothing was made");
+    assert.equal((await get("/payables")).match(/>Unbatched</g)?.length, 3, "nothing was made");
 
     const made = await choose(page, "Chosen two", [ids[0], ids[1]]);
     assert.equal(made.status, 303, made.body.slice(0, 300));
@@ -807,13 +807,13 @@ test("choosing payables through next start, as a browser without JavaScript: 303
     assert.ok(batchPage.includes("Chosen two") && batchPage.includes("$1,234.56") && batchPage.includes("$0.29") && !batchPage.includes("CH-3"), "the batch holds the two chosen lines");
     const payables = await get("/payables");
     assert.equal(payables.match(/In batch Chosen two/g)?.length, 2, "both chosen payables show their batch");
-    assert.equal(payables.match(/>Free</g)?.length, 1);
+    assert.equal(payables.match(/>Unbatched</g)?.length, 1);
     const left = await get("/batches/from-payables");
     assert.ok(left.includes(`value="${ids[2]}"`) && !left.includes(`value="${ids[0]}"`), "the chooser offers only the free one");
     // Review H5b: a page loaded before another batch took a payable. The refusal must be visible, naming the payable.
     const stale = (await choose(page, "Stale", [ids[0], ids[2]])).body.replaceAll("<!-- -->", "");
     assert.ok(/role="alert"[^>]*>[\s\S]*CH-1 is already in the batch &quot;Chosen two&quot;, so it is no longer offered\./.test(stale), "the stale choice is explained at the top, naming the batch by title");
-    assert.equal((await get("/payables")).match(/>Free</g)?.length, 1, "nothing was made");
+    assert.equal((await get("/payables")).match(/>Unbatched</g)?.length, 1, "nothing was made");
     assert.equal((await choose(left, "Evil", [ids[2]], { host: self, origin: "http://evil.example" })).status, 403);
   } finally {
     s.child.kill("SIGTERM");
@@ -839,7 +839,8 @@ test("voiding a draft from the batch page through next start, as a browser witho
     const page = await get(`/batches/${b.id}`);
     assert.ok(page.includes(`href="/batches/${b.id}/void"`) && page.includes("Void this draft…"), "the batch page links to the confirmation (a link, not a button)");
     const confirmPage = await get(`/batches/${b.id}/void`);
-    assert.ok(confirmPage.includes("Void batch Draft VOID-PAGE-1?") && confirmPage.includes("Voiding is final: it can never be paid, and it cannot be undone.") && confirmPage.includes("1.50000000 ZEC"), "the consequences, in words, and which batch");
+    // The amount is one visible string over spans (the trailing zeros lighter, as everywhere else; review F round 1).
+    assert.ok(confirmPage.includes("Void batch Draft VOID-PAGE-1?") && confirmPage.includes("Voiding is final: it can never be paid, and it cannot be undone.") && confirmPage.replace(/<[^>]+>/g, "").includes("1.50000000 ZEC"), "the consequences, in words, and which batch");
     assert.ok(/<button[^>]*btn-danger[^>]*>Void this batch<\/button>/.test(confirmPage) && confirmPage.includes(`href="/batches/${b.id}">Cancel`), "a warning button that names the action, and Cancel");
 
     assert.equal((await confirm(confirmPage, `/batches/${b.id}/void`, { host: self, origin: "http://evil.example" })).status, 403, "cross-site");

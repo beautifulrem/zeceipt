@@ -7,7 +7,7 @@ import { createDraftAction } from "./actions.ts";
 const COLUMNS: { field: LineField; label: string; width: string; placeholder?: string }[] = [
   { field: "payableId", label: "Payable id", width: "w-28", placeholder: "INV-001" },
   { field: "label", label: "Payee", width: "w-28", placeholder: "Alice" },
-  { field: "address", label: "Address", width: "w-full" },
+  { field: "address", label: "Address", width: "w-full min-w-[16rem]" },
   { field: "amount", label: "Amount (ZEC)", width: "w-28", placeholder: "0.25" },
   { field: "memo", label: "Memo", width: "w-36", placeholder: "INV-001" },
 ];
@@ -18,7 +18,8 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
   const [lines, setLines] = useState<EditableLine[]>(() => editableLines(initial, errors));
   return (
     <>
-      <table className="w-full text-left text-sm" data-form-grid>
+      <div className="-mx-1 overflow-x-auto px-1">
+      <table className="form-grid w-full text-left text-sm" data-form-grid>
         <caption className="sr-only">Payment lines</caption>
         <thead className="text-muted">
           <tr>
@@ -35,7 +36,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
             <Fragment key={line.id}>
               <tr className="align-top">
                 {COLUMNS.map((c) => (
-                  <td key={c.field} className="py-1 pr-2">
+                  <td key={c.field} className="py-1 pr-2" data-label={c.label} data-field={c.field}>
                     <input
                       name={`lines.${n}.${c.field}`}
                       aria-label={`Line ${n + 1} ${c.label}`}
@@ -48,7 +49,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
                     />
                   </td>
                 ))}
-                <td className="py-1">
+                <td className="py-1 form-grid-remove">
                   <button type="button" onClick={() => setLines((ls) => removeLine(ls, line.id))} className="link text-sm text-muted" aria-label={`Remove line ${n + 1}`}>
                     Remove
                   </button>
@@ -56,7 +57,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
               </tr>
               {/* The line's problems right under it, and they move with it. */}
               {line.errors.length ? (
-                <tr>
+                <tr className="form-grid-errors">
                   <td colSpan={6} role="alert" className="pb-2 text-sm text-danger">
                     Line {n + 1}: {line.errors.join("; ")}
                   </td>
@@ -66,6 +67,7 @@ function Lines({ initial, errors, addressHint }: { initial: DraftLine[]; errors:
           ))}
         </tbody>
       </table>
+      </div>
       <button type="button" onClick={() => setLines((ls) => addLine(ls))} className="link text-sm">
         + Add line
       </button>
@@ -93,7 +95,7 @@ export function DraftForm({ initial, addressHint }: { initial: DraftFormState; a
           </ul>
         </div>
       )}
-      <label className="block space-y-1 text-sm">
+      <label className="label">
         <span className="font-medium">Title</span>
         <input name="title" defaultValue={state.title} key={`t${state.submission}`} required className="input" placeholder="October contributors" />
       </label>
@@ -104,11 +106,11 @@ export function DraftForm({ initial, addressHint }: { initial: DraftFormState; a
       <details className="panel space-y-2 text-sm">
         <summary className="cursor-pointer font-medium">Fill from a Konclave CSV</summary>
         <p className="text-muted">Paste a file in Konclave&apos;s format, label,address,value,memo, with amounts in ZEC. The rows are added below the lines above; nothing is created until you press Create draft.</p>
-        <label className="block space-y-1">
+        <label className="label">
           <span>CSV</span>
           <textarea name="csv" rows={6} className="input" placeholder={"label,address,value,memo\nAlice,u1…,0.5,INV-042"} />
         </label>
-        <label className="block space-y-1">
+        <label className="label">
           <span>Memo prefix for rows without a memo</span>
           <input name="memoPrefix" className="input w-48" placeholder="PAY-2026-09" />
         </label>

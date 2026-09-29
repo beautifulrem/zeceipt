@@ -1,8 +1,9 @@
 /*
- * The public receipt page (slice F2). Same design tokens as the payout console (apps/console/app/globals.css;
- * scripts/check_design_tokens.py keeps them in step). Everything here is same-origin, as the page's CSP requires:
- * the fonts (Geist, SIL OFL, fonts/OFL.txt) and the icons (Lucide, ISC, drawn with CSS masks).
- * The outcome's colour follows its words: #outcome carries ok, pending or bad (page.js).
+ * The public receipt page and the paste demo (slice F2). Same design tokens as the payout console
+ * (apps/console/app/globals.css; scripts/check_design_tokens.py keeps them and the shared component rules in step).
+ * Everything is same-origin, as the page's CSP requires: the fonts (Geist, SIL OFL, fonts/OFL.txt) and the icons
+ * (Lucide, ISC, drawn with CSS masks). The verdict's colour follows its words: #outcome carries ok, pending or bad
+ * (page.js), and the demo's .result the same classes.
  */
 @font-face {
   font-family: "Geist";
@@ -24,6 +25,7 @@
   --surface-2: #f2f2ee;
   --line: #e6e5df;
   --line-strong: #d3d2ca;
+  --input-line: #83868f;
   --fg: #14161c;
   --muted: #565c69;
   --subtle: #6e7380;
@@ -31,10 +33,12 @@
   --primary-fg: #ffffff;
   --primary-hover: #2c2f3a;
   --accent: #f4b728;
+  --accent-fg: #17130a;
+  --accent-hover: #f7c948;
   --accent-strong: #8a5a00;
   --accent-soft: #fdf4dc;
   --accent-line: #f0d48a;
-  --ring: #e9a21b;
+  --ring: #8a5a00;
   --success: #11703a;
   --success-soft: #e8f5ed;
   --success-line: #b3dcc1;
@@ -44,17 +48,20 @@
   --danger: #b02222;
   --danger-soft: #fdeeee;
   --danger-line: #f0c1c1;
+  --danger-solid: #b02222;
+  --on-danger: #ffffff;
   --info: #1b58c4;
   --info-soft: #ebf1fd;
   --info-line: #bdd0f5;
   --shadow-card: 0 1px 2px rgb(20 22 28 / 0.04), 0 2px 8px rgb(20 22 28 / 0.04);
   --shadow-raised: 0 1px 2px rgb(20 22 28 / 0.06), 0 8px 24px rgb(20 22 28 / 0.08);
   --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.1), transparent 60%);
-  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @media screen and (prefers-color-scheme: dark) {
@@ -65,13 +72,16 @@
     --surface-2: #171a24;
     --line: #242837;
     --line-strong: #323849;
+    --input-line: #646b7e;
     --fg: #eceef3;
     --muted: #a4aab8;
     --subtle: #7b8294;
-    --primary: #f4b728;
-    --primary-fg: #17130a;
-    --primary-hover: #f7c948;
+    --primary: #eceef3;
+    --primary-fg: #10121a;
+    --primary-hover: #ffffff;
     --accent: #f4b728;
+    --accent-fg: #17130a;
+    --accent-hover: #f7c948;
     --accent-strong: #f7c948;
     --accent-soft: #231c0b;
     --accent-line: #5c4715;
@@ -85,6 +95,8 @@
     --danger: #f58a8a;
     --danger-soft: #2a1113;
     --danger-line: #5c2327;
+    --danger-solid: #c42f2f;
+    --on-danger: #ffffff;
     --info: #7fb0ff;
     --info-soft: #0f1b31;
     --info-line: #243d69;
@@ -117,9 +129,11 @@ h2 { font-size: 1.05rem; margin: 0 0 0.9rem; }
 h3 { font-size: 0.72rem; font-family: var(--mono); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 1.4rem 0 0.5rem; }
 p { margin: 0.5rem 0; }
 code { font-family: var(--mono); font-size: 0.92em; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.print-only { display: none; }
 
 /* Icons: Lucide outlines, same-origin files, tinted with the current colour */
-.i, .verdict-icon, .checks li::before, .limits li::before {
+.i, .checks li::before, .limits li::before, .copy::before {
   display: inline-block;
   flex: none;
   background: currentColor;
@@ -152,16 +166,18 @@ code { font-family: var(--mono); font-size: 0.92em; }
 main { max-width: 880px; margin: 0 auto; padding: 2.25rem 1.25rem 1rem; }
 
 /* Hero */
-.hero { margin-bottom: 1.75rem; }
-.eyebrow { margin: 0 0 0.4rem; font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-strong); }
+.hero { margin-bottom: 1.5rem; }
+.eyebrow { margin: 0 0 0.4rem; font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 650; letter-spacing: -0.03em; }
 .lede { max-width: 42rem; font-size: 0.95rem; }
 .muted { color: var(--muted); font-size: 0.875rem; }
 .status { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.9rem; font-family: var(--mono); font-size: 0.78rem; }
-.status::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.status::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--subtle); }
+.status[data-state="ready"]::before { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.status[data-state="error"]::before { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 
 /* Cards */
-.card, #outcome, #unreadable {
+.card {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -170,19 +186,11 @@ h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 6
   padding: 1.35rem 1.5rem;
   margin: 0 0 1rem;
 }
-#receipt { display: grid; gap: 0; }
-
-/* The receipt slip: a gold edge at the top and a torn edge at the bottom, like the mark */
-.slip { border-top: 3px solid var(--accent); padding-bottom: 2rem; border-bottom: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
-.slip::after {
-  content: "";
-  position: absolute;
-  left: -1px; right: -1px; bottom: -1px;
-  height: 12px;
-  background:
-    linear-gradient(-45deg, var(--canvas) 6px, transparent 0) 0 100% / 12px 12px repeat-x,
-    linear-gradient(45deg, var(--canvas) 6px, transparent 0) 0 100% / 12px 12px repeat-x;
-}
+.card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
+.card-head h2 { margin: 0; }
+.pill { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
+/* What the receipt claims: not a verdict, so a quieter, dashed frame */
+.claims { border-style: dashed; border-color: var(--line-strong); box-shadow: none; background: color-mix(in srgb, var(--surface) 70%, transparent); }
 
 /* Key–value tables (rows written by page.js with data-key) */
 table.kv { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -192,69 +200,108 @@ table.kv td:first-child { width: 9.5rem; padding-right: 1rem; color: var(--muted
 table.kv tr[data-key="Transaction"] td:last-child,
 table.kv tr[data-key="Recipient"] td:last-child,
 table.kv tr[data-key="Output"] td:last-child { font-family: var(--mono); font-size: 0.82rem; }
-table.kv tr[data-key="Value"] td:last-child { font-size: 1.5rem; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 table.kv tr[data-key="Memo"] td:last-child { font-weight: 550; }
-#inclusion, #issuer { overflow-wrap: anywhere; }
+.amount { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.amount-zeros { font-size: 1.75rem; font-weight: 500; letter-spacing: -0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.amount-unit { font-size: 1.1rem; font-weight: 600; }
+.amount-zat { display: block; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.copy {
+  display: inline-grid; place-items: center; vertical-align: -0.2rem;
+  width: 1.6rem; height: 1.6rem; margin-left: 0.35rem; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer;
+}
+.copy::before { content: ""; width: 0.9rem; height: 0.9rem; --icon: url("icons/copy.svg"); }
+.copy:hover { background: var(--surface-2); color: var(--fg); border-color: var(--line); }
+.copy[data-copied] { color: var(--success); }
+.copy[data-copied]::before { --icon: url("icons/check.svg"); }
+#inclusion { font-size: 0.9rem; overflow-wrap: anywhere; }
 
-/* Controls */
+/* Controls (the .btn rules are the console's, checked by scripts/check_design_tokens.py) */
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; }
 .actions p { margin: 0.25rem 0; }
-.btn, input[type="file"]::file-selector-button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  min-height: 2.5rem; padding: 0.5rem 1.05rem;
-  border-radius: var(--radius-md); border: 1px solid transparent;
-  font: 600 0.875rem/1.25 var(--sans); cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease, transform 100ms ease;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font: 600 0.875rem/1.25 var(--sans);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 100ms ease;
 }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.6; cursor: progress; }
 .btn-primary { background: var(--primary); color: var(--primary-fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
-.btn-secondary, input[type="file"]::file-selector-button { background: var(--surface); color: var(--fg); border-color: var(--line-strong); }
-.btn-secondary:hover:not(:disabled), input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
-.file label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-size: 0.875rem; color: var(--muted); }
+.btn-secondary { background: var(--surface); color: var(--fg); border-color: var(--input-line); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
 input[type="file"] { font: 0.8rem var(--sans); color: var(--muted); }
-input[type="file"]::file-selector-button { margin-right: 0.6rem; min-height: 2.25rem; padding: 0.35rem 0.85rem; }
-#challenge {
+input[type="file"]::file-selector-button {
+  margin-right: 0.6rem; min-height: 2.25rem; padding: 0.35rem 0.85rem;
+  border: 1px solid var(--input-line); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--fg); font: 600 0.8125rem/1.25 var(--sans); cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
+.file label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-size: 0.875rem; color: var(--muted); }
+.text-input {
   width: 20rem; max-width: 100%; margin: 0 0.5rem;
   min-height: 2.5rem; padding: 0.45rem 0.7rem;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  border: 1px solid var(--input-line); border-radius: var(--radius-md);
   background: var(--surface); color: var(--fg); font: 0.85rem var(--mono);
 }
-#challenge:focus { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px rgb(244 183 40 / 0.25); }
+.text-input:focus { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
 .note { padding-left: 0.9rem; border-left: 2px solid var(--line-strong); font-size: 0.8125rem; }
 
-/* The outcome: colour and icon follow the words */
-#outcome { --tone: var(--muted); --tone-soft: var(--surface-2); --tone-line: var(--line-strong); --icon: url("icons/info.svg"); border-color: var(--tone-line); }
-#outcome.ok { --tone: var(--success); --tone-soft: var(--success-soft); --tone-line: var(--success-line); --icon: url("icons/shield-check.svg"); }
-#outcome.pending { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-line: var(--warning-line); --icon: url("icons/clock.svg"); }
-#outcome.bad, #unreadable { --tone: var(--danger); --tone-soft: var(--danger-soft); --tone-line: var(--danger-line); --icon: url("icons/shield-x.svg"); }
-#outcome::before, #unreadable::before {
+/* The verdict: the page's #outcome and #unreadable, and the demo's .result. Colour and icon follow the words. */
+#outcome, #unreadable, .result {
+  --tone: var(--muted); --tone-soft: var(--surface-2); --tone-line: var(--line-strong); --icon: url("icons/info.svg");
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--tone-line);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem 1.5rem 1.35rem;
+  margin: 0 0 1rem;
+  box-shadow: var(--shadow-raised);
+}
+#outcome.ok, .result.ok { --tone: var(--success); --tone-soft: var(--success-soft); --tone-line: var(--success-line); --icon: url("icons/shield-check.svg"); }
+#outcome.pending, .result.pending { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-line: var(--warning-line); --icon: url("icons/clock.svg"); }
+#outcome.bad, #unreadable, .result.bad { --tone: var(--danger); --tone-soft: var(--danger-soft); --tone-line: var(--danger-line); --icon: url("icons/shield-x.svg"); }
+#outcome::before, #unreadable::before, .result::before {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0; background: var(--tone);
 }
-#unreadable { border-color: var(--tone-line); }
-#unreadable h2 { color: var(--tone); font-size: 1.6rem; letter-spacing: 0.02em; }
-.verdict { display: flex; align-items: center; gap: 0.9rem; margin: 0.2rem 0 0.4rem; }
+/* Scrolled to on arrival (page.js): clear of the sticky top bar. */
+#outcome { scroll-margin-top: 5rem; }
+#outcome:focus { outline: none; }
+#outcome:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+/* The verified result is the receipt: a slip with a torn bottom edge, like the mark (a mask, so it prints and sits on
+   any background); the wrapper keeps its shadow, which the mask would clip. */
+.slip-wrap { filter: drop-shadow(0 8px 18px rgb(20 22 28 / 0.08)); }
+.slip-wrap #outcome {
+  box-shadow: none;
+  padding-bottom: 2rem;
+  --z: 11px;
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - var(--z)) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) var(--z) repeat-x;
+  mask: linear-gradient(#000 0 0) top / 100% calc(100% - var(--z)) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) var(--z) repeat-x;
+}
+.verdict { display: flex; align-items: center; gap: 1rem; margin: 0.1rem 0 0.4rem; }
 .verdict-icon {
-  width: 3rem; height: 3rem;
-  color: var(--tone);
-  background: var(--tone-soft);
-  -webkit-mask: none; mask: none;
-  border-radius: 999px;
-  position: relative;
+  position: relative; flex: none; width: 3.25rem; height: 3.25rem;
+  border-radius: 999px; background: var(--tone-soft); box-shadow: inset 0 0 0 1px var(--tone-line);
 }
 .verdict-icon::after {
-  content: ""; position: absolute; inset: 0.7rem;
-  background: var(--tone);
-  -webkit-mask: var(--icon) center / contain no-repeat;
-  mask: var(--icon) center / contain no-repeat;
+  content: ""; position: absolute; inset: 0.75rem; background: var(--tone);
+  -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat;
 }
-#headline { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: 0.02em; color: var(--tone); }
-#parts h3:first-child { margin-top: 0.8rem; }
-#issuer { margin: 0.25rem 0; padding-left: 1.1rem; font-size: 0.9rem; }
+.verdict-word { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; color: var(--tone); }
+.verdict-sub { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--fg); }
+#parts h3:first-child { margin-top: 1rem; }
+#issuer { margin: 0.25rem 0; padding-left: 1.1rem; font-size: 0.9rem; overflow-wrap: anywhere; }
 #issuer li { margin: 0.25rem 0; }
-#inclusion { font-size: 0.9rem; }
+#issuer code { font-size: 0.8rem; }
 #binding-row, #challenge-line { font-size: 0.875rem; }
 #binding.ok { color: var(--success); font-weight: 550; }
 #binding.pending { color: var(--warning); font-weight: 550; }
@@ -281,25 +328,31 @@ input[type="file"]::file-selector-button { margin-right: 0.6rem; min-height: 2.2
 /* Motion: the verdict arrives, once; nothing moves for readers who ask for less */
 @keyframes arrive { from { opacity: 0; transform: translateY(8px) scale(0.99); } }
 @keyframes stamp { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
-@keyframes ring { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone) 35%, transparent); } to { box-shadow: 0 0 0 14px transparent; } }
+@keyframes ring { from { box-shadow: inset 0 0 0 1px var(--tone-line), 0 0 0 0 color-mix(in srgb, var(--tone) 35%, transparent); } to { box-shadow: inset 0 0 0 1px var(--tone-line), 0 0 0 14px transparent; } }
 @media (prefers-reduced-motion: no-preference) {
-  #outcome:not([hidden]), #receipt:not([hidden]), #unreadable:not([hidden]) { animation: arrive 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  #outcome:not([hidden]) .verdict-icon { animation: stamp 420ms 80ms cubic-bezier(0.2, 0.7, 0.2, 1) both, ring 900ms 300ms ease-out both; }
-  .btn, a { transition: background-color 150ms ease, color 150ms ease; }
+  #outcome:not([hidden]), #receipt:not([hidden]), #unreadable:not([hidden]), .result { animation: arrive 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  #outcome:not([hidden]) .verdict-icon, .result .verdict-icon { animation: stamp 420ms 80ms cubic-bezier(0.2, 0.7, 0.2, 1) both, ring 900ms 300ms ease-out both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
 @media (max-width: 560px) {
   main { padding-top: 1.5rem; }
-  .card, #outcome, #unreadable { padding: 1.1rem 1.1rem; }
+  .card, #outcome, #unreadable, .result { padding: 1.1rem; }
+  .slip-wrap #outcome { padding-bottom: 1.75rem; }
   table.kv td { display: block; width: auto !important; padding: 0.1rem 0; border: 0; }
   table.kv tr { display: block; padding: 0.55rem 0; border-bottom: 1px dashed var(--line); }
   table.kv tr:last-child { border-bottom: 0; }
-  .chip { display: none; }
+  .amount, .amount-zeros { font-size: 1.5rem; }
+  .verdict-word { font-size: 1.6rem; }
 }
 
 @media print {
-  :root { color-scheme: light; }
   body { background: #fff; font-size: 12px; }
-  .topbar, .actions, #fetch, #rawfile, #challenge-row, #binding-row, .foot a { display: none !important; }
-  .card, #outcome { box-shadow: none; break-inside: avoid; }
+  .topbar, .actions, #challenge-row, #binding-row, #fetch-note, #source-status, #status, .copy, .foot a { display: none !important; }
+  .card, #outcome, .slip-wrap { box-shadow: none; filter: none; }
+  table.kv tr, .checks li, .limits li { break-inside: avoid; }
+  #outcome::before, .verdict-icon, .verdict-icon::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-only { display: block; margin-top: 1rem; font-family: var(--mono); font-size: 10px; color: var(--muted); }
 }

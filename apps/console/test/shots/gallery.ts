@@ -11,6 +11,8 @@ import { APP, baseEnv, raw, start, waitHealthy, within } from "../helpers/app-se
 import { FakeZkool } from "../helpers/fake-zkool.ts";
 import { ZKOOL_PUBLIC_PEM, zkoolPublicKeyFile, zkoolTokenFile } from "../helpers/zkool-token.ts";
 import { englishChrome } from "../helpers/english-chrome.ts";
+import { execFileSync } from "node:child_process";
+import { autoIssue, batchDigest, batchNonce, getBatch, Keyring, openDb, recordReceipts, SqliteIdempotencyStore, toExecutionBatch, type AutoIssueResult } from "../../lib/index.ts";
 
 const OUT = process.argv[2] ?? mkdtempSync(join(tmpdir(), "zeceipt-gallery-"));
 mkdirSync(OUT, { recursive: true });
@@ -59,9 +61,35 @@ try {
   // A draft typed by hand, locked but not approved.
   const draft = await post("/api/batches", { title: "Contributor stipends", items: [{ payableId: "manual-1", address: B, zat: "31250000", memo: "STIPEND-OCT-1" }, { payableId: "manual-2", address: A, zat: "6250000", memo: "STIPEND-OCT-2" }] });
   await post(`/api/batches/${draft.id}/rate-lock`);
+  // A batch with its receipts issued, as app.e2e's linkability test makes one: the committed regtest transaction's
+  // three outputs, recorded as this batch's broadcast, receipted by the real CLI, and reported mined by the fake wallet.
+  const ROOT = resolve(APP, "../..");
+  const TXID = "48db254a361e9676b90d4864505bd536de9bc6952c46aeea087ec213fdac47b2";
+  const LINES = [
+    { payableId: "p-2", label: "Ana Souza", address: A, zat: "101000000", memo: "INV-R-002" },
+    { payableId: "p-3", label: "Bo Chen", address: B, zat: "102000000", memo: "INV-R-003" },
+    { payableId: "p-4", label: "Chidi Okafor", address: "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5", zat: "103000000", memo: "INV-R-004" },
+  ];
+  const issued = await post("/api/batches", { title: "October contributors", items: LINES });
+  await post(`/api/batches/${String(issued.id)}/rate-lock`);
+  const side = openDb({ path: env.ZECEIPT_DB_PATH });
+  try {
+    const rec = (await getBatch(side, env.ZECEIPT_ORG_ID, String(issued.id)))!;
+    const store = new SqliteIdempotencyStore(side, { orgId: env.ZECEIPT_ORG_ID });
+    const base = { nonce: batchNonce(rec), batchId: rec.id, batchDigest: batchDigest(toExecutionBatch(rec)), createdAt: new Date().toISOString(), attempts: 1 };
+    await store.createIntent({ ...base, state: "submitting" });
+    await store.update({ ...base, state: "broadcast", txid: TXID }, { attempts: 1, states: ["submitting"] });
+    const keyFile = join(dir, "issuer.key");
+    execFileSync(env.ZECEIPT_BIN, ["keygen", "--out", keyFile]);
+    const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: env.ZECEIPT_BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, host: "https://receipts.example", keyId: "2026-09" } });
+    await recordReceipts(side, new Keyring([{ kid: "k1", key: Buffer.alloc(32, 7) }]), { orgId: env.ZECEIPT_ORG_ID, batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
+  } finally {
+    side.$client.close();
+  }
+  fake.mined.push({ txid: TXID, height: fake.height - 4, expiry: fake.height + 40, recipients: LINES.map((l) => ({ address: l.address, amount: l.zat, memo: l.memo })) });
 
   const pages: [string, string][] = [
-    ["batches", "/"], ["batch-paid", `/batches/${paid.id}`], ["batch-draft", `/batches/${draft.id}`],
+    ["batches", "/"], ["batch-paid", `/batches/${paid.id}`], ["batch-draft", `/batches/${draft.id}`], ["batch-receipts", `/batches/${String(issued.id)}`],
     ["batch-new", "/batches/new"], ["from-payables", "/batches/from-payables"], ["void", `/batches/${draft.id}/void`],
     ["recipients", "/recipients"], ["payables", "/payables"], ["not-found", "/batches/0190a0d6-7e3b-7c61-8d3f-4a2b1c0d9e8f"],
   ];
@@ -76,14 +104,14 @@ try {
       await context.close();
     }
   }
-  // ZECEIPT_GALLERY_README=1: the README's console images, the paid batch's first screen at 2x, light and dark.
+  // ZECEIPT_GALLERY_README=1: the README's console images, the receipted batch at 2x, light and dark.
   if (process.env.ZECEIPT_GALLERY_README === "1") {
     const assets = resolve(APP, "../../docs/assets");
     for (const scheme of ["light", "dark"] as const) {
       const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme, reducedMotion: "reduce" });
       const page = await context.newPage();
-      await page.goto(`http://${self}/batches/${String(paid.id)}`);
-      await page.screenshot({ path: join(assets, scheme === "light" ? "console-batch.png" : "console-batch-dark.png") });
+      await page.goto(`http://${self}/batches/${String(issued.id)}`);
+      await page.screenshot({ path: join(assets, scheme === "light" ? "console-batch.png" : "console-batch-dark.png"), fullPage: true });
       await context.close();
     }
   }

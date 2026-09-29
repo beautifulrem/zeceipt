@@ -95,7 +95,10 @@ export const STATUS_UNAVAILABLE: StateView = {
 };
 
 /** The lifecycle for display: each step done, current (possibly blocked) or ahead. */
-export function stepsFor(view: Pick<StateView, "step" | "blocked">): { label: string; mark: "done" | "current" | "blocked" | "ahead" }[] {
+export function stepsFor(view: Pick<StateView, "step" | "blocked"> & { tone?: Tone }): { label: string; mark: "done" | "current" | "blocked" | "ahead" }[] {
   const at = LIFECYCLE_STEPS.findIndex((s) => s.step === view.step);
-  return LIFECYCLE_STEPS.map((s, i) => ({ label: s.label, mark: i < at ? "done" : i === at ? (view.blocked ? "blocked" : "current") : "ahead" }));
+  // The end of the road (receipts issued, the success tone at the last step) is done, not current: nothing is left to
+  // do (review F round 1). Partial receipts stay current.
+  const complete = at === LIFECYCLE_STEPS.length - 1 && view.tone === "success";
+  return LIFECYCLE_STEPS.map((s, i) => ({ label: s.label, mark: i < at || (i === at && complete) ? "done" : i === at ? (view.blocked ? "blocked" : "current") : "ahead" }));
 }

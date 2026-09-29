@@ -66,7 +66,9 @@ test("lifecycle marks: done before, current (or blocked) at, ahead after", () =>
   assert.deepEqual(stepsFor(stateView(st("approved"))).map((s) => s.mark), ["done", "current", "ahead", "ahead", "ahead", "ahead"]);
   assert.deepEqual(stepsFor(stateView(st("pending"))).map((s) => s.mark), ["done", "done", "current", "ahead", "ahead", "ahead"]);
   assert.deepEqual(stepsFor(stateView(st("needs_attention"))).map((s) => s.mark), ["done", "done", "blocked", "ahead", "ahead", "ahead"]);
-  assert.deepEqual(stepsFor(stateView(st("receipts_issued"))).map((s) => s.mark), ["done", "done", "done", "done", "done", "current"]);
+  // The terminal state leaves nothing current (review F round 1); partial receipts keep the last step current.
+  assert.deepEqual(stepsFor(stateView(st("receipts_issued"))).map((s) => s.mark), ["done", "done", "done", "done", "done", "done"]);
+  assert.deepEqual(stepsFor(stateView(st("receipts_partial"))).map((s) => s.mark), ["done", "done", "done", "done", "done", "current"]);
   assert.deepEqual(stepsFor(stateView(st("retryable"))).map((s) => s.mark), ["current", "ahead", "ahead", "ahead", "ahead", "ahead"]);
 });
 

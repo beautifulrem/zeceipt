@@ -181,6 +181,30 @@ test("a bearer receipt opened by its link: summary first, then VALID with the th
   await s.context.close();
 });
 
+test("the verdict comes first: above the claims, focused, announced in one line, with its meaning (review F round 1)", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/r/#${b64(BEARER)}`);
+  await ready(s.page);
+  assert.equal(await text(s.page, "#claims-state"), "Not yet checked");
+  assert.equal(await s.page.getAttribute("#status", "data-state"), "ready");
+  await s.page.click("#fetch");
+  await verified(s.page);
+  const order = await s.page.evaluate(() => document.getElementById("outcome").compareDocumentPosition(document.getElementById("receipt")) & Node.DOCUMENT_POSITION_FOLLOWING);
+  assert.ok(order, "the verdict is above the claims in the page");
+  assert.equal(await s.page.evaluate(() => document.activeElement?.id), "outcome", "the verdict has focus");
+  assert.equal(await text(s.page, "#verdict-note"), "The payment is proven, and the node reports its transaction mined.");
+  assert.match(await text(s.page, "#verdict-live"), /^VALID\. The payment is proven/);
+  assert.equal(await text(s.page, "#claims-state"), "Checked: see the result above");
+  assert.equal(await s.page.getAttribute("#fetch", "class"), "btn btn-secondary", "the source is no longer the main action");
+  // The value is one string over spans (the zeros lighter), and the long ids have copy buttons that add no text.
+  assert.match(await text(s.page, "#payment"), /2\.50000000 ZEC \(250000000 zat\)/);
+  assert.equal(await s.page.locator("#payment .amount").textContent(), "2.5");
+  assert.equal(await s.page.locator('#payment tr[data-key="Recipient"] button.copy').getAttribute("aria-label"), "Copy the recipient address");
+  assert.equal(await s.page.locator('#summary tr[data-key="Transaction"] button.copy').count(), 1);
+  await assertPrivate(s);
+  await s.context.close();
+});
+
 test("a node without a usable tip leaves the depth unknown and the verdict alone (slice A2)", { skip: !RUN }, async () => {
   const s = await openPage({ tip: null });
   await s.page.goto(`${base}/r/#${b64(BEARER)}`);

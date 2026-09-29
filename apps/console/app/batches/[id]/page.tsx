@@ -25,6 +25,7 @@ import { ApproveForm, IssueForm, LockRateForm, PayForm } from "./action-forms.ts
 import { TABLE_CLASS } from "../../../lib/view/table.ts";
 import { PageHeader } from "../../components/page-header.tsx";
 import { ArrowUpRight, Download, ExternalLink, FileCheck2 } from "lucide-react";
+import { CopyButton } from "../../components/copy-button.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -104,7 +105,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="min-w-0 space-y-6">
           <section aria-labelledby="status-heading" className="card animate-rise-3 space-y-4">
-            <h2 id="status-heading" className="eyebrow">
+            <h2 id="status-heading" className="section-title">
               Status
             </h2>
             {view && unavailable ? (
@@ -193,7 +194,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
 
           {linkable.length > 0 && (
             <section aria-labelledby="linkability-heading" className="card space-y-3 border-warning/50">
-              <h2 id="linkability-heading" className="eyebrow">
+              <h2 id="linkability-heading" className="section-title">
                 Before paying: addresses already disclosed
               </h2>
               <ul className="list-disc pl-5 text-sm">
@@ -215,7 +216,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           <ModePanel mode={paymentMode(ctx.config)} compact />
 
           <section aria-labelledby="rate-heading" className="card space-y-3">
-            <h2 id="rate-heading" className="eyebrow">
+            <h2 id="rate-heading" className="section-title">
               ZEC/USD rate
             </h2>
             {lock ? (
@@ -272,9 +273,9 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             <caption className="sr-only">Items of this batch</caption>
             <thead>
               <tr>
-                <th>Payable</th>
+                <th className="hidden md:table-cell">Payable</th>
                 <th>Payee</th>
-                <th>Address</th>
+                <th className="hidden sm:table-cell">Address</th>
                 <th>Memo</th>
                 <th className="text-right">Amount</th>
                 {lock && <th className="text-right">USD at lock</th>}
@@ -283,11 +284,11 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             <tbody>
               {rec.items.map((i) => (
                 <tr key={i.idx}>
-                  <td>
+                  <td className="hidden md:table-cell">
                     <Identifier value={i.payableId} />
                   </td>
                   <td className="font-medium">{i.label || "—"}</td>
-                  <td>
+                  <td className="hidden sm:table-cell">
                     <Address value={i.address} />
                   </td>
                   <td>
@@ -302,8 +303,13 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4} className="text-right font-semibold">
-                  Total
+                <td className="hidden md:table-cell" />
+                <td className="font-semibold">
+                  <span className="sm:hidden">Total</span>
+                </td>
+                <td className="hidden sm:table-cell" />
+                <td className="text-right font-semibold">
+                  <span className="hidden sm:inline">Total</span>
                 </td>
                 <td className="whitespace-nowrap text-right font-semibold">
                   <ZecAmount zat={total} />
@@ -322,25 +328,34 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         {receipts.length === 0 ? (
           <p className="card flex items-center gap-3 text-sm text-muted">
             <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-5 flex-none text-subtle" />
-            No receipts yet. They are issued once the payment is confirmed.
+            {status?.next === "issue_receipts"
+              ? "No receipts yet. The payment is confirmed: press Issue receipts above."
+              : "No receipts yet. They are issued once the payment is confirmed."}
           </p>
         ) : (
           <ul className="card divide-y divide-line p-0 text-sm">
-            {receipts.map((r) => (
-              <li key={r.idx} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
-                <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-4 flex-none text-success" />
-                <code>{r.payableId}</code>:{" "}
-                {r.openError ? (
-                  <span className="text-danger">could not be opened ({r.openError})</span>
-                ) : (
-                  <a href={r.url} rel="noreferrer" className="link inline-flex items-center gap-1 font-medium">
-                    receipt link
-                    <ArrowUpRight aria-hidden="true" className="size-3.5" />
-                  </a>
-                )}{" "}
-                <span className="text-muted">(anyone with this link can verify the payment)</span>
-              </li>
-            ))}
+            {receipts.map((r) => {
+              const line = rec.items.find((i) => i.idx === r.idx);
+              const who = line?.label || line?.memo || r.payableId;
+              return (
+                <li key={r.idx} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3">
+                  <FileCheck2 aria-hidden="true" strokeWidth={1.75} className="size-4 flex-none text-success" />
+                  <code>{r.payableId}</code>:{" "}
+                  {r.openError || !r.url ? (
+                    <span className="text-danger">could not be opened ({r.openError})</span>
+                  ) : (
+                    <>
+                      <a href={r.url} rel="noreferrer" className="link inline-flex items-center gap-1 font-medium">
+                        Receipt for {who}
+                        <ArrowUpRight aria-hidden="true" className="size-3.5" />
+                      </a>
+                      <CopyButton value={r.url} label={`Copy the receipt link for ${who}`} />
+                    </>
+                  )}{" "}
+                  <span className="text-muted">(anyone with this link can verify the payment)</span>
+                </li>
+              );
+            })}
           </ul>
         )}
         {/* Slice X2c (REQ-INT-2; 05 §3.1): the OpenZcash-compatible export, with what it discloses (lib/view/export-offer.ts). */}
@@ -363,7 +378,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         <h2 id="history-heading" className="section-title">
           History
         </h2>
-        <ol className="card timeline pl-10">
+        <ol className="card timeline">
           {history.map((e) => (
             <li key={e.id}>
               <time dateTime={e.at}>{e.at.replace("T", " ").slice(0, 19)} UTC</time>

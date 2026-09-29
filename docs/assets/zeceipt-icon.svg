@@ -14,7 +14,7 @@
       <rect width="3" height="6" fill="#bfc3cc"/>
     </pattern>
   </defs>
-  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="1" y="1" width="254" height="254" rx="55" fill="url(#bg)" stroke="#3a4156" stroke-width="2"/>
   <!-- the receipt: a slip with a torn bottom edge -->
   <path d="M68 40 H188 V206 l-10 -10 l-10 10 l-10 -10 l-10 10 l-10 -10 l-10 10 l-10 -10 l-10 10 l-10 -10 l-10 10 l-10 -10 l-10 10 Z" fill="#f6f3ea"/>
   <!-- other outputs stay shielded -->

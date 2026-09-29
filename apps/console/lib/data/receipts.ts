@@ -237,3 +237,12 @@ export function sealedKidsInUse(db: ConsoleDb): Promise<string[]> {
 export function countReceipts(db: ConsoleDb, orgId: string, batchId: string): Promise<number> {
   return runSync(() => (db.$client.prepare("SELECT count(*) AS n FROM receipts WHERE org_id = ? AND batch_id = ?").get(orgId, batchId) as { n: number }).n);
 }
+
+/** How many receipts each batch of the org has (the batch list's stage column, slice F4): one grouped count, no
+ * decryption. Batches without receipts are absent from the map. */
+export function receiptCounts(db: ConsoleDb, orgId: string): Promise<Map<string, number>> {
+  return runSync(() => new Map(
+    db.select({ batchId: receipts.batchId, n: sql<number>`count(*)` }).from(receipts).where(eq(receipts.orgId, orgId)).groupBy(receipts.batchId).all()
+      .map((r) => [r.batchId, Number(r.n)] as [string, number]),
+  ));
+}

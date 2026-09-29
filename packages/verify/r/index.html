@@ -23,16 +23,17 @@
 <header class="topbar">
   <div class="topbar-inner">
     <span class="brand"><img src="icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></span>
-    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Verified in your browser</span>
+    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
   </div>
 </header>
 <main>
 <div class="hero">
-  <p class="eyebrow">Shielded payment receipt</p>
-  <h1>Zeceipt receipt</h1>
+  <p class="eyebrow">Zeceipt · shielded Zcash</p>
+  <h1>Payment receipt</h1>
   <p class="muted lede">This page checks a receipt for one shielded Zcash payment, entirely in your browser (WebAssembly). The receipt is the part of the link after “#”, which your browser does not send to this site.</p>
-  <p id="status" class="muted status" role="status">Loading the verifier…</p>
+  <p id="status" class="muted status" role="status" data-state="loading">Loading the verifier…</p>
 </div>
+<p id="verdict-live" class="sr-only" role="status"></p>
 
 <section id="empty" class="card" hidden>
   <h2>This link has no receipt in it</h2>
@@ -40,32 +41,19 @@
 </section>
 
 <section id="unreadable" class="bad" hidden>
-  <h2>INVALID</h2>
+  <div class="verdict">
+    <span class="verdict-icon" aria-hidden="true"></span>
+    <div><h2 class="verdict-word">Not a receipt</h2><p class="verdict-sub">This link does not hold a readable receipt.</p></div>
+  </div>
   <p id="unreadable-copy"></p>
   <p id="unreadable-error" class="muted"></p>
 </section>
 
-<section id="receipt" hidden>
-  <div class="card slip">
-    <h2>The receipt</h2>
-    <table id="summary" class="kv"></table>
-  </div>
-  <div class="card">
-    <h2>The transaction</h2>
-    <div class="actions">
-      <p><button id="fetch" type="button" class="btn btn-primary">Fetch it from a public node</button></p>
-      <p class="file"><label>Or load a raw transaction file (hex) <input type="file" id="rawfile" accept=".hex,.txt"></label></p>
-    </div>
-    <p id="fetch-note" class="muted note"></p>
-    <p id="challenge-row" hidden><label>The challenge you sent <input id="challenge" autocomplete="off" spellcheck="false"></label> <button id="verify" type="button" class="btn btn-primary">Verify</button></p>
-    <p id="source-status" class="muted" role="status"></p>
-  </div>
-</section>
-
-<section id="outcome" hidden aria-live="polite">
+<div class="slip-wrap">
+<section id="outcome" hidden tabindex="-1" aria-labelledby="headline">
   <div class="verdict">
     <span class="verdict-icon" aria-hidden="true"></span>
-    <h2 id="headline"></h2>
+    <div><h2 id="headline" class="verdict-word"></h2><p id="verdict-note" class="verdict-sub"></p></div>
   </div>
   <div id="invalid" hidden>
     <p id="stage-copy"></p>
@@ -82,7 +70,28 @@
     <p id="binding" role="status" hidden></p>
     <p id="challenge-line"></p>
   </div>
+  <p id="print-meta" class="print-only"></p>
 </section>
+</div>
+
+<section id="receipt" hidden>
+  <div class="card claims">
+    <div class="card-head"><h2>What the receipt claims</h2><span id="claims-state" class="pill">Not yet checked</span></div>
+    <table id="summary" class="kv"></table>
+  </div>
+  <div class="card">
+    <h2>The transaction</h2>
+    <div class="actions">
+      <p><button id="fetch" type="button" class="btn btn-primary">Fetch it from a public node</button></p>
+      <p class="file"><label>Or load a raw transaction file (hex) <input type="file" id="rawfile" accept=".hex,.txt"></label></p>
+    </div>
+    <p id="fetch-note" class="muted note"></p>
+    <p id="challenge-row" hidden><label>The challenge you sent <input id="challenge" class="text-input" autocomplete="off" spellcheck="false"></label> <button id="verify" type="button" class="btn btn-primary">Verify</button></p>
+    <p id="source-status" class="muted" role="status"></p>
+  </div>
+</section>
+
+
 
 <div class="scope">
 <section class="card">

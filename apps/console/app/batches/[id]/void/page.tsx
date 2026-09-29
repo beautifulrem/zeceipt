@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getBatch } from "../../../../lib/data/batches.ts";
 import { voidable } from "../../../../lib/data/voids.ts";
 import { serverContext } from "../../../../lib/server/context.ts";
-import { zecText } from "../../../../lib/view/format.ts";
+import { ZecAmount } from "../../../components/amount.tsx";
 import { AccessNotice } from "../../../components/panels.tsx";
 import { PageHeader } from "../../../components/page-header.tsx";
 import { VoidForm } from "./void-form.tsx";
@@ -27,7 +27,7 @@ export default async function VoidBatchPage({ params }: { params: Promise<{ id: 
         title={<>Void batch {rec.title}?</>}
         description={
           <>
-            {rec.items.length} {rec.items.length === 1 ? "line" : "lines"}, {zecText(total)} in total.
+            {rec.items.length} {rec.items.length === 1 ? "line" : "lines"}, <ZecAmount zat={total} /> in total.
           </>
         }
       />

@@ -2,7 +2,7 @@
 // it is drawn on must meet WCAG 2.x 1.4.3's 4.5:1, in both colour schemes. The tokens are read from the stylesheet the
 // console ships (app/globals.css), so a token change that breaks a pair fails here. The lighter digits of an amount are
 // `text-muted` (review G1d: for a small payment they are the whole amount), placeholders are `subtle`, badge and callout
-// text is the tone on its soft background, and button text sits on its fill.
+// text is the tone on its soft background, button text sits on its fill, and the focus ring and input borders (non-text) meet 3:1.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -34,7 +34,9 @@ const PAIRS: [string, string][] = [
   ...["canvas", "surface", "surface-2"].flatMap((bg) => ["fg", "muted"].map((t) => [t, bg] as [string, string])),
   ["subtle", "surface"],
   ["primary-fg", "primary"],
-  ["#17130a", "accent"],
+  ["accent-fg", "accent"],
+  ["accent-fg", "accent-hover"],
+  ["on-danger", "danger-solid"],
   ...(["success", "warning", "danger", "info"] as const).flatMap((t) => [[t, `${t}-soft`], [t, "surface"]] as [string, string][]),
   ["accent-strong", "accent-soft"],
   ["accent-strong", "surface"],
@@ -52,6 +54,17 @@ for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
       if (r < 4.5) failures.push(`${t} ${fgHex} on ${bg} ${bgHex}: ${r.toFixed(2)}:1`);
     }
     assert.deepEqual(failures, []);
+  });
+}
+
+// Non-text contrast (WCAG 2.2 1.4.11, 3:1; review F round 1): the focus ring and the input borders, on every surface
+// they sit on.
+const NON_TEXT: [string, string][] = ["canvas", "surface", "surface-2"].flatMap((bg) => [["ring", bg], ["input-line", bg]] as [string, string][]);
+for (const [name, theme] of [["light", light], ["dark", dark]] as const) {
+  test(`the focus ring and input borders meet 3:1 in the ${name} scheme (WCAG 1.4.11)`, () => {
+    const failures = NON_TEXT.filter(([t, bg]) => ratio(theme[t], theme[bg]) < 3).map(([t, bg]) => `${t} ${theme[t]} on ${bg} ${theme[bg]}: ${ratio(theme[t], theme[bg]).toFixed(2)}:1`);
+    assert.deepEqual(failures, []);
+    assert.ok(ratio("#e9a21b", "#ffffff") < 3, "negative control: the first light ring (#e9a21b) fails 3:1 on white");
   });
 }
 

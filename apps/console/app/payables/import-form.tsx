@@ -31,12 +31,12 @@ export function ImportForm() {
             zecpay&apos;s format, name,wallet,amount,currency,payout_currency, with amounts in US dollars. Preview first: it writes nothing. Import then adds the previewed
             payables, and any new recipients, all together or not at all. Payables and recipients cannot be deleted afterwards.
           </p>
-          <label className="block space-y-1">
+          <label className="label">
             <span>CSV</span>
             <textarea name="csv" rows={6} defaultValue={state.csv} className="input" placeholder={"name,wallet,amount,currency,payout_currency\nAlice,u1…,500,USD,ZEC"} />
           </label>
           <div className="flex flex-wrap gap-4">
-            <label className="space-y-1">
+            <label className="label">
               <span className="block">Kind of every payable</span>
               <select name="kind" defaultValue={state.kind} className="input">
                 {PAYABLE_KINDS.map((k) => (
@@ -46,7 +46,7 @@ export function ImportForm() {
                 ))}
               </select>
             </label>
-            <label className="space-y-1">
+            <label className="label">
               <span className="block">Reference prefix (each reference is the prefix, a dash and the CSV line)</span>
               <input name="prefix" defaultValue={state.prefix} className="input w-56" placeholder="PAYROLL-2026-09" />
             </label>

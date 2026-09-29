@@ -151,9 +151,9 @@ In the browser:
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/console-batch-dark.png">
-    <img src="docs/assets/console-batch.png" alt="A paid batch in the console: total, lines, locked rate and confirmations, the payment lifecycle, the payment mode and the locked rate" width="820">
+    <img src="docs/assets/console-batch.png" alt="A batch in the console with its receipts issued: the totals, the completed payment lifecycle, the lines, one receipt link per payee, the OpenZcash export and the history" width="820">
   </picture><br>
-  <sub>A batch from USD payables, paid and confirmed: the console's batch page (light or dark, following your system). Rendered by <code>apps/console/test/shots/gallery.ts</code> against a simulated wallet.</sub>
+  <sub>A batch with its receipts issued: one link per payee, each verifiable by anyone who holds it (light or dark, following your system). Rendered by <code>apps/console/test/shots/gallery.ts</code> from the committed regtest transaction, with the real CLI issuing the receipts and a simulated wallet reporting the chain.</sub>
 </p>
 
 Every batch, recipient and payable keeps an append-only history. The console warns before it pays an address that an earlier receipt disclosed. The whole path, from form to payment to receipt to verification, runs on a live local regtest chain (zebrad, Zaino, Zkool): [`docs/PROOF.md`](docs/PROOF.md) §5c–§5g. How to run it: [`apps/console/README.md`](apps/console/README.md).

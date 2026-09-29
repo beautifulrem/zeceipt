@@ -49,6 +49,7 @@ await page.waitForFunction(() => /verification runs in this page/.test(document.
 await page.click("#fetch");
 await page.waitForSelector("#outcome:not([hidden])");
 await page.waitForFunction(() => !/asking it for its chain tip/.test(document.querySelector("#inclusion").textContent));
+await page.evaluate(() => window.scrollTo(0, 0)); // the page scrolls to the verdict; shoot from the top
 const box = await page.locator("#outcome").boundingBox(); // the page down to the verdict
 await page.screenshot(process.env.ZECEIPT_SHOT_FULL ? { path: out, fullPage: true } : { path: out, fullPage: true, clip: { x: 0, y: 0, width: page.viewportSize().width, height: Math.ceil(box.y + box.height + 24) } });
 await browser.close();

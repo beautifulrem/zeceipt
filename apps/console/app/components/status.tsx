@@ -18,7 +18,7 @@ export function StatusBadge({ view }: { view: Pick<StateView, "label" | "tone"> 
 const MARK = { done: "Done", current: "Current", blocked: "Needs attention", ahead: "Not yet" } as const;
 const ICON = { done: CheckCircle2, current: CircleDot, blocked: AlertTriangle, ahead: Circle } as const;
 
-export function Lifecycle({ view }: { view: Pick<StateView, "step" | "blocked"> }) {
+export function Lifecycle({ view }: { view: Pick<StateView, "step" | "blocked" | "tone"> }) {
   return (
     <ol className="stepper" aria-label="Payment lifecycle">
       {stepsFor(view).map((s) => {

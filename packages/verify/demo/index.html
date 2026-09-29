@@ -13,7 +13,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <span class="brand"><img src="../r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></span>
-    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Verified in your browser</span>
+    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
   </div>
 </header>
 <main>
@@ -21,7 +21,7 @@
   <p class="eyebrow">Paste a receipt</p>
   <h1>Zeceipt verifier</h1>
   <p class="muted lede">Private outside, provable per payment. Verification runs entirely in this page (WebAssembly). The raw transaction is fetched from the source you choose; the receipt's outgoing cipher key never leaves this page.</p>
-  <p id="status" class="muted status" role="status"></p>
+  <p id="status" class="muted status" role="status" data-state="loading"></p>
 </div>
 
 <section class="card">
@@ -80,15 +80,15 @@ import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/in
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = (id) => document.getElementById(id);
 const status = $("status"), out = $("out");
-status.textContent = "loading verifier…";
-initVerifier().then((v) => { status.textContent = v + " ready"; }).catch((e) => { status.textContent = "failed to load: " + e; });
+status.textContent = "Loading the verifier…";
+initVerifier().then((v) => { status.textContent = `${v}: verification runs in this page.`; status.dataset.state = "ready"; }).catch((e) => { status.textContent = `The verifier failed to load: ${e}`; status.dataset.state = "error"; });
 
 // The committed synthetic fixture (not on any chain): a signed receipt and the transaction it opens.
 $("sample").addEventListener("click", async () => {
   const [receipt, raw] = await Promise.all(["fixtures/synthetic-receipt-bearer.json", "fixtures/synthetic-ironwood.hex"].map((f) => fetch(f).then((r) => r.text())));
   $("receipt").value = receipt.trim();
   $("rawtx").value = raw.trim();
-  status.textContent = "sample loaded (a synthetic transaction, on no chain): press Verify locally";
+  status.textContent = "Sample loaded: a synthetic transaction, on no chain. Press Verify locally.";
 });
 
 $("rawfile").addEventListener("change", async (ev) => {
@@ -99,39 +99,41 @@ $("rawfile").addEventListener("change", async (ev) => {
 $("fetch").addEventListener("click", async () => {
   try {
     const r = parseReceipt($("receipt").value);
-    status.textContent = "fetching " + r.txid.slice(0, 16) + "… from a public node";
+    status.textContent = `Fetching ${r.txid.slice(0, 16)}… from a public node.`;
     const got = await fetchRawTx(r.txid, r.network);
     $("rawtx").value = got.hex;
     const where = { mined: `mined at height ${got.chain.height}`, mempool: "in the mempool, not mined yet", fork: "on a fork, not the main chain" }[got.chain.status];
-    status.textContent = `fetched from ${got.endpoint} (${where})`;
-  } catch (e) { status.textContent = "fetch failed: " + e; }
+    status.textContent = `Fetched from ${got.endpoint} (${where}).`;
+  } catch (e) { status.textContent = `The fetch failed: ${e}`; }
 });
 
-const verdict = (tone, word, body) => `<section class="result ${tone}"><div class="verdict"><span class="verdict-icon" aria-hidden="true"></span><h2>${word}</h2></div>${body}</section>`;
+const verdict = (tone, word, note, body) => `<section class="result ${tone}"><div class="verdict"><span class="verdict-icon" aria-hidden="true"></span><div><h2 class="verdict-word">${word}</h2><p class="verdict-sub">${note}</p></div></div>${body}</section>`;
 
 $("verify").addEventListener("click", () => {
   out.innerHTML = "";
   let r;
   try {
     r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
-  } catch (e) { out.innerHTML = verdict("bad", "Verifier error", `<p>${esc(e)}</p>`); return; }
+  } catch (e) { out.innerHTML = verdict("bad", "Verifier error", "The verifier could not run on this input.", `<p class="muted">${esc(e)}</p>`); return; }
   if (!r.valid) {
-    out.innerHTML = verdict("bad", "INVALID", `<p>Failed at <code>${esc(r.stage)}</code></p><p class="muted">${esc(r.error)}</p>`);
+    out.innerHTML = verdict("bad", "INVALID", `Failed at the ${esc(r.stage)} check.`, `<p class="muted">${esc(r.error)}</p>`);
     return;
   }
   const memo = r.memo.kind === "text" ? r.memo.text : r.memo.kind === "empty" ? "(empty)" : "bytes " + r.memo.hex;
-  out.innerHTML = verdict("ok", "VALID", `<p class="muted">Cryptographic recovery succeeded.</p>
+  // Amber, as the receipt page does for a file: the payment is proven from the bytes you gave, but nothing here says
+  // those bytes are a mined transaction (page.e2e.mjs: no success colour for a transaction nobody vouched for).
+  out.innerHTML = verdict("pending", "VALID", "The payment is proven. Its chain inclusion is not checked: this page verified the bytes you supplied.", `
     <table class="kv">
-      <tr data-key="Transaction"><td>txid</td><td>${esc(r.txid)}</td></tr>
-      <tr><td>pool / index</td><td>${esc(r.pool)} / ${esc(r.output_index)}</td></tr>
-      <tr data-key="Recipient"><td>recipient</td><td>${esc(r.recipient)}</td></tr>
-      <tr data-key="Value"><td>value</td><td>${esc(r.value_zec)} ZEC (${esc(r.value_zat)} zat)</td></tr>
-      <tr data-key="Memo"><td>memo</td><td>${esc(memo)}</td></tr>
-      <tr><td>label</td><td>${esc(r.label)}</td></tr>
-      <tr><td>issuer</td><td>${r.issuer_pubkey ? `<code>${esc(r.issuer_pubkey)}</code> (key id ${esc(r.issuer_key_id ?? "-")}) — binding to an organisation: unknown unless checked against the issuer's published key` : "unsigned"}</td></tr>
-      <tr><td>challenge</td><td>${r.challenge_checked ? "bound and matched" : "none"}</td></tr>
+      <tr data-key="Transaction"><td>Transaction</td><td>${esc(r.txid)}</td></tr>
+      <tr data-key="Output"><td>Output</td><td>${esc(r.pool)} output ${esc(r.output_index)}</td></tr>
+      <tr data-key="Recipient"><td>Recipient</td><td>${esc(r.recipient)}</td></tr>
+      <tr data-key="Value"><td>Value</td><td>${esc(r.value_zec)} ZEC (${esc(r.value_zat)} zat)</td></tr>
+      <tr data-key="Memo"><td>Memo</td><td>${esc(memo)}</td></tr>
+      <tr><td>Label</td><td>${r.label ? esc(r.label) : "(none)"}</td></tr>
+      <tr><td>Issuer</td><td>${r.issuer_pubkey ? `<code>${esc(r.issuer_pubkey)}</code> (key id ${esc(r.issuer_key_id ?? "-")}). Which organisation holds this key is not checked here.` : "Unsigned"}</td></tr>
+      <tr><td>Challenge</td><td>${r.challenge_checked ? "Bound, and it matched" : "None"}</td></tr>
     </table>
-    <p class="muted">Chain inclusion: this page verifies against the transaction bytes you supplied; confirm the txid on an explorer or your own node for confirmation depth.</p>`);
+    <p class="muted">For depth, confirm the transaction on an explorer or your own node.</p>`);
 });
 </script>
 </body>

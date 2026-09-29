@@ -89,7 +89,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
           <tbody>
             {list.map((p) => (
               <tr key={p.id}>
-                <td>
+                <td className="whitespace-nowrap">
                   <code>{p.reference}</code>
                 </td>
                 <td>
@@ -110,15 +110,15 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                     "—"
                   )}
                 </td>
-                <td className="tabular-nums">{p.createdAt.slice(0, 10)}</td>
+                <td className="whitespace-nowrap tabular-nums">{p.createdAt.slice(0, 10)}</td>
                 <td>
                   {/* Derived from the batch lines (H3.1.6, H5b.1.6); whether that batch paid is on its own page. */}
                   {holders.has(p.id) ? (
-                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="link">
+                    <Link href={`/batches/${holders.get(p.id)!.batchId}`} className="badge tone-info badge-plain no-underline hover:border-info">
                       In batch {holders.get(p.id)!.title}
                     </Link>
                   ) : (
-                    <span className="badge tone-success">Free</span>
+                    <span className="badge tone-neutral">Unbatched</span>
                   )}
                 </td>
               </tr>

@@ -319,5 +319,19 @@ check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|doc
   check("issuerClaim (JS) is the WASM export", JSON.stringify(issuerClaim(claimed)) === JSON.stringify(issuer_claim(claimed)));
 }
 
+// The receipt page's verdict line and amount split (slice F2, review F round 1).
+{
+  const { verdictNote, valueParts } = pageView;
+  check("verdictNote: mined says proven and mined", /proven, and the node reports its transaction mined/.test(verdictNote({ valid: true, inclusion: { state: "mined" } })));
+  for (const state of ["file", "mempool", "fork", "unknown"]) check(`verdictNote: ${state} says inclusion not confirmed`, /not confirmed/.test(verdictNote({ valid: true, inclusion: { state } })));
+  check("verdictNote: INVALID has none (the stage copy speaks)", verdictNote({ valid: false }) === "");
+  for (const t of ["2.50000000 ZEC (250000000 zat)", "0.00000000 ZEC (0 zat)", "12.34567891 ZEC (1234567891 zat)", "not a value"]) {
+    const v = valueParts(t);
+    check(`valueParts joins back to ${JSON.stringify(t)}`, v.major + v.zeros + v.unit + v.zat === t, JSON.stringify(v));
+  }
+  const v = valueParts("2.50000000 ZEC (250000000 zat)");
+  check("valueParts: 2.5 with seven lighter zeros", v.major === "2.5" && v.zeros === "0000000", JSON.stringify(v));
+}
+
 console.log(version(), failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
