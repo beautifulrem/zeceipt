@@ -1,7 +1,7 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // It makes a request only when the caller asks: fetchRawTx (a gRPC-web lookup of one transaction) and
 // checkIssuerBinding (the claimed domain's well-known file). Verifying needs no network.
-import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, check_dossier, build_dossier } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, dossier_prevout_txids, check_dossier, build_dossier } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasm) {
@@ -306,7 +306,7 @@ export function confirmations(height, tip) {
  * learns which transactions you look up), then checks every claim in this page. Pass `{ txs }` (txid → `{ hex, height,
  * mempool }`) to check offline instead. Returns the report (`zeceipt-dossier-report-v1`).
  */
-export async function checkDossier(text, { txs = null, timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
+export async function checkDossier(text, { txs = null, expectNonce = "", timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
   let network;
   try {
     network = JSON.parse(text).network;
@@ -321,17 +321,22 @@ export async function checkDossier(text, { txs = null, timeoutMs = FETCH_TIMEOUT
   }
   const got = txs ?? {};
   if (!txs) {
-    for (const [i, txid] of ids.entries()) {
-      onFetch({ txid, index: i, total: ids.length });
-      try {
-        const r = await fetchRawTx(txid, network, undefined, { timeoutMs });
-        got[txid] = { hex: r.hex, height: r.chain.status === "mined" ? r.chain.height : null, mempool: r.chain.status === "mempool", endpoint: r.endpoint };
-      } catch (e) {
-        if (e.code !== "not_found") throw e;
+    // Two rounds: the transactions the claims name, then the ones whose outputs the origin transactions spend (the
+    // funders' addresses and values come from those outputs, which their txids cover).
+    for (const round of [0, 1]) {
+      const want = round === 0 ? ids : dossier_prevout_txids(text, got);
+      for (const [i, txid] of want.entries()) {
+        onFetch({ txid, index: i, total: want.length, round });
+        try {
+          const r = await fetchRawTx(txid, network, undefined, { timeoutMs });
+          got[txid] = { hex: r.hex, height: r.chain.status === "mined" ? r.chain.height : null, mempool: r.chain.status === "mempool", endpoint: r.endpoint };
+        } catch (e) {
+          if (e.code !== "not_found") throw e;
+        }
       }
     }
   }
-  return check_dossier(text, got);
+  return check_dossier(text, got, expectNonce ?? "");
 }
 
 /** The txids a dossier's checks need. Throws on a dossier that does not parse. */

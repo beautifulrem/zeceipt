@@ -391,11 +391,22 @@ pub fn dossier_txids(dossier: &str) -> Result<JsValue, JsValue> {
         .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
-/// Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`.
-/// Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
-/// never throws for a claim that fails.
+/// The txids whose outputs a dossier's origin transactions spend (fetch them too; spec/dossier-v1.md): the funders'
+/// addresses and values come from those outputs. `txs` as for `check_dossier`.
 #[wasm_bindgen]
-pub fn check_dossier(dossier: &str, txs: JsValue) -> JsValue {
+pub fn dossier_prevout_txids(dossier: &str, txs: JsValue) -> Result<JsValue, JsValue> {
+    let d = zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let chain = tx_map(txs).map_err(|e| JsValue::from_str(&e))?;
+    serde_wasm_bindgen::to_value(&zeceipt_core::dossier::prevout_txids(&d, &chain))
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// `{ "<txid>": { hex, height, mempool } }` → the core's map. A value whose hex does not decode is kept as empty
+/// bytes, so the note that names it reports the transaction as malformed rather than missing.
+fn tx_map(
+    txs: JsValue,
+) -> Result<std::collections::HashMap<String, zeceipt_core::dossier::TxData>, String> {
     #[derive(serde::Deserialize)]
     struct In {
         hex: String,
@@ -404,6 +415,30 @@ pub fn check_dossier(dossier: &str, txs: JsValue) -> JsValue {
         #[serde(default)]
         mempool: bool,
     }
+    let given: std::collections::HashMap<String, In> =
+        serde_wasm_bindgen::from_value(txs).map_err(|e| format!("txs: {e}"))?;
+    Ok(given
+        .into_iter()
+        .map(|(txid, t)| {
+            let bytes = hex::decode(t.hex.trim()).unwrap_or_default();
+            (
+                txid.to_lowercase(),
+                zeceipt_core::dossier::TxData {
+                    bytes,
+                    height: t.height,
+                    mempool: t.mempool,
+                },
+            )
+        })
+        .collect())
+}
+
+/// Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`;
+/// `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer. Returns the
+/// report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse; never throws
+/// for a claim that fails.
+#[wasm_bindgen]
+pub fn check_dossier(dossier: &str, txs: JsValue, expect_nonce: &str) -> JsValue {
     let d = match zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier) {
         Ok(d) => d,
         Err(e) => {
@@ -412,28 +447,16 @@ pub fn check_dossier(dossier: &str, txs: JsValue) -> JsValue {
             )
         }
     };
-    let given: std::collections::HashMap<String, In> = match serde_wasm_bindgen::from_value(txs) {
-        Ok(m) => m,
+    let chain = match tx_map(txs) {
+        Ok(c) => c,
         Err(e) => {
             return json_value(
-                &serde_json::json!({ "error": format!("txs: {e}"), "stage": "other", "all_verified": false }),
+                &serde_json::json!({ "error": e, "stage": "other", "all_verified": false }),
             )
         }
     };
-    let mut chain = std::collections::HashMap::new();
-    for (txid, t) in given {
-        if let Ok(bytes) = hex::decode(t.hex.trim()) {
-            chain.insert(
-                txid.to_lowercase(),
-                zeceipt_core::dossier::TxData {
-                    bytes,
-                    height: t.height,
-                    mempool: t.mempool,
-                },
-            );
-        }
-    }
-    let report = zeceipt_core::dossier::check_dossier(&d, dossier, &chain);
+    let expect = Some(expect_nonce.trim()).filter(|n| !n.is_empty());
+    let report = zeceipt_core::dossier::check_dossier(&d, dossier, &chain, expect);
     json_value(
         &serde_json::to_value(&report)
             .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })),

@@ -93,6 +93,9 @@ enum DossierCmd {
         /// Directory of `<txid>.hex` raw transactions (offline mode; heights are then unknown).
         #[arg(long)]
         raw_tx_dir: Option<PathBuf>,
+        /// The nonce you issued: every control claim must answer it (an old or foreign dossier then fails).
+        #[arg(long)]
+        expect_nonce: Option<String>,
     },
     /// Print a fresh random nonce for a control challenge (for the reviewer to send the holder).
     Nonce,
@@ -1022,7 +1025,9 @@ fn pubkey_hex(s: &str) -> Result<String, String> {
 }
 
 async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
-    use zeceipt_core::dossier::{build, check_dossier, txids_needed, BuildInput, Status, TxData};
+    use zeceipt_core::dossier::{
+        build, check_dossier, prevout_txids, txids_needed, BuildInput, Status, TxData,
+    };
     use zeceipt_core::zeceipt_types::dossier::Dossier;
     match cmd {
         DossierCmd::Nonce => {
@@ -1125,6 +1130,7 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             net,
             dossier,
             raw_tx_dir,
+            expect_nonce,
         } => {
             let raw = if dossier == "-" {
                 let mut s = String::new();
@@ -1149,28 +1155,41 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
                 endpoint: net.endpoint,
             };
             let mut txs = std::collections::HashMap::new();
-            for t in txids_needed(&d) {
-                let src = TxSource {
-                    txid: Some(t.clone()),
-                    raw_tx_file: raw_tx_dir.as_ref().map(|dir| dir.join(format!("{t}.hex"))),
+            // Two rounds: the transactions the claims name, then the ones whose outputs the origin transactions spend
+            // (each funder's address and value come from the spent output, which the txid covers).
+            let first = txids_needed(&d);
+            for round in 0..2 {
+                let ids = if round == 0 {
+                    first.clone()
+                } else {
+                    prevout_txids(&d, &txs)
                 };
-                let from_file = src.raw_tx_file.is_some();
-                match load_tx(&net, &src).await {
-                    Ok((bytes, height)) => {
-                        txs.insert(
-                            t,
-                            TxData {
-                                bytes,
-                                height,
-                                mempool: !from_file && height.is_none(),
-                            },
-                        );
+                for t in ids {
+                    let file = raw_tx_dir.as_ref().map(|dir| dir.join(format!("{t}.hex")));
+                    if file.as_ref().is_some_and(|f| !f.exists()) {
+                        continue; // not supplied: the claims that need it say so
                     }
-                    Err(e) if is_pending(&e) => {}
-                    Err(e) => return Err(e),
+                    let src = TxSource {
+                        txid: Some(t.clone()),
+                        raw_tx_file: file.clone(),
+                    };
+                    match load_tx(&net, &src).await {
+                        Ok((bytes, height)) => {
+                            txs.insert(
+                                t,
+                                TxData {
+                                    bytes,
+                                    height,
+                                    mempool: file.is_none() && height.is_none(),
+                                },
+                            );
+                        }
+                        Err(e) if is_pending(&e) => {}
+                        Err(e) => return Err(e),
+                    }
                 }
             }
-            let report = check_dossier(&d, &raw, &txs);
+            let report = check_dossier(&d, &raw, &txs, expect_nonce.as_deref());
             println!("{}", serde_json::to_string_pretty(&report)?);
             Ok(if report.all_verified {
                 ExitCode::SUCCESS

@@ -47,17 +47,21 @@ export function build_dossier(ufvk, network, txs_hex, control_hex, nonce, subjec
 }
 
 /**
- * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`.
- * Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
- * never throws for a claim that fails.
+ * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`;
+ * `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer. Returns the
+ * report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse; never throws
+ * for a claim that fails.
  * @param {string} dossier
  * @param {any} txs
+ * @param {string} expect_nonce
  * @returns {any}
  */
-export function check_dossier(dossier, txs) {
+export function check_dossier(dossier, txs, expect_nonce) {
     const ptr0 = passStringToWasm0(dossier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.check_dossier(ptr0, len0, txs);
+    const ptr1 = passStringToWasm0(expect_nonce, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.check_dossier(ptr0, len0, txs, ptr1, len1);
     return ret;
 }
 
@@ -72,6 +76,23 @@ export function check_signature(receipt) {
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.check_signature(ptr0, len0);
     return ret;
+}
+
+/**
+ * The txids whose outputs a dossier's origin transactions spend (fetch them too; spec/dossier-v1.md): the funders'
+ * addresses and values come from those outputs. `txs` as for `check_dossier`.
+ * @param {string} dossier
+ * @param {any} txs
+ * @returns {any}
+ */
+export function dossier_prevout_txids(dossier, txs) {
+    const ptr0 = passStringToWasm0(dossier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.dossier_prevout_txids(ptr0, len0, txs);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**

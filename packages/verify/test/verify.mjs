@@ -74,7 +74,7 @@ check("proves says what spec §4 says: whoever produced the receipt knew the OCK
     const view = pv.outcome(failed, { kind: "file" });
     check("zdp: a failure is worded for a delivery proof, not a receipt (judge round 3, N3-1)", failed.kind === "delivery-proof" && view.stageCopy === pv.DELIVERY_STAGE_COPY[failed.stage] && !/receipt/i.test(view.stageCopy) && !/receipt says|\bock\b/i.test(failed.error), JSON.stringify([failed, view.stageCopy]));
   }
-  check("zdp: another version is refused by name", /unsupported receipt version "zdp:2"/.test(verify_delivery_proof(zdp.proof.replace("zdp:1:", "zdp:2:"), zdp.txHex, "main").error ?? ""));
+  check("zdp: another version is refused by name", /unsupported format version "zdp:2"/.test(verify_delivery_proof(zdp.proof.replace("zdp:1:", "zdp:2:"), zdp.txHex, "main").error ?? ""));
   const w = await import("../src/index.js");
   const via = w.verifyReceipt(zdp.proof, zdp.txHex);
   check("wrapper routes a zdp proof: verifyReceipt holds, parseReceipt names no network", via.valid === true && via.kind === "delivery-proof" && w.parseReceipt(zdp.proof).network === null && w.isDeliveryProof(zdp.proof) && !w.isDeliveryProof(receipt));

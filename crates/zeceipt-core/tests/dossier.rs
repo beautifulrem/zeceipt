@@ -51,7 +51,7 @@ fn dossier() -> (Dossier, String) {
 #[test]
 fn the_testnet_dossier_verifies_offline() {
     let (d, raw) = dossier();
-    let r = check_dossier(&d, &raw, &chain(&d));
+    let r = check_dossier(&d, &raw, &chain(&d), None);
     assert!(
         r.all_verified,
         "{:#?}",
@@ -131,7 +131,7 @@ fn the_builder_reproduces_the_dossier_from_the_holders_ufvk() {
 }
 
 fn failed(d: &Dossier, raw: &str) -> Vec<(&'static str, String)> {
-    check_dossier(d, raw, &chain(d))
+    check_dossier(d, raw, &chain(d), None)
         .claims
         .into_iter()
         .filter(|c| c.status != Status::Verified)
@@ -145,10 +145,18 @@ fn a_wrong_nk_fails_every_claim_that_tests_a_nullifier_and_only_those() {
     let mut nk = hex::decode(d.nk.as_ref().unwrap()).unwrap();
     nk[3] ^= 1;
     d.nk = Some(hex::encode(nk));
-    let f = failed(&d, &raw);
-    let kinds: std::collections::BTreeSet<&str> = f.iter().map(|(k, _)| *k).collect();
-    assert_eq!(kinds, ["control", "deposit", "path"].into(), "{f:#?}");
-    assert_eq!(f.len(), d.claims.len() - 1, "all but the origin");
+    let r = check_dossier(&d, &raw, &chain(&d), None);
+    let failed: std::collections::BTreeSet<&str> = r
+        .claims
+        .iter()
+        .filter(|c| c.status == Status::Failed)
+        .map(|c| c.kind)
+        .collect();
+    assert_eq!(failed, ["control", "deposit", "path"].into());
+    // The origin still opens, but its note is no longer shown to be the holder's: no nullifier matches.
+    let origin = r.claims.iter().find(|c| c.kind == "origin").unwrap();
+    assert_eq!(origin.status, Status::NotChecked, "{origin:?}");
+    assert!(!r.nk_proven && !r.controlled);
 }
 
 #[test]
@@ -198,15 +206,23 @@ fn a_wrong_nonce_a_foreign_note_or_a_missing_transaction_fails() {
     // A transaction the reviewer could not fetch: its notes do not open.
     let mut txs = chain(&d);
     txs.remove(CONTROL);
-    let r = check_dossier(&d, &raw, &txs);
+    let r = check_dossier(&d, &raw, &txs, None);
     assert!(!r.all_verified);
-    assert!(r.claims.iter().any(|c| c.kind == "control"
-        && c.status == Status::Failed
-        && c.summary.contains("not supplied")));
+    let control = r.claims.iter().find(|c| c.kind == "control").unwrap();
+    assert_eq!(
+        control.status,
+        Status::NotChecked,
+        "a transaction the node does not have is not checked, not failed"
+    );
+    assert!(
+        control.summary.contains("not found on the node"),
+        "{}",
+        control.summary
+    );
     // A mempool transaction: control waits.
     let mut txs = chain(&d);
     txs.get_mut(CONTROL).unwrap().mempool = true;
-    let r = check_dossier(&d, &raw, &txs);
+    let r = check_dossier(&d, &raw, &txs, None);
     assert_eq!(
         r.claims
             .iter()
@@ -276,5 +292,73 @@ fn the_scanner_finds_exactly_the_holders_transactions() {
             (TXIDS[3], 2, 1),
             (CONTROL, 2, 1)
         ]
+    );
+}
+
+#[test]
+fn the_fixes_of_the_spec_review_hold() {
+    let (d, raw) = dossier();
+    // 1. Value inflation: the same note twice in a claim, or under two ids, does not parse.
+    let mut v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    for c in v["claims"].as_array_mut().unwrap() {
+        if c["type"] == "control" {
+            c["spent"] = serde_json::json!(["n4", "n4"]);
+        }
+    }
+    assert!(Dossier::parse(&v.to_string())
+        .unwrap_err()
+        .to_string()
+        .contains("twice"));
+    let mut v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    let n4 = v["notes"]["n4"].clone();
+    v["notes"]["n4b"] = n4;
+    assert!(Dossier::parse(&v.to_string())
+        .unwrap_err()
+        .to_string()
+        .contains("open the same note"));
+    // 2. Replay: a reviewer who issued another nonce sees the control claim fail; the right one passes.
+    let r = check_dossier(
+        &d,
+        &raw,
+        &chain(&d),
+        Some("zeceipt-challenge-ffffffffffffffffffffffffffffffff"),
+    );
+    let c = r.claims.iter().find(|c| c.kind == "control").unwrap();
+    assert_eq!(c.status, Status::Failed);
+    assert!(c.summary.contains("not the one you issued"));
+    assert!(check_dossier(&d, &raw, &chain(&d), Some(NONCE)).all_verified);
+    // 3. An nk that is not a key: said once, and every nullifier claim fails with that reason.
+    let mut e = d.clone();
+    e.nk = Some("ff".repeat(32));
+    let r = check_dossier(&e, &raw, &chain(&e), None);
+    assert!(
+        r.problems
+            .iter()
+            .any(|p| p.contains("not a valid Orchard nullifier key")),
+        "{:?}",
+        r.problems
+    );
+    assert!(r
+        .claims
+        .iter()
+        .filter(|c| c.kind != "origin")
+        .all(|c| c.status == Status::Failed && c.summary.contains("not a valid key")));
+    // 4. Ownership: an origin on a note never spent here (n5, change of INV-T-001) opens but is not shown to be the
+    //    holder's; the report says nk is proven and control holds for the real dossier.
+    let mut e = d.clone();
+    e.claims.push(Claim::Origin { note: "n5".into() });
+    let r = check_dossier(&e, &raw, &chain(&e), None);
+    let o = r.claims.last().unwrap();
+    assert_eq!(o.status, Status::NotChecked, "{o:?}");
+    assert!(o
+        .details
+        .iter()
+        .any(|x| x.contains("Nothing here shows n5 is the holder's")));
+    let r = check_dossier(&d, &raw, &chain(&d), None);
+    assert!(r.nk_proven && r.controlled);
+    // 5. Amounts are named for their network: TAZ on testnet.
+    assert!(
+        r.claims.iter().all(|c| !c.summary.contains(" ZEC")),
+        "testnet amounts read TAZ"
     );
 }

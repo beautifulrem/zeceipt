@@ -9,17 +9,24 @@
 export function build_dossier(ufvk: string, network: string, txs_hex: string[], control_hex?: string | null, nonce?: string | null, subject?: string | null, created?: string | null): string;
 
 /**
- * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`.
- * Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
- * never throws for a claim that fails.
+ * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`;
+ * `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer. Returns the
+ * report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse; never throws
+ * for a claim that fails.
  */
-export function check_dossier(dossier: string, txs: any): any;
+export function check_dossier(dossier: string, txs: any, expect_nonce: string): any;
 
 /**
  * Check only the envelope's issuer signature (no transaction needed).
  * Returns `{ signed: bool, valid: bool, issuer_pubkey?: string, error?: string }`.
  */
 export function check_signature(receipt: string): any;
+
+/**
+ * The txids whose outputs a dossier's origin transactions spend (fetch them too; spec/dossier-v1.md): the funders'
+ * addresses and values come from those outputs. `txs` as for `check_dossier`.
+ */
+export function dossier_prevout_txids(dossier: string, txs: any): any;
 
 /**
  * The txids a source-of-funds dossier's checks need (spec/dossier-v1.md): the caller fetches each, with its height.
@@ -82,8 +89,9 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly build_dossier: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number, number, number];
-    readonly check_dossier: (a: number, b: number, c: any) => any;
+    readonly check_dossier: (a: number, b: number, c: any, d: number, e: number) => any;
     readonly check_signature: (a: number, b: number) => any;
+    readonly dossier_prevout_txids: (a: number, b: number, c: any) => [number, number, number];
     readonly dossier_txids: (a: number, b: number) => [number, number, number];
     readonly is_delivery_proof: (a: number, b: number) => number;
     readonly issuer_binding: (a: number, b: number, c: number, d: number, e: number, f: number) => any;

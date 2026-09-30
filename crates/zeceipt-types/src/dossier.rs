@@ -133,6 +133,17 @@ impl Dossier {
                 });
             }
         }
+        // The same note under two ids would count its value twice (a control claim listing n4 and a copy of n4 would
+        // prove twice the funds): every opening is disclosed once.
+        let mut seen = std::collections::BTreeMap::new();
+        for (id, text) in &self.notes {
+            let p = DeliveryProof::decode(text).expect("checked above");
+            if let Some(other) = seen.insert((p.txid, p.action, p.pool.as_str()), id) {
+                return Err(TypesError::Dossier(format!(
+                    "notes {other} and {id} open the same note"
+                )));
+            }
+        }
         if self.claims.is_empty() {
             return Err(TypesError::Dossier(
                 "a dossier makes at least one claim".into(),
@@ -151,6 +162,21 @@ impl Dossier {
                 if !self.receipts.contains_key(receipt) {
                     return Err(TypesError::Dossier(format!("claim {i} (deposit) names receipt {receipt:?}, which the dossier does not include")));
                 }
+            }
+            let listed: Vec<&str> = match c {
+                Claim::Control { spent, .. } => spent.iter().map(String::as_str).collect(),
+                Claim::Deposit { funded_by, .. } => funded_by.iter().map(String::as_str).collect(),
+                _ => vec![],
+            };
+            if let Some(dup) = listed
+                .iter()
+                .enumerate()
+                .find_map(|(k, n)| listed[..k].contains(n).then_some(n))
+            {
+                return Err(TypesError::Dossier(format!(
+                    "claim {i} ({}) lists note {dup} twice",
+                    c.kind()
+                )));
             }
             if let Claim::Control { nonce, spent, .. } = c {
                 if nonce.trim().len() < 8 {

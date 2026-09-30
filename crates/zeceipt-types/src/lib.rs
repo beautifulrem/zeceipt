@@ -24,7 +24,7 @@ pub const VERSION: &str = "zeceipt-v0";
 /// Errors produced while encoding, decoding or checking envelopes.
 #[derive(Debug, thiserror::Error)]
 pub enum TypesError {
-    #[error("unsupported receipt version {0:?}")]
+    #[error("unsupported format version {0:?}")]
     UnsupportedVersion(String),
     #[error("field {0} is not valid base64url")]
     Base64(&'static str),

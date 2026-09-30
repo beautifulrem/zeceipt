@@ -15,7 +15,6 @@
 use std::collections::{BTreeMap, HashMap};
 
 use orchard::keys::FullViewingKey;
-use orchard::Note;
 use serde::Serialize;
 use sha2::Digest;
 use zcash_primitives::transaction::Transaction;
@@ -62,6 +61,11 @@ pub struct NoteFact {
     /// The note's nullifier (hex), when the dossier carries `nk`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nullifier: Option<String>,
+    /// The transaction that spent this note, when its nullifier is among a supplied transaction's spends. Only then
+    /// is the note shown to belong to the account whose `nk` the dossier discloses: a note's sender knows its opening
+    /// too, but not the recipient's `nk`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spent_in: Option<String>,
     /// Why the note could not be opened, if it could not.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -72,9 +76,14 @@ pub struct NoteFact {
 pub struct TransparentInput {
     /// The output it spends, `txid:index`.
     pub prevout: String,
-    /// The P2PKH address whose key signed it, when the input is a standard P2PKH spend.
+    /// The address of the output it spends, read from that output's script (P2PKH or P2SH) in the previous
+    /// transaction, when that transaction was supplied. Never read from the input's own signature script: a v5/v6
+    /// txid does not cover it (ZIP 244), so a node or a file could put any address there.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
+    /// The value of the output it spends, from the previous transaction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_zat: Option<u64>,
 }
 
 /// Where a transaction's value came from, as the transaction itself shows it.
@@ -112,6 +121,14 @@ pub struct ClaimResult {
 pub struct Report {
     pub version: &'static str,
     pub network: Network,
+    /// Some disclosed note's nullifier, derived with the dossier's `nk`, is among a supplied transaction's spends: `nk`
+    /// is that account's, and the notes it spent belonged to it.
+    pub nk_proven: bool,
+    /// A control claim verified: whoever answered the reviewer's nonce could spend that account's notes.
+    pub controlled: bool,
+    /// A dossier-level problem that fails the claims it concerns (an `nk` that is not a key, …).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub problems: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
     /// sha256 of the dossier as given (hex), for a case file.
@@ -208,21 +225,105 @@ pub fn txids_needed(d: &Dossier) -> Vec<String> {
     v
 }
 
-/// What funded `tx`: its transparent inputs (with the P2PKH address that signed each, when standard) and shielded
-/// spends, and which disclosed notes it spends.
-fn funding(tx: &Transaction, network: Network, spent_by: &[String]) -> Funding {
+/// The txids of the transactions whose outputs the origin claims' transactions spend (their transparent inputs), so
+/// the caller can fetch them too and the report can name each funder's address and value from the output itself. Call
+/// it with the transactions `txids_needed` returned; fetch these; check with all of them.
+pub fn prevout_txids(d: &Dossier, txs: &HashMap<String, TxData>) -> Vec<String> {
+    let proofs = d.note_proofs().unwrap_or_default();
+    let mut out = Vec::new();
+    for c in &d.claims {
+        if let Claim::Origin { note } = c {
+            let Some(p) = proofs.get(note) else { continue };
+            let Some(tx) = txs
+                .get(&p.txid_hex())
+                .and_then(|t| parse_transaction(&t.bytes).ok())
+            else {
+                continue;
+            };
+            if let Some(b) = tx.transparent_bundle() {
+                for i in &b.vin {
+                    let (txid, _) = outpoint(i);
+                    if !out.contains(&txid) && !txs.contains_key(&txid) {
+                        out.push(txid);
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// An input's outpoint: (display txid, index), from its serialization (32-byte hash, 4-byte index).
+fn outpoint<A: zcash_transparent::bundle::Authorization>(
+    i: &zcash_transparent::bundle::TxIn<A>,
+) -> (String, u32) {
+    let o = i.prevout();
+    let mut h = *o.txid().as_ref();
+    h.reverse();
+    (hex::encode(h), o.n())
+}
+
+/// An output's value and address: the address from a standard P2PKH or P2SH script.
+fn output_facts(tx: &Transaction, n: u32, network: Network) -> Option<(u64, Option<String>)> {
+    let out = tx.transparent_bundle()?.vout.get(n as usize)?;
+    let mut raw = Vec::new();
+    out.write(&mut raw).ok()?;
+    let value = u64::from_le_bytes(raw.get(..8)?.try_into().ok()?);
+    let (len, rest) = compact_size(raw.get(8..)?)?;
+    let script = rest.get(..len)?;
+    Some((value, script_address(script, network)))
+}
+
+/// The address a standard output script pays: P2PKH or P2SH; `None` for anything else.
+fn script_address(script: &[u8], network: Network) -> Option<String> {
+    use zcash_transparent::address::TransparentAddress;
+    let addr = match script {
+        // OP_DUP OP_HASH160 <20> OP_EQUALVERIFY OP_CHECKSIG
+        [0x76, 0xa9, 0x14, h @ .., 0x88, 0xac] if h.len() == 20 => {
+            TransparentAddress::PublicKeyHash(h.try_into().ok()?)
+        }
+        // OP_HASH160 <20> OP_EQUAL
+        [0xa9, 0x14, h @ .., 0x87] if h.len() == 20 => {
+            TransparentAddress::ScriptHash(h.try_into().ok()?)
+        }
+        _ => return None,
+    };
+    Some(match network {
+        Network::Main => zcash_keys::encoding::encode_transparent_address_p(
+            &zcash_protocol::consensus::MainNetwork,
+            &addr,
+        ),
+        Network::Test => zcash_keys::encoding::encode_transparent_address_p(
+            &zcash_protocol::consensus::TestNetwork,
+            &addr,
+        ),
+        Network::Regtest => {
+            zcash_keys::encoding::encode_transparent_address_p(&crate::regtest_params(), &addr)
+        }
+    })
+}
+
+/// What funded `tx`: its transparent inputs (with the address and value of each spent output, when its transaction
+/// was supplied) and shielded spends, and which disclosed notes it spends.
+fn funding(
+    tx: &Transaction,
+    network: Network,
+    spent_by: &[String],
+    txs: &HashMap<String, TxData>,
+) -> Funding {
     let mut transparent_inputs = Vec::new();
     if let Some(b) = tx.transparent_bundle() {
         for i in &b.vin {
-            let mut raw = Vec::new();
-            let _ = i.write(&mut raw);
-            let mut prev = [0u8; 32];
-            prev.copy_from_slice(&raw[..32]);
-            prev.reverse();
-            let n = u32::from_le_bytes([raw[32], raw[33], raw[34], raw[35]]);
+            let (txid, n) = outpoint(i);
+            let facts = txs
+                .get(&txid)
+                .and_then(|t| parse_transaction(&t.bytes).ok())
+                .filter(|p| txid_hex(p) == txid)
+                .and_then(|p| output_facts(&p, n, network));
             transparent_inputs.push(TransparentInput {
-                prevout: format!("{}:{n}", hex::encode(prev)),
-                address: p2pkh_signer(&raw[36..], network),
+                prevout: format!("{txid}:{n}"),
+                address: facts.as_ref().and_then(|f| f.1.clone()),
+                value_zat: facts.map(|f| f.0),
             });
         }
     }
@@ -238,38 +339,6 @@ fn funding(tx: &Transaction, network: Network, spent_by: &[String]) -> Funding {
         sapling_spends,
         from_disclosed: spent_by.to_vec(),
     }
-}
-
-/// The address of a standard P2PKH `scriptSig` (`<sig> <33- or 65-byte pubkey>`), from a serialized input's script
-/// (CompactSize length, then the script, then the sequence).
-fn p2pkh_signer(after_prevout: &[u8], network: Network) -> Option<String> {
-    let (len, rest) = compact_size(after_prevout)?;
-    let script = rest.get(..len)?;
-    let (sig_len, rest) = (*script.first()? as usize, &script[1..]);
-    if !(9..=75).contains(&sig_len) {
-        return None;
-    }
-    let rest = rest.get(sig_len..)?;
-    let (pk_len, pk) = (*rest.first()? as usize, &rest[1..]);
-    if !(pk_len == 33 || pk_len == 65) || pk.len() != pk_len {
-        return None;
-    }
-    let sha = sha2::Sha256::digest(pk);
-    let h: [u8; 20] = ripemd::Ripemd160::digest(sha).into();
-    let addr = zcash_transparent::address::TransparentAddress::PublicKeyHash(h);
-    Some(match network {
-        Network::Main => zcash_keys::encoding::encode_transparent_address_p(
-            &zcash_protocol::consensus::MainNetwork,
-            &addr,
-        ),
-        Network::Test => zcash_keys::encoding::encode_transparent_address_p(
-            &zcash_protocol::consensus::TestNetwork,
-            &addr,
-        ),
-        Network::Regtest => {
-            zcash_keys::encoding::encode_transparent_address_p(&crate::regtest_params(), &addr)
-        }
-    })
 }
 
 fn compact_size(b: &[u8]) -> Option<(usize, &[u8])> {
@@ -291,16 +360,47 @@ fn memo_text(m: &MemoView) -> String {
     }
 }
 
-fn zec(zat: u64) -> String {
-    format!("{}.{:08}", zat / 100_000_000, zat % 100_000_000)
+/// An amount with its coin's name: TAZ on testnet and regtest, ZEC on mainnet.
+fn amount(zat: u64, network: Network) -> String {
+    let unit = if matches!(network, Network::Main) {
+        "ZEC"
+    } else {
+        "TAZ"
+    };
+    format!("{}.{:08} {unit}", zat / 100_000_000, zat % 100_000_000)
 }
 
 /// Check every claim of `d` against `txs` (txid → bytes and height). `raw` is the dossier text as given, hashed into the
-/// report.
-pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> Report {
-    let nk_key = d.nk_bytes().and_then(nullifier_key);
+/// report. `expect_nonce`, when the reviewer gives it, must be the nonce every control claim answers: a dossier made
+/// for another reviewer, or an old one, then fails (the nonce is the reviewer's to remember).
+pub fn check_dossier(
+    d: &Dossier,
+    raw: &str,
+    txs: &HashMap<String, TxData>,
+    expect_nonce: Option<&str>,
+) -> Report {
+    let mut problems = Vec::new();
+    let nk_key = match d.nk_bytes() {
+        None => None,
+        Some(nk) => match nullifier_key(nk) {
+            Some(k) => Some(k),
+            None => {
+                problems.push("nk is not a valid Orchard nullifier key encoding: no nullifier can be derived from it".to_string());
+                None
+            }
+        },
+    };
+    let net = d.network;
+    // Every nullifier any supplied transaction reveals: a disclosed note found here was spent there.
+    let mut spent_at: HashMap<String, String> = HashMap::new();
+    for (txid, t) in txs {
+        if let Ok(tx) = parse_transaction(&t.bytes) {
+            for nf in tx_nullifiers(&tx) {
+                spent_at.insert(nf, txid.clone());
+            }
+        }
+    }
     let mut notes: BTreeMap<String, NoteFact> = BTreeMap::new();
-    let mut opened: HashMap<String, Note> = HashMap::new();
     let proofs = d.note_proofs().unwrap_or_default();
     for (id, p) in &proofs {
         let txid = p.txid_hex();
@@ -313,21 +413,26 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
             value_zat: None,
             memo: None,
             nullifier: None,
+            spent_in: None,
             error: None,
         };
         match txs.get(&txid) {
-            None => fact.error = Some("its transaction was not supplied".into()),
+            None => {
+                fact.error =
+                    Some("its transaction was not found on the node, or not supplied".into())
+            }
             Some(t) => {
                 fact.height = t.height;
-                match check_note(&t.bytes, p, d.network) {
+                match check_note(&t.bytes, p, net) {
                     Ok((del, note)) => {
                         fact.recipient = Some(del.recovered.recipient);
                         fact.value_zat = Some(del.recovered.value_zat);
                         fact.memo = Some(memo_text(&del.recovered.memo));
                         if let Some(k) = &nk_key {
-                            fact.nullifier = Some(hex::encode(note.nullifier(k).to_bytes()));
+                            let nf = hex::encode(note.nullifier(k).to_bytes());
+                            fact.spent_in = spent_at.get(&nf).cloned();
+                            fact.nullifier = Some(nf);
                         }
-                        opened.insert(id.clone(), note);
                     }
                     Err(e) => fact.error = Some(e.to_string()),
                 }
@@ -335,7 +440,6 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
         }
         notes.insert(id.clone(), fact);
     }
-    // Every disclosed nullifier, to report which disclosed notes a transaction spends.
     let disclosed_nf: Vec<(String, String)> = notes
         .iter()
         .filter_map(|(id, f)| f.nullifier.clone().map(|n| (id.clone(), n)))
@@ -349,6 +453,7 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
             .collect()
     };
     let parsed = |txid: &str| txs.get(txid).and_then(|t| parse_transaction(&t.bytes).ok());
+    let missing = |id: &str| notes.get(id).is_some_and(|f| !txs.contains_key(&f.txid));
     let note_ok = |id: &str| notes.get(id).is_some_and(|f| f.error.is_none());
     let note_err = |id: &str| -> String {
         notes
@@ -357,6 +462,54 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
             .unwrap_or_else(|| "not disclosed".into())
     };
     let value = |id: &str| notes.get(id).and_then(|f| f.value_zat).unwrap_or(0);
+    let when = |id: &str| {
+        notes
+            .get(id)
+            .and_then(|f| f.height)
+            .map(|h| format!(" at height {h}"))
+            .unwrap_or_default()
+    };
+    // The inclusion of the transactions a claim rests on: any in the mempool makes the claim wait; any loaded without
+    // a height (a file) is noted.
+    let inclusion = |txids: &[String], r: &mut ClaimResult| {
+        let in_mempool: Vec<&String> = txids
+            .iter()
+            .filter(|t| txs.get(*t).is_some_and(|x| x.mempool))
+            .collect();
+        let unknown: Vec<&String> = txids
+            .iter()
+            .filter(|t| {
+                txs.get(*t)
+                    .is_some_and(|x| !x.mempool && x.height.is_none())
+            })
+            .collect();
+        if !in_mempool.is_empty() && r.status == Status::Verified {
+            r.status = Status::NotChecked;
+            r.details.push(format!(
+                "{} in the mempool, not mined yet: check again once mined.",
+                in_mempool
+                    .iter()
+                    .map(|t| short(t))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !unknown.is_empty() {
+            r.details.push(format!("Loaded without a height (from a file): the inclusion of {} in the chain was not checked here.", unknown.iter().map(|t| short(t)).collect::<Vec<_>>().join(", ")));
+        }
+    };
+    let needs_nk_failed = |r: &mut ClaimResult| -> bool {
+        if nk_key.is_none() {
+            r.summary = if d.nk.is_some() {
+                "nk is not a valid key, so no nullifier can be tested.".into()
+            } else {
+                "The dossier carries no nk.".into()
+            };
+            true
+        } else {
+            false
+        }
+    };
 
     let mut claims = Vec::new();
     for (index, c) in d.claims.iter().enumerate() {
@@ -370,6 +523,16 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
             funding: None,
             value_zat: None,
         };
+        let ids = c.notes();
+        if let Some(m) = ids.iter().find(|n| missing(n)) {
+            r.status = Status::NotChecked;
+            r.summary = format!(
+                "The transaction of note {m} ({}) was not found on the node, or not supplied.",
+                short(&notes[*m].txid)
+            );
+            claims.push(r);
+            continue;
+        }
         match c {
             Claim::Origin { note } => {
                 if !note_ok(note) {
@@ -377,10 +540,10 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                 } else {
                     let f = &notes[note];
                     let tx = parsed(&f.txid).expect("opened, so parsed");
-                    let funding = funding(&tx, d.network, &spends_in(&tx));
+                    let funding = funding(&tx, net, &spends_in(&tx), txs);
                     let from = if !funding.from_disclosed.is_empty() {
                         format!(
-                            "from disclosed note{} {}",
+                            "funded by disclosed note{} {}",
                             if funding.from_disclosed.len() > 1 {
                                 "s"
                             } else {
@@ -389,42 +552,59 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                             funding.from_disclosed.join(", ")
                         )
                     } else if !funding.transparent_inputs.is_empty() {
-                        let addrs: Vec<String> = funding
+                        let addrs = dedup(
+                            funding
+                                .transparent_inputs
+                                .iter()
+                                .filter_map(|i| i.address.clone())
+                                .collect(),
+                        );
+                        let valued: Vec<u64> = funding
                             .transparent_inputs
                             .iter()
-                            .filter_map(|i| i.address.clone())
+                            .filter_map(|i| i.value_zat)
                             .collect();
+                        let n = funding.transparent_inputs.len();
                         format!(
-                            "from {} transparent input{}{}",
-                            funding.transparent_inputs.len(),
-                            if funding.transparent_inputs.len() > 1 {
-                                "s"
+                            "funded by {n} transparent input{}{}{}",
+                            if n > 1 { "s" } else { "" },
+                            if valued.len() == n {
+                                format!(" worth {}", amount(valued.iter().sum(), net))
                             } else {
-                                ""
+                                String::new()
                             },
                             if addrs.is_empty() {
-                                String::new()
+                                " (their previous transactions were not supplied)".into()
                             } else {
-                                format!(" signed by {}", dedup(addrs).join(", "))
+                                format!(" from {}", addrs.join(", "))
                             }
                         )
                     } else {
-                        "from shielded funds of an undisclosed sender".into()
+                        "funded from the shielded pool by an undisclosed sender".into()
                     };
-                    r.status = Status::Verified;
                     r.summary = format!(
-                        "{} ZEC reached the holder in {}{}, {from}.",
-                        zec(value(note)),
+                        "{} arrived in note {note}, in {}{}, {from}.",
+                        amount(value(note), net),
                         short(&f.txid),
-                        f.height
-                            .map(|h| format!(" at height {h}"))
-                            .unwrap_or_default()
+                        when(note)
                     );
+                    match &f.spent_in {
+                        Some(t) => {
+                            r.status = Status::Verified;
+                            r.details.push(format!("{note} was later spent with this dossier's nk (in {}), so it belonged to that account.", short(t)));
+                        }
+                        None => {
+                            r.status = Status::NotChecked;
+                            r.details.push(format!("Nothing here shows {note} is the holder's: its nullifier is in no supplied transaction, and the sender of a note knows its opening too. A path, deposit or control claim that spends it would show it."));
+                        }
+                    }
                     r.funding = Some(funding);
+                    inclusion(&[f.txid.clone()], &mut r);
                 }
             }
             Claim::Path { from, to } => {
-                if !note_ok(from) || !note_ok(to) {
+                if needs_nk_failed(&mut r) {
+                } else if !note_ok(from) || !note_ok(to) {
                     r.summary = format!(
                         "A note does not open: {from}: {}; {to}: {}",
                         if note_ok(from) {
@@ -444,10 +624,11 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                     if spent.iter().any(|s| s == from) {
                         r.status = Status::Verified;
                         r.summary = format!(
-                            "{} ZEC in {from} was spent in {}, which created {to} ({} ZEC).",
-                            zec(value(from)),
+                            "{} in {from} was spent in {}{}, which created {to} ({}).",
+                            amount(value(from), net),
                             short(&notes[to].txid),
-                            zec(value(to))
+                            when(to),
+                            amount(value(to), net)
                         );
                         if spent.len() > 1 {
                             r.details.push(format!(
@@ -460,6 +641,10 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                                     .join(", ")
                             ));
                         }
+                        if notes[to].spent_in.is_none() {
+                            r.details.push(format!("{to} is not shown to be the holder's: that transaction may have paid it to someone else (a change note and a payment look alike here)."));
+                        }
+                        inclusion(&[notes[from].txid.clone(), notes[to].txid.clone()], &mut r);
                     } else {
                         r.summary = format!("{from}'s nullifier is not among {}'s spends: that transaction did not spend it (or nk is not the holder's).", short(&notes[to].txid));
                     }
@@ -467,14 +652,11 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
             }
             Claim::Deposit { receipt, funded_by } => {
                 let rc = &d.receipts[receipt];
-                match txs
-                    .get(&rc.txid.to_lowercase())
-                    .map(|t| (t, parse_transaction(&t.bytes)))
-                {
+                let rtx = rc.txid.to_lowercase();
+                match txs.get(&rtx).map(|t| (t, parse_transaction(&t.bytes))) {
                     None => {
                         r.status = Status::NotChecked;
-                        r.summary =
-                            format!("The transaction of receipt {receipt} was not supplied.");
+                        r.summary = format!("The transaction of receipt {receipt} ({}) was not found on the node, or not supplied.", short(&rtx));
                     }
                     Some((_, Err(e))) => {
                         r.summary = format!("Receipt {receipt}'s transaction does not parse: {e}")
@@ -482,12 +664,9 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                     Some((t, Ok(tx))) => match verify(rc, &tx, b"", false) {
                         Err(e) => r.summary = format!("Receipt {receipt} does not verify: {e}"),
                         Ok(v) => {
-                            let spent = spends_in(&tx);
-                            let missing: Vec<&String> =
-                                funded_by.iter().filter(|n| !spent.contains(n)).collect();
                             let paid = format!(
-                                "The holder paid {} ZEC to {} (memo \"{}\") in {}{}",
-                                zec(v.recovered.value_zat),
+                                "{} to {} (memo \"{}\") in {}{}",
+                                amount(v.recovered.value_zat, net),
                                 v.recovered.recipient,
                                 memo_text(&v.recovered.memo),
                                 short(&v.txid),
@@ -496,23 +675,36 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                                     .unwrap_or_default()
                             );
                             r.value_zat = Some(v.recovered.value_zat);
-                            if !missing.is_empty() {
-                                r.summary = format!("{paid}, but not from {}: their nullifiers are not among its spends.", missing.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "));
+                            if !funded_by.is_empty() && nk_key.is_none() {
+                                needs_nk_failed(&mut r);
                             } else {
-                                r.status = Status::Verified;
-                                r.summary = if funded_by.is_empty() {
-                                    format!("{paid}.")
+                                let spent = spends_in(&tx);
+                                let unfunded: Vec<&String> =
+                                    funded_by.iter().filter(|n| !spent.contains(n)).collect();
+                                if !unfunded.is_empty() {
+                                    r.summary = format!("Receipt {receipt} opens a payment of {paid}, but not from {}: their nullifiers are not among its spends.", unfunded.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "));
                                 } else {
-                                    format!(
-                                        "{paid}, from {} ({} ZEC disclosed).",
-                                        funded_by.join(", "),
-                                        zec(funded_by.iter().map(|n| value(n)).sum())
-                                    )
-                                };
-                            }
-                            if let Some(pk) = v.issuer_pubkey {
-                                r.details
-                                    .push(format!("The receipt is signed by key {pk}."));
+                                    r.status = Status::Verified;
+                                    r.summary = if funded_by.is_empty() {
+                                        format!("The holder's receipt opens a payment of {paid}.")
+                                    } else {
+                                        format!(
+                                            "The holder paid {paid}, from {} ({} disclosed).",
+                                            funded_by.join(", "),
+                                            amount(funded_by.iter().map(|n| value(n)).sum(), net)
+                                        )
+                                    };
+                                    if funded_by.is_empty() {
+                                        r.details.push("No funding notes are listed, so nothing ties this payment to the holder's other notes; whoever knows the output's OCK could make this receipt.".into());
+                                    }
+                                }
+                                if let Some(pk) = v.issuer_pubkey {
+                                    r.details
+                                        .push(format!("The receipt is signed by key {pk}."));
+                                }
+                                let mut on = vec![rtx.clone()];
+                                on.extend(funded_by.iter().map(|n| notes[n].txid.clone()));
+                                inclusion(&on, &mut r);
                             }
                         }
                     },
@@ -528,7 +720,8 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                     .chain(std::iter::once(reply))
                     .filter(|n| !note_ok(n))
                     .collect();
-                if !bad.is_empty() {
+                if needs_nk_failed(&mut r) {
+                } else if !bad.is_empty() {
                     r.summary = format!(
                         "Notes do not open: {}",
                         bad.iter()
@@ -536,24 +729,23 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                             .collect::<Vec<_>>()
                             .join("; ")
                     );
+                } else if expect_nonce.is_some_and(|e| e.trim() != nonce.trim()) {
+                    r.summary = format!("This control claim answers nonce {nonce}, not the one you issued: it was made for another challenge, or an earlier one.");
                 } else {
                     let f = &notes[reply];
-                    let in_mempool = txs.get(&f.txid).is_some_and(|t| t.mempool);
                     let tx = parsed(&f.txid).expect("opened, so parsed");
                     let spends = spends_in(&tx);
-                    let missing: Vec<&String> =
+                    let unspent: Vec<&String> =
                         spent.iter().filter(|n| !spends.contains(n)).collect();
                     let memo = f.memo.clone().unwrap_or_default();
                     let total: u64 = spent.iter().map(|n| value(n)).sum();
                     r.value_zat = Some(total);
                     if !memo.contains(nonce.trim()) {
-                        r.summary = format!(
-                            "The reply note's memo does not carry the nonce (it reads \"{memo}\")."
-                        );
-                    } else if !missing.is_empty() {
+                        r.summary = format!("The reply note's memo does not carry the nonce {nonce} (it reads \"{memo}\").");
+                    } else if !unspent.is_empty() {
                         r.summary = format!(
                             "The challenge transaction does not spend {}.",
-                            missing
+                            unspent
                                 .iter()
                                 .map(|s| s.as_str())
                                 .collect::<Vec<_>>()
@@ -562,18 +754,18 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
                     } else {
                         r.status = Status::Verified;
                         r.summary = format!(
-                            "The holder spent {} ({} ZEC) in {}{}, answering the nonce: they could spend these funds after the nonce was issued.",
+                            "Answering nonce {nonce}, the holder spent {} ({}) in {}{}: they could spend these funds after the nonce was issued.",
                             spent.join(", "),
-                            zec(total),
+                            amount(total, net),
                             short(&f.txid),
-                            f.height.map(|h| format!(" at height {h}")).unwrap_or_default()
+                            when(reply)
                         );
-                        if in_mempool {
-                            r.status = Status::NotChecked;
-                            r.details.push("The challenge transaction is in the mempool, not mined yet: check again once it is.".into());
-                        } else if f.height.is_none() {
-                            r.details.push("The challenge transaction was loaded from a file: its inclusion in the chain was not checked here.".into());
+                        if expect_nonce.is_none() {
+                            r.details.push("Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce.".into());
                         }
+                        let mut on = vec![f.txid.clone()];
+                        on.extend(spent.iter().map(|n| notes[n].txid.clone()));
+                        inclusion(&on, &mut r);
                     }
                 }
             }
@@ -598,6 +790,11 @@ pub fn check_dossier(d: &Dossier, raw: &str, txs: &HashMap<String, TxData>) -> R
     Report {
         version: REPORT_VERSION,
         network: d.network,
+        nk_proven: notes.values().any(|n| n.spent_in.is_some()),
+        controlled: claims
+            .iter()
+            .any(|c| c.kind == "control" && c.status == Status::Verified),
+        problems,
         subject: d.subject.clone(),
         dossier_sha256: hex::encode(sha2::Sha256::digest(raw.as_bytes())),
         all_verified: claims.iter().all(|c| c.status == Status::Verified),
@@ -771,30 +968,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_p2pkh_script_sig_names_its_signers_address() {
-        // The secp256k1 generator's compressed key: its hash160 is the well-known 751e76e8…3bd6.
-        let pk = hex::decode("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798")
-            .unwrap();
-        let mut script = vec![71u8];
-        script.extend([0x30; 71]);
-        script.push(33);
-        script.extend(&pk);
-        let mut input = vec![script.len() as u8];
-        input.extend(&script);
-        input.extend([0xff; 4]);
-        let main = p2pkh_signer(&input, Network::Main).unwrap();
-        let test = p2pkh_signer(&input, Network::Test).unwrap();
-        assert!(
-            main.starts_with("t1") && test.starts_with("tm"),
-            "{main} {test}"
+    fn an_output_script_names_the_address_it_pays() {
+        // hash160 of the secp256k1 generator's compressed key, 751e76e8…3bd6, in a P2PKH script and a P2SH one.
+        let h = hex::decode("751e76e8199196d454941c45d1b3a323f1433bd6").unwrap();
+        let mut p2pkh = vec![0x76, 0xa9, 0x14];
+        p2pkh.extend(&h);
+        p2pkh.extend([0x88, 0xac]);
+        let mut p2sh = vec![0xa9, 0x14];
+        p2sh.extend(&h);
+        p2sh.push(0x87);
+        let (a, b) = (
+            script_address(&p2pkh, Network::Main).unwrap(),
+            script_address(&p2pkh, Network::Test).unwrap(),
         );
-        let h: [u8; 20] = ripemd::Ripemd160::digest(sha2::Sha256::digest(&pk)).into();
-        assert_eq!(hex::encode(h), "751e76e8199196d454941c45d1b3a323f1433bd6");
-        // Not P2PKH: a bare 1-byte script, a key of the wrong length.
-        assert!(p2pkh_signer(&[1, 0x51, 0, 0, 0, 0], Network::Main).is_none());
-        let mut bad = input.clone();
-        bad[1 + 1 + 71] = 32;
-        assert!(p2pkh_signer(&bad, Network::Main).is_none());
+        assert!(a.starts_with("t1") && b.starts_with("tm"), "{a} {b}");
+        assert!(script_address(&p2sh, Network::Main)
+            .unwrap()
+            .starts_with("t3"));
+        // Anything else names nothing: OP_RETURN, a truncated P2PKH, a 21-byte hash.
+        assert!(script_address(&[0x6a, 0x01, 0x00], Network::Main).is_none());
+        assert!(script_address(&p2pkh[..24], Network::Main).is_none());
+        let mut long = vec![0xa9, 0x15];
+        long.extend([0u8; 21]);
+        long.push(0x87);
+        assert!(script_address(&long, Network::Main).is_none());
     }
 
     #[test]

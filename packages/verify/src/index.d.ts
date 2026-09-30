@@ -82,14 +82,17 @@ export interface DossierReport {
   network: Network;
   subject?: string;
   dossier_sha256: string;
-  notes: Record<string, { txid: string; pool: string; action: number; height?: number; recipient?: string; value_zat?: number; memo?: string; nullifier?: string; error?: string }>;
-  claims: { index: number; kind: "origin" | "path" | "deposit" | "control"; status: "verified" | "failed" | "not_checked"; summary: string; details?: string[]; value_zat?: number; funding?: { transparent_inputs: { prevout: string; address?: string }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
+  nk_proven: boolean;
+  controlled: boolean;
+  problems?: string[];
+  notes: Record<string, { txid: string; pool: string; action: number; height?: number; recipient?: string; value_zat?: number; memo?: string; nullifier?: string; spent_in?: string; error?: string }>;
+  claims: { index: number; kind: "origin" | "path" | "deposit" | "control"; status: "verified" | "failed" | "not_checked"; summary: string; details?: string[]; value_zat?: number; funding?: { transparent_inputs: { prevout: string; address?: string; value_zat?: number }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
   all_verified: boolean;
   disclosed: string[];
   does_not_prove: string[];
   error?: string;
   stage?: string;
 }
-export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number }) => void }): Promise<DossierReport>;
+export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; expectNonce?: string; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number; round: number }) => void }): Promise<DossierReport>;
 export function dossierTxids(text: string): string[];
 export function buildDossier(opts: { ufvk: string; network?: Network; txids?: string[]; hexes?: string[]; control?: { txid: string; nonce: string } | null; controlHex?: string | null; subject?: string | null; timeoutMs?: number }): Promise<string>;
