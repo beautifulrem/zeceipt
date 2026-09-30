@@ -124,6 +124,27 @@ export const GRPC_WEB_ENDPOINTS = {
   test: ["https://zjs.zec.rocks/testnet", "https://zcash-testnet.chainsafe.dev"],
 };
 
+/**
+ * Use your own gRPC-web nodes instead of the public ones, per network: `useNodes({ test: ["https://node.example/testnet"] })`.
+ * Every later call that fetches (checkDossier, fetchRawTx, fetchChainTip, scanWallet, buildDossier) asks only these. A
+ * URL must be https, or http on localhost; anything else throws. In a page, the Content-Security-Policy's connect-src
+ * must allow the node too (`scripts/build_site.sh --node`).
+ */
+export function useNodes(nodes) {
+  for (const [net, urls] of Object.entries(nodes ?? {})) {
+    if (!Object.hasOwn(GRPC_WEB_ENDPOINTS, net)) throw new Error(`unknown network ${JSON.stringify(net)} (main or test)`);
+    if (!Array.isArray(urls) || urls.length === 0) throw new Error(`nodes for ${net}: a non-empty list of URLs`);
+    const clean = urls.map((u) => {
+      const url = new URL(u);
+      const local = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+      if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) throw new Error(`node ${u}: https, or http on localhost`);
+      return url.href.replace(/\/$/, "");
+    });
+    GRPC_WEB_ENDPOINTS[net] = clean;
+  }
+  return GRPC_WEB_ENDPOINTS;
+}
+
 const hexToBytes = (h) => Uint8Array.from(h.match(/../g), (b) => parseInt(b, 16));
 const bytesToHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 

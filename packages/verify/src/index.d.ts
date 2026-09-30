@@ -54,6 +54,8 @@ export function isDeliveryProof(input: string): boolean;
 export function checkSignature(receipt: string): { signed: boolean; valid: boolean; issuer_pubkey?: string; error?: string };
 export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean; network?: Network }): VerifyResult;
 export const GRPC_WEB_ENDPOINTS: { main: string[]; test: string[] };
+/** Use your own gRPC-web nodes per network (https, or http on localhost); later fetches ask only these. */
+export function useNodes(nodes: { main?: string[]; test?: string[] }): { main: string[]; test: string[] };
 /** fetchRawTx over several networks, for a proof that names none: a node's "not found" moves on to the next network. */
 export function fetchRawTxAnyNetwork(txidDisplayHex: string, networks?: Network[], opts?: { timeoutMs?: number }): Promise<{ hex: string; height: number | null; chain: { status: "mined" | "mempool" | "fork"; height?: number }; endpoint: string; network: Network }>;
 /** The outcome of an issuer-binding lookup (spec §7); never a verdict on the receipt's validity. */

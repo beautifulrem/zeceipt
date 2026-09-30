@@ -4,7 +4,7 @@
 // dossier is ever parsed as HTML. Nothing is stored; the only requests outside this site are the transaction lookups
 // (fetchRawTx: the txid and nothing else) and, when the reviewer generates a nonce, the chain tip (fetchChainTip). The
 // reviewer's nonce and its height (H₀) live in the challenge card's fields only.
-import { initVerifier, checkDossier, dossierTxids, dossierPrevoutTxids, fetchRawTx, fetchChainTip, verifyReceipt, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+import { initVerifier, checkDossier, dossierTxids, dossierPrevoutTxids, fetchRawTx, fetchChainTip, verifyReceipt, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
 import { memoText } from "../r/view.js";
 import { el, copyButton } from "../r/ui.js";
 import { badge, claimTableRows, factItems, listItem, download, showVerifierDigest } from "./ui.js";
@@ -13,6 +13,11 @@ import {
   nonceCheck, newNonce, caseSummaryText, reportForDownload, reportFileName, shortTxid, middle, noteLabel, KIND_LABEL, amountText,
   decisionSummary, claimNumbers, returnedText, heightInput, challengeRecordText, offlineText, txFile, utcText,
 } from "./view.js";
+
+// A self-hosted copy names its own nodes (`scripts/build_site.sh --node`), and its CSP allows only them; the public
+// site leaves this empty and uses the public nodes.
+const ownNodes = document.querySelector('meta[name="zeceipt-nodes"]')?.content;
+if (ownNodes) useNodes(JSON.parse(ownNodes));
 
 // Each node gets 12 s, as on the receipt page: two hanging nodes would otherwise keep a reviewer waiting 40 s.
 const PAGE_TIMEOUT_MS = 12_000;

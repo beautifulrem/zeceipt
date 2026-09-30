@@ -306,5 +306,39 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   check("offline: the timeline keeps the dossier's order without heights", cv.flowSteps(dossier, off, {}).map((s) => s.stage).join(" ") === "origin hop hop hop control");
 }
 
+// ---- a self-hosted copy with the reviewer's own node (scripts/build_site.sh --node) ----
+{
+  const { execFileSync } = await import("node:child_process");
+  const os = await import("node:os");
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "zeceipt-site-"));
+  execFileSync(path.join(repo, "scripts/build_site.sh"), [out, "--node", "test=https://node.example.org/testnet", "--node", "main=https://node.example.org/mainnet"], { stdio: "pipe" });
+  for (const page of ["case", "build"]) {
+    const html = read(path.join(out, page, "index.html"));
+    const csp = html.match(/connect-src ([^"]*)"/)?.[1] ?? "";
+    const meta = html.match(/<meta name="zeceipt-nodes" content="([^"]*)">/)?.[1].replaceAll("&quot;", '"');
+    check(`self-hosted ${page}/: connect-src allows only 'self' and the own node`, csp.trim() === "'self' https://node.example.org", csp);
+    check(`self-hosted ${page}/: the page names the own nodes`, JSON.stringify(JSON.parse(meta)) === JSON.stringify({ test: ["https://node.example.org/testnet"], main: ["https://node.example.org/mainnet"] }), meta);
+    const pub = read(path.join(root, page, "index.html"));
+    check(`public ${page}/ names no own node`, pub.includes('<meta name="zeceipt-nodes" content="">'));
+  }
+  fs.rmSync(out, { recursive: true, force: true });
+  let refused = 0;
+  for (const bad of ["http://node.example.org", "ftp://x", "not a url"]) {
+    try {
+      execFileSync(path.join(repo, "scripts/build_site.sh"), [path.join(os.tmpdir(), "zeceipt-bad"), "--node", `test=${bad}`], { stdio: "pipe" });
+    } catch {
+      refused++;
+    }
+  }
+  check("build_site.sh refuses a node that is not https (or http on localhost)", refused === 3);
+  const { useNodes } = await import("../src/index.js");
+  const saved = structuredClone(GRPC_WEB_ENDPOINTS);
+  useNodes({ test: ["http://127.0.0.1:8080/"] });
+  check("useNodes replaces a network's nodes and keeps the others", GRPC_WEB_ENDPOINTS.test.join() === "http://127.0.0.1:8080" && GRPC_WEB_ENDPOINTS.main.join() === saved.main.join());
+  const throws = (f) => { try { f(); return false; } catch { return true; } };
+  check("useNodes refuses plain http off localhost, an unknown network and an empty list", throws(() => useNodes({ test: ["http://node.example.org"] })) && throws(() => useNodes({ regtest: ["https://x.example"] })) && throws(() => useNodes({ main: [] })));
+  useNodes(saved);
+}
+
 console.log(failures === 0 ? "ALL OK" : `${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

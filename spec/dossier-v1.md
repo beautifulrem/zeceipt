@@ -322,7 +322,7 @@ Disclosure cannot be revoked. `nk` is fixed for the life of the account, and the
 
 ### 8.4 Public nodes
 
-Verifying fetches every transaction the dossier names, then the previous transactions of the origins' transparent inputs; building fetches every transaction it explains. A public node (the CLI's `testnet.zec.rocks`/`zec.rocks`; the browser's `zjs.zec.rocks` or ChainSafe, which proxies to it) learns that one client asked for this set of txids together, which links them. It learns no opening and no `nk`. Mitigations: `--endpoint` for the party's own node, `--raw-tx-dir` or `{ txs }` offline. Verifying by block range, without naming txids, is not implemented.
+Verifying fetches every transaction the dossier names, then the previous transactions of the origins' transparent inputs; building fetches every transaction it explains. A public node (the CLI's `testnet.zec.rocks`/`zec.rocks`; the browser's `zjs.zec.rocks` or ChainSafe, which proxies to it) learns that one client asked for this set of txids together, which links them. It learns no opening and no `nk`. Mitigations: `--endpoint` for the party's own node (CLI), `useNodes` (JS) or a self-hosted copy of the pages built with `scripts/build_site.sh --node` (whose CSP allows only that node), and `--raw-tx-dir`, `{ txs }` or the case page's transaction files offline. Verifying by block range, without naming txids, is not implemented.
 
 ### 8.5 Recommendations
 

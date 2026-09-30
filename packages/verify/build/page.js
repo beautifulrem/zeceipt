@@ -3,10 +3,15 @@
 // pressed, passed to buildDossier (which uses it in this page only), and the field is cleared; nothing is stored. The
 // only requests outside this site are the transaction lookups (fetchRawTx: the txid and nothing else). The DOM is
 // written with textContent only.
-import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, scanWallet, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, scanWallet, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
 import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown } from "../case/view.js";
 import { claimTableRows, factItems, listItem, download, showVerifierDigest } from "../case/ui.js";
 import { validateBuild, buildError, dossierSummary, networkForKey, DOSSIER_FILE } from "./view.js";
+
+// A self-hosted copy names its own nodes (`scripts/build_site.sh --node`), and its CSP allows only them; the public
+// site leaves this empty and uses the public nodes.
+const ownNodes = document.querySelector('meta[name="zeceipt-nodes"]')?.content;
+if (ownNodes) useNodes(JSON.parse(ownNodes));
 
 const PAGE_TIMEOUT_MS = 12_000;
 const $ = (id) => document.getElementById(id);

@@ -160,6 +160,7 @@ flowchart LR
 ## Integrations
 
 - **Exchanges, OTC desks, bridges.** Ask for a dossier instead of a viewing key or a deshield: send a nonce, receive `dossier.json`, and check it in the case page, with `zeceipt dossier verify`, or through `zeceipt dossier serve`, a self-hosted HTTP service for a compliance back office (loopback by default; `--raw-tx-dir` for an air-gapped one; [API](docs/api/dossier-service.md)). The report JSON, with the dossier's sha256, goes into the case file.
+- **A reviewer with their own node.** `scripts/build_site.sh OUT --node test=https://your-node/testnet --node main=https://your-node/mainnet` builds a copy of the case and build pages that fetch only from your gRPC-web nodes (lightwalletd or Zaino behind a gRPC-web proxy): their Content-Security-Policy allows only those origins, so no public node learns which transactions a case looks up. Serve the folder from any static host. In JavaScript, `useNodes({ test: [...] })` does the same for `checkDossier`. Or load the transactions as files in the case page, with no node at all.
 - **Wallets (Zodl, Zingo, …).** An "Export source-of-funds dossier" button: the wallet already has the UFVK and the transaction list, and `buildDossier` in `@zeceipt/verify` (or `zeceipt_core::dossier::build`) does the rest locally. The control challenge is a send to self with the reviewer's nonce as the memo.
 
 ## For judges
