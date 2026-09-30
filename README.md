@@ -25,7 +25,7 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="540 tests" src="https://img.shields.io/badge/tests-540-2ea44f?style=flat-square">
+  <img alt="548 tests" src="https://img.shields.io/badge/tests-548-2ea44f?style=flat-square">
 </p>
 
 ---
@@ -223,7 +223,7 @@ flowchart LR
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 75 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 83 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
@@ -277,7 +277,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `bff7888d978bd22321af3e95f3a5aba0bf5b1bd6390b256dc725d3443544c9b6`.
+- **Committed hash:** the committed `.wasm` has sha256 `01a9672d00c5754f2c55f8661fff922964e783e389053624e79350f63394fe7c`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 

@@ -116,7 +116,7 @@ macro_rules! open_note {
         {
             return Err(mismatch(pool, index));
         }
-        (pool, index, to, got.value().inner(), memo)
+        (pool, index, to, got.value().inner(), memo, got)
     }};
 }
 
@@ -127,6 +127,15 @@ pub fn check(
     proof: &DeliveryProof,
     network: Network,
 ) -> Result<Delivered, CoreError> {
+    check_note(bytes, proof, network).map(|(d, _)| d)
+}
+
+/// `check`, also returning the note it opened (for its nullifier: `dossier`).
+pub fn check_note(
+    bytes: &[u8],
+    proof: &DeliveryProof,
+    network: Network,
+) -> Result<(Delivered, Note), CoreError> {
     let tx = parse_canonical(bytes)?;
     let actual = txid_hex(&tx);
     if proof.txid_hex() != actual {
@@ -135,23 +144,26 @@ pub fn check(
             actual,
         });
     }
-    let (pool, index, to, value, memo) = match proof.pool {
+    let (pool, index, to, value, memo, note) = match proof.pool {
         Pool::Ironwood => open_note!(IronwoodPool, IronwoodVersion, &tx, proof),
         Pool::Orchard => open_note!(OrchardPool, OrchardVersion, &tx, proof),
         Pool::Sapling => unreachable!("a delivery proof has no Sapling pool"),
     };
-    Ok(Delivered {
-        recovered: Recovered {
-            pool,
-            index,
-            recipient: encode_orchard_address(&to, network)?,
-            value_zat: note_value(pool, index, value)?,
-            memo: MemoView::from_raw(&memo),
-            is_change: false,
+    Ok((
+        Delivered {
+            recovered: Recovered {
+                pool,
+                index,
+                recipient: encode_orchard_address(&to, network)?,
+                value_zat: note_value(pool, index, value)?,
+                memo: MemoView::from_raw(&memo),
+                is_change: false,
+            },
+            txid: actual,
+            wtxid: wtxid_hex(&tx),
         },
-        txid: actual,
-        wtxid: wtxid_hex(&tx),
-    })
+        note,
+    ))
 }
 
 /// Which side of a payment a key saw when it made a proof: the recipient (incoming viewing key, trial decryption of

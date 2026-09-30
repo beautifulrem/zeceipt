@@ -2,10 +2,30 @@
 /* eslint-disable */
 
 /**
+ * Build a dossier in the browser from the holder's UFVK (it never leaves the page) and the raw transactions of the
+ * funds, oldest first; optionally the challenge transaction and the reviewer's nonce. Returns the dossier JSON text,
+ * or throws with the reason.
+ */
+export function build_dossier(ufvk: string, network: string, txs_hex: string[], control_hex?: string | null, nonce?: string | null, subject?: string | null, created?: string | null): string;
+
+/**
+ * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`.
+ * Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
+ * never throws for a claim that fails.
+ */
+export function check_dossier(dossier: string, txs: any): any;
+
+/**
  * Check only the envelope's issuer signature (no transaction needed).
  * Returns `{ signed: bool, valid: bool, issuer_pubkey?: string, error?: string }`.
  */
 export function check_signature(receipt: string): any;
+
+/**
+ * The txids a source-of-funds dossier's checks need (spec/dossier-v1.md): the caller fetches each, with its height.
+ * Throws on a dossier that does not parse.
+ */
+export function dossier_txids(dossier: string): any;
 
 /**
  * Is this input a `zdp:1:` delivery proof rather than a receipt? (Any `zdp:` prefix: another version is then refused
@@ -61,7 +81,10 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly build_dossier: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number, number, number];
+    readonly check_dossier: (a: number, b: number, c: any) => any;
     readonly check_signature: (a: number, b: number) => any;
+    readonly dossier_txids: (a: number, b: number) => [number, number, number];
     readonly is_delivery_proof: (a: number, b: number) => number;
     readonly issuer_binding: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
     readonly issuer_claim: (a: number, b: number) => any;
@@ -76,6 +99,8 @@ export interface InitOutput {
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_exn_store: (a: number) => void;
+    readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;

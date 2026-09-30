@@ -1,7 +1,7 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // It makes a request only when the caller asks: fetchRawTx (a gRPC-web lookup of one transaction) and
 // checkIssuerBinding (the claimed domain's well-known file). Verifying needs no network.
-import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, check_dossier, build_dossier } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasm) {
@@ -297,4 +297,56 @@ export async function fetchChainTip(network = "main", endpoints = GRPC_WEB_ENDPO
 export function confirmations(height, tip) {
   if (!Number.isSafeInteger(height) || !Number.isSafeInteger(tip) || height <= 0 || tip < height) return null;
   return tip - height + 1;
+}
+
+/**
+ * Source-of-funds dossiers (spec/dossier-v1.md).
+ *
+ * `checkDossier(text)` fetches every transaction the dossier names from public gRPC-web nodes of its network (each node
+ * learns which transactions you look up), then checks every claim in this page. Pass `{ txs }` (txid → `{ hex, height,
+ * mempool }`) to check offline instead. Returns the report (`zeceipt-dossier-report-v1`).
+ */
+export async function checkDossier(text, { txs = null, timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
+  let network;
+  try {
+    network = JSON.parse(text).network;
+  } catch (e) {
+    return { all_verified: false, stage: "parse", error: `not JSON: ${e.message}` };
+  }
+  let ids;
+  try {
+    ids = dossier_txids(text);
+  } catch (e) {
+    return { all_verified: false, stage: "parse", error: String(e) };
+  }
+  const got = txs ?? {};
+  if (!txs) {
+    for (const [i, txid] of ids.entries()) {
+      onFetch({ txid, index: i, total: ids.length });
+      try {
+        const r = await fetchRawTx(txid, network, undefined, { timeoutMs });
+        got[txid] = { hex: r.hex, height: r.chain.status === "mined" ? r.chain.height : null, mempool: r.chain.status === "mempool", endpoint: r.endpoint };
+      } catch (e) {
+        if (e.code !== "not_found") throw e;
+      }
+    }
+  }
+  return check_dossier(text, got);
+}
+
+/** The txids a dossier's checks need. Throws on a dossier that does not parse. */
+export function dossierTxids(text) {
+  return dossier_txids(text);
+}
+
+/**
+ * Build a dossier in this page from the holder's UFVK, which never leaves it. `txids` are the transactions of the funds
+ * to explain, oldest first; `control` is `{ txid, nonce }` for a challenge answered on chain. Transactions are fetched
+ * from public gRPC-web nodes (each learns which you look up), or passed as `{ hexes, controlHex }`.
+ */
+export async function buildDossier({ ufvk, network = "main", txids = [], hexes = null, control = null, controlHex = null, subject = null, timeoutMs = FETCH_TIMEOUT_MS }) {
+  const fetchHex = async (txid) => (await fetchRawTx(txid.trim(), network, undefined, { timeoutMs })).hex;
+  const txs = hexes ?? (await Promise.all(txids.filter((t) => t.trim()).map(fetchHex)));
+  const ctl = controlHex ?? (control?.txid ? await fetchHex(control.txid) : null);
+  return build_dossier(ufvk, network, txs, ctl, control?.nonce ?? null, subject || null, new Date().toISOString().slice(0, 19) + "Z");
 }

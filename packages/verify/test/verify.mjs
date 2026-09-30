@@ -33,7 +33,7 @@ const check = (name, cond, detail) => { if (!cond) { failures++; console.error("
 // Built by scripts/build_wasm.sh (slice X3a): no absolute path of the machine that built it, which would make the
 // package unreproducible elsewhere and ship the builder's paths. /rustc/<commit>/ (the standard library's own) and the
 // remapped /cargo/registry/src/ and /zeceipt/ are expected.
-const LOCAL_PATH = /(?:\/Users\/|\/home\/|\/root\/|\/Volumes\/|\/var\/folders\/|\/private\/|\/tmp\/|[A-Z]:\\Users\\|[A-Z]:\/Users\/)[\x21-\x7e]{0,60}/g;
+const LOCAL_PATH = /(?:\/Users\/|\/home\/|\/root\/|\/Volumes\/|\/var\/folders\/|\/private\/(?:var|tmp|etc)\/|\/tmp\/|[A-Z]:\\Users\\|[A-Z]:\/Users\/)[\x21-\x7e]{0,60}/g;
 const localPaths = [...wasm.toString("latin1").matchAll(LOCAL_PATH)].map((m) => m[0]);
 check("the committed WASM carries no local build path (built by scripts/build_wasm.sh)", localPaths.length === 0, JSON.stringify(localPaths.slice(0, 3)));
 

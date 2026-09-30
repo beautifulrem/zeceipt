@@ -75,3 +75,21 @@ export function fetchRawTx(txidDisplayHex: string, network?: Network, endpoints?
 export function fetchChainTip(network?: Network, endpoints?: string[], options?: { timeoutMs?: number }): Promise<{ height: number; endpoint: string }>;
 /** Confirmations of a transaction mined at `height` with the tip at `tip` (`tip - height + 1`, Zcash's convention); null when unknown or the tip is below the height. */
 export function confirmations(height: number | null, tip: number | null): number | null;
+
+/** A source-of-funds dossier check's outcome (`zeceipt-dossier-report-v1`); see spec/dossier-v1.md. */
+export interface DossierReport {
+  version: "zeceipt-dossier-report-v1";
+  network: Network;
+  subject?: string;
+  dossier_sha256: string;
+  notes: Record<string, { txid: string; pool: string; action: number; height?: number; recipient?: string; value_zat?: number; memo?: string; nullifier?: string; error?: string }>;
+  claims: { index: number; kind: "origin" | "path" | "deposit" | "control"; status: "verified" | "failed" | "not_checked"; summary: string; details?: string[]; value_zat?: number; funding?: { transparent_inputs: { prevout: string; address?: string }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
+  all_verified: boolean;
+  disclosed: string[];
+  does_not_prove: string[];
+  error?: string;
+  stage?: string;
+}
+export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number }) => void }): Promise<DossierReport>;
+export function dossierTxids(text: string): string[];
+export function buildDossier(opts: { ufvk: string; network?: Network; txids?: string[]; hexes?: string[]; control?: { txid: string; nonce: string } | null; controlHex?: string | null; subject?: string | null; timeoutMs?: number }): Promise<string>;

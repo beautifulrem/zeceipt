@@ -380,3 +380,112 @@ pub fn version() -> String {
         zeceipt_core::zeceipt_types::VERSION
     )
 }
+
+/// The txids a source-of-funds dossier's checks need (spec/dossier-v1.md): the caller fetches each, with its height.
+/// Throws on a dossier that does not parse.
+#[wasm_bindgen]
+pub fn dossier_txids(dossier: &str) -> Result<JsValue, JsValue> {
+    let d = zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_wasm_bindgen::to_value(&zeceipt_core::dossier::txids_needed(&d))
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`.
+/// Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
+/// never throws for a claim that fails.
+#[wasm_bindgen]
+pub fn check_dossier(dossier: &str, txs: JsValue) -> JsValue {
+    #[derive(serde::Deserialize)]
+    struct In {
+        hex: String,
+        #[serde(default)]
+        height: Option<u64>,
+        #[serde(default)]
+        mempool: bool,
+    }
+    let d = match zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier) {
+        Ok(d) => d,
+        Err(e) => {
+            return json_value(
+                &serde_json::json!({ "error": e.to_string(), "stage": "parse", "all_verified": false }),
+            )
+        }
+    };
+    let given: std::collections::HashMap<String, In> = match serde_wasm_bindgen::from_value(txs) {
+        Ok(m) => m,
+        Err(e) => {
+            return json_value(
+                &serde_json::json!({ "error": format!("txs: {e}"), "stage": "other", "all_verified": false }),
+            )
+        }
+    };
+    let mut chain = std::collections::HashMap::new();
+    for (txid, t) in given {
+        if let Ok(bytes) = hex::decode(t.hex.trim()) {
+            chain.insert(
+                txid.to_lowercase(),
+                zeceipt_core::dossier::TxData {
+                    bytes,
+                    height: t.height,
+                    mempool: t.mempool,
+                },
+            );
+        }
+    }
+    let report = zeceipt_core::dossier::check_dossier(&d, dossier, &chain);
+    json_value(
+        &serde_json::to_value(&report)
+            .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })),
+    )
+}
+
+/// Build a dossier in the browser from the holder's UFVK (it never leaves the page) and the raw transactions of the
+/// funds, oldest first; optionally the challenge transaction and the reviewer's nonce. Returns the dossier JSON text,
+/// or throws with the reason.
+#[wasm_bindgen]
+pub fn build_dossier(
+    ufvk: &str,
+    network: &str,
+    txs_hex: Vec<String>,
+    control_hex: Option<String>,
+    nonce: Option<String>,
+    subject: Option<String>,
+    created: Option<String>,
+) -> Result<String, JsValue> {
+    let err = |e: String| JsValue::from_str(&e);
+    let network = match network {
+        "main" => Network::Main,
+        "test" => Network::Test,
+        "regtest" => Network::Regtest,
+        n => return Err(err(format!("unknown network {n:?}"))),
+    };
+    let keys = zeceipt_core::OutgoingKeys::from_ufvk(network, ufvk.trim())
+        .map_err(|e| err(e.to_string()))?;
+    let txs = txs_hex
+        .iter()
+        .map(|h| hex::decode(h.trim()).map_err(|_| err("a transaction is not hex".into())))
+        .collect::<Result<Vec<_>, _>>()?;
+    let control = match (control_hex, nonce) {
+        (Some(h), Some(n)) if !h.trim().is_empty() => Some((
+            hex::decode(h.trim())
+                .map_err(|_| err("the challenge transaction is not hex".into()))?,
+            n,
+        )),
+        _ => None,
+    };
+    let d = zeceipt_core::dossier::build(zeceipt_core::dossier::BuildInput {
+        keys: &keys,
+        txs,
+        control,
+        subject,
+        created,
+    })
+    .map_err(|e| err(e.to_string()))?;
+    d.to_json().map_err(|e| err(e.to_string()))
+}
+
+fn json_value(v: &serde_json::Value) -> JsValue {
+    v.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .unwrap_or(JsValue::NULL)
+}

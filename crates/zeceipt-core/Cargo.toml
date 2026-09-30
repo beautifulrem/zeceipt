@@ -16,6 +16,12 @@ zcash_address.workspace = true
 zcash_keys = { workspace = true, features = ["orchard", "sapling"] }
 hex.workspace = true
 thiserror.workspace = true
+# Dossiers (spec/dossier-v1.md): a funding transaction's transparent inputs, as the P2PKH addresses that signed them.
+zcash_transparent = { version = "0.10.0", default-features = false }
+ripemd = { version = "0.1", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
 rand = { workspace = true, optional = true }
 
 [features]

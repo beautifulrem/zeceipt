@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod binding;
 pub mod delivery;
+pub mod dossier;
 
 /// Format identifier. Also the domain prefix of the canonical signing string.
 pub const VERSION: &str = "zeceipt-v0";
@@ -47,6 +48,9 @@ pub enum TypesError {
     Unsigned,
     #[error("challenge mismatch")]
     ChallengeMismatch,
+    /// A source-of-funds dossier that is not consistent with itself (a claim names a note it does not disclose, …).
+    #[error("dossier: {0}")]
+    Dossier(String),
     /// A `zdp:1:` delivery proof names a pool other than Orchard (1) or Ironwood (2).
     #[error("delivery proof names pool {0}; only 1 (Orchard) and 2 (Ironwood) exist")]
     DeliveryPool(u8),

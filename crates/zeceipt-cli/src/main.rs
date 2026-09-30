@@ -54,6 +54,47 @@ struct TxSource {
 }
 
 #[derive(Subcommand)]
+enum DossierCmd {
+    /// Build a dossier from your UFVK and the transactions of the funds to explain, oldest first. The UFVK stays on
+    /// this machine; the dossier discloses the note openings, nk and sender receipts its claims need.
+    Build {
+        #[command(flatten)]
+        net: NetArgs,
+        /// Read the unified full viewing key from this file.
+        #[arg(long)]
+        ufvk_file: PathBuf,
+        /// A transaction of the funds, oldest first (repeat). Fetched from the endpoint.
+        #[arg(long = "txid", value_name = "TXID")]
+        txids: Vec<String>,
+        /// Or raw transaction hex files, oldest first (repeat).
+        #[arg(long = "raw-tx-file", value_name = "FILE")]
+        raw_tx_files: Vec<PathBuf>,
+        /// The challenge transaction: it spends disclosed notes and pays you a note whose memo carries the nonce.
+        #[arg(long, requires = "nonce")]
+        control_txid: Option<String>,
+        /// The reviewer's nonce (`zeceipt dossier nonce` makes one).
+        #[arg(long, requires = "control_txid")]
+        nonce: Option<String>,
+        /// A label for the reviewer (unauthenticated).
+        #[arg(long)]
+        subject: Option<String>,
+    },
+    /// Check every claim of a dossier against the chain; prints the report (JSON). Exit 0: all verified; 1: a claim
+    /// failed; 2: a claim could not be checked yet (a transaction not mined).
+    Verify {
+        #[command(flatten)]
+        net: NetArgs,
+        /// The dossier file (`-` reads stdin).
+        dossier: String,
+        /// Directory of `<txid>.hex` raw transactions (offline mode; heights are then unknown).
+        #[arg(long)]
+        raw_tx_dir: Option<PathBuf>,
+    },
+    /// Print a fresh random nonce for a control challenge (for the reviewer to send the holder).
+    Nonce,
+}
+
+#[derive(Subcommand)]
 // Parsed once per process; boxing the larger `Issue` variant would only add noise.
 #[allow(clippy::large_enum_variant)]
 enum Cmd {
@@ -86,6 +127,11 @@ enum Cmd {
         net: NetArgs,
         #[command(flatten)]
         tx: TxSource,
+    },
+    /// Source-of-funds dossiers (spec/dossier-v1.md): build one from your own key, or check one you were given.
+    Dossier {
+        #[command(subcommand)]
+        cmd: DossierCmd,
     },
     /// Make a `zdp:1:` delivery proof for every Orchard/Ironwood note the UFVK received or sent in the transaction
     /// (zcash-delivery-proof's format): the recipient's proof of a payment, which a receipt cannot give. Each proof is
@@ -317,6 +363,7 @@ async fn run() -> anyhow::Result<ExitCode> {
             );
             Ok(ExitCode::SUCCESS)
         }
+        Cmd::Dossier { cmd } => dossier_cmd(cmd).await,
         Cmd::ProveDelivery {
             net,
             tx,
@@ -954,6 +1001,166 @@ fn pubkey_hex(s: &str) -> Result<String, String> {
     } else {
         Err("an issuer public key is 64 hex digits (32 bytes)".into())
     }
+}
+
+async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
+    use zeceipt_core::dossier::{build, check_dossier, txids_needed, BuildInput, Status, TxData};
+    use zeceipt_core::zeceipt_types::dossier::Dossier;
+    match cmd {
+        DossierCmd::Nonce => {
+            let mut b = [0u8; 16];
+            rand::RngCore::fill_bytes(&mut OsRng, &mut b);
+            println!("zeceipt-challenge-{}", hex::encode(b));
+            Ok(ExitCode::SUCCESS)
+        }
+        DossierCmd::Build {
+            net,
+            ufvk_file,
+            txids,
+            raw_tx_files,
+            control_txid,
+            nonce,
+            subject,
+        } => {
+            let network = network_of(&net);
+            let ufvk = std::fs::read_to_string(&ufvk_file)
+                .with_context(|| format!("reading {}", ufvk_file.display()))?;
+            let keys = OutgoingKeys::from_ufvk(network, ufvk.trim())?;
+            let mut txs = Vec::new();
+            for p in &raw_tx_files {
+                let s =
+                    std::fs::read_to_string(p).with_context(|| format!("read {}", p.display()))?;
+                txs.push(hex::decode(s.trim()).context("raw tx file must be hex")?);
+            }
+            for t in &txids {
+                txs.push(
+                    load_tx(
+                        &net,
+                        &TxSource {
+                            txid: Some(t.clone()),
+                            raw_tx_file: None,
+                        },
+                    )
+                    .await?
+                    .0,
+                );
+            }
+            let control = match (control_txid, nonce) {
+                (Some(t), Some(n)) => Some((
+                    load_tx(
+                        &net,
+                        &TxSource {
+                            txid: Some(t),
+                            raw_tx_file: None,
+                        },
+                    )
+                    .await?
+                    .0,
+                    n,
+                )),
+                _ => None,
+            };
+            let created = Some(now_rfc3339());
+            let d = build(BuildInput {
+                keys: &keys,
+                txs,
+                control,
+                subject,
+                created,
+            })?;
+            println!("{}", d.to_json()?);
+            eprintln!(
+                "dossier: {} notes, {} receipts, {} claims; it discloses nk and these notes' openings, not your viewing key",
+                d.notes.len(),
+                d.receipts.len(),
+                d.claims.len()
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+        DossierCmd::Verify {
+            net,
+            dossier,
+            raw_tx_dir,
+        } => {
+            let raw = if dossier == "-" {
+                let mut s = String::new();
+                std::io::Read::read_to_string(&mut std::io::stdin(), &mut s)?;
+                s
+            } else {
+                std::fs::read_to_string(&dossier).with_context(|| format!("read {dossier}"))?
+            };
+            let d = match Dossier::parse(&raw) {
+                Ok(d) => d,
+                Err(e) => {
+                    println!(
+                        "{}",
+                        json!({"all_verified": false, "error": e.to_string(), "stage": "parse"})
+                    );
+                    return Ok(ExitCode::from(1));
+                }
+            };
+            let net = NetArgs {
+                testnet: matches!(d.network, Network::Test) || net.testnet,
+                regtest: matches!(d.network, Network::Regtest) || net.regtest,
+                endpoint: net.endpoint,
+            };
+            let mut txs = std::collections::HashMap::new();
+            for t in txids_needed(&d) {
+                let src = TxSource {
+                    txid: Some(t.clone()),
+                    raw_tx_file: raw_tx_dir.as_ref().map(|dir| dir.join(format!("{t}.hex"))),
+                };
+                let from_file = src.raw_tx_file.is_some();
+                match load_tx(&net, &src).await {
+                    Ok((bytes, height)) => {
+                        txs.insert(
+                            t,
+                            TxData {
+                                bytes,
+                                height,
+                                mempool: !from_file && height.is_none(),
+                            },
+                        );
+                    }
+                    Err(e) if is_pending(&e) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            let report = check_dossier(&d, &raw, &txs);
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            Ok(if report.all_verified {
+                ExitCode::SUCCESS
+            } else if report.claims.iter().any(|c| c.status == Status::Failed) {
+                ExitCode::from(1)
+            } else {
+                ExitCode::from(2)
+            })
+        }
+    }
+}
+
+/// The current time as RFC 3339 UTC, to the second (no date crate: days since the epoch, civil-from-days).
+fn now_rfc3339() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let (days, rem) = ((secs / 86_400) as i64, secs % 86_400);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 fn stage(e: &CoreError) -> &'static str {
