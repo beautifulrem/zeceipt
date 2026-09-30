@@ -91,6 +91,8 @@ Signature: ed25519 (RFC 8032) over these bytes. The signature attests that the h
 
 A verifier who wants assurance that a receipt was produced *for them* sends a random challenge; the issuer binds it into `challenge` before signing. The verifier must re-supply the challenge; mismatch is rejected. A receipt without a challenge is a bearer document: anyone holding it can verify it and forward it.
 
+A challenge counts only on a **signed** receipt, and only as far as the signing key does. An unsigned envelope is caller-controlled (§4), so anyone who holds an earlier receipt for the output (and so its OCK) can write any challenge into one: a verifier reports `challenge_checked` false for an unsigned receipt even when its challenge matches, and issuers refuse to bind a challenge without signing. On a signed receipt, a matching challenge shows that the holder of `issuer_pubkey` made the envelope after the challenge was sent; which organisation that is remains §7's question.
+
 ## 7. Issuer key binding (optional, upgrade-only)
 
 A signature proves only "made with key K". An organisation binds its keys to a domain it controls by serving a file on that domain over HTTPS. Control of the domain is the binding, as in Nostr's NIP-05, W3C `did:web` and AT Protocol handles. There is no separate root key: a key the verifier does not already know would bind nothing.

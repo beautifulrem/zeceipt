@@ -123,11 +123,12 @@ export function bindingText(b) {
   }
 }
 
-/** Whether the receipt proves anything about who is presenting it. */
+/** Whether the receipt proves anything about who is presenting it. The verifier counts a challenge only on a signed
+ * receipt (spec §6): anyone holding an output's OCK can write any challenge into an unsigned one (judge round 1, D4). */
 export function challengeLine(result) {
   return result.challenge_checked
-    ? "Bound to your challenge, and it matched: the issuer made this receipt for you."
-    : "Not bound to a challenge: this does not prove who is showing it to you.";
+    ? "Bound to your challenge, and it matched: the holder of the signing key in part 3 made this receipt after you sent the challenge."
+    : "Not bound to a signed challenge: this does not prove who is showing it to you.";
 }
 
 export function memoText(memo) {

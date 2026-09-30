@@ -147,7 +147,8 @@ pub struct Verified {
     pub txid: String,
     /// `Some(pubkey hex)` when the receipt carried a valid issuer signature.
     pub issuer_pubkey: Option<String>,
-    /// Whether a challenge was bound and matched.
+    /// Whether a challenge was bound, matched, and signed (spec §6). An unsigned receipt's challenge proves nothing:
+    /// anyone holding the output's OCK can write any challenge into an unsigned envelope.
     pub challenge_checked: bool,
 }
 
@@ -888,8 +889,8 @@ pub fn verify(
     Ok(Verified {
         recovered,
         txid: actual,
+        challenge_checked: receipt.challenge.is_some() && issuer_pubkey.is_some(),
         issuer_pubkey,
-        challenge_checked: receipt.challenge.is_some(),
     })
 }
 

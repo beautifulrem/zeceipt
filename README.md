@@ -78,7 +78,7 @@ A receipt is a small signed JSON envelope, `zeceipt-v0` ([`spec/receipt-v0.md`](
 
 | A valid receipt proves | It does not prove |
 |---|---|
-| The named transaction pays the shown value to the shown recipient, with the shown memo | Who is presenting it (bind it to a challenge for interactive proofs) |
+| The named transaction pays the shown value to the shown recipient, with the shown memo | Who is presenting it (for interactive proofs, ask for a signed receipt bound to your challenge) |
 | Whoever made it knew that output's OCK | That the output is still unspent, or that whoever presents the receipt can spend it (a receipt carries no spending ability) |
 | If signed: the holder of the issuer key made this envelope and wrote its label | Anything about other outputs, transactions or balances |
 | | Spend authority: it is not a full ZIP 311 disclosure (see below) |
@@ -243,7 +243,7 @@ node packages/verify/test/verify.mjs                       # the committed WASM 
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `9bf1366cc6d094c516c81228fdfe5ca6c096efc745bc1a7bb271654055a6f8c5`.
+- **Committed hash:** the committed `.wasm` has sha256 `38f2e74c33923ff3fc6427c1572d9659497829053ace7d7749ee3f6989c1425e`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 

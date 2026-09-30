@@ -11,7 +11,7 @@ As spec §4 says. The Proves line is the verifier's own `proves` field, and Does
 - **Proves:** this transaction pays the shown value to the shown recipient with the shown memo; whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it; a signature attributes the receipt to a key, not the OCK to the sender.
 - **Does not prove:** who is presenting this receipt; that the output is still unspent, or that whoever presents the receipt can spend it; anything about other outputs, transactions or balances; or spend authority (full ZIP 311, spec §1), which needs the spending key.
 
-To know a receipt was made for you, send the issuer a random challenge and pass it to `verifyReceipt`.
+To know a receipt was made for you, send the issuer a random challenge, pass it to `verifyReceipt`, and require a signature: `challenge_checked` is true only on a signed receipt, since anyone holding an unsigned receipt can write any challenge into it.
 
 ## Install
 

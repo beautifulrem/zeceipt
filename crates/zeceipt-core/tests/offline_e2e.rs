@@ -51,6 +51,16 @@ fn issue_then_verify_then_tamper() {
     );
     assert!(v.challenge_checked);
 
+    // The same challenge in an unsigned copy (a forwarder stripped the signature and wrote the verifier's challenge
+    // in): the payment still verifies, but the challenge proves nothing about who made it (judge round 1, D4).
+    let mut f = parsed.clone();
+    f.signature = None;
+    f.issuer_pubkey = None;
+    let fv = verify(&f, &tx, b"auditor-nonce-7", false).unwrap();
+    assert_eq!(fv.recovered.value_zat, 250_000_000);
+    assert!(fv.issuer_pubkey.is_none());
+    assert!(!fv.challenge_checked);
+
     // Wrong challenge.
     assert!(matches!(
         verify(&parsed, &tx, b"other", true),

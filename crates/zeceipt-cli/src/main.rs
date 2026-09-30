@@ -104,8 +104,9 @@ enum Cmd {
         /// Label stored (and signed) in every receipt, e.g. "INV-2026-042 | 150.00 USD @ 1518.81".
         #[arg(long, default_value = "")]
         label: String,
-        /// Verifier-supplied challenge (UTF-8) to bind into the receipts.
-        #[arg(long)]
+        /// Verifier-supplied challenge (UTF-8) to bind into the receipts. Needs --key-file: an
+        /// unsigned receipt's challenge proves nothing (spec §6).
+        #[arg(long, requires = "key_file")]
         challenge: Option<String>,
         /// Issuer secret key file from `keygen`; receipts are unsigned without it.
         #[arg(long)]

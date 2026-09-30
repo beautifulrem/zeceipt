@@ -170,7 +170,7 @@ test("a bearer receipt opened by its link: summary first, then VALID with the th
   const issuer = await text(s.page, "#issuer");
   assert.match(issuer, /Signed by key [0-9a-f]{64} \(key id 2026-09\)/);
   assert.match(issuer, /issuer binding: unknown/);
-  assert.match(await text(s.page, "#challenge-line"), /Not bound to a challenge/);
+  assert.match(await text(s.page, "#challenge-line"), /Not bound to a signed challenge/);
   assert.equal(await s.page.getAttribute("#outcome", "class"), "ok", "green only when a node reports it mined");
   const outside = s.requests.filter((r) => !r.url.startsWith(base));
   assert.deepEqual(outside.map((r) => r.url.split("/").pop()), ["GetTransaction", "GetLatestBlock"], "two outside requests: the transaction, then the same node's tip");
@@ -384,7 +384,7 @@ test("a challenge-bound receipt waits for the challenge: wrong is INVALID at cha
   await s.page.fill("#challenge", "auditor-nonce-7");
   await s.page.click("#verify");
   await s.page.waitForFunction(() => document.getElementById("headline").textContent === "VALID");
-  assert.match(await text(s.page, "#challenge-line"), /Bound to your challenge, and it matched/);
+  assert.match(await text(s.page, "#challenge-line"), /Bound to your challenge, and it matched: the holder of the signing key/);
   await assertPrivate(s);
   await s.context.close();
 });

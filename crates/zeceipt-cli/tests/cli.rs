@@ -39,6 +39,51 @@ fn usage_errors_exit_3_and_help_exits_0() {
     assert_eq!(run(&["--help"]).0, 0);
 }
 
+/// Judge round 1, D4: a forwarder strips the signature and writes the verifier's challenge into the receipt. The
+/// payment still verifies (anyone with the receipt knows its OCK), but the challenge must not count as checked.
+#[test]
+fn an_unsigned_receipts_challenge_is_not_checked() {
+    let mut r: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture("synthetic-receipt.json")).unwrap())
+            .unwrap();
+    let o = r.as_object_mut().unwrap();
+    o.remove("signature");
+    o.remove("issuer_pubkey");
+    o.remove("issuer_key_id");
+    o.insert("challenge".into(), "bWFsbG9yeS1ub25jZS00Mg".into()); // base64url("mallory-nonce-42")
+    let path = std::env::temp_dir().join(format!("zeceipt-forwarded-{}.json", std::process::id()));
+    std::fs::write(&path, r.to_string()).unwrap();
+    let (code, out, err) = run(&[
+        "verify",
+        path.to_str().unwrap(),
+        "--raw-tx-file",
+        &fixture("synthetic-ironwood.hex"),
+        "--challenge",
+        "mallory-nonce-42",
+    ]);
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(code, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(v["valid"], true);
+    assert_eq!(v["challenge_checked"], false, "{out}");
+}
+
+/// Issuing with a challenge but no key would write a challenge that proves nothing; the CLI refuses it.
+#[test]
+fn issue_refuses_a_challenge_without_a_key() {
+    let (code, _, err) = run(&[
+        "issue",
+        "--raw-tx-file",
+        &fixture("synthetic-ironwood.hex"),
+        "--ovk",
+        &"00".repeat(32),
+        "--challenge",
+        "n",
+    ]);
+    assert_eq!(code, 3, "{err}");
+    assert!(err.contains("--key-file"), "{err}");
+}
+
 #[test]
 fn valid_receipt_exits_0_with_expected_fields() {
     let (code, out, err) = run(&[

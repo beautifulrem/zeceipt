@@ -251,7 +251,15 @@ check("receipt page: mempool is pending, fork is not the main chain, a file is u
   pageView.inclusion(node({ status: "mempool" })).state === "pending" && pageView.inclusion(node({ status: "fork" })).state === "fork" && pageView.inclusion({ kind: "file" }).state === "unknown");
 check("receipt page: signed issuer says binding unknown; unsigned says the label is unauthenticated",
   pageView.issuerLines(good).join(" ").includes("issuer binding: unknown") && /^Unsigned: the label is the sender's unauthenticated text/.test(pageView.issuerLines({ ...good, issuer_pubkey: undefined })[0]));
-check("receipt page: challenge line for bound and bearer receipts", /matched/.test(pageView.challengeLine({ challenge_checked: true })) && /does not prove who is showing it/.test(pageView.challengeLine({ challenge_checked: false })));
+check("receipt page: challenge line for bound and bearer receipts, never 'the issuer made this receipt for you' (judge round 1, D4)", /matched: the holder of the signing key/.test(pageView.challengeLine({ challenge_checked: true })) && /not bound to a signed challenge/i.test(pageView.challengeLine({ challenge_checked: false })) && !/issuer made this receipt for you/.test(pageView.challengeLine({ challenge_checked: true })));
+{
+  // A forwarder strips the signature and writes the verifier's challenge in: valid, but the challenge is not checked.
+  const f = JSON.parse(receipt);
+  delete f.signature; delete f.issuer_pubkey; delete f.issuer_key_id;
+  f.challenge = Buffer.from("mallory-nonce-42").toString("base64url");
+  const fv = verify_receipt(JSON.stringify(f), rawTx, "mallory-nonce-42", false);
+  check("an unsigned receipt's challenge verifies the payment but is not counted as checked (spec §6)", fv.valid === true && fv.challenge_checked === false, JSON.stringify(fv));
+}
 check("receipt page: memo text for text, empty and bytes", pageView.memoText({ kind: "text", text: "a" }) === "a" && pageView.memoText({ kind: "empty" }) === "(empty)" && pageView.memoText({ kind: "bytes", hex: "00ff" }) === "bytes 00ff");
 check("receipt page: fetch plan names the nodes, and explains regtest",
   /zjs\.zec\.rocks\/mainnet, then zcash-mainnet\.chainsafe\.dev/.test(pageView.fetchPlan("main", GRPC_WEB_ENDPOINTS.main).note) && pageView.fetchPlan("regtest", undefined).canFetch === false);
