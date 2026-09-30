@@ -1,7 +1,7 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // It makes a request only when the caller asks: fetchRawTx (a gRPC-web lookup of one transaction) and
 // checkIssuerBinding (the claimed domain's well-known file). Verifying needs no network.
-import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, dossier_prevout_txids, check_dossier, build_dossier } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, dossier_prevout_txids, check_dossier, build_dossier, DossierScanner } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasm) {
@@ -363,4 +363,73 @@ export async function buildDossier({ ufvk, network = "main", txids = [], hexes =
   const txs = hexes ?? (await Promise.all(txids.filter((t) => t.trim()).map(fetchHex)));
   const ctl = controlHex ?? (control?.txid ? await fetchHex(control.txid) : null);
   return build_dossier(ufvk, network, txs, ctl, control?.nonce ?? null, subject || null, new Date().toISOString().slice(0, 19) + "Z");
+}
+
+/** A gRPC-web `BlockRange { start: BlockID { height }, end: BlockID { height } }` frame. */
+function encodeBlockRange(start, end) {
+  const varint = (n) => { const o = []; let v = BigInt(n); do { let b = Number(v & 0x7fn); v >>= 7n; if (v) b |= 0x80; o.push(b); } while (v); return o; };
+  const blockId = (h) => [0x08, ...varint(h)]; // BlockID.height = 1
+  const body = [0x0a, ...varint(blockId(start).length), ...blockId(start), 0x12, ...varint(blockId(end).length), ...blockId(end)];
+  const frame = new Uint8Array(5 + body.length);
+  new DataView(frame.buffer).setUint32(1, body.length, false);
+  frame.set(body, 5);
+  return frame;
+}
+
+/**
+ * Find the holder's transactions in a height range, in this page: compact blocks stream from a public gRPC-web node
+ * (`GetBlockRange`; the node learns which heights you scan, nothing else) and are trial-decrypted here with the UFVK,
+ * which never leaves the page. Returns `[{ height, txid, received, spent }]`, oldest first. `onProgress({ height,
+ * from, to, found })` reports each block; `signal` cancels.
+ */
+export async function scanWallet({ ufvk, network = "main", from, to = null, endpoints = GRPC_WEB_ENDPOINTS[network], chunk = 2000, timeoutMs = 60_000, onProgress = () => {}, signal } = {}) {
+  const scanner = new DossierScanner(ufvk, network);
+  try {
+    const tip = to ?? (await fetchChainTip(network, endpoints)).height;
+    if (!(from >= 1) || from > tip) throw new Error(`the first height (${from}) must be between 1 and the tip (${tip})`);
+    let lastErr = null;
+    for (const ep of endpoints) {
+      try {
+        for (let start = from; start <= tip; start += chunk) {
+          const end = Math.min(tip, start + chunk - 1);
+          const res = await fetch(`${ep}/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlockRange`, {
+            method: "POST",
+            headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
+            body: encodeBlockRange(start, end),
+            signal: signal ?? AbortSignal.timeout(timeoutMs),
+          });
+          if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+          // Frames arrive in pieces: [flag][u32 BE length][payload]; flag 0 = a CompactBlock, 0x80 = trailers.
+          const reader = res.body.getReader();
+          let buf = new Uint8Array(0);
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (value) { const b = new Uint8Array(buf.length + value.length); b.set(buf); b.set(value, buf.length); buf = b; }
+            while (buf.length >= 5) {
+              const len = new DataView(buf.buffer, buf.byteOffset + 1, 4).getUint32(0, false);
+              if (buf.length < 5 + len) break;
+              const flag = buf[0], payload = buf.slice(5, 5 + len);
+              buf = buf.slice(5 + len);
+              if (flag === 0) {
+                const height = Number(scanner.scan_block(payload));
+                onProgress({ height, from, to: tip, found: scanner.found().length });
+              } else if (flag & 0x80) {
+                const t = new TextDecoder().decode(payload);
+                const m = /grpc-status:\s*(\d+)/i.exec(t);
+                if (m && m[1] !== "0") throw new Error(`grpc-status ${m[1]}: ${t.trim()}`);
+              }
+            }
+            if (done) break;
+          }
+        }
+        return scanner.found();
+      } catch (e) {
+        if (signal?.aborted) throw e;
+        lastErr = timedOut(e, ep, timeoutMs);
+      }
+    }
+    throw lastErr;
+  } finally {
+    scanner.free();
+  }
 }

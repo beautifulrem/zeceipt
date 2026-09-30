@@ -66,6 +66,16 @@
     <textarea id="txids" rows="5" spellcheck="false" autocomplete="off" aria-describedby="txids-hint"></textarea>
     <span id="txids-hint" class="hint">First the transaction that brought the funds into your wallet, then each one that moved or paid them.</span>
   </label>
+  <fieldset class="scan">
+    <legend>Or find them for me</legend>
+    <p class="hint">This page reads the chain from a height you choose and tries your viewing key on every shielded output, here, to list the transactions that paid you or spent your notes. The node learns which heights you read, not your key or your transactions.</p>
+    <label id="scan-from-field" class="field">First height to scan (your wallet's birthday, or just before the funds arrived)
+      <input id="scan-from" class="text" inputmode="numeric" autocomplete="off" aria-describedby="scan-hint">
+    </label>
+    <span id="scan-hint" class="hint">Each 1,000 blocks take about two seconds. The found ids replace the list above; you can remove any you do not want to explain.</span>
+    <p class="actions"><button id="scan" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span>Find my transactions</button> <button id="scan-stop" type="button" class="btn btn-secondary" hidden>Stop</button></p>
+    <p id="scan-status" class="muted" role="status"></p>
+  </fieldset>
   <details class="howto">
     <summary>How to find your transaction ids</summary>
     <p>Open your wallet's transaction history, open each transaction and copy its id (64 characters, also called the txid or transaction hash). Most wallets can also export the history as a CSV file, which lists the ids. With <code>zcash-devtool</code>, <code>wallet list-tx</code> prints them. Order them by date, oldest first.</p>

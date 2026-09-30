@@ -3,7 +3,7 @@
 // pressed, passed to buildDossier (which uses it in this page only), and the field is cleared; nothing is stored. The
 // only requests outside this site are the transaction lookups (fetchRawTx: the txid and nothing else). The DOM is
 // written with textContent only.
-import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, scanWallet, GRPC_WEB_ENDPOINTS } from "../src/index.js";
 import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown } from "../case/view.js";
 import { claimTableRows, factItems, listItem, download } from "../case/ui.js";
 import { validateBuild, buildError, dossierSummary, DOSSIER_FILE } from "./view.js";
@@ -11,7 +11,7 @@ import { validateBuild, buildError, dossierSummary, DOSSIER_FILE } from "./view.
 const PAGE_TIMEOUT_MS = 12_000;
 const $ = (id) => document.getElementById(id);
 const show = (id, on) => { $(id).hidden = !on; };
-const FIELDS = ["network", "ufvk", "txids", "nonce", "control-txid", "subject"];
+const FIELDS = ["network", "ufvk", "txids", "nonce", "control-txid", "subject", "scan-from"];
 
 let generation = 0;
 let built = null; // { text, dossier }: the last dossier built, in memory only
@@ -154,9 +154,50 @@ $("copy-link").addEventListener("click", async () => {
   }
 });
 
+// "Find my transactions": a scan of compact blocks from a public node, trial-decrypted here with the UFVK (scanWallet).
+// The UFVK is read from its field and not kept; the found txids fill the list, oldest first, without the challenge
+// transaction (it is entered below).
+let scanAbort = null;
+$("scan").addEventListener("click", async () => {
+  clearMarks();
+  const from = Number($("scan-from").value.trim());
+  const ufvk = $("ufvk").value.trim();
+  if (!ufvk) { showError("Enter your unified full viewing key first: the scan tries it on every shielded output.", "ufvk"); return; }
+  if (!Number.isInteger(from) || from < 1) { showError("Enter the first height to scan, a whole number (your wallet's birthday, or a height just before the funds arrived).", "scan-from"); return; }
+  hideResult();
+  const network = $("network").value;
+  scanAbort = new AbortController();
+  $("scan").disabled = true;
+  show("scan-stop", true);
+  const started = Date.now();
+  try {
+    const found = await scanWallet({
+      ufvk, network, from, signal: scanAbort.signal,
+      onProgress: ({ height, to, found: n }) => {
+        $("scan-status").textContent = `Reading block ${height.toLocaleString("en-US")} of ${to.toLocaleString("en-US")}; ${n} transaction${n === 1 ? "" : "s"} of yours so far…`;
+      },
+    });
+    const control = $("control-txid").value.trim().toLowerCase();
+    const ids = found.map((f) => f.txid).filter((t) => t !== control);
+    $("txids").value = ids.join("\n");
+    $("scan-status").textContent = found.length
+      ? `Found ${found.length} transaction${found.length === 1 ? "" : "s"} of yours in ${((Date.now() - started) / 1000).toFixed(1)} s; ${ids.length} listed above${control && ids.length < found.length ? " (the challenge transaction is entered below)" : ""}.`
+      : "No transaction of yours from that height: check the network and the height.";
+  } catch (e) {
+    $("scan-status").textContent = scanAbort.signal.aborted ? "The scan was stopped." : `The scan failed: ${e.message ?? e}`;
+  } finally {
+    $("scan").disabled = false;
+    show("scan-stop", false);
+    scanAbort = null;
+  }
+});
+$("scan-stop").addEventListener("click", () => scanAbort?.abort());
+
 $("forget").addEventListener("click", () => {
   generation++;
-  for (const id of ["ufvk", "txids", "nonce", "control-txid", "subject"]) $(id).value = "";
+  scanAbort?.abort();
+  $("scan-status").textContent = "";
+  for (const id of ["ufvk", "txids", "nonce", "control-txid", "subject", "scan-from"]) $(id).value = "";
   $("network").value = "main";
   clearMarks();
   hideResult();

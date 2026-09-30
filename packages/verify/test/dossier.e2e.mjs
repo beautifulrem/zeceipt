@@ -58,6 +58,7 @@ function staticHost(req, res) {
 
 // ---- the public testnet node (gRPC-web), intercepted ----
 const varint = (n) => { const o = []; let v = BigInt(n); do { let b = Number(v & 0x7fn); v >>= 7n; if (v) b |= 0x80; o.push(b); } while (v); return o; };
+const varintBytes = (n) => { const o = []; let v = BigInt(n); do { let b = Number(v & 0x7fn); v >>= 7n; if (v) b |= 0x80; o.push(b); } while (v); return o; };
 const frame = (flag, b) => { const f = Buffer.alloc(5 + b.length); f[0] = flag; f.writeUInt32BE(b.length, 1); Buffer.from(b).copy(f, 5); return f; };
 const grpcHeaders = { "content-type": "application/grpc-web+proto", "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
 /** GetTransaction(TxFilter { hash = 3 }): the txid is the 32 bytes after the frame header and the field tag, reversed. */
@@ -332,6 +333,51 @@ test("build: the published testnet UFVK and the txids rebuild the sample's claim
   assert.equal(await text(s.page, "#headline"), "All 12 claims verified");
   assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "not-generated");
   await assertPrivate(s, { extraSecrets: [b64(builtText)] });
+  await s.context.close();
+});
+
+test("build: Find my transactions scans compact blocks in the page and lists the holder's seven transactions, oldest first; the key never leaves", { skip: !RUN }, async () => {
+  // The node: its tip, and GetBlockRange answering with the real compact blocks it served on 2026-09-30 (fixtures).
+  const blocks = JSON.parse(read(path.join(repo, "fixtures/testnet/compact-blocks.json"))).blocks;
+  const TIP = 4421700;
+  const readVarint = (b, i) => { let v = 0n, s = 0n; for (;;) { const x = b[i++]; v |= BigInt(x & 0x7f) << s; if (!(x & 0x80)) return [Number(v), i]; s += 7n; } };
+  const range = (body) => {
+    // BlockRange { start: BlockID { height = 1 } = 1, end: BlockID = 2 }, after the 5-byte gRPC-web frame header.
+    const b = body.subarray(5), out = [];
+    for (let i = 0; i < b.length;) { const [, i1] = readVarint(b, i); const [len, i2] = readVarint(b, i1); const [h] = readVarint(b, i2 + 1); out.push(h); i = i2 + len; }
+    return out;
+  };
+  const s = await openPage();
+  const asked = [];
+  await s.context.route("https://zjs.zec.rocks/testnet/**", (route) => {
+    const url = route.request().url();
+    if (url.endsWith("/GetLatestBlock")) return route.fulfill({ status: 200, headers: grpcHeaders, body: Buffer.concat([frame(0, [0x08, ...varintBytes(TIP)]), frame(0x80, Buffer.from("grpc-status:0\r\n"))]) });
+    if (url.endsWith("/GetBlockRange")) {
+      const [start, end] = range(route.request().postDataBuffer());
+      asked.push([start, end]);
+      const frames = Object.entries(blocks).filter(([h]) => +h >= start && +h <= end).map(([, b]) => frame(0, Buffer.from(b, "base64")));
+      return route.fulfill({ status: 200, headers: grpcHeaders, body: Buffer.concat([...frames, frame(0x80, Buffer.from("grpc-status:0\r\n"))]) });
+    }
+    return route.fulfill({ status: 200, headers: grpcHeaders, body: nodeAnswer(requestedTxid(route.request().postDataBuffer())) });
+  });
+  await s.page.goto(`${base}/build/`);
+  await ready(s.page);
+  await s.page.selectOption("#network", "test");
+  await s.page.fill("#ufvk", UFVK);
+  await s.page.fill("#scan-from", "4419900");
+  await s.page.click("#scan");
+  await s.page.waitForFunction(() => /^Found \d+ transactions? of yours/.test(document.getElementById("scan-status").textContent), null, { timeout: 30_000 });
+  assert.match(await text(s.page, "#scan-status"), /^Found 7 transactions of yours in [\d.]+ s; 7 listed above\.$/);
+  const listed = (await s.page.inputValue("#txids")).split("\n");
+  assert.deepEqual(listed, [...FUNDS, CONTROL, "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e", "c28b60004cd8d9fc08ab75ff44aa3062a4d79bdfc29653db8765991b5ae5cefe"]);
+  assert.deepEqual(asked, [[4419900, 4421700]], "one request of at most 2,000 blocks, up to the tip");
+  // With the challenge transaction entered, the scan leaves it out of the list.
+  await s.page.fill("#control-txid", CONTROL);
+  await s.page.click("#scan");
+  await s.page.waitForFunction(() => /the challenge transaction is entered below/.test(document.getElementById("scan-status").textContent), null, { timeout: 30_000 });
+  assert.ok(!(await s.page.inputValue("#txids")).includes(CONTROL));
+  // The UFVK is in no request (the scan sends heights only).
+  for (const r of s.requests) assert.ok(!r.body.includes(UFVK) && !r.url.includes(UFVK) && !r.headers.includes(UFVK), `a request carried the UFVK: ${r.url}`);
   await s.context.close();
 });
 

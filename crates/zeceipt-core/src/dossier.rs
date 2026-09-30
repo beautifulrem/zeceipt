@@ -1155,6 +1155,109 @@ impl WalletScanner {
     pub fn found(&self) -> &[FoundTx] {
         &self.found
     }
+
+    /// Scan one serialized lightwalletd `CompactBlock` (a protobuf message, as a gRPC-web stream carries it), and return
+    /// its height. The browser has no protobuf library here, so the few fields a scan needs are read directly:
+    /// `CompactBlock.height` (2) and `vtx` (7); `CompactTx.txid` (2), `actions` (6, Orchard) and `ironwood_actions` (9);
+    /// `CompactOrchardAction` `nullifier` (1), `cmx` (2), `ephemeralKey` (3), `ciphertext` (4). Everything else is skipped.
+    pub fn scan_compact_block(&mut self, bytes: &[u8]) -> Result<u64, crate::CoreError> {
+        let bad = |what: &str| crate::CoreError::Malformed(format!("compact block: {what}"));
+        let mut height = 0u64;
+        let mut txs: Vec<&[u8]> = Vec::new();
+        for f in proto_fields(bytes).ok_or_else(|| bad("not a protobuf message"))? {
+            match f {
+                (2, ProtoValue::Varint(h)) => height = h,
+                (7, ProtoValue::Bytes(b)) => txs.push(b),
+                _ => {}
+            }
+        }
+        for tx in txs {
+            let (mut txid, mut orchard, mut ironwood) = (String::new(), Vec::new(), Vec::new());
+            for f in
+                proto_fields(tx).ok_or_else(|| bad("a transaction is not a protobuf message"))?
+            {
+                match f {
+                    (2, ProtoValue::Bytes(b)) => {
+                        let mut id = b.to_vec();
+                        id.reverse();
+                        txid = hex::encode(id);
+                    }
+                    (6, ProtoValue::Bytes(a)) => orchard.extend(compact_action(a)),
+                    (9, ProtoValue::Bytes(a)) => ironwood.extend(compact_action(a)),
+                    _ => {}
+                }
+            }
+            if !ironwood.is_empty() {
+                self.scan_tx(height, &txid, &ironwood, true);
+            }
+            if !orchard.is_empty() {
+                self.scan_tx(height, &txid, &orchard, false);
+            }
+        }
+        Ok(height)
+    }
+}
+
+/// A protobuf field value, as far as a compact block needs: varints and length-delimited bytes.
+enum ProtoValue<'a> {
+    Varint(u64),
+    Bytes(&'a [u8]),
+}
+
+/// A protobuf message's fields in order; `None` if it does not parse (wire types 1 and 5 are skipped by width).
+fn proto_fields(mut b: &[u8]) -> Option<Vec<(u32, ProtoValue<'_>)>> {
+    fn varint(b: &mut &[u8]) -> Option<u64> {
+        let mut v = 0u64;
+        for i in 0..10 {
+            let (&byte, rest) = b.split_first()?;
+            *b = rest;
+            v |= u64::from(byte & 0x7f) << (7 * i);
+            if byte & 0x80 == 0 {
+                return Some(v);
+            }
+        }
+        None
+    }
+    let mut out = Vec::new();
+    while !b.is_empty() {
+        let key = varint(&mut b)?;
+        let (field, wire) = (u32::try_from(key >> 3).ok()?, key & 7);
+        match wire {
+            0 => out.push((field, ProtoValue::Varint(varint(&mut b)?))),
+            2 => {
+                let len = usize::try_from(varint(&mut b)?).ok()?;
+                let (v, rest) = (b.get(..len)?, b.get(len..)?);
+                b = rest;
+                out.push((field, ProtoValue::Bytes(v)));
+            }
+            1 => b = b.get(8..)?,
+            5 => b = b.get(4..)?,
+            _ => return None,
+        }
+    }
+    Some(out)
+}
+
+/// A `CompactOrchardAction`, when all four fields have their sizes.
+fn compact_action(b: &[u8]) -> Option<CompactActionData> {
+    let (mut nf, mut cmx, mut epk, mut ct) = (None, None, None, None);
+    for f in proto_fields(b)? {
+        if let (n, ProtoValue::Bytes(v)) = f {
+            match n {
+                1 => nf = v.try_into().ok(),
+                2 => cmx = v.try_into().ok(),
+                3 => epk = v.try_into().ok(),
+                4 => ct = v.try_into().ok(),
+                _ => {}
+            }
+        }
+    }
+    Some(CompactActionData {
+        nullifier: nf?,
+        cmx: cmx?,
+        ephemeral_key: epk?,
+        ciphertext: ct?,
+    })
 }
 
 use orchard::note_encryption::NoteEncryptionDomain;

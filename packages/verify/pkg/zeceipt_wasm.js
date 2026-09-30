@@ -1,6 +1,64 @@
 /* @ts-self-types="./zeceipt_wasm.d.ts" */
 
 /**
+ * A wallet scan in the browser (the dossier builder's "find my transactions"): made from the holder's UFVK, which stays
+ * in the page, it is fed serialized `CompactBlock`s from a gRPC-web `GetBlockRange` stream and reports the holder's
+ * transactions (`zeceipt_core::dossier::WalletScanner`).
+ */
+export class DossierScanner {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        DossierScannerFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_dossierscanner_free(ptr, 0);
+    }
+    /**
+     * The holder's transactions found so far: `[{ height, txid, received, spent }]`, in chain order.
+     * @returns {any}
+     */
+    found() {
+        const ret = wasm.dossierscanner_found(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} ufvk
+     * @param {string} network
+     */
+    constructor(ufvk, network) {
+        const ptr0 = passStringToWasm0(ufvk, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.dossierscanner_new(ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        DossierScannerFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Scan one serialized `CompactBlock`; returns its height.
+     * @param {Uint8Array} block
+     * @returns {bigint}
+     */
+    scan_block(block) {
+        const ptr0 = passArray8ToWasm0(block, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.dossierscanner_scan_block(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return BigInt.asUintN(64, ret[0]);
+    }
+}
+if (Symbol.dispose) DossierScanner.prototype[Symbol.dispose] = DossierScanner.prototype.free;
+
+/**
  * Build a dossier in the browser from the holder's UFVK (it never leaves the page) and the raw transactions of the
  * funds, oldest first; optionally the challenge transaction and the reviewer's nonce. Returns the dossier JSON text,
  * or throws with the reason.
@@ -472,6 +530,10 @@ function __wbg_get_imports() {
         "./zeceipt_wasm_bg.js": import0,
     };
 }
+
+const DossierScannerFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_dossierscanner_free(ptr, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();

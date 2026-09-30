@@ -2,6 +2,25 @@
 /* eslint-disable */
 
 /**
+ * A wallet scan in the browser (the dossier builder's "find my transactions"): made from the holder's UFVK, which stays
+ * in the page, it is fed serialized `CompactBlock`s from a gRPC-web `GetBlockRange` stream and reports the holder's
+ * transactions (`zeceipt_core::dossier::WalletScanner`).
+ */
+export class DossierScanner {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * The holder's transactions found so far: `[{ height, txid, received, spent }]`, in chain order.
+     */
+    found(): any;
+    constructor(ufvk: string, network: string);
+    /**
+     * Scan one serialized `CompactBlock`; returns its height.
+     */
+    scan_block(block: Uint8Array): bigint;
+}
+
+/**
  * Build a dossier in the browser from the holder's UFVK (it never leaves the page) and the raw transactions of the
  * funds, oldest first; optionally the challenge transaction and the reviewer's nonce. Returns the dossier JSON text,
  * or throws with the reason.
@@ -88,11 +107,15 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_dossierscanner_free: (a: number, b: number) => void;
     readonly build_dossier: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number, number, number];
     readonly check_dossier: (a: number, b: number, c: any, d: number, e: number) => any;
     readonly check_signature: (a: number, b: number) => any;
     readonly dossier_prevout_txids: (a: number, b: number, c: any) => [number, number, number];
     readonly dossier_txids: (a: number, b: number) => [number, number, number];
+    readonly dossierscanner_found: (a: number) => any;
+    readonly dossierscanner_new: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly dossierscanner_scan_block: (a: number, b: number, c: number) => [bigint, number, number];
     readonly is_delivery_proof: (a: number, b: number) => number;
     readonly issuer_binding: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
     readonly issuer_claim: (a: number, b: number) => any;

@@ -457,3 +457,66 @@ fn a_transparent_origin_names_its_funder_from_the_spent_output() {
         "only the unspent origin"
     );
 }
+
+/// The browser's scan path: serialized `CompactBlock` messages (as a gRPC-web `GetBlockRange` stream carries them) give
+/// the same transactions as the per-transaction scan above.
+#[test]
+fn compact_blocks_as_protobuf_bytes_scan_the_same() {
+    use zeceipt_core::dossier::WalletScanner;
+    use zeceipt_core::parse_transaction;
+    fn varint(mut v: u64, out: &mut Vec<u8>) {
+        while v >= 0x80 {
+            out.push((v as u8) | 0x80);
+            v >>= 7;
+        }
+        out.push(v as u8);
+    }
+    fn field(n: u64, bytes: &[u8], out: &mut Vec<u8>) {
+        varint(n << 3 | 2, out);
+        varint(bytes.len() as u64, out);
+        out.extend(bytes);
+    }
+    let keys =
+        OutgoingKeys::from_ufvk(Network::Test, fx("testnet/issuer-ufvk.txt").trim()).unwrap();
+    let mut s = WalletScanner::new(&keys).unwrap();
+    for (h, t) in TXIDS.iter().chain(std::iter::once(&CONTROL)).enumerate() {
+        let tx = parse_transaction(&tx(t)).unwrap();
+        let mut ctx = Vec::new();
+        let mut id = hex::decode(t).unwrap();
+        id.reverse();
+        field(2, &id, &mut ctx);
+        for a in tx.ironwood_bundle().unwrap().actions() {
+            let mut act = Vec::new();
+            field(1, &a.nullifier().to_bytes(), &mut act);
+            field(2, &a.cmx().to_bytes(), &mut act);
+            field(3, &a.encrypted_note().epk_bytes, &mut act);
+            field(4, &a.encrypted_note().enc_ciphertext[..52], &mut act);
+            field(9, &act, &mut ctx);
+        }
+        let mut block = Vec::new();
+        varint(2 << 3, &mut block); // height, a varint
+        varint(4_419_987 + h as u64, &mut block);
+        field(3, &[0xaa; 32], &mut block); // a hash, skipped
+        field(7, &ctx, &mut block);
+        assert_eq!(s.scan_compact_block(&block).unwrap(), 4_419_987 + h as u64);
+    }
+    let got: Vec<(&str, usize, usize)> = s
+        .found()
+        .iter()
+        .map(|f| (f.txid.as_str(), f.received, f.spent))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            (TXIDS[0], 1, 0),
+            (TXIDS[1], 4, 1),
+            (TXIDS[2], 1, 1),
+            (TXIDS[3], 2, 1),
+            (CONTROL, 2, 1)
+        ]
+    );
+    assert!(
+        s.scan_compact_block(&[0x0f]).is_err(),
+        "not a protobuf message"
+    );
+}

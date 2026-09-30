@@ -512,3 +512,41 @@ fn json_value(v: &serde_json::Value) -> JsValue {
     v.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
         .unwrap_or(JsValue::NULL)
 }
+
+/// A wallet scan in the browser (the dossier builder's "find my transactions"): made from the holder's UFVK, which stays
+/// in the page, it is fed serialized `CompactBlock`s from a gRPC-web `GetBlockRange` stream and reports the holder's
+/// transactions (`zeceipt_core::dossier::WalletScanner`).
+#[wasm_bindgen]
+pub struct DossierScanner {
+    inner: zeceipt_core::dossier::WalletScanner,
+}
+
+#[wasm_bindgen]
+impl DossierScanner {
+    #[wasm_bindgen(constructor)]
+    pub fn new(ufvk: &str, network: &str) -> Result<DossierScanner, JsValue> {
+        let network = match network {
+            "main" => Network::Main,
+            "test" => Network::Test,
+            "regtest" => Network::Regtest,
+            n => return Err(JsValue::from_str(&format!("unknown network {n:?}"))),
+        };
+        let keys = zeceipt_core::OutgoingKeys::from_ufvk(network, ufvk.trim())
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let inner = zeceipt_core::dossier::WalletScanner::new(&keys)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        Ok(DossierScanner { inner })
+    }
+
+    /// Scan one serialized `CompactBlock`; returns its height.
+    pub fn scan_block(&mut self, block: &[u8]) -> Result<u64, JsValue> {
+        self.inner
+            .scan_compact_block(block)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// The holder's transactions found so far: `[{ height, txid, received, spent }]`, in chain order.
+    pub fn found(&self) -> JsValue {
+        json_value(&serde_json::to_value(self.inner.found()).unwrap_or_default())
+    }
+}

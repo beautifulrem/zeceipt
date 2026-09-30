@@ -98,3 +98,5 @@ export function dossierTxids(text: string): string[];
 /** The second round's txids: the transactions whose outputs the origin transactions in `txs` spend. */
 export function dossierPrevoutTxids(text: string, txs: Record<string, { hex: string; height: number | null; mempool?: boolean }>): string[];
 export function buildDossier(opts: { ufvk: string; network?: Network; txids?: string[]; hexes?: string[]; control?: { txid: string; nonce: string } | null; controlHex?: string | null; subject?: string | null; timeoutMs?: number }): Promise<string>;
+/** Find the holder's transactions in a height range, in the page (the UFVK never leaves it). */
+export function scanWallet(opts: { ufvk: string; network?: Network; from: number; to?: number | null; endpoints?: string[]; chunk?: number; timeoutMs?: number; onProgress?: (p: { height: number; from: number; to: number; found: number }) => void; signal?: AbortSignal }): Promise<{ height: number; txid: string; received: number; spent: number }[]>;
