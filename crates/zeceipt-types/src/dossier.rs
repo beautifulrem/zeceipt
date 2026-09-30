@@ -231,18 +231,21 @@ mod tests {
     use super::*;
 
     fn sample() -> String {
-        let p = DeliveryProof {
-            txid: [1; 32],
-            pool: crate::Pool::Ironwood,
-            action: 0,
-            receiver: [2; 43],
-            value: 5,
-            rseed: [3; 32],
-        }
-        .encode();
+        let note = |action| {
+            DeliveryProof {
+                txid: [1; 32],
+                pool: crate::Pool::Ironwood,
+                action,
+                receiver: [2; 43],
+                value: 5,
+                rseed: [3; 32],
+            }
+            .encode()
+        };
+        let (p, q) = (note(0), note(1));
         serde_json::json!({
             "version": DOSSIER_VERSION, "network": "test", "nk": "11".repeat(32),
-            "notes": { "n1": p, "n2": p },
+            "notes": { "n1": p, "n2": q },
             "claims": [ { "type": "origin", "note": "n1" }, { "type": "path", "from": "n1", "to": "n2" },
                         { "type": "control", "nonce": "reviewer-nonce-1", "reply": "n2", "spent": ["n1"] } ]
         })

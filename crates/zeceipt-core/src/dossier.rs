@@ -599,7 +599,7 @@ pub fn check_dossier(
                         }
                     }
                     r.funding = Some(funding);
-                    inclusion(&[f.txid.clone()], &mut r);
+                    inclusion(std::slice::from_ref(&f.txid), &mut r);
                 }
             }
             Claim::Path { from, to } => {
