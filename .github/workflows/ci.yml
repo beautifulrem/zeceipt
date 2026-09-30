@@ -46,6 +46,8 @@ jobs:
         run: node packages/verify/test/verify.mjs
       - name: dossier pages' view logic on the real testnet dossier, their CSPs and the committed sample (case/, build/, landing)
         run: node packages/verify/test/dossier-view.mjs
+      - name: the spec's dossier vectors through the WASM (the same cases crates/zeceipt-core/tests/dossier_vectors.rs runs natively)
+        run: node packages/verify/test/dossier-vectors.mjs
       - name: "@zeceipt/verify as published: the tarball's files, public access, and the README's Node example through the installed package (offline)"
         run: node packages/verify/test/pack.mjs
       - name: public receipt page (packages/verify/r) in Chrome — link to VALID with the three parts, every state, and no request, header or storage carrying the receipt (REQ-CON-12)

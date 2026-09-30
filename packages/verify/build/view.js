@@ -12,6 +12,18 @@ export function ufvkNetwork(ufvk) {
   return UFVK_NETWORK.find(([re]) => re.test(s))?.[1] ?? null;
 }
 
+/**
+ * The network to select for a UFVK as it is typed, from its prefix (uview1 → main, uviewtest1 → test, uviewregtest1 →
+ * regtest): `{ network, note }`. `network` is null when the prefix names none, or names one the page does not offer
+ * (`offered`, the select's values); `note` then says why, for a key that is recognised.
+ */
+export function networkForKey(ufvk, offered = ["main", "test"]) {
+  const net = ufvkNetwork(ufvk);
+  if (!net) return { network: null, note: null };
+  if (offered.includes(net)) return { network: net, note: null };
+  return { network: null, note: `This is a key for the ${NETWORK_NAME[net]}: this page reads only mainnet and testnet from public nodes. Build a regtest dossier with the command line (zeceipt dossier build).` };
+}
+
 /** Transaction ids, one per line (blank lines, surrounding spaces and a trailing comma ignored). */
 export const txidLines = (text) => String(text ?? "").split(/\r?\n/).map((l) => l.trim().replace(/,$/, "").trim()).filter(Boolean);
 
@@ -85,7 +97,7 @@ export function dossierSummary(dossier, report) {
     ["Claims", `${claims.length} (${kindBreakdown(claims.map((c) => ({ kind: c.type })))})`],
   ];
   const discloses = [];
-  if (dossier?.nk) discloses.push("nk, the nullifier key: the reviewer can tell when any disclosed note is spent. It does not let them see your other payments, but someone who also knows another of your notes (its sender does) could tell when that note is spent.");
+  if (dossier?.nk) discloses.push("nk, the nullifier key: with it the reviewer computes each disclosed note's nullifier, so they can watch the chain and see when any of these notes is spent, now and after the case, for as long as they keep the dossier. It does not let them see your other payments, but someone who also knows another of your notes (its sender does) could tell when that note is spent. After the case, you may move the remaining funds to a fresh account: its notes are not covered by this nk.");
   if (notes) discloses.push(`${notes} note opening${notes === 1 ? "" : "s"}: for each note, its transaction, amount, receiving address and memo.`);
   if (receipts) discloses.push(`${receipts} sender receipt${receipts === 1 ? "" : "s"}: each opens one payment you made (its recipient, amount and memo).`);
   if (dossier?.subject) discloses.push(`The subject you wrote: “${dossier.subject}”.`);

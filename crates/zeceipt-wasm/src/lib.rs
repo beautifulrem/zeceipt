@@ -434,11 +434,17 @@ fn tx_map(
 }
 
 /// Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`;
-/// `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer. Returns the
-/// report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse; never throws
-/// for a claim that fails.
+/// `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer, and
+/// `issued_at_height` (optional) the chain height they issued it at: a control transaction mined below it fails.
+/// Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
+/// never throws for a claim that fails.
 #[wasm_bindgen]
-pub fn check_dossier(dossier: &str, txs: JsValue, expect_nonce: &str) -> JsValue {
+pub fn check_dossier(
+    dossier: &str,
+    txs: JsValue,
+    expect_nonce: &str,
+    issued_at_height: Option<f64>,
+) -> JsValue {
     let d = match zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier) {
         Ok(d) => d,
         Err(e) => {
@@ -455,8 +461,13 @@ pub fn check_dossier(dossier: &str, txs: JsValue, expect_nonce: &str) -> JsValue
             )
         }
     };
-    let expect = Some(expect_nonce.trim()).filter(|n| !n.is_empty());
-    let report = zeceipt_core::dossier::check_dossier(&d, dossier, &chain, expect);
+    let opts = zeceipt_core::dossier::CheckOptions {
+        expect_nonce: Some(expect_nonce.trim().to_string()).filter(|n| !n.is_empty()),
+        issued_at_height: issued_at_height
+            .filter(|h| h.is_finite() && *h >= 0.0)
+            .map(|h| h as u64),
+    };
+    let report = zeceipt_core::dossier::check_dossier_with(&d, dossier, &chain, &opts);
     json_value(
         &serde_json::to_value(&report)
             .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })),

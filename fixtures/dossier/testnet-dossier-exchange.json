@@ -1,0 +1,39 @@
+{
+  "version": "zeceipt-dossier-v1",
+  "network": "test",
+  "created": "2026-09-30T16:19:57Z",
+  "subject": "Testnet customer, exchange deposit review (2026-09-30)",
+  "nk": "62def8301719d4148d82179b01e40dcbbec0504483cea91740de108a0321073d",
+  "notes": {
+    "n1": "zdp:1:5jY0J8aigEFeCRZ0mGWIkLDDRlxXjoV2DS94CozzRlECAAAGgvgtngbxpsHoMb9ONojTUSs3e8rBrOdxpY1T2efAytlSe8tE9ED84Z0IAC0xAQAAAAAB3kxfZyTphs-q5NVpZbeHsZ3_2qasXfFfx5FgLJ6jeQ",
+    "n2": "zdp:1:z4UJ1m6200v2wgI6fywisL9m5KM-6Z5pKYfWHHESHaUCAADSrJDHY_sqhBOmTHE4kKcTWXmnJQ2MA9WSXZrWhIfR1NTULOEg7ow2uMElKKfkAAAAAAAEbF5SFAny2F3lkMqA43teby4YykfN5fblV5MfG8ahgA",
+    "n3": "zdp:1:5sx5u3cviynipcJui6bQuri9hDfoxo3kXLCFSx1VqRQCAAAGgvgtngbxpsHoMb9ONojTUSs3e8rBrOdxpY1T2efAytlSe8tE9ED84Z0IoIYBAAAAAADKdvBj1HD6nVXyiA_bV4d95-9Hd_uNd23w4amCEvnDBw"
+  },
+  "claims": [
+    {
+      "type": "origin",
+      "note": "n1"
+    },
+    {
+      "type": "path",
+      "from": "n1",
+      "to": "n2"
+    },
+    {
+      "type": "transparent_payment",
+      "tx": "a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf",
+      "output": 0,
+      "funded_by": [
+        "n1"
+      ]
+    },
+    {
+      "type": "control",
+      "nonce": "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1",
+      "reply": "n3",
+      "spent": [
+        "n2"
+      ]
+    }
+  ]
+}

@@ -88,6 +88,10 @@ pub struct TransparentInput {
     /// The value of the output it spends, from the previous transaction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_zat: Option<u64>,
+    /// The index of this dossier's `transparent_payment` claim for the output it spends: the holder paid it there
+    /// (funds that left the shielded pool and came back).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_in_claim: Option<usize>,
 }
 
 /// Where a transaction's value came from, as the transaction itself shows it.
@@ -115,9 +119,13 @@ pub struct ClaimResult {
     /// For origin claims: what funded the note's transaction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub funding: Option<Funding>,
-    /// For control and deposit claims: the value the spent disclosed notes carried.
+    /// For control claims, the value the spent disclosed notes carried; for deposit and transparent payment claims,
+    /// the amount paid.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_zat: Option<u64>,
+    /// For transparent payment claims: the address the output pays (P2PKH or P2SH), read from its script.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_to: Option<String>,
 }
 
 /// The whole report.
@@ -142,6 +150,13 @@ pub struct Report {
     pub claims: Vec<ClaimResult>,
     /// Every claim verified.
     pub all_verified: bool,
+    /// What the report as a whole supports: `verified_with_control` (every claim verified and a control claim answers
+    /// the nonce the reviewer issued), `verified_history_only` (every claim verified, but nothing shows the holder can
+    /// spend the funds now), or `not_verified`.
+    pub assurance: &'static str,
+    /// The height the reviewer says the nonce was issued at, when given: a control transaction mined before it fails.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issued_at_height: Option<u64>,
     /// What the holder disclosed by handing this dossier over.
     pub disclosed: Vec<String>,
     /// What no claim here proves.
@@ -225,6 +240,10 @@ pub fn txids_needed(d: &Dossier) -> Vec<String> {
         .map(|m| m.values().map(DeliveryProof::txid_hex).collect())
         .unwrap_or_default();
     v.extend(d.receipts.values().map(|r| r.txid.to_lowercase()));
+    v.extend(d.claims.iter().filter_map(|c| match c {
+        Claim::TransparentPayment { tx, .. } => Some(tx.clone()),
+        _ => None,
+    }));
     v.sort();
     v.dedup();
     v
@@ -315,6 +334,7 @@ fn funding(
     network: Network,
     spent_by: &[String],
     txs: &HashMap<String, TxData>,
+    claims: &[Claim],
 ) -> Funding {
     let mut transparent_inputs = Vec::new();
     if let Some(b) = tx.transparent_bundle() {
@@ -325,10 +345,14 @@ fn funding(
                 .and_then(|t| parse_transaction(&t.bytes).ok())
                 .filter(|p| txid_hex(p) == txid)
                 .and_then(|p| output_facts(&p, n, network));
+            let paid_in_claim = claims.iter().position(|c| {
+                matches!(c, Claim::TransparentPayment { tx, output, .. } if *tx == txid && *output == n)
+            });
             transparent_inputs.push(TransparentInput {
                 prevout: format!("{txid}:{n}"),
                 address: facts.as_ref().and_then(|f| f.1.clone()),
                 value_zat: facts.map(|f| f.0),
+                paid_in_claim,
             });
         }
     }
@@ -384,6 +408,35 @@ pub fn check_dossier(
     given: &HashMap<String, TxData>,
     expect_nonce: Option<&str>,
 ) -> Report {
+    check_dossier_with(
+        d,
+        raw,
+        given,
+        &CheckOptions {
+            expect_nonce: expect_nonce.map(str::to_string),
+            issued_at_height: None,
+        },
+    )
+}
+
+/// What the reviewer knows about the challenge they issued.
+#[derive(Debug, Clone, Default)]
+pub struct CheckOptions {
+    /// The nonce they issued: every control claim must answer it.
+    pub expect_nonce: Option<String>,
+    /// The chain height when they issued it: a control transaction mined below it was made before the nonce existed
+    /// (someone guessed or leaked it early), so it fails.
+    pub issued_at_height: Option<u64>,
+}
+
+/// `check_dossier`, with everything the reviewer knows about their challenge.
+pub fn check_dossier_with(
+    d: &Dossier,
+    raw: &str,
+    given: &HashMap<String, TxData>,
+    opts: &CheckOptions,
+) -> Report {
+    let expect_nonce = opts.expect_nonce.as_deref();
     let mut problems = Vec::new();
     // Every supplied transaction under its own txid, recomputed from its bytes: one filed under another txid is set
     // aside (a mislabelled file must not stand in for the transaction a claim names). Bytes that do not parse keep
@@ -545,6 +598,7 @@ pub fn check_dossier(
             details: vec![],
             funding: None,
             value_zat: None,
+            paid_to: None,
         };
         let ids = c.notes();
         if let Some(m) = ids.iter().find(|n| missing(n)) {
@@ -563,7 +617,7 @@ pub fn check_dossier(
                 } else {
                     let f = &notes[note];
                     let tx = parsed(&f.txid).expect("opened, so parsed");
-                    let funding = funding(&tx, net, &spends_in(&tx), txs);
+                    let funding = funding(&tx, net, &spends_in(&tx), txs, &d.claims);
                     let from = if !funding.from_disclosed.is_empty() {
                         format!(
                             "funded by disclosed note{} {}",
@@ -601,7 +655,28 @@ pub fn check_dossier(
                             } else {
                                 format!(" from {}", addrs.join(", "))
                             }
-                        )
+                        ) + &{
+                            let paid: Vec<String> = funding
+                                .transparent_inputs
+                                .iter()
+                                .filter(|i| i.paid_in_claim.is_some())
+                                .map(|i| {
+                                    let (t, n) =
+                                        i.prevout.split_once(':').unwrap_or((&i.prevout, ""));
+                                    format!("{}:{n}", short(t))
+                                })
+                                .collect();
+                            if paid.is_empty() {
+                                String::new()
+                            } else {
+                                // By outpoint, not claim number: readers number claims from 0 (the report's
+                                // `index`) or from 1 (the case page).
+                                format!(
+                                    ", which the holder paid there from disclosed notes (transparent payment {})",
+                                    paid.join(", ")
+                                )
+                            }
+                        }
                     } else {
                         "funded from the shielded pool by an undisclosed sender".into()
                     };
@@ -776,6 +851,10 @@ pub fn check_dossier(
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         );
+                    } else if let Some((h, h0)) =
+                        f.height.zip(opts.issued_at_height).filter(|(h, h0)| h < h0)
+                    {
+                        r.summary = format!("The challenge transaction {} was mined at height {h}, before you issued the nonce at height {h0}: it was not made in answer to your challenge.", short(&f.txid));
                     } else {
                         r.status = Status::Verified;
                         r.summary = format!(
@@ -788,9 +867,81 @@ pub fn check_dossier(
                         if expect_nonce.is_none() {
                             r.details.push("Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce.".into());
                         }
+                        match (opts.issued_at_height, f.height) {
+                            (Some(h0), Some(_)) => r.details.push(format!(
+                                "Mined after the nonce was issued (at height {h0})."
+                            )),
+                            (Some(h0), None) => r.details.push(format!("Its height is not known here, so it was not checked against the height you issued the nonce at ({h0}).")),
+                            (None, _) => {}
+                        }
                         let mut on = vec![f.txid.clone()];
                         on.extend(spent.iter().map(|n| notes[n].txid.clone()));
                         inclusion(&on, &mut r);
+                    }
+                }
+            }
+            Claim::TransparentPayment {
+                tx: ptx,
+                output,
+                funded_by,
+            } => {
+                let bad: Vec<&String> = funded_by.iter().filter(|n| !note_ok(n)).collect();
+                if needs_nk_failed(&mut r) {
+                } else if !bad.is_empty() {
+                    r.summary = format!(
+                        "Notes do not open: {}",
+                        bad.iter()
+                            .map(|n| format!("{n}: {}", note_err(n)))
+                            .collect::<Vec<_>>()
+                            .join("; ")
+                    );
+                } else {
+                    match txs.get(ptx).map(|t| (t, parse_transaction(&t.bytes))) {
+                        None => {
+                            r.status = Status::NotChecked;
+                            r.summary = format!("The payment's transaction ({}) was not found on the node, or not supplied.", short(ptx));
+                        }
+                        Some((_, Err(e))) => {
+                            r.summary = format!("The payment's transaction does not parse: {e}")
+                        }
+                        Some((t, Ok(tx))) => match output_facts(&tx, *output, net) {
+                            None => {
+                                r.summary =
+                                    format!("{} has no transparent output {output}.", short(ptx))
+                            }
+                            Some((v, addr)) => {
+                                let to = addr
+                                    .clone()
+                                    .unwrap_or_else(|| "a non-standard script".into());
+                                let paid = format!(
+                                    "{} to {to} (transparent output {output}) in {}{}",
+                                    amount(v, net),
+                                    short(ptx),
+                                    t.height
+                                        .map(|h| format!(" at height {h}"))
+                                        .unwrap_or_default()
+                                );
+                                r.value_zat = Some(v);
+                                r.paid_to = addr;
+                                let spent = spends_in(&tx);
+                                let unfunded: Vec<&String> =
+                                    funded_by.iter().filter(|n| !spent.contains(n)).collect();
+                                if !unfunded.is_empty() {
+                                    r.summary = format!("{} pays {paid}, but not from {}: their nullifiers are not among its spends.", short(ptx), unfunded.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "));
+                                } else {
+                                    r.status = Status::Verified;
+                                    r.summary = format!(
+                                        "The holder paid {paid}, from {} ({} disclosed).",
+                                        funded_by.join(", "),
+                                        amount(funded_by.iter().map(|n| value(n)).sum(), net)
+                                    );
+                                    r.details.push("The address and amount are read from the output's script on chain; the funding notes' nullifiers in that transaction tie the payment to the holder.".into());
+                                    let mut on = vec![ptx.clone()];
+                                    on.extend(funded_by.iter().map(|n| notes[n].txid.clone()));
+                                    inclusion(&on, &mut r);
+                                }
+                            }
+                        },
                     }
                 }
             }
@@ -820,6 +971,8 @@ pub fn check_dossier(
         problems.push("You issued a nonce, and no control claim answers it: this dossier does not show the holder can spend these funds now.".into());
     }
     let mut report = Report {
+        assurance: "not_verified", // set below
+        issued_at_height: opts.issued_at_height,
         version: REPORT_VERSION,
         network: d.network,
         nk_proven: notes.values().any(|n| n.spent_in.is_some()),
@@ -834,6 +987,11 @@ pub fn check_dossier(
         does_not_prove: DOES_NOT_PROVE.to_vec(),
     };
     report.all_verified = all_ok && report.problems.is_empty();
+    report.assurance = match (report.all_verified, report.controlled) {
+        (true, true) => "verified_with_control",
+        (true, false) => "verified_history_only",
+        (false, _) => "not_verified",
+    };
     report
 }
 
@@ -876,6 +1034,44 @@ pub struct BuildInput<'a> {
 /// spends disclosed notes gets `path` claims to the notes it created for the holder, and a `deposit` claim, with a
 /// sender receipt, for each output it paid to someone else; the challenge transaction gets a `control` claim. Only
 /// Orchard-family notes are covered. The result is checked by `check_dossier` before it is returned.
+/// The holder's transactions reordered so that every one comes after the transactions that created the notes it
+/// spends: the holder may list them in any order, and a spend seen before the note's creation would read as an origin.
+/// Otherwise the given order is kept.
+fn spend_order(
+    txs: Vec<Vec<u8>>,
+    proving: &crate::delivery::ProvingKeys,
+    nkey: &FullViewingKey,
+    network: Network,
+) -> Result<Vec<Vec<u8>>, crate::CoreError> {
+    use crate::delivery::{prove_with, Side};
+    let mut left: Vec<(Vec<u8>, Vec<String>, Vec<String>)> = Vec::new(); // (bytes, created nfs, revealed nfs)
+    for bytes in txs {
+        let tx = parse_transaction(&bytes)?;
+        let mut created = Vec::new();
+        for f in prove_with(&bytes, proving)?
+            .iter()
+            .filter(|f| f.side != Side::Sent)
+        {
+            let (_, note) = check_note(&bytes, &f.proof, network)?;
+            created.push(hex::encode(note.nullifier(nkey).to_bytes()));
+        }
+        left.push((bytes, created, tx_nullifiers(&tx)));
+    }
+    let mut out = Vec::new();
+    while !left.is_empty() {
+        let ready = (0..left.len())
+            .find(|&i| {
+                !left
+                    .iter()
+                    .enumerate()
+                    .any(|(j, other)| j != i && other.1.iter().any(|nf| left[i].2.contains(nf)))
+            })
+            .unwrap_or(0); // a cycle cannot happen on chain; keep the given order if it does
+        out.push(left.remove(ready).0);
+    }
+    Ok(out)
+}
+
 pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
     use crate::delivery::{prove_with, ProvingKeys, Side};
     use crate::{issue, IssueOptions};
@@ -895,8 +1091,10 @@ pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
     let mut claims: Vec<Claim> = Vec::new();
     let mut nullifiers: Vec<(String, String)> = Vec::new(); // (note id, nullifier hex)
     let mut n = 0usize;
-    let mut all: Vec<(Vec<u8>, Option<String>)> =
-        input.txs.into_iter().map(|b| (b, None)).collect();
+    let mut all: Vec<(Vec<u8>, Option<String>)> = spend_order(input.txs, &proving, &nkey, network)?
+        .into_iter()
+        .map(|b| (b, None))
+        .collect();
     if let Some((b, nonce)) = input.control {
         all.push((b, Some(nonce)));
     }
@@ -973,6 +1171,16 @@ pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
                     funded_by: spent.clone(),
                 });
                 receipts.insert(id, r);
+            }
+            // Payments to transparent addresses (an exchange's deposit address): no receipt is needed, the output
+            // is public; the spent notes tie it to the holder.
+            let vouts = tx.transparent_bundle().map_or(0, |b| b.vout.len());
+            for output in 0..vouts as u32 {
+                claims.push(Claim::TransparentPayment {
+                    tx: txid_hex(&tx),
+                    output,
+                    funded_by: spent.clone(),
+                });
             }
         }
     }

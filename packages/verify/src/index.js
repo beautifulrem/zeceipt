@@ -304,9 +304,11 @@ export function confirmations(height, tip) {
  *
  * `checkDossier(text)` fetches every transaction the dossier names from public gRPC-web nodes of its network (each node
  * learns which transactions you look up), then checks every claim in this page. Pass `{ txs }` (txid → `{ hex, height,
- * mempool }`) to check offline instead. Returns the report (`zeceipt-dossier-report-v1`).
+ * mempool }`) to check offline instead. `expectNonce` is the nonce you issued and `issuedAtHeight` the chain height you
+ * issued it at (`fetchChainTip`): a control claim answering another nonce, or mined below that height, fails. Returns the
+ * report (`zeceipt-dossier-report-v1`).
  */
-export async function checkDossier(text, { txs = null, expectNonce = "", timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
+export async function checkDossier(text, { txs = null, expectNonce = "", issuedAtHeight = null, timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
   let network;
   try {
     network = JSON.parse(text).network;
@@ -336,7 +338,7 @@ export async function checkDossier(text, { txs = null, expectNonce = "", timeout
       }
     }
   }
-  return check_dossier(text, got, expectNonce ?? "");
+  return check_dossier(text, got, expectNonce ?? "", Number.isFinite(issuedAtHeight) ? issuedAtHeight : undefined);
 }
 
 /** The txids a dossier's checks need. Throws on a dossier that does not parse. */

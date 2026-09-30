@@ -5,8 +5,8 @@
 // written with textContent only.
 import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, scanWallet, GRPC_WEB_ENDPOINTS } from "../src/index.js";
 import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown } from "../case/view.js";
-import { claimTableRows, factItems, listItem, download } from "../case/ui.js";
-import { validateBuild, buildError, dossierSummary, DOSSIER_FILE } from "./view.js";
+import { claimTableRows, factItems, listItem, download, showVerifierDigest } from "../case/ui.js";
+import { validateBuild, buildError, dossierSummary, networkForKey, DOSSIER_FILE } from "./view.js";
 
 const PAGE_TIMEOUT_MS = 12_000;
 const $ = (id) => document.getElementById(id);
@@ -157,6 +157,17 @@ $("copy-link").addEventListener("click", async () => {
 // "Find my transactions": a scan of compact blocks from a public node, trial-decrypted here with the UFVK (scanWallet).
 // The UFVK is read from its field and not kept; the found txids fill the list, oldest first, without the challenge
 // transaction (it is entered below).
+// The network follows the key's prefix as it is typed (the holder can still change it; a mismatch is then named).
+$("ufvk").addEventListener("input", () => {
+  const offered = [...$("network").options].map((o) => o.value);
+  const { network, note } = networkForKey($("ufvk").value, offered);
+  if (network && $("network").value !== network) {
+    $("network").value = network;
+    delete $("network-field").dataset.invalid;
+    $("network").removeAttribute("aria-invalid");
+  }
+  $("ufvk-network").textContent = note ?? (network ? `Network set from the key: ${$("network").selectedOptions[0].textContent}.` : "");
+});
 let scanAbort = null;
 $("scan").addEventListener("click", async () => {
   clearMarks();
@@ -199,6 +210,7 @@ $("forget").addEventListener("click", () => {
   $("scan-status").textContent = "";
   for (const id of ["ufvk", "txids", "nonce", "control-txid", "subject", "scan-from"]) $(id).value = "";
   $("network").value = "main";
+  $("ufvk-network").textContent = "";
   clearMarks();
   hideResult();
   $("open-case").href = "../case/";
@@ -216,6 +228,6 @@ for (const id of FIELDS) {
 }
 
 initVerifier().then(
-  (v) => { $("version").textContent = v; setStatus("Ready: the dossier is built in this page.", "ready"); },
+  (v) => { $("version").textContent = v; setStatus("Ready: the dossier is built in this page.", "ready"); showVerifierDigest($("wasm-sha")); },
   (e) => setStatus(`The builder failed to load: ${e}`, "error"),
 );

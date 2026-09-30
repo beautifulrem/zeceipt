@@ -297,8 +297,17 @@ pub fn parse_transaction(bytes: &[u8]) -> Result<Transaction, CoreError> {
     }
     // The branch id argument only matters for pre-v5 transactions; v5/v6 carry
     // their consensus branch id in the serialized form.
-    let tx = Transaction::read(bytes, BranchId::Nu6_3)
-        .map_err(|e| CoreError::Malformed(e.to_string()))?;
+    // A truncated transaction reads "unexpected end of file" in every build: std's own text for that error ("failed to
+    // fill whole buffer") and the no-std reader's differ, and reports (and the spec's vectors) must not.
+    // (The two builds' errors are different types, so the text is compared.)
+    let tx = Transaction::read(bytes, BranchId::Nu6_3).map_err(|e| {
+        let m = e.to_string();
+        CoreError::Malformed(if m == "failed to fill whole buffer" {
+            "unexpected end of file".into()
+        } else {
+            m
+        })
+    })?;
     // `read` does not check that a v5/v6 transaction's own branch is one its version is valid in (a v6 transaction
     // under NU6.1 parses, and its bundle is one the v6 writer refuses): Zebra's GHSA-h5rr-8pqv-grp9, fixed by rejecting
     // it at parse time (#11533). Such a transaction can never be consensus-valid, so it is malformed here too (R127).

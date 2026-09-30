@@ -28,6 +28,8 @@
 .result.ok { --icon: url("../r/icons/shield-check.svg"); }
 .result.pending { --icon: url("../r/icons/clock.svg"); }
 .result.bad { --icon: url("../r/icons/shield-x.svg"); }
+/* Every claim verified, but control not shown: amber, with an alert mark rather than the clock (waiting will not help). */
+.result.partial { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-line: var(--warning-line); --icon: url("../r/icons/circle-alert.svg"); }
 .btn .i { width: 1rem; height: 1rem; }
 
 /* Skip link and top bar navigation */
@@ -161,10 +163,71 @@ h3.step-title { margin: 0; font: 600 0.95rem/1.35 var(--sans); letter-spacing: -
 .chip-pay { border-style: dashed; border-color: var(--accent-line); background: var(--accent-soft); }
 .chip-reply { border-color: var(--tone-line); }
 .chip-bad { border-color: var(--danger-line); background: var(--danger-soft); color: var(--danger); }
-.edges { list-style: none; margin: 0.65rem 0 0; padding: 0.55rem 0 0; border-top: 1px dashed var(--line); display: grid; gap: 0.3rem; }
-.edge { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.75rem; align-items: center; font-size: 0.8rem; }
+/* The rows share their columns (subgrid), so a long kind ("#13 Transparent payment") moves every label alike. */
+.edges { list-style: none; margin: 0.65rem 0 0; padding: 0.55rem 0 0; border-top: 1px dashed var(--line); display: grid; grid-template-columns: minmax(6.5rem, max-content) 1fr auto; gap: 0.3rem 0.75rem; }
+.edge { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; font-size: 0.8rem; }
 .edge-kind { font: 500 0.72rem var(--mono); color: var(--muted); white-space: nowrap; }
 .edge-label { font-family: var(--mono); font-size: 0.76rem; overflow-wrap: anywhere; }
+
+.chip-transparent { border-color: var(--warning-line); background: var(--warning-soft); }
+.returned { display: block; margin-top: 0.15rem; font-size: 0.78rem; font-weight: 550; color: var(--info); }
+
+/* Identifiers: short on screen (the full one in a tooltip), whole on paper */
+.print-full { display: none; }
+
+/* The decision summary, at the top of the case */
+.decision-wrap { margin-top: 1rem; padding-top: 0.85rem; border-top: 1px dashed var(--line); }
+.decision-title { margin: 0; font: 600 0.8rem/1.4 var(--sans); letter-spacing: 0; text-transform: none; color: var(--fg); }
+.facts.decision { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 0.4rem; padding-top: 0; border-top: 0; }
+.decision-value { display: block; font-weight: 650; font-variant-numeric: tabular-nums; }
+.decision-detail { display: block; margin-top: 0.1rem; font-size: 0.76rem; color: var(--muted); }
+.decision-wrap + .facts { margin-top: 0.85rem; }
+
+/* A parse error's own words, folded; the offline line; the sample's challenge */
+.tech-detail { margin-top: 0.6rem; font-size: 0.8rem; }
+.tech-detail > summary { cursor: pointer; width: fit-content; color: var(--muted); }
+.tech-detail code { display: block; margin-top: 0.35rem; padding: 0.5rem 0.65rem; border-radius: var(--radius-md); background: var(--surface-2); font-size: 0.75rem; overflow-wrap: anywhere; }
+.offline-line, .sample-nonce-row { margin: 0.85rem 0 0; padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-size: 0.85rem; border: 1px solid var(--warning-line); background: var(--warning-soft); color: var(--fg); }
+.sample-nonce-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; border-color: var(--accent-line); background: var(--accent-soft); }
+.sample-nonce-row .btn { min-height: 2.25rem; padding: 0.35rem 0.85rem; font-size: 0.8125rem; }
+.sample-nonce-row .muted { font-size: 0.8rem; }
+button.linkish { padding: 0; border: 0; background: none; font: inherit; color: var(--fg); cursor: pointer; text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+button.linkish:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+.sample-more { font-size: 0.85rem; margin-top: 0; }
+/* The flagship sample, first in the input card */
+.flagship { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 1rem; align-items: center; margin: 0.2rem 0 0.4rem; padding: 0.75rem 0.9rem; border: 1px solid var(--accent-line); border-radius: var(--radius-lg); background: var(--accent-soft); }
+.flagship p { margin: 0; }
+.flagship .muted { font-size: 0.84rem; color: var(--fg); }
+@media (max-width: 640px) { .flagship { grid-template-columns: 1fr; } }
+
+/* The reviewer's case fields: plain inputs that print as filled-in (or blank) lines */
+.case-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 1rem; margin-top: 0.85rem; }
+.case-fields .field { margin: 0; font-size: 0.75rem; color: var(--muted); }
+.case-fields input.text { margin-top: 0.25rem; padding: 0.4rem 0.6rem; font-family: var(--sans); font-size: 0.85rem; }
+
+/* Offline: transactions from files */
+fieldset.offline { margin: 0.4rem 0 0.9rem; padding: 0.6rem 1rem 0.2rem; border: 1px dashed var(--line); border-radius: var(--radius-md); }
+fieldset.offline legend { padding: 0 0.35rem; font-size: 0.8125rem; font-weight: 600; }
+fieldset.offline .hint { margin: 0 0 0.4rem; }
+.field input.file { display: block; margin-top: 0.4rem; font-size: 0.8rem; }
+.tx-files-status:empty { display: none; }
+.tx-files-status { font-size: 0.8rem; overflow-wrap: anywhere; }
+
+/* Glossary and after-the-case advice */
+.glossary > details > summary { cursor: pointer; list-style: none; width: fit-content; }
+.glossary > details > summary::-webkit-details-marker { display: none; }
+.glossary > details > summary h2 { margin: 0; display: inline; }
+.glossary > details > summary h2::after {
+  content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin: 0 0 0.15rem 0.6rem;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg);
+}
+.glossary > details[open] > summary h2::after { transform: rotate(-135deg); margin-bottom: -0.1rem; }
+.terms { display: grid; grid-template-columns: 11rem 1fr; gap: 0.45rem 1rem; margin: 0.85rem 0 0; font-size: 0.85rem; }
+.terms dt { font-weight: 600; }
+.terms dd { margin: 0; color: var(--fg); }
+.after .discloses strong { font-weight: 650; }
+.wasm-sha { font-size: 0.75rem; overflow-wrap: anywhere; }
+.wasm-sha code { font-size: 0.72rem; }
 
 /* The claims table */
 .table-wrap { overflow-x: auto; }
@@ -194,6 +257,10 @@ h3.step-title { margin: 0; font: 600 0.95rem/1.35 var(--sans); letter-spacing: -
 
 /* The reviewer's challenge */
 .challenge p { font-size: 0.9rem; }
+.challenge-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 1rem; margin-top: 0.6rem; }
+#nonce-field { grid-column: 1 / -1; }
+.h0-status:empty { display: none; }
+.h0-status { font-size: 0.85rem; margin: -0.3rem 0 0.4rem; }
 .nonce-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.75rem 0; }
 .nonce-label { font-size: 0.8rem; color: var(--muted); }
 #nonce-value { padding: 0.35rem 0.6rem; border: 1px solid var(--accent-line); border-radius: var(--radius-md); background: var(--accent-soft); font-size: 0.85rem; overflow-wrap: anywhere; }
@@ -206,17 +273,20 @@ h3.step-title { margin: 0; font: 600 0.95rem/1.35 var(--sans); letter-spacing: -
   .topnav { margin-left: 0.5rem; }
 }
 @media (max-width: 760px) {
-  .facts { grid-template-columns: 1fr 1fr; }
+  .facts, .facts.decision { grid-template-columns: 1fr 1fr; }
+  .challenge-fields, .case-fields { grid-template-columns: 1fr; }
   .fact-wide { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) {
-  .facts { grid-template-columns: 1fr; }
+  .facts, .facts.decision { grid-template-columns: 1fr; }
+  .terms { grid-template-columns: 1fr; gap: 0.1rem; }
+  .terms dd { margin-bottom: 0.4rem; }
   .step { margin-left: 1.5rem; padding: 0.75rem; }
   .step::before { left: calc(-1.1rem - 1px); }
   .step-dot { left: -1.5rem; }
   .step-group { grid-template-columns: 1fr; }
   .step-funding, .step-group .step-funding:first-of-type { grid-column: 1; }
-  .edge { grid-template-columns: 1fr auto; }
+  .edges { grid-template-columns: 1fr auto; }
   .edge-kind { grid-column: 1 / -1; }
   .claims-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
   .claims-table tr { display: grid; grid-template-columns: auto 1fr auto; gap: 0.25rem 0.6rem; padding: 0.6rem 0; border-bottom: 1px dashed var(--line); }
@@ -225,7 +295,26 @@ h3.step-title { margin: 0; font: 600 0.95rem/1.35 var(--sans); letter-spacing: -
 }
 
 @media print {
-  .skip, .topbar, #inputs, .challenge, .case-actions, .privacy, .foot, .copy, #status { display: none !important; }
+  .skip, .topbar, #inputs, .challenge, .case-actions, .privacy, .foot, .copy, #status, .glossary, .after, .sample-nonce-row, .tech-detail > summary { display: none !important; }
+  /* No controls on paper: every button goes (the offline line keeps its words). */
+  button, .btn { display: none !important; }
+  /* Whole identifiers on paper. */
+  .screen-only { display: none !important; }
+  .print-full { display: inline; font-size: 8.5px; overflow-wrap: anywhere; }
+  .tech-detail:not([hidden]) code { display: block; }
+  /* The case fields print as lines to fill in, with what was typed. */
+  .case-fields .field { color: var(--fg); }
+  .case-fields input.text { border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; padding: 0.2rem 0; min-height: 1.6rem; background: none; }
+  .facts.decision { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .case-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .case-fields input.text::placeholder { color: transparent; }
+  /* The footer: when the report was made, the verifier's and the dossier's sha256, and the page's number. */
+  .print-foot { margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid var(--line-strong); overflow-wrap: anywhere; }
+  /* Every printed page names the dossier (page.js sets --print-dossier, a string, on the root) and its number. */
+  @page {
+    @bottom-left { content: var(--print-dossier, ""); font: 7px monospace; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8px sans-serif; }
+  }
   .result, .card, .step { box-shadow: none; }
   .result { padding: 1rem 1.1rem; }
   .step, .claims-table tr, .funder, .scope { break-inside: avoid; }

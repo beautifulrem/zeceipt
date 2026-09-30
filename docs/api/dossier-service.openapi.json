@@ -1,0 +1,1006 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "zeceipt dossier service",
+    "version": "0.1.0",
+    "summary": "`zeceipt dossier serve`: check source-of-funds dossiers (zeceipt-dossier-v1) against the Zcash chain, for a compliance back office.",
+    "description": "A self-hosted HTTP/1.1 service. No authentication, no TLS, no state: put it behind your own reverse proxy with TLS, authentication, a rate limit and a timeout. It listens on loopback unless started with `--allow-remote`. Request bodies are capped at 1 MiB. Transactions are fetched from zec.rocks, from `--endpoint`, or from `--raw-tx-dir` (offline). Every answer is JSON with `Cache-Control: no-store`; any other method or path is a 404. No CORS headers are sent. Human documentation: docs/api/dossier-service.md. Written 2026-09-30 from the working tree after 44b8877 (which adds issued_at_height, assurance and the transparent_payment claim, not yet committed that day), and checked against a running build of it: crates/zeceipt-cli/src/main.rs (`serve_dossiers`) and crates/zeceipt-core/src/dossier.rs (`Report`). `security` is empty on purpose: the service itself authenticates no one; the proxy in front of it does.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8787",
+      "description": "The default --listen address"
+    }
+  ],
+  "security": [],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "health",
+        "summary": "Liveness, and the dossier format this build reads",
+        "responses": {
+          "200": {
+            "description": "Up",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always `no-store`.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "version"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "version": {
+                      "type": "string",
+                      "const": "zeceipt-dossier-v1"
+                    }
+                  }
+                },
+                "example": {
+                  "ok": true,
+                  "version": "zeceipt-dossier-v1"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/nonces": {
+      "post": {
+        "operationId": "issueNonce",
+        "summary": "A fresh challenge nonce for a holder",
+        "description": "`zeceipt-challenge-` and 16 random bytes (hex) from the OS generator, with the chain height and time it was issued at, for the case file. The service does not store it: pass it back as `expect_nonce` (and the height as `issued_at_height`) when the dossier arrives. The height comes from the service's own node and network (mainnet unless the service was started with --testnet or --regtest); it is null when no node answers, and always null with --raw-tx-dir, where `network` is also absent. No request body.",
+        "responses": {
+          "201": {
+            "description": "A nonce",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always `no-store`.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Nonce"
+                },
+                "example": {
+                  "issued_at": "2026-09-30T15:58:33Z",
+                  "issued_at_height": 4422278,
+                  "network": "test",
+                  "nonce": "zeceipt-challenge-3b8f8c3d38f309ee7e8649c9a628066a"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/dossiers/verify": {
+      "post": {
+        "operationId": "verifyDossier",
+        "summary": "Check every claim of a dossier against the chain",
+        "description": "The body is the dossier file exactly as received (UTF-8 JSON, at most 1 MiB; the content type is not checked); `dossier_sha256` is the sha256 of these bytes. The dossier's own `network` selects the network (unless the service was started with --testnet or --regtest, which force it). A checked dossier is always a 200, whatever the outcome: read `all_verified`, `controlled`, `assurance` and each claim's `status`. A transaction the node does not have or has only in its mempool makes the claims that rest on it `not_checked`; it is not an error.",
+        "parameters": [
+          {
+            "name": "expect_nonce",
+            "in": "query",
+            "required": false,
+            "description": "The nonce you issued. Every control claim must answer it. Without it, `controlled` is false. Taken literally: `+` becomes a space, no percent-decoding (zeceipt nonces are `[a-z0-9-]`).",
+            "schema": {
+              "type": "string",
+              "pattern": "^zeceipt-challenge-[0-9a-f]{32}$"
+            },
+            "example": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8"
+          },
+          {
+            "name": "issued_at_height",
+            "in": "query",
+            "required": false,
+            "description": "The chain height when you issued the nonce: a control transaction mined below it fails. Not a non-negative integer: 400.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 4421000
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "A zeceipt-dossier-v1 document (spec/dossier-v1.md §2). Parsed strictly: an unknown field or claim type is a 422.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Dossier"
+              },
+              "examples": {
+                "testnet-sample": {
+                  "summary": "fixtures/dossier/testnet-dossier.json",
+                  "value": {
+                    "version": "zeceipt-dossier-v1",
+                    "network": "test",
+                    "created": "2026-09-30T12:37:53Z",
+                    "subject": "Testnet holder, zeceipt demo (2026-10-01)",
+                    "nk": "4a269d95563ab382bf2beac31322ec94ebabbe246560a7285a839db7963d4e37",
+                    "notes": {
+                      "n1": "zdp:1:SypW7NfyvzDfkYYXGEacO9vJv9Oa4kYvW89iSDWj9pACAAA8QBEegMsyaXMBJZFOX_WkxA1B0dBMw1V-A-k6cKg-cMcJ2WxFLEO-9e-YAOH1BQAAAABSPTO0k4hV8u4ulnbcY9E0X0wBajejyZloJ8ToYDgM8w",
+                      "n2": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAACTbbT1oU7ebS6D_liHVR_S49eTN1FSOtQ_grZNiOUklA",
+                      "n3": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAQDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAAClVrDOcnd4ChMR8z-hVNL6EmTbwvlK3CGEv21ChWA7ow",
+                      "n4": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAwDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAABAupo_u7yUt4QlM-6AySuTy3HL-TLbuhdasD31lOjyBA",
+                      "n5": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCBADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAADc2sVIeyrYVPfFVLrPXp-tDohMpGy8asMHxICJ4DbNcA",
+                      "n6": "zdp:1:neOsa7FaYZzRGIQnvPzyPW4A2a7hgod9b0zbK0uDSRwCAQDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqtuNaAQAAAABcEdDDl4GAJ5zqR1JtMurrH_Xq7jRAhf4vCRwQp_nT2g",
+                      "n7": "zdp:1:-D3QmDac2xl3wlLfb6xQr360BQvkZnkc3j0mYzmeYaICAADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8Cvdwjsq98alAAAAAAB7samI0Jc-jVwCb_ZFvgl9vFLEpfbKyWgITkU4JaKQhA",
+                      "n8": "zdp:1:-D3QmDac2xl3wlLfb6xQr360BQvkZnkc3j0mYzmeYaICAQDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8Cvdwjsq98alAAAAAABZgPlqheRR5hBWta_LspRQjbMVaKpJhkGdBSRboguO9Q",
+                      "n9": "zdp:1:Q27frLwsZo3iestmbKe_nn4_A8gtZgV8qXcs_udB6RACAQA8QBEegMsyaXMBJZFOX_WkxA1B0dBMw1V-A-k6cKg-cMcJ2WxFLEO-9e-YoIYBAAAAAAC-LTHKceI0qM43UzuJOH-MsfjGTve6M0MyE1fNSfpdXA"
+                    },
+                    "receipts": {
+                      "r1": {
+                        "version": "zeceipt-v0",
+                        "network": "test",
+                        "pool": "ironwood",
+                        "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+                        "output_index": 2,
+                        "ock": "RPuhe60BrnHRrRTQe4fdGa5o1z7GaC45j06DeSuhP3A",
+                        "label": "",
+                        "zip311_profile": "outputs-only"
+                      },
+                      "r2": {
+                        "version": "zeceipt-v0",
+                        "network": "test",
+                        "pool": "ironwood",
+                        "txid": "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d",
+                        "output_index": 0,
+                        "ock": "PqhwmRm4QxI03ege7mY-g7C_c_wz6RLhb1rxEDkzRsE",
+                        "label": "",
+                        "zip311_profile": "outputs-only"
+                      },
+                      "r3": {
+                        "version": "zeceipt-v0",
+                        "network": "test",
+                        "pool": "ironwood",
+                        "txid": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
+                        "output_index": 2,
+                        "ock": "H2ZzrkX_1wDf3PeV_QqHAQbm8N9fhpJUdc2PGRzrzfM",
+                        "label": "",
+                        "zip311_profile": "outputs-only"
+                      }
+                    },
+                    "claims": [
+                      {
+                        "type": "origin",
+                        "note": "n1"
+                      },
+                      {
+                        "type": "path",
+                        "from": "n1",
+                        "to": "n2"
+                      },
+                      {
+                        "type": "path",
+                        "from": "n1",
+                        "to": "n3"
+                      },
+                      {
+                        "type": "path",
+                        "from": "n1",
+                        "to": "n4"
+                      },
+                      {
+                        "type": "path",
+                        "from": "n1",
+                        "to": "n5"
+                      },
+                      {
+                        "type": "deposit",
+                        "receipt": "r1",
+                        "funded_by": [
+                          "n1"
+                        ]
+                      },
+                      {
+                        "type": "path",
+                        "from": "n2",
+                        "to": "n6"
+                      },
+                      {
+                        "type": "deposit",
+                        "receipt": "r2",
+                        "funded_by": [
+                          "n2"
+                        ]
+                      },
+                      {
+                        "type": "path",
+                        "from": "n3",
+                        "to": "n7"
+                      },
+                      {
+                        "type": "path",
+                        "from": "n3",
+                        "to": "n8"
+                      },
+                      {
+                        "type": "deposit",
+                        "receipt": "r3",
+                        "funded_by": [
+                          "n3"
+                        ]
+                      },
+                      {
+                        "type": "control",
+                        "nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+                        "reply": "n9",
+                        "spent": [
+                          "n4"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checked. The report (zeceipt-dossier-report-v1); the example is an excerpt (3 of 12 claims, 3 of 9 notes) of the testnet sample checked against testnet.zec.rocks on 2026-09-30 with its nonce.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always `no-store`.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                },
+                "example": {
+                  "version": "zeceipt-dossier-report-v1",
+                  "network": "test",
+                  "nk_proven": true,
+                  "controlled": true,
+                  "subject": "Testnet holder, zeceipt demo (2026-10-01)",
+                  "dossier_sha256": "7b8d7ecfa99676a660f27c0c5cbdce03ee130d138a48b51eeb7c0d9f167ea9c1",
+                  "notes": {
+                    "n1": {
+                      "txid": "90f6a3354862cf5b2f46e29ad3bfc9db3b9c4618178691df30bff2d7ec562a4b",
+                      "pool": "ironwood",
+                      "action": 0,
+                      "height": 4419987,
+                      "recipient": "utest1r939nk7ur0s77ax88gne887nllp42s8d9wuqvpt3y902my24yhzdtk296g53u569hlq6xrtzuryfuw4mfekgfpz20jv0k4hsfumv0kcu",
+                      "value_zat": 100000000,
+                      "memo": "fauzec/v1\n01M3RKDCFTR8V9DHKYW6ZM8H4X\n1790839688811\nhttps://fauzec.com/help",
+                      "nullifier": "335f8277b12c0d891b373070ce9452c800e977d89e359f481adbea45032c9110",
+                      "spent_in": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b"
+                    },
+                    "n4": {
+                      "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+                      "pool": "ironwood",
+                      "action": 3,
+                      "height": 4420000,
+                      "recipient": "utest1nz4f89fec5w668eqt0ulwasmv7g8wjzvaux772dm9lyjjaeeh46r8f9jsjfhnet6406h9fz2969aa858kt5ckj5kmnjh9g748v4en7fj",
+                      "value_zat": 24743750,
+                      "memo": "",
+                      "nullifier": "309a6b8661b576d6c17d02a5ae2aba25df7d2e4a2c5410fca250c05f4e203d30",
+                      "spent_in": "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43"
+                    },
+                    "n9": {
+                      "txid": "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43",
+                      "pool": "ironwood",
+                      "action": 1,
+                      "height": 4421345,
+                      "recipient": "utest1r939nk7ur0s77ax88gne887nllp42s8d9wuqvpt3y902my24yhzdtk296g53u569hlq6xrtzuryfuw4mfekgfpz20jv0k4hsfumv0kcu",
+                      "value_zat": 100000,
+                      "memo": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+                      "nullifier": "41165a607c7f2a79b9c2f74b46683970d448dffb51251284d075fdaa69410f1d"
+                    }
+                  },
+                  "claims": [
+                    {
+                      "index": 0,
+                      "kind": "origin",
+                      "status": "verified",
+                      "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b at height 4419987, funded from the shielded pool by an undisclosed sender.",
+                      "details": [
+                        "n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account."
+                      ],
+                      "funding": {
+                        "transparent_inputs": [],
+                        "shielded_actions": 2,
+                        "sapling_spends": 0,
+                        "from_disclosed": []
+                      }
+                    },
+                    {
+                      "index": 5,
+                      "kind": "deposit",
+                      "status": "verified",
+                      "summary": "The holder paid 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b at height 4420000, from n1 (1.00000000 TAZ disclosed).",
+                      "value_zat": 1000000
+                    },
+                    {
+                      "index": 11,
+                      "kind": "control",
+                      "status": "verified",
+                      "summary": "Answering nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, the holder spent n4 (0.24743750 TAZ) in 10e941e7…6e43 at height 4421345: they could spend these funds after the nonce was issued.",
+                      "value_zat": 24743750
+                    }
+                  ],
+                  "all_verified": true,
+                  "assurance": "verified_with_control",
+                  "disclosed": [
+                    "9 note openings (each: its transaction, amount, recipient address and memo)",
+                    "nk, the nullifier key: the reviewer can tell when any disclosed note is spent, and so can anyone who learns nk and another of the account's note openings (its sender knows them)",
+                    "3 sender receipts (each opens one payment the holder made)"
+                  ],
+                  "does_not_prove": [
+                    "who the counterparties are: an origin shows the transparent addresses that funded a transaction, not who holds them",
+                    "the value of undisclosed inputs of a transaction: they are counted, not valued",
+                    "anything about notes, payments or balances the dossier does not disclose",
+                    "that funds are unspent now: control shows the holder could spend the listed notes when the challenge transaction was made",
+                    "a legal attestation: this is evidence a reviewer weighs, not a certificate"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not UTF-8, or `issued_at_height` is not a height",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "the body is not UTF-8"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The body is over 1 MiB (1,048,576 bytes), or the upload broke off",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "the body is over 1 MiB, or broken"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The dossier does not parse",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always `no-store`.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseError"
+                },
+                "example": {
+                  "all_verified": false,
+                  "error": "json: unknown field `extra`, expected one of `version`, `network`, `created`, `subject`, `nk`, `notes`, `receipts`, `claims` at line 1 column 79",
+                  "stage": "parse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Fetching transactions failed with an error other than not found or not mined (every node unreachable, say)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "fetching transactions: all endpoints failed; last error: could not connect to http://127.0.0.1:9: transport error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "NotFound": {
+        "description": "Any other method or path (there is no 405)",
+        "headers": {
+          "Cache-Control": {
+            "description": "Always `no-store`.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "POST /v1/dossiers/verify, POST /v1/nonces or GET /healthz"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "ParseError": {
+        "type": "object",
+        "required": [
+          "all_verified",
+          "stage",
+          "error"
+        ],
+        "properties": {
+          "all_verified": {
+            "type": "boolean",
+            "const": false
+          },
+          "stage": {
+            "type": "string",
+            "const": "parse"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "Nonce": {
+        "type": "object",
+        "required": [
+          "nonce",
+          "issued_at_height",
+          "issued_at"
+        ],
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "pattern": "^zeceipt-challenge-[0-9a-f]{32}$"
+          },
+          "issued_at_height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The service node's chain tip when issued; null if no node answered or with --raw-tx-dir"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "network": {
+            "$ref": "#/components/schemas/Network",
+            "description": "The service's network; absent with --raw-tx-dir"
+          }
+        }
+      },
+      "Network": {
+        "type": "string",
+        "enum": [
+          "main",
+          "test",
+          "regtest"
+        ]
+      },
+      "Status": {
+        "type": "string",
+        "enum": [
+          "verified",
+          "failed",
+          "not_checked",
+          "unproven"
+        ],
+        "description": "verified; failed: the chain data contradicts the claim; not_checked: a transaction is in the mempool or was not found (check again later); unproven: the data given cannot show it, and waiting will not change that"
+      },
+      "Dossier": {
+        "type": "object",
+        "description": "spec/dossier-v1.md §2. Unknown fields are refused.",
+        "required": [
+          "version",
+          "network",
+          "notes",
+          "claims"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "zeceipt-dossier-v1"
+          },
+          "network": {
+            "$ref": "#/components/schemas/Network"
+          },
+          "created": {
+            "type": "string",
+            "description": "RFC 3339; informational"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Free text from the holder; unauthenticated"
+          },
+          "nk": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "The Orchard-family nullifier-deriving key; required by path, control, transparent_payment and deposit-with-funded_by claims"
+          },
+          "notes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^zdp:1:"
+            },
+            "description": "id → zdp:1: note opening"
+          },
+          "receipts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "description": "A zeceipt-v0 receipt (spec/receipt-v0.md)"
+            }
+          },
+          "claims": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            }
+          }
+        }
+      },
+      "Claim": {
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "origin",
+            "required": [
+              "type",
+              "note"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "origin"
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "path",
+            "required": [
+              "type",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "path"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "deposit",
+            "required": [
+              "type",
+              "receipt"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "deposit"
+              },
+              "receipt": {
+                "type": "string"
+              },
+              "funded_by": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "control",
+            "required": [
+              "type",
+              "nonce",
+              "reply",
+              "spent"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "control"
+              },
+              "nonce": {
+                "type": "string"
+              },
+              "reply": {
+                "type": "string"
+              },
+              "spent": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "transparent_payment",
+            "description": "Being added on 2026-09-30 (working tree after 44b8877): a payment from disclosed notes to transparent output `output` of transaction `tx`.",
+            "required": [
+              "type",
+              "tx",
+              "output",
+              "funded_by"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "transparent_payment"
+              },
+              "tx": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "output": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "funded_by": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "NoteFact": {
+        "type": "object",
+        "required": [
+          "txid",
+          "pool",
+          "action"
+        ],
+        "properties": {
+          "txid": {
+            "type": "string"
+          },
+          "pool": {
+            "type": "string",
+            "enum": [
+              "ironwood",
+              "orchard"
+            ]
+          },
+          "action": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "value_zat": {
+            "type": "integer"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "nullifier": {
+            "type": "string",
+            "description": "Derived from the dossier's nk, when it is a valid key"
+          },
+          "spent_in": {
+            "type": "string",
+            "description": "The fetched transaction that spends this note: only then is the note shown to be the holder's"
+          },
+          "error": {
+            "type": "string",
+            "description": "Why the note did not open, or its transaction is absent"
+          }
+        }
+      },
+      "TransparentInput": {
+        "type": "object",
+        "required": [
+          "prevout"
+        ],
+        "properties": {
+          "prevout": {
+            "type": "string",
+            "description": "txid:index"
+          },
+          "address": {
+            "type": "string",
+            "description": "Read from the spent output's script in the previous transaction, never from scriptSig"
+          },
+          "value_zat": {
+            "type": "integer"
+          },
+          "paid_in_claim": {
+            "type": "integer",
+            "description": "Working tree, 2026-09-30: the index of this dossier's transparent_payment claim for the output this input spends"
+          }
+        }
+      },
+      "Funding": {
+        "type": "object",
+        "required": [
+          "transparent_inputs",
+          "shielded_actions",
+          "sapling_spends",
+          "from_disclosed"
+        ],
+        "properties": {
+          "transparent_inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransparentInput"
+            }
+          },
+          "shielded_actions": {
+            "type": "integer",
+            "description": "Possible spends: every Orchard-family action carries a nullifier, real or dummy"
+          },
+          "sapling_spends": {
+            "type": "integer"
+          },
+          "from_disclosed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ClaimResult": {
+        "type": "object",
+        "required": [
+          "index",
+          "kind",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "origin",
+              "path",
+              "deposit",
+              "control",
+              "transparent_payment"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "summary": {
+            "type": "string",
+            "description": "One sentence for a person; wording may change between versions"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "funding": {
+            "$ref": "#/components/schemas/Funding",
+            "description": "Origin claims"
+          },
+          "value_zat": {
+            "type": "integer",
+            "description": "Control: the spent notes' value; deposit and transparent_payment: the amount paid"
+          },
+          "paid_to": {
+            "type": "string",
+            "description": "transparent_payment (working tree, 2026-09-30): the address the output pays, read from its script"
+          }
+        },
+        "examples": [
+          {
+            "index": 12,
+            "kind": "transparent_payment",
+            "status": "verified",
+            "summary": "The holder paid 0.05000000 TAZ to tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu (transparent output 0) in 52af3e0d…105e, from n5 (0.24743750 TAZ disclosed).",
+            "details": [
+              "The address and amount are read from the output's script on chain; the funding notes' nullifiers in that transaction tie the payment to the holder.",
+              "Loaded without a height (from a file): the inclusion of 52af3e0d…105e, fcfde625…7f0b in the chain was not checked here."
+            ],
+            "value_zat": 5000000,
+            "paid_to": "tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu"
+          },
+          {
+            "index": 13,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.04985000 TAZ arrived in note n10, in c28b6000…cefe, funded by 1 transparent input worth 0.05000000 TAZ from tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu, which the holder paid there from disclosed notes (transparent payment 52af3e0d…105e:0).",
+            "details": [
+              "Nothing here shows n10 is the holder's: its nullifier is in no supplied transaction, and the sender of a note knows its opening too. A path, deposit or control claim that spends it would show it.",
+              "Loaded without a height (from a file): the inclusion of c28b6000…cefe in the chain was not checked here."
+            ],
+            "funding": {
+              "transparent_inputs": [
+                {
+                  "prevout": "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e:0",
+                  "address": "tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu",
+                  "value_zat": 5000000,
+                  "paid_in_claim": 12
+                }
+              ],
+              "shielded_actions": 2,
+              "sapling_spends": 0,
+              "from_disclosed": []
+            }
+          }
+        ]
+      },
+      "Report": {
+        "type": "object",
+        "required": [
+          "version",
+          "network",
+          "nk_proven",
+          "controlled",
+          "dossier_sha256",
+          "notes",
+          "claims",
+          "all_verified",
+          "disclosed",
+          "does_not_prove"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "zeceipt-dossier-report-v1"
+          },
+          "network": {
+            "$ref": "#/components/schemas/Network"
+          },
+          "nk_proven": {
+            "type": "boolean"
+          },
+          "controlled": {
+            "type": "boolean",
+            "description": "A control claim verified against expect_nonce; false without it"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Dossier-level problems; any makes all_verified false"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "dossier_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "notes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NoteFact"
+            }
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimResult"
+            }
+          },
+          "all_verified": {
+            "type": "boolean"
+          },
+          "assurance": {
+            "type": "string",
+            "enum": [
+              "verified_with_control",
+              "verified_history_only",
+              "not_verified"
+            ],
+            "description": "Working tree, 2026-09-30: every claim verified and control answered your nonce; every claim verified but nothing shows the holder can spend the funds now; or not verified"
+          },
+          "issued_at_height": {
+            "type": "integer",
+            "description": "Working tree, 2026-09-30: the issued_at_height given"
+          },
+          "disclosed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "does_not_prove": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

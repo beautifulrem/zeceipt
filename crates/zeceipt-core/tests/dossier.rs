@@ -520,3 +520,256 @@ fn compact_blocks_as_protobuf_bytes_scan_the_same() {
         "not a protobuf message"
     );
 }
+
+const TRANSPARENT_TXIDS: [&str; 6] = [
+    "90f6a3354862cf5b2f46e29ad3bfc9db3b9c4618178691df30bff2d7ec562a4b",
+    "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+    "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d",
+    "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
+    "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e",
+    "c28b60004cd8d9fc08ab75ff44aa3062a4d79bdfc29653db8765991b5ae5cefe",
+];
+
+fn build_transparent(order: &[usize]) -> Dossier {
+    let keys =
+        OutgoingKeys::from_ufvk(Network::Test, fx("testnet/issuer-ufvk.txt").trim()).unwrap();
+    build(BuildInput {
+        keys: &keys,
+        txs: order.iter().map(|&i| tx(TRANSPARENT_TXIDS[i])).collect(),
+        control: Some((tx(CONTROL), NONCE.into())),
+        subject: None,
+        created: None,
+    })
+    .unwrap()
+}
+
+#[test]
+fn a_payment_to_a_transparent_address_is_claimed_and_its_return_is_linked() {
+    // The holder listed their transactions in any order: the builder puts each after the ones whose notes it spends.
+    // Note ids follow the order given, so compare what the claims say: the same kinds, and the same outcomes.
+    let outcome = |d: &Dossier| {
+        let mut txs = chain(d);
+        for t in zeceipt_core::dossier::prevout_txids(d, &txs) {
+            txs.insert(
+                t.clone(),
+                TxData {
+                    bytes: tx(&t),
+                    height: None,
+                    mempool: false,
+                },
+            );
+        }
+        let mut v: Vec<(&'static str, Status)> = check_dossier(d, "", &txs, Some(NONCE))
+            .claims
+            .into_iter()
+            .map(|c| (c.kind, c.status))
+            .collect();
+        v.sort_by_key(|(k, s)| (*k, *s as u8));
+        v
+    };
+    let shuffled = build_transparent(&[5, 3, 0, 4, 2, 1]);
+    let built = build_transparent(&[0, 1, 2, 3, 4, 5]);
+    assert_eq!(outcome(&shuffled), outcome(&built));
+    assert_eq!(shuffled.notes.len(), built.notes.len());
+    let raw = fx("dossier/testnet-dossier-transparent-origin.json");
+    let d = Dossier::parse(&raw).unwrap();
+    assert_eq!(
+        (&built.nk, &built.notes, &built.receipts, &built.claims),
+        (&d.nk, &d.notes, &d.receipts, &d.claims)
+    );
+    // The deshielding transaction's output to tm9vh… is a transparent payment claim, funded by the holder's note.
+    let (k, _) = d
+        .claims
+        .iter()
+        .enumerate()
+        .find(|(_, c)| matches!(c, Claim::TransparentPayment { .. }))
+        .expect("a transparent payment claim");
+    let mut txs = chain(&d);
+    for t in zeceipt_core::dossier::prevout_txids(&d, &txs) {
+        txs.insert(
+            t.clone(),
+            TxData {
+                bytes: tx(&t),
+                height: None,
+                mempool: false,
+            },
+        );
+    }
+    let r = check_dossier(&d, &raw, &txs, Some(NONCE));
+    let p = &r.claims[k];
+    assert_eq!(p.status, Status::Verified, "{p:?}");
+    assert_eq!(
+        p.paid_to.as_deref(),
+        Some("tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu")
+    );
+    assert_eq!(p.value_zat, Some(5_000_000));
+    // The shielding transaction's origin names that claim: the funds left the shielded pool and came back.
+    let origin = r
+        .claims
+        .iter()
+        .find(|c| {
+            c.funding
+                .as_ref()
+                .is_some_and(|f| !f.transparent_inputs.is_empty())
+        })
+        .unwrap();
+    assert_eq!(
+        origin.funding.as_ref().unwrap().transparent_inputs[0].paid_in_claim,
+        Some(k)
+    );
+    assert!(
+        origin
+            .summary
+            .contains("which the holder paid there from disclosed notes (transparent payment 52af3e0d…105e:0)"),
+        "{}",
+        origin.summary
+    );
+    // A payment claimed from a note its transaction did not spend, or to an output it does not have, fails.
+    let mut v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    v["claims"][k]["funded_by"] = serde_json::json!(["n1"]);
+    let bad = Dossier::parse(&v.to_string()).unwrap();
+    let c = &check_dossier(&bad, &v.to_string(), &txs, Some(NONCE)).claims[k];
+    assert_eq!(c.status, Status::Failed);
+    assert!(c.summary.contains("but not from n1"), "{}", c.summary);
+    v["claims"][k]["funded_by"] = d.claims[k].notes().iter().map(|s| s.to_string()).collect();
+    v["claims"][k]["output"] = 7.into();
+    let bad = Dossier::parse(&v.to_string()).unwrap();
+    let c = &check_dossier(&bad, &v.to_string(), &txs, Some(NONCE)).claims[k];
+    assert_eq!(
+        (c.status, c.summary.contains("no transparent output 7")),
+        (Status::Failed, true),
+        "{}",
+        c.summary
+    );
+    // One with no funding note says nothing about the holder, so it does not parse.
+    v["claims"][k]["funded_by"] = serde_json::json!([]);
+    assert!(Dossier::parse(&v.to_string()).is_err());
+}
+
+#[test]
+fn a_control_mined_before_the_nonce_was_issued_fails() {
+    use zeceipt_core::dossier::{check_dossier_with, CheckOptions};
+    let (d, raw) = dossier();
+    let mut txs = chain(&d);
+    txs.get_mut(CONTROL).unwrap().height = Some(4_421_345);
+    let at = |h| {
+        check_dossier_with(
+            &d,
+            &raw,
+            &txs,
+            &CheckOptions {
+                expect_nonce: Some(NONCE.into()),
+                issued_at_height: Some(h),
+            },
+        )
+    };
+    let early = at(4_421_346);
+    let c = early.claims.iter().find(|c| c.kind == "control").unwrap();
+    assert_eq!(c.status, Status::Failed, "{c:?}");
+    assert!(c
+        .summary
+        .contains("before you issued the nonce at height 4421346"));
+    assert_eq!((early.controlled, early.assurance), (false, "not_verified"));
+    let ok = at(4_421_300);
+    assert_eq!(
+        (ok.controlled, ok.assurance),
+        (true, "verified_with_control")
+    );
+    // Without an expected nonce every claim may verify, but that is history only.
+    let r = check_dossier(&d, &raw, &txs, None);
+    assert_eq!(
+        (r.all_verified, r.assurance),
+        (true, "verified_history_only")
+    );
+}
+
+/// PROOF §9: an exchange-like chain on testnet. An exchange's transparent hot wallet withdrew to a customer's shielded
+/// address, the customer deposited to their transparent deposit address, and answered the exchange's nonce.
+#[test]
+fn an_exchange_deposit_review_verifies_with_control_and_names_both_transparent_ends() {
+    use zeceipt_core::dossier::{check_dossier_with, prevout_txids, CheckOptions};
+    const NONCE2: &str = "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1";
+    let keys =
+        OutgoingKeys::from_ufvk(Network::Test, fx("testnet/holder2-ufvk.txt").trim()).unwrap();
+    let built = build(BuildInput {
+        keys: &keys,
+        // Listed newest first: the builder orders them.
+        txs: [
+            "a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf",
+            "5146f38c0a782f0d76858e575c46c3b0908865987416095e4180a2c6273436e6",
+        ]
+        .iter()
+        .map(|t| tx(t))
+        .collect(),
+        control: Some((
+            tx("14a9551d4b85b05ce48dc6e83784bdb8bad0a68b6ec2a5e2298b2f77bb79cce6"),
+            NONCE2.into(),
+        )),
+        subject: None,
+        created: None,
+    })
+    .unwrap();
+    let raw = fx("dossier/testnet-dossier-exchange.json");
+    let d = Dossier::parse(&raw).unwrap();
+    assert_eq!(
+        (&built.nk, &built.notes, &built.claims),
+        (&d.nk, &d.notes, &d.claims)
+    );
+    let heights = [
+        (
+            "5146f38c0a782f0d76858e575c46c3b0908865987416095e4180a2c6273436e6",
+            4_422_279,
+        ),
+        (
+            "a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf",
+            4_422_295,
+        ),
+        (
+            "14a9551d4b85b05ce48dc6e83784bdb8bad0a68b6ec2a5e2298b2f77bb79cce6",
+            4_422_305,
+        ),
+        (
+            "773da0147a8d0ba05f4bfe1e0a08a89dbfefda11b792172f7ebd71aeb56b4b0d",
+            4_422_275,
+        ),
+    ];
+    let mut txs = chain(&d);
+    for t in prevout_txids(&d, &txs) {
+        txs.insert(
+            t.clone(),
+            TxData {
+                bytes: tx(&t),
+                height: None,
+                mempool: false,
+            },
+        );
+    }
+    for (t, h) in heights {
+        txs.get_mut(t).unwrap().height = Some(h);
+    }
+    let opts = |h0| CheckOptions {
+        expect_nonce: Some(NONCE2.into()),
+        issued_at_height: Some(h0),
+    };
+    let r = check_dossier_with(&d, &raw, &txs, &opts(4_422_294));
+    assert_eq!(r.assurance, "verified_with_control", "{r:#?}");
+    let origin = &r.claims[0];
+    assert_eq!(
+        origin.funding.as_ref().unwrap().transparent_inputs[0]
+            .address
+            .as_deref(),
+        Some("tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv")
+    );
+    let paid = r
+        .claims
+        .iter()
+        .find(|c| c.kind == "transparent_payment")
+        .unwrap();
+    assert_eq!(
+        (paid.paid_to.as_deref(), paid.value_zat),
+        (Some("tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR"), Some(5_000_000))
+    );
+    // A nonce said to be issued after the challenge was mined: not an answer to it.
+    let late = check_dossier_with(&d, &raw, &txs, &opts(4_422_306));
+    assert_eq!((late.controlled, late.assurance), (false, "not_verified"));
+}

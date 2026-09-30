@@ -35,7 +35,7 @@ pub struct Dossier {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
     /// The nullifier-deriving key of the holder's Orchard-family account, 32 bytes hex. Needed by `path`, `deposit`
-    /// with `funded_by`, and `control`; it lets the reviewer compute the nullifiers of the disclosed notes (and of any
+    /// with `funded_by`, `transparent_payment` and `control`; it lets the reviewer compute the nullifiers of the disclosed notes (and of any
     /// other note of this account whose opening they learn), not decrypt anything.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nk: Option<String>,
@@ -70,6 +70,15 @@ pub enum Claim {
         reply: String,
         spent: Vec<String>,
     },
+    /// A payment the holder made to a transparent address (an exchange deposit address, a TEX address): output
+    /// `output` of transaction `tx`, paid from the listed notes (spent in that transaction). The address and amount are
+    /// read from the output itself; the notes tie it to the holder.
+    #[serde(rename = "transparent_payment")]
+    TransparentPayment {
+        tx: String,
+        output: u32,
+        funded_by: Vec<String>,
+    },
 }
 
 impl Claim {
@@ -79,6 +88,7 @@ impl Claim {
             Claim::Path { .. } => "path",
             Claim::Deposit { .. } => "deposit",
             Claim::Control { .. } => "control",
+            Claim::TransparentPayment { .. } => "transparent_payment",
         }
     }
 
@@ -87,7 +97,9 @@ impl Claim {
         match self {
             Claim::Origin { note } => vec![note],
             Claim::Path { from, to } => vec![from, to],
-            Claim::Deposit { funded_by, .. } => funded_by.iter().map(String::as_str).collect(),
+            Claim::Deposit { funded_by, .. } | Claim::TransparentPayment { funded_by, .. } => {
+                funded_by.iter().map(String::as_str).collect()
+            }
             Claim::Control { reply, spent, .. } => {
                 let mut v: Vec<&str> = spent.iter().map(String::as_str).collect();
                 v.push(reply);
@@ -165,7 +177,9 @@ impl Dossier {
             }
             let listed: Vec<&str> = match c {
                 Claim::Control { spent, .. } => spent.iter().map(String::as_str).collect(),
-                Claim::Deposit { funded_by, .. } => funded_by.iter().map(String::as_str).collect(),
+                Claim::Deposit { funded_by, .. } | Claim::TransparentPayment { funded_by, .. } => {
+                    funded_by.iter().map(String::as_str).collect()
+                }
                 _ => vec![],
             };
             if let Some(dup) = listed
@@ -187,6 +201,19 @@ impl Dossier {
                 if spent.is_empty() {
                     return Err(TypesError::Dossier(format!(
                         "claim {i} (control) names no spent note"
+                    )));
+                }
+            }
+            if let Claim::TransparentPayment { tx, funded_by, .. } = c {
+                if hex::decode(tx).map_or(true, |b| b.len() != 32) || tx.to_lowercase() != *tx {
+                    return Err(TypesError::Dossier(format!(
+                        "claim {i} (transparent_payment): tx is a txid, 64 lowercase hex characters"
+                    )));
+                }
+                // Without funding notes the claim would say nothing about the holder: any output on chain would do.
+                if funded_by.is_empty() {
+                    return Err(TypesError::Dossier(format!(
+                        "claim {i} (transparent_payment) names no funding note"
                     )));
                 }
             }

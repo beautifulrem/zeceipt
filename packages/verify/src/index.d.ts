@@ -86,14 +86,16 @@ export interface DossierReport {
   controlled: boolean;
   problems?: string[];
   notes: Record<string, { txid: string; pool: string; action: number; height?: number; recipient?: string; value_zat?: number; memo?: string; nullifier?: string; spent_in?: string; error?: string }>;
-  claims: { index: number; kind: "origin" | "path" | "deposit" | "control"; status: "verified" | "failed" | "not_checked"; summary: string; details?: string[]; value_zat?: number; funding?: { transparent_inputs: { prevout: string; address?: string; value_zat?: number }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
+  claims: { index: number; kind: "origin" | "path" | "deposit" | "control" | "transparent_payment"; status: "verified" | "failed" | "not_checked" | "unproven"; summary: string; details?: string[]; value_zat?: number; paid_to?: string; funding?: { transparent_inputs: { prevout: string; address?: string; value_zat?: number; paid_in_claim?: number }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
   all_verified: boolean;
+  assurance: "verified_with_control" | "verified_history_only" | "not_verified";
+  issued_at_height?: number;
   disclosed: string[];
   does_not_prove: string[];
   error?: string;
   stage?: string;
 }
-export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; expectNonce?: string; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number; round: number }) => void }): Promise<DossierReport>;
+export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; expectNonce?: string; issuedAtHeight?: number | null; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number; round: number }) => void }): Promise<DossierReport>;
 export function dossierTxids(text: string): string[];
 /** The second round's txids: the transactions whose outputs the origin transactions in `txs` spend. */
 export function dossierPrevoutTxids(text: string, txs: Record<string, { hex: string; height: number | null; mempool?: boolean }>): string[];

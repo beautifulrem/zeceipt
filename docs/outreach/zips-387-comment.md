@@ -1,47 +1,59 @@
 <!--
-DRAFT, not posted (WBS 3.3.3.4, REQ-INT-4; slice Z1). Posting is the user's decision: a public comment on
-https://github.com/zcash/zips/issues/387 (ZIP 311, Zcash Payment Disclosures).
-Links filled 2026-09-30: the repository is public at https://github.com/beautifulrem/zeceipt since 2026-09-29 (WBS 4.1.1.1).
-Refreshed 2026-09-30 (PM round 2, N02): the testnet receipts (PROOF §6) and the `zdp:1:` check (§7) are in "What exists". If a mainnet receipt exists by the day it is posted (RSK-3), change the Evidence line first.
-the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
+DRAFT, not posted (WBS 3.3.3.4, REQ-INT-4; appraisal round 1, D19). Posting is the owner's decision: a public comment on
+https://github.com/zcash/zips/issues/387 (ZIP 311, Zcash Payment Disclosures). A shorter version could also go in the #437 forum thread (/t/57729).
+Rewritten 2026-09-30 for the pivot: the receipts-era report ("the outputs half of ZIP 311") is in git history, and its questions 1–3 are folded in below.
+Sources: hanh's #437 decision, forum /t/57729/4, read 2026-09-30 (R138); ZCG #437 closed "Grant Declined" 2026-09-30 13:25 UTC (R138).
+Every technical sentence is backed by `spec/dossier-v1.md` (§3 nullifiers from nk, §4 no unspent claim, §7 control), `docs/PROOF.md` §8 and the tests.
+Before posting: if spec/dossier-v1.md's section numbers have moved, fix the § references; if a mainnet dossier exists, add it to "Evidence"; if the
+transparent_payment claim is committed, name it under "What exists". Question 4 (ZIP 231) is unverified: drop it if the NU7 ZIP set is known by then.
 -->
 
-**An implementation report on the outputs half of ZIP 311, and a question about requiring spend authority**
+**An implementation report: ZIP 311 output disclosures on Ironwood, extended with note openings, nullifier paths and a control challenge**
 
-We built an open-source receipt format for disclosing one shielded output: Zeceipt [`receipt-v0`](https://github.com/beautifulrem/zeceipt/blob/master/spec/receipt-v0.md). It uses the same disclosure unit as ZIP 311's outputs: the per-output OCK (`PRF^ock`, protocol spec §4.20). We are posting it here for two reasons. The ZIP's reference implementation is still marked TBD, and we deliberately made the one choice the ZIP rules out, so the reasoning should be in the open.
+On 2026-09-30 ZCG declined a standalone receipts SDK (#437) with this note from hanh ([forum /t/57729/4](https://forum.zcashcommunity.com/t/57729/4)):
 
-**What exists**
+> The committee believes a standalone implementation will not deliver sufficient value to the community, but agrees that payment receipts are useful. We refer you to ZIP 311: Zcash Payment Disclosures and would encourage you to bring it to Ironwood with support from the protocol engineers.
 
-- **The format.** One receipt discloses one output of one transaction: network, pool, txid, output index, OCK, a free-text label, and optionally a verifier's challenge. These are optionally signed by the issuer with ed25519 over canonical bytes, with deterministic test vectors ([`spec/test-vectors/receipt-v0.json`](https://github.com/beautifulrem/zeceipt/blob/master/spec/test-vectors/receipt-v0.json)).
-- **Verification.** It recovers the note from the transaction's `out_ciphertext` and `enc_ciphertext` with the OCK (`zcash_note_encryption`'s `try_output_recovery_with_ock`, which checks the recovered note against its commitment). It then reports the recipient address, value and memo, and fails closed at a named stage. The same Rust code runs in a CLI and, through WASM, in the browser.
-- **Pools:** Ironwood outputs of v6 transactions, and Orchard and Sapling (tested against the official Orchard note-encryption vectors and round trips).
-- **Evidence.** A consensus-valid v6 Ironwood transaction on a Zebra regtest chain, issued from the sender's UFVK and verified over gRPC and offline. On testnet, three payments (mined at heights 4,420,000 to 4,420,005), each with a signed receipt issued from the sender's UFVK and verified against a public node, offline and in the browser ([`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §6). Real mainnet v6 transactions have been parsed and fetched; we have issued no receipt for a mainnet payment yet.
-- **The recipient's side.** The same verifier checks zcash-delivery-proof's `zdp:1:` note openings, which a recipient makes with an incoming viewing key, including that project's own mainnet vector, fetched live (§7). Together the two cover a disclosure by the sender (OCK) and by the recipient (IVK); neither carries spend authority. `zeceipt prove-delivery` also makes them, from a UFVK or a UIVK, byte-identical to that project's vectors (PROOF §6 has a recipient's own proof of a testnet payment).
+We built on the same primitive and took the same advice, so here is what we have, how it maps to ZIP 311, and where we need the protocol engineers' judgement. Zeceipt ([github.com/beautifulrem/zeceipt](https://github.com/beautifulrem/zeceipt), Apache-2.0) implements ZIP 311's output disclosures for Ironwood (and Orchard and Sapling), and uses them in a **source-of-funds dossier** ([`spec/dossier-v1.md`](https://github.com/beautifulrem/zeceipt/blob/master/spec/dossier-v1.md)): what a holder of shielded ZEC hands an exchange or OTC desk that asks where the funds came from, instead of a viewing key or a deshield.
 
-**How it maps to ZIP 311**
+**What a dossier is**
 
-| ZIP 311 | receipt-v0 |
+A dossier = **ZIP 311 output disclosures** (OCK) for the payments the holder made + **note openings** for the notes the holder received + the account's **nullifier key `nk`**, whose nullifiers link one note to the transaction that spent it + a **control challenge** answered on chain. From these, four kinds of claim, each checked against chain data:
+
+| Claim | Disclosure | Check |
+|---|---|---|
+| **Deposit**: the holder paid this recipient, value and memo, from these notes | The output's OCK (`PRF^ock`, protocol spec §4.20), as ZIP 311's outputs; the funding notes' openings | `try_output_recovery_with_ock` recovers the note and checks it against `cmx`; each funding note's nullifier, derived from `nk`, is among the transaction's spends |
+| **Origin**: these funds arrived in this note, in this transaction, funded by these transparent inputs or shielded spends | A `zdp:1:` note opening (receiver, value, rseed; the format of saplingcash/zcash-delivery-proof) | The note is rebuilt and checked against the action's `cmx`; funders' addresses and values are read from the outputs the inputs spend, never from `scriptSig` |
+| **Path**: note A was spent in the transaction that created note B | Both openings, and `nk` | A's nullifier, derived from `nk` alone, is among that transaction's nullifiers |
+| **Control**: after the reviewer issued a nonce, someone with spend authority over these notes acted | The reply note's opening | A mined transaction spends the listed notes (by nullifier) and pays a note whose memo carries the nonce |
+
+**How it maps to ZIP 311's goals**
+
+| ZIP 311 | Dossier |
 |---|---|
-| Output disclosure by OCK | The same |
-| `msg` (a verifier's challenge) | `challenge`, signed. It shows that the holder of the signing key made the receipt after the challenge was sent; unlike ZIP 311's `msg`, it does not show that a spender did. A receipt without one is a bearer document, and the verifier is told so |
-| Spend-authority signature over the disclosure | **Not required.** Instead, an optional ed25519 signature by an issuer key over all displayed fields |
-| Creatable only by a sender of the transaction | **Not met, deliberately.** An OCK can be derived from the sender's viewing key, and anyone holding an earlier receipt for the output has it too |
-| Non-malleable: no one can build a new disclosure from existing ones that they could not have made independently | **Not met, deliberately.** Anyone holding a receipt can make a new receipt for the same output, signed with their own key; the signature attributes it to that key, not to the sender |
-| — | An optional issuer key binding: a domain vouches for the key at `https://<domain>/.well-known/zeceipt.json`, as NIP-05 and did:web do. It only upgrades a result, never makes it invalid |
+| Disclose an output by its OCK | The same, for Ironwood outputs of v6 transactions (Orchard's note-encryption domain with `IronwoodVersion`), Orchard and Sapling. A deposit claim embeds our `receipt-v0` receipt unchanged |
+| `msg`: bind the disclosure to a verifier's challenge | The reviewer's nonce, in the memo of a transaction that spends the disclosed notes. The memo is covered by the sighash that the spend authorization signatures sign, so the binding is the protocol's own |
+| Proof of spend authority: a spend authorization signature over the disclosure, by a key that authorized an input | **An on-chain spend instead of an off-chain signature.** No wallet we found exposes a spend authorization signature over an arbitrary message for Orchard or Ironwood; the Orchard address-signing draft (forum /t/53971) is not a ZIP, and nothing covers Ironwood. The challenge transaction gives the same assurance (a spend authorizing key acted after the nonce), at the cost of a fee, a block and a transaction the reviewer can link. When a signature API exists, a v2 control claim should use it |
+| Creatable only by a sender of the transaction | Not met by a deposit alone: an OCK can be derived from the sender's viewing key, and anyone holding a disclosure has it. With `funded_by`, the payment is tied by nullifier to notes of the account whose `nk` is disclosed, and control ties that account to a spend authorizing key after the nonce |
+| Non-malleable | Not met: a dossier is a bearer document. Freshness comes from the reviewer's nonce, checked against the nonce they issued and the height they issued it at |
+| — (no counterpart) | **`funded_by` and paths.** ZIP 311 proves authority over a transaction's spends; a dossier shows *which disclosed notes* those spends were, and so chains disclosures into a history across transactions |
 
-**Why no spend authority, and the ZIP's reason for requiring it**
+**The part we would most like reviewed: disclosing `nk`**
 
-ZIP 311 requires spend authority for at least one input "in order to simplify the verification UX". Its example is stripping: if disclosures without spends counted as valid, an invalid disclosure could have its signatures stripped and then be shown as valid. receipt-v0 makes the opposite trade. It separates two claims, and it accepts the UX cost the ZIP avoided: a valid result is either signed or unsigned, and verifiers must show which.
+A note's nullifier depends on `nk` and the note only (protocol spec §4.16), so a verifier can compute it from a disclosed `nk` and a note opening. `orchard::Note::nullifier` takes a full viewing key and reads only `nk`, so we pass it `nk` with public filler `ak` and `rivk` (spec §3.1); the nullifiers computed this way for the testnet dossier's Ironwood notes are exactly those their spending transactions carry. The soundness argument (spec §3.3): a match between a derived nullifier and a mined transaction's nullifier means that transaction spent the note and `nk` is its owner's, up to a Poseidon PRF collision or a discrete logarithm on Pallas. The costs: whoever holds `nk` sees when any note whose opening they know is spent, including notes they sent the holder (spec §8). And the limit: nothing binds `nk` to a note's address until one of the note's nullifiers is on chain, so there is no "unspent at height H" claim (spec §4); a ZK proof that `nk` belongs to the key behind each address, or nullifier-exclusion proofs like those of zips#1198, would be the way to one.
 
-1. **The payment fact** (this transaction pays this value to this address with this memo) is proven by recovering the note with the OCK. It needs no signature, and stripping a signature cannot change it.
-2. **Attribution** (who made the receipt, and what its label says) comes from the signature. A receipt without one is shown as unsigned: "the label is the sender's unauthenticated text", never as signed. A verifier can require a signature (`--require-signature`). Changing any signed field fails at the signature stage, and re-signing with another key attributes the receipt to that key only.
+**What exists, and the evidence**
 
-So stripping does not upgrade anything. It downgrades a signed receipt to an unsigned one, and verifiers display that; that two-state display is exactly the complexity ZIP 311 chose not to have, and the optional domain check adds a further outcome (confirmed, not listed or unknown), shown only on request. What an OCK disclosure cannot prove is spend authority, sender-only creation or non-malleability (the table above): the person presenting it may not control the sending wallet. We say that plainly to verifiers. The reason for accepting the trade is that the payroll and grant teams we are building for could then issue receipts from a viewing key, without the spending key ever touching the issuing tool.
+- Rust crates (`zeceipt-core`, `zeceipt-types`), a CLI (`zeceipt dossier build|scan|verify|nonce|serve`), and the same checks in WebAssembly in a browser page for reviewers and a builder page for holders (the UFVK never leaves the page).
+- A real dossier on testnet: a faucet origin, four hops, three payments disclosed by OCK and a control challenge mined at height 4,421,345. All 12 claims verify against a public node and offline; forgeries fail at the claim they attack ([`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §8). Live: https://beautifulremi.dpdns.org/zeceipt/case/#sample
+- Test vectors: 20 patched copies of that dossier and 17 parse cases, with expected results, plus `nk` and each note's nullifier and spending transaction, so another implementation can check an `nk`-only derivation against chain data ([`spec/test-vectors/dossier-v1.json`](https://github.com/beautifulrem/zeceipt/blob/master/spec/test-vectors/dossier-v1.json)).
+- No mainnet dossier yet.
 
-**Questions for the ZIP authors**
+**Questions for the ZIP authors and the protocol engineers**
 
-1. The ZIP expects that anyone "intent on obtaining Sapling output disclosures regardless of the validity of their source" will do so without a common standard. Our outputs-only receipts are the kind of disclosure that sentence describes (for Ironwood and Orchard as well as Sapling), and we would rather be standard than not. Would an **outputs-only profile** be acceptable as an explicit, separately labelled mode of ZIP 311, or in a companion ZIP? It would give attribution by an issuer signature rather than spend authority, verifiers would display the difference, and it would state the requirements it does not meet. Or should output disclosures stay out of the standard?
-2. If the ZIP moves forward, we would align our field names and encoding with it, and add a `zip311_profile` value for whatever the ZIP calls this mode. The current receipt already carries an informational `zip311_profile: "outputs-only"`. Are the ZIP's field names settled enough to align with now?
-3. Is **Ironwood** in scope for ZIP 311's output disclosures? Our implementation handles Ironwood outputs as the Orchard family under Ironwood's own note-encryption domain version (`IronwoodVersion` in the orchard crate), and it is tested on regtest v6 transactions.
+1. **Spend authority on Ironwood.** Would ZIP 311 accept an on-chain challenge spend as its proof of spend authority for Ironwood, as a separately labelled profile, until wallets can sign a message with a spend authorizing key? If not, what is the path to that signature API in librustzcash, and would you take a contribution towards it?
+2. **Disclosing `nk`.** Is a disclosed `nk` (bytes 32..64 of the raw Orchard FVK) something ZIP 311, or a companion ZIP, should define, with its privacy cost stated? Or would you rather it disclosed each nullifier with a proof, and never `nk`?
+3. **Encoding.** If ZIP 311 moves forward, we would align our field names and encoding with it and contribute our vectors. Are its field names settled enough to align with now, and is Ironwood (the `IronwoodVersion` note-encryption domain) in scope for its output disclosures?
+4. **NU7.** Does NU7 change where a memo lives (ZIP 231, memo bundles)? The control challenge reads the nonce from a memo, so we would like to know before mainnet activation on 2026-11-05. (We have not confirmed ZIP 231's status for NU7.)
 
-The code, the vectors and the proof log are at https://github.com/beautifulrem/zeceipt (the proof log: [`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md)). We would be glad to change the format to match the ZIP, and to contribute test vectors.
+We would be glad to change the format to match the ZIP, and to do the Ironwood work the committee suggested alongside the protocol engineers.

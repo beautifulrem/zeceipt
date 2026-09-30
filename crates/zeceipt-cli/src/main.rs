@@ -97,11 +97,23 @@ enum DossierCmd {
         /// The nonce you issued: every control claim must answer it (an old or foreign dossier then fails).
         #[arg(long)]
         expect_nonce: Option<String>,
+        /// The chain height when you issued the nonce (`dossier nonce --json` prints it): a control transaction mined
+        /// below it fails.
+        #[arg(long, requires = "expect_nonce")]
+        issued_at_height: Option<u64>,
     },
     /// Print a fresh random nonce for a control challenge (for the reviewer to send the holder).
-    Nonce,
+    Nonce {
+        #[command(flatten)]
+        net: NetArgs,
+        /// Print JSON with the chain height now (`issued_at_height`, from the endpoint) and the time, for the case
+        /// file; pass the height to `dossier verify --issued-at-height`.
+        #[arg(long)]
+        json: bool,
+    },
     /// Serve dossier checks over HTTP for a compliance back office (self-hosted): `POST /v1/dossiers/verify` (the
-    /// dossier as the body; `?expect_nonce=` optional) returns the report; `POST /v1/nonces` returns a nonce;
+    /// dossier as the body; `?expect_nonce=` and `&issued_at_height=` optional) returns the report; `POST /v1/nonces`
+    /// returns a nonce with the chain height it was issued at;
     /// `GET /healthz`. Transactions are fetched from the endpoint, as `dossier verify` does.
     Serve {
         #[command(flatten)]
@@ -1045,8 +1057,15 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
     use zeceipt_core::dossier::{build, BuildInput, Status};
     use zeceipt_core::zeceipt_types::dossier::Dossier;
     match cmd {
-        DossierCmd::Nonce => {
-            println!("{}", new_nonce());
+        DossierCmd::Nonce { net, json } => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&issue_nonce(&net).await)?
+                );
+            } else {
+                println!("{}", new_nonce());
+            }
             Ok(ExitCode::SUCCESS)
         }
         DossierCmd::Serve {
@@ -1155,6 +1174,7 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             dossier,
             raw_tx_dir,
             expect_nonce,
+            issued_at_height,
         } => {
             let raw = if dossier == "-" {
                 let mut s = String::new();
@@ -1173,14 +1193,11 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
                     return Ok(ExitCode::from(1));
                 }
             };
-            let report = check_dossier_text(
-                &net,
-                &d,
-                &raw,
-                raw_tx_dir.as_deref(),
-                expect_nonce.as_deref(),
-            )
-            .await?;
+            let opts = zeceipt_core::dossier::CheckOptions {
+                expect_nonce,
+                issued_at_height,
+            };
+            let report = check_dossier_text(&net, &d, &raw, raw_tx_dir.as_deref(), &opts).await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
             Ok(if report.all_verified {
                 ExitCode::SUCCESS
@@ -1198,6 +1215,16 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
     }
 }
 
+/// A nonce with the chain height and time it was issued at, for the reviewer's case file. The height is `null` when
+/// no node answers: the control check then cannot tell a transaction made before the nonce.
+async fn issue_nonce(net: &NetArgs) -> serde_json::Value {
+    let height = match connect(net).await {
+        Ok(mut c) => c.latest_height().await.ok(),
+        Err(_) => None,
+    };
+    json!({"nonce": new_nonce(), "issued_at_height": height, "issued_at": now_rfc3339(), "network": if net.regtest { "regtest" } else if net.testnet { "test" } else { "main" }})
+}
+
 fn new_nonce() -> String {
     let mut b = [0u8; 16];
     rand::RngCore::fill_bytes(&mut OsRng, &mut b);
@@ -1211,9 +1238,9 @@ async fn check_dossier_text(
     d: &zeceipt_core::zeceipt_types::dossier::Dossier,
     raw: &str,
     raw_tx_dir: Option<&std::path::Path>,
-    expect_nonce: Option<&str>,
+    opts: &zeceipt_core::dossier::CheckOptions,
 ) -> anyhow::Result<zeceipt_core::dossier::Report> {
-    use zeceipt_core::dossier::{check_dossier, prevout_txids, txids_needed, TxData};
+    use zeceipt_core::dossier::{check_dossier_with, prevout_txids, txids_needed, TxData};
     let net = NetArgs {
         testnet: matches!(d.network, Network::Test) || net.testnet,
         regtest: matches!(d.network, Network::Regtest) || net.regtest,
@@ -1252,7 +1279,7 @@ async fn check_dossier_text(
             }
         }
     }
-    Ok(check_dossier(d, raw, &txs, expect_nonce))
+    Ok(check_dossier_with(d, raw, &txs, opts))
 }
 
 /// `dossier serve`: a small HTTP/1.1 service for a back office. Bodies are capped at 1 MiB; every answer is JSON.
@@ -1296,7 +1323,12 @@ async fn serve_dossiers(
                             json!({"ok": true, "version": zeceipt_core::zeceipt_types::dossier::DOSSIER_VERSION}),
                         ),
                         (Method::POST, "/v1/nonces") => {
-                            reply(StatusCode::CREATED, json!({"nonce": new_nonce()}))
+                            let v = if dir.is_some() {
+                                json!({"nonce": new_nonce(), "issued_at_height": null, "issued_at": now_rfc3339()})
+                            } else {
+                                issue_nonce(&net).await
+                            };
+                            reply(StatusCode::CREATED, v)
                         }
                         (Method::POST, "/v1/dossiers/verify") => {
                             let body = match Limited::new(req.into_body(), MAX_BODY).collect().await
@@ -1325,19 +1357,28 @@ async fn serve_dossiers(
                                     )
                                 }
                             };
-                            let expect = query
-                                .split('&')
-                                .find_map(|kv| kv.strip_prefix("expect_nonce="))
-                                .map(|v| v.replace('+', " "));
-                            match check_dossier_text(
-                                &net,
-                                &d,
-                                &raw,
-                                dir.as_deref(),
-                                expect.as_deref(),
-                            )
-                            .await
-                            {
+                            let param = |k: &str| {
+                                query
+                                    .split('&')
+                                    .find_map(|kv| kv.strip_prefix(k)?.strip_prefix('='))
+                                    .map(|v| v.replace('+', " "))
+                            };
+                            let issued_at_height =
+                                match param("issued_at_height").map(|h| h.parse::<u64>()) {
+                                    None => None,
+                                    Some(Ok(h)) => Some(h),
+                                    Some(Err(_)) => {
+                                        return reply(
+                                            StatusCode::BAD_REQUEST,
+                                            json!({"error": "issued_at_height is a block height"}),
+                                        )
+                                    }
+                                };
+                            let opts = zeceipt_core::dossier::CheckOptions {
+                                expect_nonce: param("expect_nonce"),
+                                issued_at_height,
+                            };
+                            match check_dossier_text(&net, &d, &raw, dir.as_deref(), &opts).await {
                                 Ok(r) => reply(
                                     StatusCode::OK,
                                     serde_json::to_value(r).unwrap_or_default(),

@@ -1,15 +1,17 @@
-// Case review page: opens a source-of-funds dossier (a file, pasted text, a case link's fragment, or the sample),
-// fetches each transaction it names from a public node, checks every claim here (WebAssembly), and shows the case.
-// The DOM is written with textContent only, so nothing from a dossier is ever parsed as HTML. Nothing is stored; the
-// only requests outside this site are the transaction lookups (fetchRawTx: the txid and nothing else). The reviewer's
-// nonce lives in this module's memory only.
-import { initVerifier, checkDossier, dossierTxids, dossierPrevoutTxids, fetchRawTx, verifyReceipt, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+// Case review page: opens a source-of-funds dossier (a file, pasted text, a case link's fragment, or a sample),
+// fetches each transaction it names from a public node (or reads them from files the reviewer loads, offline), checks
+// every claim here (WebAssembly), and shows the case. The DOM is written with textContent only, so nothing from a
+// dossier is ever parsed as HTML. Nothing is stored; the only requests outside this site are the transaction lookups
+// (fetchRawTx: the txid and nothing else) and, when the reviewer generates a nonce, the chain tip (fetchChainTip). The
+// reviewer's nonce and its height (H₀) live in the challenge card's fields only.
+import { initVerifier, checkDossier, dossierTxids, dossierPrevoutTxids, fetchRawTx, fetchChainTip, verifyReceipt, GRPC_WEB_ENDPOINTS } from "../src/index.js";
 import { memoText } from "../r/view.js";
 import { el, copyButton } from "../r/ui.js";
-import { badge, claimTableRows, factItems, listItem, download } from "./ui.js";
+import { badge, claimTableRows, factItems, listItem, download, showVerifierDigest } from "./ui.js";
 import {
-  SAMPLE_FRAGMENT, SAMPLE_PATH, NETWORK_NAME, readDossierInput, parseDossier, fetchProgress, caseVerdict, caseFacts, claimRows, flowSteps,
+  SAMPLES, SAMPLE_FRAGMENT, EXCHANGE_SAMPLE, SAMPLE_CHALLENGE, NETWORK_NAME, readDossierInput, parseDossier, fetchProgress, caseVerdict, caseFacts, claimRows, flowSteps,
   nonceCheck, newNonce, caseSummaryText, reportForDownload, reportFileName, shortTxid, middle, noteLabel, KIND_LABEL, amountText,
+  decisionSummary, claimNumbers, returnedText, heightInput, challengeRecordText, offlineText, txFile, utcText,
 } from "./view.js";
 
 // Each node gets 12 s, as on the receipt page: two hanging nodes would otherwise keep a reviewer waiting 40 s.
@@ -22,8 +24,11 @@ const RESULT_PARTS = ["banner", "flow-card", "claims-card", "funders-card", "sco
 
 let generation = 0; // bumps on every new dossier, so a late result for an earlier one is dropped
 let current = null; // { text, dossier, report, meta }
-let generatedNonce = null; // the reviewer's nonce, in memory only
+let generatedAt = null; // when the nonce in the field was generated here (ISO), or null when it was typed
+let generatedNonce = null; // the nonce generated here, to tell whether the field still holds it
+let offlineTxs = null; // txid → { hex, height: null }, from the files the reviewer loaded; null: ask the nodes
 let verifierVersion = null;
+let wasmSha256 = null;
 
 function setStatus(text, state) {
   $("status").textContent = text;
@@ -35,9 +40,16 @@ function clearResult() {
   $("banner").className = "result";
   $("verdict-live").textContent = "";
   $("nonce-result").textContent = "";
+  $("print-meta").textContent = "";
   delete document.body.dataset.state;
   current = null;
 }
+
+/** The nonce the reviewer issued and its height, as the challenge card's fields hold them. */
+const issued = () => ({ nonce: $("nonce-input").value.trim(), height: heightInput($("h0-input").value) });
+
+/** The case fields a reviewer types in (they print, and go into the summary and the downloaded report). */
+const caseFields = () => ({ reviewer: $("case-reviewer").value, caseId: $("case-id").value, date: $("case-date").value });
 
 /**
  * Fetch every transaction the check needs, with progress, in the verifier's two rounds: the transactions the claims name,
@@ -47,7 +59,7 @@ function clearResult() {
  */
 async function fetchAll(text, network, mine) {
   const endpoints = GRPC_WEB_ENDPOINTS[network] ?? [];
-  if (!endpoints.length) throw new Error(`No public node serves the ${NETWORK_NAME[network] ?? network}: this page can check only mainnet and testnet dossiers.`);
+  if (!endpoints.length) throw new Error(`No public node serves the ${NETWORK_NAME[network] ?? network}: this page can check only mainnet and testnet dossiers online (load the transactions from files to check offline).`);
   const txs = {};
   const used = new Set();
   let preferred = 0;
@@ -91,6 +103,9 @@ function receiptPayments(dossier, txs) {
   return out;
 }
 
+/** The verifier's options from the challenge card: the nonce the reviewer issued, and the height they issued it at. */
+const checkOptions = (txs) => ({ txs, expectNonce: issued().nonce, issuedAtHeight: issued().height });
+
 async function check(text, source) {
   const mine = ++generation;
   clearResult();
@@ -102,16 +117,26 @@ async function check(text, source) {
     render(text, dossier, { all_verified: false, stage: "parse", error: String(e).replace(/^Error: /, "") }, { source });
     return;
   }
+  // A reviewer who has not chosen a network for the challenge gets the dossier's.
+  if (!$("nonce-input").value.trim() && ["main", "test"].includes(dossier?.network)) $("challenge-network").value = dossier.network;
   $("check").disabled = true;
   try {
-    const got = await fetchAll(text, dossier.network, mine);
-    if (!got || mine !== generation) return;
+    let got;
+    if (offlineTxs) {
+      // Offline: the files' transactions, without heights; no node is asked.
+      got = { txs: { ...offlineTxs }, nodes: [] };
+    } else {
+      got = await fetchAll(text, dossier.network, mine);
+      if (!got || mine !== generation) return;
+    }
     setStatus("Checking every claim in this page…", "loading");
-    // The nonce generated in this page, if any, is the one every control claim must answer (the core's expect-nonce).
-    const report = await checkDossier(text, { txs: got.txs, expectNonce: generatedNonce ?? "" });
+    const report = await checkDossier(text, checkOptions(got.txs));
     if (mine !== generation) return;
     const heights = Object.fromEntries(Object.entries(got.txs).map(([t, v]) => [t, v.height]));
-    render(text, dossier, report, { source, txs: got.txs, checkedAt: new Date().toISOString(), nodes: got.nodes, heights, payments: receiptPayments(dossier, got.txs) });
+    render(text, dossier, report, {
+      source, txs: got.txs, checkedAt: new Date().toISOString(), nodes: got.nodes, heights, payments: receiptPayments(dossier, got.txs),
+      offline: offlineTxs ? Object.keys(offlineTxs).length : null,
+    });
   } catch (e) {
     if (mine !== generation) return;
     setStatus(`The check could not finish: ${String(e?.message ?? e)} Try again, or later.`, "error");
@@ -120,11 +145,22 @@ async function check(text, source) {
   }
 }
 
+/** The case on screen, checked again with the challenge card's nonce and height, offline (the same transactions). */
+function recheck() {
+  if (!current?.meta?.txs) return;
+  const { text, dossier, meta } = current;
+  const mine = generation;
+  checkDossier(text, checkOptions(meta.txs)).then((report) => {
+    if (mine === generation) render(text, dossier, report, meta, { focus: false });
+  });
+}
+
 function render(text, dossier, report, meta, { focus = true } = {}) {
-  const v = caseVerdict(report);
+  const v = caseVerdict(report, dossier);
   const readable = Boolean(v.counts);
-  const nonce = readable ? nonceCheck(dossier, report, generatedNonce) : null;
-  current = { text, dossier, report, meta: { ...meta, nonce, generated: generatedNonce, verifier: verifierVersion } };
+  const mine = issued();
+  const nonce = readable ? nonceCheck(dossier, report, mine.nonce) : null;
+  current = { text, dossier, report, meta: { ...meta, nonce, issued: mine.nonce, verifier: verifierVersion, wasmSha256 } };
 
   $("headline").textContent = v.headline;
   $("verdict-sub").textContent = v.sub;
@@ -132,10 +168,26 @@ function render(text, dossier, report, meta, { focus = true } = {}) {
   // Problems with the dossier as a whole (an nk that is not a key, say), which no single claim carries.
   $("banner-error").textContent = (report.problems ?? []).join(" ");
   show("banner-error", Boolean(report.problems?.length));
+  // A parse error: one plain sentence above, the verifier's words in a fold.
+  $("parse-raw").textContent = v.raw ?? "";
+  show("parse-detail", Boolean(v.raw));
+  $("offline-text").textContent = meta.offline != null ? `Checked ${offlineText(meta.offline)}.` : "";
+  show("offline-line", readable && meta.offline != null);
+  // A sample whose control claim is not yet matched to a nonce: one click shows it checked as its reviewer would.
+  show("sample-nonce-row", readable && Object.hasOwn(SAMPLES, meta.source ?? "") && !report.controlled && (dossier?.claims ?? []).some((c) => c.type === "control"));
   $("facts").replaceChildren();
   show("nonce-line", false);
   show("case-actions", readable);
+  show("case-fields", readable);
+  show("decision-wrap", readable);
   if (readable) {
+    $("decision").replaceChildren(...decisionSummary(dossier, report).map((d) => {
+      const div = el("div", "fact");
+      const dd = el("dd");
+      dd.append(el("span", "decision-value", d.value), el("span", "decision-detail", d.detail));
+      div.append(el("dt", "", d.key), dd);
+      return div;
+    }));
     $("facts").replaceChildren(...factItems(caseFacts(dossier, report, meta), { live: live(), wide: { "Dossier sha256": "Copy the dossier sha256" } }));
     $("nonce-line").textContent = nonce.text;
     $("nonce-line").dataset.state = nonce.state;
@@ -145,7 +197,7 @@ function render(text, dossier, report, meta, { focus = true } = {}) {
     renderFunders(dossier, report);
     renderScope(report);
     $("nonce-result").textContent = nonce.text;
-    $("print-meta").textContent = `Checked ${meta.checkedAt ? meta.checkedAt.slice(0, 16).replace("T", " ") + " UTC" : ""} in the browser with ${verifierVersion ?? "the zeceipt verifier"} on ${location.host || "this page"}. Dossier sha256 ${report.dossier_sha256}.`;
+    printFooter();
   }
   show("flow-card", readable);
   show("claims-card", readable);
@@ -161,12 +213,27 @@ function render(text, dossier, report, meta, { focus = true } = {}) {
   $("banner").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
+/** The printed case's footer: when and how it was checked, the dossier's sha256 and the verifier's. */
+function printFooter() {
+  if (!current?.report) return;
+  const { report, meta } = current;
+  // The page footer's text, for the @page margin box (CSSOM, which the style-src policy does not restrict).
+  document.documentElement.style.setProperty("--print-dossier", JSON.stringify(`Zeceipt case report · dossier sha256 ${report.dossier_sha256} · ${utcText(new Date().toISOString())}`));
+  $("print-meta").textContent = `Checked ${meta.checkedAt ? utcText(meta.checkedAt) : ""} in the browser with ${verifierVersion ?? "the zeceipt verifier"} on ${location.host || "this page"}${meta.offline != null ? `, ${offlineText(meta.offline)}` : ""}. Report made ${utcText(new Date().toISOString())}. Verifier zeceipt_wasm_bg.wasm sha256 ${wasmSha256 ?? "not computed"}. Dossier sha256 ${report.dossier_sha256}.`;
+}
+
+/** A full identifier on paper, a short one with its full value in a tooltip on screen. */
+function ident(full, short) {
+  const span = el("span", "ident");
+  const code = el("code", "screen-only", short);
+  code.title = full;
+  span.append(code, el("code", "print-full", full));
+  return span;
+}
+
 function txLine(txid, height) {
   const p = el("p", "step-tx");
-  p.append(document.createTextNode(height != null ? `Height ${height} · tx ` : "Height unknown · tx "));
-  const code = el("code", "", shortTxid(txid));
-  code.title = txid;
-  p.append(code);
+  p.append(document.createTextNode(height != null ? `Height ${height} · tx ` : "Height unknown · tx "), ident(txid, shortTxid(txid)));
   if (navigator.clipboard && txid) p.append(copyButton(txid, `Copy the transaction id ${shortTxid(txid)}`, live()));
   return p;
 }
@@ -189,6 +256,21 @@ function group(label, items) {
   return div;
 }
 
+function paymentChip(p) {
+  const c = el("li", `chip-note chip-pay${p.transparent ? " chip-transparent" : ""}`);
+  c.append(el("span", "chip-id", p.id), el("span", "chip-value", p.value));
+  if (p.recipient) {
+    const to = el("span", "chip-memo");
+    // A transparent address is short enough to show whole; a unified address is shortened on screen.
+    to.append(document.createTextNode("to "), p.transparent ? el("code", "", p.recipient) : ident(p.recipient, middle(p.recipient)));
+    c.append(to);
+  }
+  if (p.memo) c.append(el("span", "chip-memo", `memo “${p.memo}”`));
+  const what = p.transparent ? `Transparent payment, claim ${p.id}` : `Payment ${p.id}`;
+  c.setAttribute("aria-label", `${what}: ${p.value}${p.recipient ? ` to ${p.recipient}` : ""}${p.memo ? `, memo ${p.memo}` : ""}`);
+  return c;
+}
+
 function renderFlow(steps) {
   const items = steps.map((s) => {
     const li = el("li", `step step-${s.stage} tone-${s.status}`);
@@ -207,27 +289,16 @@ function renderFlow(steps) {
     }
     if (s.spent.length) body.append(group("Spent", s.spent.map((n) => noteChip({ ...n, next: null }))));
     if (s.created.length) body.append(group(s.stage === "control" ? "Reply note" : s.stage === "origin" ? "Received" : "Notes created", s.created.map((n) => noteChip(n))));
-    if (s.payments.length) {
-      body.append(group("Paid out", s.payments.map((p) => {
-        const c = el("li", "chip-note chip-pay");
-        c.append(el("span", "chip-id", p.id), el("span", "chip-value", p.value));
-        if (p.recipient) {
-          const to = el("span", "chip-memo");
-          to.append(document.createTextNode("to "), el("code", "", middle(p.recipient)));
-          to.title = p.recipient;
-          c.append(to);
-        }
-        if (p.memo) c.append(el("span", "chip-memo", `memo “${p.memo}”`));
-        c.setAttribute("aria-label", `Payment ${p.id}: ${p.value}${p.recipient ? ` to ${p.recipient}` : ""}${p.memo ? `, memo ${p.memo}` : ""}`);
-        return c;
-      })));
-    }
+    const shielded = s.payments.filter((p) => !p.transparent);
+    const transparent = s.payments.filter((p) => p.transparent);
+    if (shielded.length) body.append(group("Paid out", shielded.map(paymentChip)));
+    if (transparent.length) body.append(group("Paid out (transparent)", transparent.map(paymentChip)));
     li.append(body);
     const edges = el("ul", "edges");
     edges.setAttribute("aria-label", `Claims in step ${s.number}`);
     for (const e of s.edges) {
       const row = el("li", `edge tone-${e.status}`);
-      row.append(el("span", "edge-kind", `#${e.index + 1} ${KIND_LABEL[e.kind]}`), el("span", "edge-label", e.label), badge(e.status));
+      row.append(el("span", "edge-kind", `${claimNumbers(e.indices)} ${KIND_LABEL[e.kind]}`), el("span", "edge-label", e.label), badge(e.status));
       edges.append(row);
     }
     li.append(edges);
@@ -252,7 +323,7 @@ function renderFunders(dossier, report) {
     if (!f) { div.append(el("p", "muted", "Not established: the claim did not verify.")); return div; }
     const t = f.transparent_inputs ?? [];
     if (t.length) {
-      div.append(el("p", "", `${t.length} transparent input${t.length === 1 ? "" : "s"} funded this transaction. Each address and value is read from the output the input spends, in the previous transaction; who holds an address is not proven here.`));
+      div.append(el("p", "", `${t.length} transparent input${t.length === 1 ? "" : "s"} funded this transaction. Each address and value is read from the output the input spends, in the previous transaction; who holds an address is not proven here, unless the holder paid it there in this dossier.`));
       const table = el("table", "kv funders-table");
       table.append(...t.map((i, k) => {
         const tr = el("tr");
@@ -260,7 +331,11 @@ function renderFunders(dossier, report) {
         const td = el("td");
         td.append(el("code", "", i.address ?? "address not known (the previous transaction was not found, or its output is not a standard one)"));
         if (i.address && navigator.clipboard) td.append(copyButton(i.address, `Copy the address of input ${k + 1}`, live()));
-        td.append(el("span", "prevout", `${i.value_zat != null ? `${amountText(i.value_zat, report.network)}, ` : ""}spends ${shortTxid(i.prevout.split(":")[0])}:${i.prevout.split(":")[1]}`));
+        const [ptx, pout] = i.prevout.split(":");
+        const prev = el("span", "prevout");
+        prev.append(document.createTextNode(`${i.value_zat != null ? `${amountText(i.value_zat, report.network)}, ` : ""}spends `), ident(`${ptx}:${pout}`, `${shortTxid(ptx)}:${pout}`));
+        td.append(prev);
+        if (i.paid_in_claim != null) td.append(el("span", "returned", returnedText([i.paid_in_claim])));
         tr.append(el("td", "", `Input ${k + 1}`), td);
         return tr;
       }));
@@ -283,19 +358,19 @@ function renderScope(report) {
 
 // ---- input ----
 
-async function loadSample() {
+async function loadSample(name = SAMPLE_FRAGMENT) {
   setStatus("Loading the sample dossier…", "loading");
   const mine = generation;
-  const res = await fetch(SAMPLE_PATH, { cache: "no-store" });
+  const res = await fetch(SAMPLES[name], { cache: "no-store" });
   if (!res.ok) { setStatus(`The sample could not be loaded (HTTP ${res.status}).`, "error"); return; }
   const text = await res.text();
   if (mine !== generation) return;
-  await check(text, "sample");
+  await check(text, name);
 }
 
 async function open(raw, source) {
   const r = readDossierInput(raw);
-  if (r.sample) return loadSample();
+  if (r.sample) return loadSample(r.sample);
   if (r.error) { clearResult(); setStatus(r.error, "error"); return; }
   await check(r.text, source);
 }
@@ -308,7 +383,7 @@ function dropFragment() {
 function fromHash() {
   const h = location.hash.slice(1);
   if (!h) return;
-  open(h === SAMPLE_FRAGMENT ? `#${SAMPLE_FRAGMENT}` : `#${h}`, "link");
+  open(`#${h}`, "link");
 }
 
 $("sample").addEventListener("click", () => { dropFragment(); loadSample(); });
@@ -332,43 +407,114 @@ drop.addEventListener("drop", async (e) => {
 });
 window.addEventListener("hashchange", fromHash);
 
+// ---- offline: the transactions from files ----
+
+$("tx-files").addEventListener("change", async (ev) => {
+  const files = [...ev.target.files];
+  if (!files.length) return;
+  const txs = { ...(offlineTxs ?? {}) };
+  const skipped = [];
+  for (const f of files) {
+    const t = txFile(f.name, await f.text());
+    if (t.error) skipped.push(t.error);
+    else txs[t.txid] = { hex: t.hex, height: null, mempool: false };
+  }
+  ev.target.value = "";
+  const n = Object.keys(txs).length;
+  offlineTxs = n ? txs : null;
+  $("tx-files-status").textContent = `${n ? `${n} transaction${n === 1 ? "" : "s"} loaded (${Object.keys(txs).map(shortTxid).join(", ")}): dossiers are checked offline, and inclusion in the chain is not checked.` : "No transaction loaded."}${skipped.length ? ` Skipped: ${skipped.join("; ")}.` : ""}`;
+  show("tx-files-clear", Boolean(offlineTxs));
+  // A case on screen is checked again against the files.
+  if (current?.text && offlineTxs) await check(current.text, current.meta.source);
+});
+
+async function goOnline() {
+  offlineTxs = null;
+  $("tx-files-status").textContent = "The files were forgotten: dossiers are checked against a public node.";
+  show("tx-files-clear", false);
+  if (current?.text) await check(current.text, current.meta.source);
+}
+$("tx-files-clear").addEventListener("click", goOnline);
+$("retry-online").addEventListener("click", goOnline);
+
 // ---- actions ----
 
 $("download").addEventListener("click", () => {
   if (!current?.report) return;
   const name = reportFileName(current.report);
-  download(JSON.stringify(reportForDownload(current.report, current.meta), null, 2) + "\n", name);
+  download(JSON.stringify(reportForDownload(current.report, { ...current.meta, caseFields: caseFields() }), null, 2) + "\n", name);
   live().textContent = `Report downloaded as ${name}`;
 });
-$("print").addEventListener("click", () => window.print());
+$("print").addEventListener("click", () => { printFooter(); window.print(); });
+window.addEventListener("beforeprint", printFooter);
 $("copy-summary").addEventListener("click", async () => {
   if (!current?.report) return;
   let said = "Case summary copied";
-  try { await navigator.clipboard.writeText(caseSummaryText(current.dossier, current.report, current.meta)); }
+  try { await navigator.clipboard.writeText(caseSummaryText(current.dossier, current.report, { ...current.meta, caseFields: caseFields() })); }
   catch { said = "Copy failed: the browser refused the clipboard"; }
   live().textContent = said;
 });
 
 // ---- the reviewer's challenge ----
 
-$("nonce-new").addEventListener("click", () => {
+$("nonce-new").addEventListener("click", async () => {
   generatedNonce = newNonce(crypto.getRandomValues(new Uint8Array(16)));
-  $("nonce-value").textContent = generatedNonce;
-  const row = $("nonce-row");
-  row.querySelector(".copy")?.remove();
-  if (navigator.clipboard) row.append(copyButton(generatedNonce, "Copy the nonce", live()));
-  show("nonce-row", true);
+  generatedAt = new Date().toISOString();
+  $("nonce-input").value = generatedNonce;
+  $("h0-input").value = "";
   $("nonce-new-label").textContent = "Generate a new nonce";
   live().textContent = "New nonce generated";
-  // A case on screen is checked again against the new nonce, offline, with the transactions already fetched.
-  if (current?.meta?.txs) {
-    const { text, dossier, meta } = current;
-    const mine = generation;
-    checkDossier(text, { txs: meta.txs, expectNonce: generatedNonce }).then((report) => {
-      if (mine === generation) render(text, dossier, report, meta, { focus: false });
-    });
+  const network = $("challenge-network").value;
+  const nonce = generatedNonce;
+  $("h0-status").textContent = `Asking a ${NETWORK_NAME[network]} node for the chain's height…`;
+  try {
+    const tip = await fetchChainTip(network, GRPC_WEB_ENDPOINTS[network], { timeoutMs: PAGE_TIMEOUT_MS });
+    if (nonce !== generatedNonce) return;
+    $("h0-input").value = String(tip.height);
+    $("h0-status").textContent = `Issued at height ${tip.height} (H₀, ${NETWORK_NAME[network]}), ${utcText(generatedAt)}. A control transaction mined before it fails.`;
+  } catch (e) {
+    if (nonce !== generatedNonce) return;
+    $("h0-status").textContent = `The chain's height could not be asked (${String(e?.message ?? e)}): enter the height you issued the nonce at yourself.`;
   }
+  // A case on screen is checked again against the new nonce and height, offline, with the transactions already fetched.
+  recheck();
 });
+
+// Typing in the nonce or the height checks the case on screen again, once the typing pauses.
+let typing = null;
+for (const id of ["nonce-input", "h0-input"]) $(id).addEventListener("input", () => {
+  if ($("nonce-input").value.trim() !== generatedNonce) { generatedAt = null; generatedNonce = null; }
+  const h = $("h0-input").value.trim();
+  $("h0-status").textContent = h && heightInput(h) === null ? "The height is not a whole number: it is ignored." : "";
+  clearTimeout(typing);
+  typing = setTimeout(recheck, 350);
+});
+
+$("copy-challenge").addEventListener("click", async () => {
+  const { nonce, height } = issued();
+  let said = "Challenge copied for the case file";
+  try {
+    await navigator.clipboard.writeText(challengeRecordText({ nonce, height, network: $("challenge-network").value, issuedAt: generatedAt, now: new Date().toISOString() }));
+  } catch { said = "Copy failed: the browser refused the clipboard"; }
+  live().textContent = said;
+});
+
+/** A sample as its reviewer checked it: the nonce they issued and the height then, filled in; the sample opened. */
+async function sampleChallenge(name) {
+  const c = SAMPLE_CHALLENGE[name];
+  $("nonce-input").value = c.nonce;
+  $("h0-input").value = String(c.height);
+  $("challenge-network").value = c.network;
+  generatedAt = null;
+  generatedNonce = null;
+  $("h0-status").textContent = `The sample's challenge: nonce ${c.nonce}, issued at height ${c.height} on ${NETWORK_NAME[c.network]}.`;
+  if (current?.meta?.txs && current.meta.source === name) recheck();
+  else { dropFragment(); await loadSample(name); }
+}
+const shownSample = () => (Object.hasOwn(SAMPLES, current?.meta?.source ?? "") ? current.meta.source : SAMPLE_FRAGMENT);
+$("sample-nonce").addEventListener("click", () => sampleChallenge(shownSample()));
+$("sample-challenge").addEventListener("click", () => sampleChallenge(EXCHANGE_SAMPLE));
+$("sample-exchange").addEventListener("click", () => { dropFragment(); loadSample(EXCHANGE_SAMPLE); });
 
 initVerifier().then(
   (v) => {
@@ -376,6 +522,7 @@ initVerifier().then(
     $("version").textContent = v;
     setStatus("Ready: verification runs in this page.", "ready");
     fromHash();
+    showVerifierDigest($("wasm-sha")).then((sha) => { wasmSha256 = sha; if (current) { current.meta.wasmSha256 = sha; printFooter(); } });
   },
   (e) => setStatus(`The verifier failed to load: ${e}`, "error"),
 );

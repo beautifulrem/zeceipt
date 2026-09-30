@@ -106,20 +106,22 @@ export function build_dossier(ufvk, network, txs_hex, control_hex, nonce, subjec
 
 /**
  * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`;
- * `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer. Returns the
- * report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse; never throws
- * for a claim that fails.
+ * `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer, and
+ * `issued_at_height` (optional) the chain height they issued it at: a control transaction mined below it fails.
+ * Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
+ * never throws for a claim that fails.
  * @param {string} dossier
  * @param {any} txs
  * @param {string} expect_nonce
+ * @param {number | null} [issued_at_height]
  * @returns {any}
  */
-export function check_dossier(dossier, txs, expect_nonce) {
+export function check_dossier(dossier, txs, expect_nonce, issued_at_height) {
     const ptr0 = passStringToWasm0(dossier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(expect_nonce, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.check_dossier(ptr0, len0, txs, ptr1, len1);
+    const ret = wasm.check_dossier(ptr0, len0, txs, ptr1, len1, !isLikeNone(issued_at_height), isLikeNone(issued_at_height) ? 0 : issued_at_height);
     return ret;
 }
 

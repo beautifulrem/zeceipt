@@ -1,5 +1,6 @@
-// The README's hero images: the case review page (case/) on the committed testnet sample dossier, all 12 claims
-// verified, as a reviewer first sees the result (the page scrolls to the verdict, with the funds-flow timeline under
+// The README's hero images: the case review page (case/) on the committed testnet sample dossier, checked as its
+// reviewer would (with the nonce the sample answered and its H₀: "Verified, with control"), as a reviewer first sees
+// the result (the page scrolls to the verdict, with the funds-flow timeline under
 // it), at 1280 px wide and 2x, light and dark. Usage: node test/shots/case-review.mjs [out-dir]
 // (default docs/assets: case-review.png, case-review-dark.png).
 // The testnet node is simulated as in dossier.e2e.mjs, serving the sample's real transactions (fixtures/testnet/) at
@@ -56,6 +57,13 @@ async function open(scheme, width = 1280, height = 900) {
   return { context, page };
 }
 const verified = (page) => page.waitForFunction(() => !document.getElementById("banner").hidden && /verified|failed|checked/.test(document.getElementById("headline").textContent), null, { timeout: 120_000 });
+/** The sample checked with the challenge it answered (a site without the button is shot as it is). */
+async function withChallenge(page) {
+  if (!(await page.locator("#sample-nonce").isVisible())) return;
+  await page.click("#sample-nonce");
+  await page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
+  await page.evaluate(() => document.getElementById("banner").scrollIntoView({ block: "start" }));
+}
 const written = [];
 const shot = async (page, name, opts = {}) => { const p = path.join(outDir, name); await page.screenshot({ path: p, ...opts }); written.push(p); };
 
@@ -64,6 +72,7 @@ for (const [scheme, name] of [["light", "case-review.png"], ["dark", "case-revie
   const { context, page } = await open(scheme);
   await page.goto(`${base}case/#sample`);
   await verified(page);
+  await withChallenge(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
   await shot(page, name);
@@ -76,6 +85,7 @@ if (process.env.ZECEIPT_SHOT_PAGES === "1") {
     let { context, page } = await open(scheme);
     await page.goto(`${base}case/#sample`);
     await verified(page);
+    await withChallenge(page);
     await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, `case-full${sfx}.png`, { fullPage: true });
     if (scheme === "light") {
@@ -101,7 +111,6 @@ if (process.env.ZECEIPT_SHOT_PAGES === "1") {
     await page.waitForFunction(() => /^Ready/.test(document.getElementById("status").textContent));
     await shot(page, `build${sfx}.png`, { fullPage: true });
     if (!live) {
-      await page.selectOption("#network", "test");
       await page.fill("#ufvk", read(path.join(FIXTURES, "issuer-ufvk.txt")).trim());
       await page.fill("#txids", Object.keys(HEIGHTS).slice(0, 4).join("\n"));
       await page.fill("#nonce", "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8");

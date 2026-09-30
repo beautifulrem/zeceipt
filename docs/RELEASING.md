@@ -142,3 +142,29 @@ This gives the package provenance. It isn't part of v0.1.0.
 - Mark WBS 4.1.1.4 and 4.1.1.3 ✅ with the tag's commit and the npm version.
 - Update REQ-WEB-8 in `docs/product/01_requirements.md` and the README's "Status", which today says npm publishing is pending.
 - The next change goes under `## [Unreleased]`.
+
+## 6. 👤 Before the submission: the live site answers
+
+Added 2026-09-30 (appraisal round 1, D14). On 09-30 a reviewer opened the site at 13:29 UTC, just after a push, and got the old landing page and a 404 for `case/` and `build/`: `pages.yml` deploys only after `ci.yml` succeeds on `master` (about 6 minutes then), so the live site lags every push. A judge who opens the README's links in that window sees 404s.
+
+1. **Freeze `master`** for the submission: the last push is a docs or code change you are done with, not a fix in flight.
+2. **After the last push, wait for both workflows**, and stop if either fails:
+
+   ```bash
+   gh run watch --exit-status "$(gh run list --workflow ci.yml --branch master --limit 1 --json databaseId --jq '.[0].databaseId')"
+   sleep 30   # pages.yml starts when ci.yml completes
+   gh run watch --exit-status "$(gh run list --workflow pages.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+   ```
+
+3. **Check the pages answer 200**, from outside the maintainer's cache:
+
+   ```bash
+   for p in "" case/ build/; do
+     printf '%-8s ' "${p:-/}"; curl -s -o /dev/null -w '%{http_code}\n' "https://beautifulremi.dpdns.org/zeceipt/$p"
+   done   # all three must print 200
+   ```
+
+   Then open `https://beautifulremi.dpdns.org/zeceipt/case/#sample` in a private window and wait for "All 12 claims verified" (about 7 s): a 200 with a stale page would pass the curl.
+4. **Only then** submit, or post a link (the forum call, the videos' descriptions). If a check fails, fix it and repeat from step 2; do not submit while the site is behind the repository.
+
+After NU7's activations (testnet 2026-10-06, mainnet 2026-11-05) repeat step 3 once: the samples' transactions predate NU7 and should keep verifying live (RSK-14b).

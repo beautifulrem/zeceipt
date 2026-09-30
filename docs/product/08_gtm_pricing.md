@@ -1,60 +1,84 @@
 # Go-to-market and pricing
 
-## 1. Segments and sequence
+Rewritten 2026-09-30 for source-of-funds dossiers (`13_pivot.md`; appraisal round 1, D21). The receipts-era plan (grant programs, payout pilots, a $79/month team tier) is in this file's history; the building blocks it priced are in `docs/building-blocks.md`. Every figure below is either a cited source or marked as an assumption. No reviewer has paid for, or signed a letter of intent for, a dossier check: that is the main risk `[R137]`, and the schedule in §2 exists to test it.
 
-1. **Zcash grant and bounty programs** (P1): ZecHub DAO (weekly bounties, whose payments FPF sends `[R4]`), ZCG (a 1,016-row ledger mirrored on OpenZcash `[R105]`), ZF grants. Value: verifiable public ledger; auditor packs. Channels in the solo schedule (`11_plan.md` §8): the forum pilot call, and an OpenZcash-compatible export (built, slices X1–X2c). The OpenZcash "verified" demo branch is infeasible (no public source) and a ZecHub Discord announcement was not restored (slice D10b).
-2. **Zcash-native teams and DAOs** (P2): Zcash Brazil (Konclave), Shielded Labs, ZODL contractors, grantee teams. Channels: a CSV import of Konclave's `label,address,value[,memo]` format (planned, slice D10b; the Konclave-side adapter was dropped); contacting Konclave's author is the user's decision (WBS 4.1.2.3).
-3. **Developers** (P5): crates + npm (publishing is the user's) + vectors; the zips #387 implementation report (drafted; posting is the user's option); a ZecHub wiki page (not scheduled).
-4. **Post-hackathon**: compliance/verification API for exchanges and KYT vendors; second chain: the same envelope and verification UX over a chain-specific disclosure primitive (Solana confidential balances use per-mint ElGamal auditor keys, not per-output keys `[R41]`; a per-transfer disclosure there needs its own primitive and is research, not a port).
+## 1. Segments and channel order
 
-## 2. Launch sequence (dates)
+Two sides. **Holders** make dossiers, and never pay. **Reviewers** (exchange compliance teams, OTC desks, bridges, lenders, and the lawyers who argue held-deposit appeals) check them, and pay above a free tier. A dossier sent to a reviewer is the sales touch: the holder brings the reviewer to the product, as a signed PDF brings a counterparty to e-signature.
 
-Dates here are a subset of the single timeline in `09_submission_checklist.md` §5, re-derived from `11_plan.md` §8 on 2026-09-26 (slice D10c); if they ever disagree, §5 wins.
+Channels, in the order they are worked:
 
-| Date | Action | Owner |
+1. **The wallet button** (Zodl, Zingo): "Export source-of-funds dossier". The wallet already holds the UFVK and the transaction list, and `buildDossier` runs locally (issue drafts: `docs/outreach/wallet-integration.md`). First, because it reaches holders at the moment a reviewer asks, and a wallet team can say yes without a compliance process. Zodl already changed its documentation after the NEAR Intents hold (forum /t/57497/9; `zcash-demand.md` §2.4 rates its motive "medium, inferred") `[R137]`.
+2. **Held-deposit appeals.** The public cases: the $589k NEAR Intents hold (/t/57497, 67+ days by 09-25), Kraken's EDD emails (/t/55347), Binance's refunds after 32 working days (/t/47667) `[R137]`. The holder or their lawyer sends a dossier with the appeal, and the reviewer on the other side meets the product. The pain is the highest here, and the case is public, so a result can be shown.
+3. **OTC desks.** One desk decides for itself, trades bilaterally in size (ZEC is over $1,000, /t/57497/14), and needs a source-of-funds file per counterparty. Fewer approvals than an exchange.
+4. **Small exchanges** that still list ZEC. A compliance lead can adopt a check without a procurement cycle, and an exchange that also sends shielded withdrawals gets the most from `dossier serve` on its own node. Large exchanges come after a reference customer; ZCG declined a compliance bridge in 2026-08 "without a specific partner asking for this approach" (/t/57119), and the same test applies here `[R137]`.
+
+Developers are served by the open crates, `@zeceipt/verify` on npm (publishing is the owner's, WBS 4.1.1.3) and the ZIP 311 implementation report (`docs/outreach/zips-387-comment.md`).
+
+## 2. Outreach schedule, 10-01 → 10-12
+
+Owner steps are marked **O**: each is a public post or a message from the owner's accounts, and none happens without the owner. Drafts are in `docs/outreach/`. Dates are the plan as of 2026-09-30; `09_submission_checklist.md` §5 holds the submission's own dates, and wins if they disagree.
+
+| Date | Action | Who |
 |---|---|---|
-| 2026-09-28 ✅ | Push the repo, enable CI (done 2026-09-29) | U |
-| 2026-09-28 | Weekly update 1 (60 s), most likely on the Arena dashboard (inferred from `isCurrentWeekUpdateSubmitted`; needs the project registered), with X tagging @colosseum as an extra; script and footage ready (`docs/outreach/weekly-update-1.md`) | U records and posts; PM prepares |
-| 2026-09-30 ✅ | Host the demo page (GitHub Pages, `https://beautifulremi.dpdns.org/zeceipt/`; `zeceipt.xyz` dropped; the domain's risk is RSK-29) | U |
-| 2026-09-30 ✅ | Three signed receipts on Zcash testnet (PROOF §6); mainnet only if the owner funds the wallet by 10-02 | T runs; U funds |
-| 2026-10-01 | Post the forum call "Shielded payment receipts: looking for one pilot" (drafted, refreshed 2026-09-30) | U |
-| 2026-10-01 → 10-03 | First pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call): not expected, since RSK-28 triggered on 09-30; a later answer is still welcome | PM, with the pilot |
-| 2026-10-02 → 10-03 | Tag v0.1.0 and the GitHub release; `npm publish @zeceipt/verify` on 10-03, after the tag (moved from 10-10, PM round 2, D04) | R tags; U pushes, releases and publishes |
-| 2026-10-05 | Weekly update 2; initial submission upload on the window-open day | U records and posts; PM uploads |
-| 2026-10-11 | Final submission | PM |
+| 10-01 | Post the reviewer pilot call on the Zcash forum (`forum-pilot-post.md`), linking the live `case/#sample` | O |
+| 10-01 | Reply in the NEAR Intents hold thread (/t/57497): offer the holder a free walk-through of building a dossier, and ask what the reviewer asked for | O |
+| 10-02 | File the wallet issues: zodl-ios, zodl-android, Zingo (`wallet-integration.md`) | O |
+| 10-02 | Post the ZIP 311 implementation report on zcash/zips#387 (`zips-387-comment.md`), which answers ZCG's #437 advice to bring ZIP 311 to Ironwood | O |
+| 10-03 | Direct messages to 5 OTC desks and 3 small exchanges that list ZEC, plus NEAR Intents' 1Click team and Gemini (the one large exchange with shielded withdrawals, `zcash-demand.md` §2.1): the sample link, the one-page API doc (`docs/api/dossier-service.md`), and one question: "would you accept this in place of screenshots?" The target list is the owner's to compile; none is contacted yet | O |
+| 10-03 | Publish `@zeceipt/verify` (WBS 4.1.1.3) | O |
+| 10-05 | Weekly update 2 (`weekly-update-2.md`) | O records; drafts ready |
+| 10-06 | NU7 activates on testnet: re-check the live samples (the README's NU7 plan) | A |
+| 10-07 | Follow up every thread once; ask each reviewer who answered for a public statement or a letter of intent | O |
+| 10-08 → 10-09 | Record the pitch and the technical demo (`pitch-video.md`, `tech-demo-video.md`); put any reviewer's answer, with consent, into the pitch's "ask" line | O |
+| 10-10 → 10-11 | Update §5 with the numbers as they stand; final submission | O, drafts by A |
+| 10-12 | Deadline (PT) | — |
 
-## 3. Pilot candidates (ranked by reachability)
+## 3. Pilot candidates
 
-A pilot needs the wallet that sends the payments: receipts are issued from that wallet's viewing key (PROOF §5), so the issuer is whoever pays.
+A pilot is a reviewer who checks one real dossier and tells us whether it would change their decision. Ranked by how reachable they look, not by size.
 
-| Candidate | Why | Ask | Status |
+| Candidate | Why | Ask | Status (09-30) |
 |---|---|---|---|
-| ZecHub DAO, with FPF as the sender | weekly bounties, open community; FPF sends the payments `[R4]` | FPF issues receipts for one week of ZecHub bounties | ⬜ (after the forum call) |
-| Zcash Brazil (Konclave) | keeps its treasury on Konclave since 2026-08-29 `[R10]`; our KB lists its treasury lead as OpenZcash's maintainer (unverified, KB `12_sources_and_gaps.md`) | one batch paid from its wallet, with receipts for its public ledger | ⬜ |
-| One ZCG grantee team | pays subcontractors in ZEC | run one batch | ⬜ |
-| OpenZcash | ledger consumer | the OpenZcash-compatible export (built, slices X1–X2c); the "verified" demo branch is infeasible (no public source) | ⬜ (ask whether the format is useful) |
+| The NEAR Intents holder (timtech, /t/57497) and whoever reviews his case | A live, public, large hold; he already sends "screenshots, addresses, hashes" and offered to sign (/t/57497/31) | Build a dossier for the funds in question and send it with his appeal | ⬜ |
+| Zodl | Changed its docs after the hold; ships "Export Tax File" already | Comment on the issue draft; a button behind a flag | ⬜ |
+| An OTC desk that trades ZEC | Per-counterparty source-of-funds files; one decision-maker | Check one dossier; a sentence on whether it would replace their current request | ⬜ |
+| A small exchange's compliance lead | Receives EDD cases like Kraken's | Run `dossier serve` on one case, or the case page | ⬜ |
+| A lawyer handling a frozen-deposit appeal | "yeah everybody is getting those" (/t/55347/7) | Attach a dossier to one appeal | ⬜ |
 
-## 4. Pricing (draft, benchmarked)
+## 4. Pricing (draft, with its reasoning)
 
-| Tier | Price | Includes | Benchmark logic |
+**What a dossier check replaces.** Today a shielded-ZEC source-of-funds case is a letter, a reply with screenshots and txids, reconciliation by hand, and often a second round (Kraken asked question 4 twice, /t/55347/9). Vendors quote EDD reports in days to weeks (7–9 business days; "weeks to months" for high-risk cases) `[R138]`. Assumption, not sourced: 2 to 8 analyst hours per shielded case at a fully loaded $60–$120 an hour, so **about $120 to $960 of analyst time per case**, before the cost of the held funds and the customer. A dossier check takes seconds (the sample: about 7 s live) and leaves one report to read and file.
+
+**What reviewers already pay.** Chainalysis and TRM publish no list prices. Vendr's buyer data, second-hand: Chainalysis a median of $174,709 a year (range $25,742–$297,338), with KYT priced by transaction volume; TRM Labs a median of $40,000 a year (range $20,000–$48,000) `[R138]`; earlier trackers put KYT deployments at $50k–$200k a year `[R40]`. These tools score transparent flows, and treat the shielded pool as high risk; a dossier is what lets a reviewer clear a shielded case instead. So the price sits well under a KYT contract, as an add-on for one case type.
+
+| Tier | Price | Includes | Why this number |
 |---|---|---|---|
-| Open source | free | crates, npm, CLI, format, vectors | dev adoption; grant-fundable public good |
-| Issuer | $0 up to 20 receipts/month | hosted receipt pages, one org, one issuer key | free entry tier (Bitwage's per-employee pricing `[R29]` is unverified, second-hand; the free tier stands on its own) |
-| Team | $79/month | 500 receipts/month, audit-pack hosting, exports (OpenZcash, built; QBO/Xero/1099 totals, planned), 5 seats | below Request Finance Growth ($250) since we are an add-on, above Rise's $49/contractor unit `[R27]` `[R28]` |
-| Organisation | from $299/month | unlimited receipts, well-known key binding, verification API quota, priority support | Request Finance Pro/Scale range `[R27]` |
-| Verification API / licensing | usage-based; enterprise licence | compliance vendors, exchanges, ledgers | commercial KYT/compliance deployments quoted at $50k–$200k/yr and above as the ceiling reference `[R40]` |
+| **Holders** | Free | The builder page, the CLI, the crates and `@zeceipt/verify` (Apache-2.0) | Every dossier a holder sends is distribution. Charging the party already harmed by a hold would stop the dossier reaching the reviewer |
+| **Browser review** | Free | The case page: every claim checked in the reviewer's browser, a printable case report with the dossier's sha256, a nonce generator | It costs nothing to serve (static pages, public nodes), and a reviewer has to see one work before any budget conversation |
+| **Verification API**, hosted (planned; the self-hosted service exists, `dossier serve`) | **$5 per verified dossier**, first 20 a month free; or **$249 per reviewer seat a month** with 100 checks per seat | The HTTP API (`docs/api/dossier-service.md`), nonce issuance with the height it was issued at, JSON reports for the case system, a pinned node per network | $5 is 4% of the low end of the assumed analyst cost ($120), so one saved hour pays for 12 checks or more. A small exchange with 50 shielded cases a month pays $150 (after the free 20), $1,800 a year: under 5% of TRM's Vendr median |
+| **Self-hosted with SLA** | **$12,000 a year** per legal entity, unlimited checks | The Docker image run on the reviewer's own node or air-gapped (`--raw-tx-dir`), next-business-day support, and upgrade releases for network upgrades within 5 business days of the Zcash crates releasing them | The code is open, so what is sold is timeliness and an answer when something breaks. NU7 shows why: from 11-05, every build refuses new mainnet transactions until someone ships the upgrade. $12,000 is under half of Chainalysis' Vendr low end and under a third of TRM's median |
 
-Optional revenue: 1Click affiliate fee on ZEC→USDC settlement (Could).
+Numbers to test in the conversations of §2, not commitments: a reviewer's answer to "what does one of these cases cost you today?" replaces the assumption above, and the tiers move with it. No price is published on the site until one reviewer has confirmed the order of magnitude.
 
 ## 5. Messaging
 
-- Headline: Private outside, provable per payment.
-- Sub: Every shielded payout becomes a receipt anyone can verify against the chain — without a viewing key.
-- Proof points (countable): receipts issued, packs verified, third-party verifications, integrations.
-- What we are not: not a wallet, not a vault, not an EOR, not a full ZIP 311.
+- Headline: Prove where your shielded ZEC came from, without handing over your viewing key.
+- For reviewers: a source-of-funds file that checks itself against the chain, with control proved by the holder answering your nonce.
+- For holders: answer the EDD letter without deshielding and without giving away your wallet's history.
+- Proof points (countable): claims verified on a public chain (12 of 12 on testnet, PROOF §8), forgeries refused, reviewers who checked a real dossier, wallets that export one.
+- What we are not: not a KYT score, not an identity check, not a legal attestation, not an "unspent now" proof (spec §4), not a standard anyone has ratified. A forum reply to 1CAD's source-of-funds application (strahncryptography, /t/57597/2: "THE JURISDICTION HAS NOT DEFINED IT. You cannot define it!"; ZCG declined 1CAD on 09-30) applies to any "standard" pitch, so the pitch is "turn the manual self-proof holders already send into evidence a reviewer can check" `[R137]` `[R138]`.
 
-## 6. Metrics (detail in `11_plan.md` §4)
+## 6. Metrics
 
-Baseline plan (two-person, superseded on 2026-09-24), pre-submission: ≥ 15 receipts on public chains, ≥ 1 real issuing org, ≥ 1 third-party emitter/consumer, npm/crate downloads ≥ 50, ≥ 3 publicly posted verifications; 90 days: 3 orgs / 300 receipts / 2 integrations.
+Reported as they stand on the day, with no rounding up (the solo plan's rule, `11_plan.md` §4).
 
-Solo branch, reset 2026-09-30 to what can be met (PM round 1 D05, round 2 N05; `11_plan.md` §4): **3 receipts on testnet, done** (PROOF §6), and mainnet only if funded by 10-02; issuing organisations 0–1, reported as they stand, since the pilot is not reached (RSK-28, fallback); a third-party verification counts only if the owner gets one (0 on 09-30), and is not promised; npm downloads reported as they stand, with no target (no crate is published); 90 days, as targets: 1 organisation and 1 integration.
+| Metric | 09-30 | By submission (10-11), target | 90 days, target |
+|---|---|---|---|
+| Reviewers who checked a real dossier and answered | 0 | 3 | 5 |
+| Public statements or letters of intent from a reviewer | 0 | 1 | 3, one of them paid or in a paid pilot |
+| Held-deposit holders who built a dossier (any network) | 0 | 1 | 5 |
+| Wallet integrations | 0 (issues drafted) | issues filed, one maintainer reply | one merged, or behind a flag |
+| Real dossiers on mainnet | 0 (testnet: 2, PROOF §8) | 1, if the owner funds it | 10 verified by pilots (reported by them; the service keeps no count) |
+| ZIP 311 report | drafted | posted | a reply from a ZIP author or protocol engineer |
+| `@zeceipt/verify` downloads | not published | reported as they stand | reported as they stand |

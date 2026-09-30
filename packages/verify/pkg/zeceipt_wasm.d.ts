@@ -29,11 +29,12 @@ export function build_dossier(ufvk: string, network: string, txs_hex: string[], 
 
 /**
  * Check every claim of a dossier. `txs` is `{ "<txid>": { "hex": "...", "height": 123 | null, "mempool": bool } }`;
- * `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer. Returns the
- * report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse; never throws
- * for a claim that fails.
+ * `expect_nonce` (empty for none) is the nonce the reviewer issued, which every control claim must answer, and
+ * `issued_at_height` (optional) the chain height they issued it at: a control transaction mined below it fails.
+ * Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
+ * never throws for a claim that fails.
  */
-export function check_dossier(dossier: string, txs: any, expect_nonce: string): any;
+export function check_dossier(dossier: string, txs: any, expect_nonce: string, issued_at_height?: number | null): any;
 
 /**
  * Check only the envelope's issuer signature (no transaction needed).
@@ -109,7 +110,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_dossierscanner_free: (a: number, b: number) => void;
     readonly build_dossier: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number, number, number];
-    readonly check_dossier: (a: number, b: number, c: any, d: number, e: number) => any;
+    readonly check_dossier: (a: number, b: number, c: any, d: number, e: number, f: number, g: number) => any;
     readonly check_signature: (a: number, b: number) => any;
     readonly dossier_prevout_txids: (a: number, b: number, c: any) => [number, number, number];
     readonly dossier_txids: (a: number, b: number) => [number, number, number];

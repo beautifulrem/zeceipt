@@ -1,82 +1,74 @@
 <!--
-DRAFT, not posted (WBS 4.1.2.2; slice L1). Posting is the user's decision: a public action on forum.zcashcommunity.com.
-Links filled 2026-09-30: the repository is public at https://github.com/beautifulrem/zeceipt since 2026-09-29 (WBS 4.1.1.1).
-Refreshed 2026-09-30 (PM round 2, N02): the testnet receipts (PROOF §6), the `zdp:1:` check (§7) and the live page are in; "What does not exist yet" now names mainnet, not the testnet run. If a mainnet receipt exists by the day it is posted (RSK-3, cut-off 10-02), change that line first. Target post date 10-01, the day of the Zcash Foundation's architecture workshop (`11_plan.md` §8).
-Suggested category: Applications, or Ecosystem Tooling if the forum has it. Suggested title below.
-the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
+DRAFT, not posted. Posting is the owner's decision: a public post on forum.zcashcommunity.com (WBS 4.1.2.2).
+Rewritten 2026-09-30 for the pivot to source-of-funds dossiers (appraisal round 1, D21); the receipts-era call ("looking for one pilot") is in git history.
+Target post date 10-01 (`docs/product/08_gtm_pricing.md` §2). Suggested category: Ecosystem / Applications. Suggested title below.
+Before posting: open the sample link and check it shows "All 12 claims verified" (the Pages deploy lags a push by about 6 minutes, RELEASING §6);
+if NU7 has activated on testnet (10-06) re-check it first. If a mainnet dossier or a reviewer's statement exists by then, add it to "What works today".
+The transparent_payment claim was in the working tree on 09-30 (not committed): once it is committed and live on the pages, move "Transparent cash-outs" from
+"What does not exist yet" to the claims table ("Transparent payment: the holder paid this transparent address this amount, from these notes").
+Every sentence is backed by `docs/PROOF.md` §8, the tests, `docs/api/dossier-service.md` and `docs/product/10_research_log.md` (R137, R138).
+Do not name timtech, Kraken's customer or any other holder as a pilot without their consent; the links to public threads are fine.
 -->
 
-# Shielded payment receipts: looking for one pilot
+# Source-of-funds evidence for shielded ZEC, without a viewing key: looking for reviewers to try it
 
-If your team pays contributors in shielded ZEC, you can already keep amounts and recipients private. What is still hard is showing a single payment to someone who needs to see it (the contributor, an auditor, a grant committee) without opening the whole wallet.
+If you hold shielded ZEC, you may already have had the letter: an exchange asks for "the specific source of each recent Zcash deposit" and whether your wallets are "solely owned and controlled by you" ([/t/55347](https://forum.zcashcommunity.com/t/55347)). One holder has had $589k held at NEAR Intents for more than 67 days, and has answered with screenshots and hashes, because there is nothing better to send ([/t/57497](https://forum.zcashcommunity.com/t/57497)). Today the answers are to deshield, or to hand over a viewing key that opens every past and future payment.
 
-**Zeceipt** is a receipt for one shielded output. It carries that output's key (the OCK derived from the sender's outgoing viewing key). With it, anyone can decrypt exactly that output from the chain and read its recipient, amount and memo. Nothing else is disclosed: no other output, no other transaction, and no balance.
+**Zeceipt** is a third answer: a **dossier**. The holder builds it from their own wallet, and the reviewer checks every claim in it against the chain, in a browser or on their own server. It discloses the notes the case is about, the payments made from them, and the account's nullifier key `nk`, which derives nullifiers and nothing else. It never contains a viewing key.
 
-## What a receipt proves, and what it does not
+**Try it in two minutes:** [a real testnet dossier, checked claim by claim in your browser](https://beautifulremi.dpdns.org/zeceipt/case/#sample). Then change one character of its nonce, or one byte of `nk`, and check it again.
 
-**It proves** that the named transaction contains an output paying this value to this recipient with this memo, and that whoever made the receipt knew that output's key. Deriving the key takes the sender's outgoing viewing key, but anyone holding an earlier receipt for that output knows it too; a signature says which key made the receipt, not who the sender is.
+## What a dossier proves
 
-**It does not prove**:
-- who is showing it: a receipt is a bearer document. For an interactive check, ask for a signed receipt bound to your challenge (a challenge counts only on a signed receipt).
-- that the output is still unspent, or that whoever shows it can spend it (a receipt carries no spending ability);
-- anything about the transaction's other outputs, or about balances;
-- which organisation holds the signing key, unless the key id names a domain and that domain lists the key when you check it (then it vouches for the key now, not for when the receipt was made);
-- spend authority (full ZIP 311 is a roadmap item).
+| Claim | What the reviewer learns |
+|---|---|
+| **Origin** | These funds arrived in this note, in this transaction, and how that transaction was funded: the transparent addresses behind its inputs (read from the outputs they spend), or a shielded sender |
+| **Path** | The funds moved on: this note was spent in the transaction that created that one (found by the note's nullifier, derived from `nk`) |
+| **Deposit** | The holder made this payment (recipient, amount, memo) from these notes |
+| **Control** | After *you* sent a nonce, someone with spend authority over these notes spent them in a transaction whose memo carries it. A viewing key cannot do that |
 
-**What it costs** (the spec's §9): a receipt reveals that output's address, so receipts to the same address are linkable; pay each contributor at a fresh address from their wallet (the console warns before paying an address an earlier receipt disclosed). And disclosure is permanent: a receipt cannot be revoked.
+Each claim comes back `verified`, `failed`, `not_checked` (a transaction not mined or not found yet) or `unproven` (the data cannot show it, and the report says why).
 
-Both follow the spec's own wording ([`spec/receipt-v0.md`](https://github.com/beautifulrem/zeceipt/blob/master/spec/receipt-v0.md) §4 and §9).
+## What it does not prove
+
+Every report lists these, and so do I:
+- **who the counterparties are**: an origin names the transparent addresses that funded a transaction, not who holds them;
+- **what happened before the first disclosed origin**, or the value of inputs the dossier does not disclose;
+- **that the funds are unspent now**: control shows spend authority when the challenge transaction was made. There is deliberately no "unspent at height H" claim (the spec's §4 explains why);
+- **who is presenting it**: a holder could relay your nonce to whoever controls the funds. A deposit to the address you assigned this customer is the strongest cross-check;
+- **anything legal**: it is evidence you weigh, not a certificate, and no regulator or exchange has endorsed it.
+
+What it costs the holder: disclosure is permanent, and `nk` lets whoever holds the dossier see when the disclosed notes are later spent. Every report lists what was disclosed, and the spec (§8) recommends moving the remaining funds to a new account after the case.
 
 ## What works today
 
-- **Receipt core and CLI** (Rust, `librustzcash` crates): Ironwood outputs of v6 transactions, issued and verified end to end on a regtest chain and on a synthetic transaction built from a real mainnet v6 template (it is on no chain); real mainnet v6 transactions are parsed and fetched over gRPC. Orchard and Sapling output recovery is implemented and tested against the official Orchard vectors and Sapling round trips; the Orchard pool is sealed, so Orchard receipts are historical. `zeceipt issue` recovers each output the viewing key opens and writes a signed receipt; `zeceipt verify` fails closed at a named step (txid, signature, challenge, output, recovery). `zeceipt pack` and `verify-pack` bundle a period's receipts with a verified total, labelled a lower bound.
-- **Receipts on Zcash testnet:** three payments (0.01, 0.02 and 0.03 TAZ, mined at heights 4,420,000 to 4,420,005), each with a signed receipt that verifies against a public node, offline from the raw transaction, and on the live receipt page: [open one in your browser](https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ) (the page asks a public testnet node for the transaction when you click Fetch). Their pack totals 0.06 TAZ, and a tampered copy is refused.
-- **Recipients can prove a payment too.** The same verifier checks zcash-delivery-proof's `zdp:1:` proofs, which a recipient makes with an incoming viewing key. That project's own mainnet test vector verifies live, in the CLI and on the receipt page; it is their payment, not ours.
-- **Consensus-valid proof on a private regtest chain:**
-  - a real wallet (zcash-devtool) builds an Ironwood transaction, Zebra mines it and Zaino indexes it;
-  - receipts are issued from the sender's UFVK and verified over gRPC and offline;
-  - a three-recipient batch paid through Zkool yields exactly one receipt per payment output, with change excluded.
-- **An issuer binding** (spec §7). Give your signing key an id that names your domain, such as `2026-09@pay.example.org`, and serve the small file `zeceipt well-known` prints at `https://<your domain>/.well-known/zeceipt.json`, over HTTPS, without redirects and with `Access-Control-Allow-Origin: *`. `zeceipt verify --check-issuer` and the receipt page's "Check with <domain>" then show whether your domain lists the key. The check never changes whether a receipt is valid, and it runs only when asked, because it tells your domain that someone is checking.
-- **A receipt page that sends the receipt nowhere.** The link carries the receipt in the URL fragment, which browsers never send to a server. The page verifies in the browser (WASM), and a Chrome test checks that no request, header or storage entry holds the receipt. To check the chain, it asks a node for the transaction only when you click, and a public node then sees which txid you asked for; a raw-transaction file avoids even that.
-- **A payout console** (Next.js, self-hosted, loopback only):
-  - payables in USD, converted at a locked ZEC/USD rate;
-  - a batch paid in one transaction, and paid again only when an uncertain attempt is known not to have been mined (the remaining edge cases are in the risk register, RSK-21);
-  - an approval bound by HMAC to the exact lines, rate and paying account;
-  - a rate check before paying;
-  - receipts issued automatically after N confirmations;
-  - an append-only history of each batch, recipient and payable;
-  - no double payment after a database restore once the earlier payment is mined: before paying, it checks the wallet's mined history and adopts a payment already made. A payment still unmined at restore time is not seen.
-
-  It drives Zkool: the seed stays in the wallet, and the console holds a viewing key and a Zkool token for its own account only. It refuses to pay through a Zkool that answers requests without a token. Shown on regtest end to end: batches made on the form, and batches made from USD payables at Kraken's live rate with receipts issued automatically.
-
-Evidence for each item: [`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §1, §2, §2b–§2e, §5, §5b–§5g, §6 (testnet) and §7 (delivery proofs).
+- **A real testnet dossier**: a faucet origin, four hops, three payments and a control challenge answered on chain at height 4,421,345. All 12 claims verify live and offline; wrong keys, wrong nonces, foreign notes and payments not funded by the listed notes fail ([`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §8). A second one names a transparent funder of its origin, read from the previous transaction's output.
+- **For reviewers**: the [case review page](https://beautifulremi.dpdns.org/zeceipt/case/) (checks in WebAssembly, prints a case report with the dossier's sha256, generates nonces), `zeceipt dossier verify` on the command line, and `zeceipt dossier serve`, an HTTP service for a back office, self-hosted, with a Dockerfile, that can run against your own node or with no network at all ([API](https://github.com/beautifulrem/zeceipt/blob/master/docs/api/dossier-service.md)).
+- **For holders**: the [build page](https://beautifulremi.dpdns.org/zeceipt/build/) finds your transactions by scanning compact blocks in the page, and your viewing key never leaves it; or `zeceipt dossier build` from a key file.
 
 ## What does not exist yet
 
-- **Receipts on mainnet:** three signed receipts verify on testnet today (above; `docs/PROOF.md` §6); a pilot's batch would be the first zeceipt receipts on mainnet. This is why I'm asking for a pilot.
-- **Two approvers:** the console has one approver and no sign-in yet.
-- **Accounting exports:** the console exports a batch in OpenZcash's own CSV format, plus a receipt link per row; QuickBooks and Xero are not built for this hackathon. If you maintain a ledger, would that format be useful to you?
+- **A mainnet dossier.** Everything above is testnet. Mainnet needs funds, and a real case.
+- **Transparent cash-outs.** Most cash-outs leave the shielded pool to a transparent deposit or TEX address. A claim for that payment is being added now.
+- **Sapling funds** cannot be the subject of a claim (a Sapling nullifier needs the note's position as well as `nk`): move them to Ironwood first, and the dossier starts there.
+- **NU7**: from its activation (testnet 10-06, mainnet 11-05), transactions made after it are refused, by name, until the Zcash crates release NU7 support. Dossiers over earlier transactions keep verifying.
+- **Anyone who has accepted one.** That is why I'm posting.
 
 ## The pilot I'm looking for
 
-One team that pays 3–10 contributors in shielded ZEC and wants each of them, or an auditor, to be able to check their payment:
+Reviewers, not payers:
+- **compliance teams** at exchanges or bridges that receive shielded ZEC and send EDD requests;
+- **OTC desks** that need a source-of-funds file per counterparty;
+- **lawyers and advisers** helping a holder with a held or frozen deposit.
 
-1. You pay one real batch. Either use the console against your Zkool, or keep your own wallet and use the CLI with your viewing key.
-2. Each recipient gets a receipt link and can verify it in the browser, with nothing installed.
-3. You tell me what was missing.
+The ask: check one dossier, the sample or a real one from a holder you are working with, and tell me whether it would change your decision, and what is missing. About 30 minutes. If it helps, I will walk a holder through building one, on any network, without seeing their key. With your consent, your answer (even "no, because…") can be quoted in our Crypto World's Fair submission (deadline 10-12); later answers are just as welcome.
 
-Timing: a batch paid by 9 October can be named in our hackathon submission, with your consent; later is just as welcome.
-
-Your keys stay yours: the console never holds a spending key, and the CLI needs a viewing key plus a receipt-signing key it generates (`zeceipt keygen`), never a spending key. Expect about an hour of your time. ZecHub's bounty payouts, a ZCG grantee team, or a payroll team (hello, Konclave users) would be ideal.
+If you are a holder in a held-deposit case: you can build a dossier yourself today on testnet to see what it discloses, and I'd like to hear what your reviewer asked for.
 
 ## Questions for everyone
 
-- Who needs to see a single payment in your workflow: the recipient, an auditor, a grant committee, or the public?
-- Is a per-output receipt enough, or do you use the per-period pack, and what should it add?
-- Would you rather verify in the browser, with the CLI, or both?
+- Reviewers: what would you need to see before accepting this in place of screenshots or a viewing key?
+- Would you rather check in the browser, with the CLI, or through an API?
+- Holders: which wallet should have an "Export source-of-funds dossier" button first?
 
-## Neighbours
-
-Konclave pays shielded payroll with FROST approvals. Laminar (the RFC and grant thread on this forum) proposes a local-first treasury console whose receipt bundles prove the integrity of payment intent. Zeceipt is complementary to both: it proves what a shielded output actually paid, per output, against the chain.
-
-Code and docs: https://github.com/beautifulrem/zeceipt (start with the [README](https://github.com/beautifulrem/zeceipt/blob/master/README.md)). Built for Colosseum's Crypto World's Fair, Zcash track.
+Code, spec and proof log: https://github.com/beautifulrem/zeceipt (start with the [README](https://github.com/beautifulrem/zeceipt/blob/master/README.md); the format is [`spec/dossier-v1.md`](https://github.com/beautifulrem/zeceipt/blob/master/spec/dossier-v1.md)). Open source, Apache-2.0. Built for Colosseum's Crypto World's Fair, Zcash track.

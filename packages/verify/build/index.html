@@ -60,11 +60,12 @@
   </label>
   <label id="ufvk-field" class="field">Unified full viewing key
     <textarea id="ufvk" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-describedby="ufvk-hint"></textarea>
-    <span id="ufvk-hint" class="hint">Starts with <code>uview1</code> on mainnet, <code>uviewtest1</code> on testnet. Wallets export it as the “viewing key” (with <code>zcash-devtool</code>, <code>wallet list-accounts</code> prints it). It lets this page find your notes; it cannot move funds.</span>
+    <span id="ufvk-hint" class="hint">Starts with <code>uview1</code> on mainnet, <code>uviewtest1</code> on testnet; the network above follows the key you paste. Wallets export it as the “viewing key” (with <code>zcash-devtool</code>, <code>wallet list-accounts</code> prints it). It lets this page find your notes; it cannot move funds.</span>
+    <span id="ufvk-network" class="hint" role="status"></span>
   </label>
-  <label id="txids-field" class="field">Transaction ids of the funds, oldest first, one per line
+  <label id="txids-field" class="field">Transaction ids of the funds, one per line
     <textarea id="txids" rows="5" spellcheck="false" autocomplete="off" aria-describedby="txids-hint"></textarea>
-    <span id="txids-hint" class="hint">First the transaction that brought the funds into your wallet, then each one that moved or paid them.</span>
+    <span id="txids-hint" class="hint">The transaction that brought the funds into your wallet, and each one that moved or paid them, in any order: the builder puts each after the ones whose notes it spends.</span>
   </label>
   <fieldset class="scan">
     <legend>Or find them for me</legend>
@@ -78,7 +79,7 @@
   </fieldset>
   <details class="howto">
     <summary>How to find your transaction ids</summary>
-    <p>Open your wallet's transaction history, open each transaction and copy its id (64 characters, also called the txid or transaction hash). Most wallets can also export the history as a CSV file, which lists the ids. With <code>zcash-devtool</code>, <code>wallet list-tx</code> prints them. Order them by date, oldest first.</p>
+    <p>Open your wallet's transaction history, open each transaction and copy its id (64 characters, also called the txid or transaction hash). Most wallets can also export the history as a CSV file, which lists the ids. With <code>zcash-devtool</code>, <code>wallet list-tx</code> prints them. Any order will do.</p>
   </details>
   <fieldset class="control">
     <legend>Control (optional): answer a reviewer's challenge</legend>
@@ -116,6 +117,7 @@
   <dl id="built-counts" class="facts"></dl>
   <h3>What it discloses</h3>
   <ul id="built-discloses" class="discloses"></ul>
+  <p class="after-note"><strong>After the case:</strong> the nk in this dossier lets the reviewer see when any of its notes is spent, for as long as they keep it. Once the case is closed you may move the remaining funds to a fresh account in your wallet (with its own keys), whose notes this nk does not cover.</p>
   <div class="actions case-actions">
     <p><button id="download" type="button" class="btn btn-primary"><span class="i i-download" aria-hidden="true"></span>Download dossier.json</button></p>
     <p><button id="copy-link" type="button" class="btn btn-secondary"><span class="i i-link" aria-hidden="true"></span>Copy a review link</button></p>
@@ -144,6 +146,7 @@
   <li><span>Where the funds entered your wallet, and what funded that transaction (its transparent inputs are public).</span></li>
   <li><span>Each move of the funds within your wallet, and each payment you made from them (with a sender receipt).</span></li>
   <li><span>With a control answer: that you could spend the funds after the reviewer's nonce was issued.</span></li>
+  <li><span>When any disclosed note is spent, now and later: the dossier's nk lets the reviewer compute these notes' nullifiers and watch for them on chain.</span></li>
 </ul>
 </section>
 <section class="card" aria-labelledby="keeps-title">
@@ -159,6 +162,7 @@
 </main>
 <footer class="foot">
   <span><span id="version">zeceipt-dossier-v1</span> · open source (Apache-2.0)</span>
+  <span id="wasm-sha" class="wasm-sha" hidden></span>
   <span class="foot-links"><a href="../">Home</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a></span>
 </footer>
 </body>

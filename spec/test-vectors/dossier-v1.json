@@ -1,1409 +1,1991 @@
 {
- "format": "zeceipt-dossier-v1",
- "note": "Vectors for spec/dossier-v1.md §11. Every case starts from the real testnet dossier fixtures/dossier/testnet-dossier.json and the raw transactions fixtures/testnet/<txid>.hex. It applies `patch` (RFC 6902 operations; '/claims/-' appends) and optionally changes the transactions supplied: `txs.omit` not supplied; `txs.mempool` reported in the mempool ('all' for every one); `txs.hex` replaces a transaction's hex. It checks with `expect_nonce` when given. Transactions from files have no height, so every claim that verifies also carries the detail that inclusion was not checked. `run: cli` cases were recorded with `target/debug/zeceipt dossier verify <file> --raw-tx-dir <dir> [--expect-nonce N]` (`exit` is its exit code); `run: checkDossier` cases with @zeceipt/verify checkDossier(text, { txs, expectNonce }) on the rebuilt WASM. Conformance is the statuses, nk_proven, controlled and parse errors; summaries are zeceipt's English, recorded for orientation. Recorded 2026-09-30 on the working tree after 2b54a10 (the review fixes, not yet committed).",
- "network": "test",
- "dossier": "fixtures/dossier/testnet-dossier.json",
- "dossier_sha256": "7b8d7ecfa99676a660f27c0c5cbdce03ee130d138a48b51eeb7c0d9f167ea9c1",
- "nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
- "nk": "4a269d95563ab382bf2beac31322ec94ebabbe246560a7285a839db7963d4e37",
- "nullifier_key_filler": {
-  "ak": "6ebb833c1d2f8433080abceabe47906097f90678d603f577d0486c9111737b07",
-  "ak_is": "the spend validating key of the Orchard spending key 0x07 repeated 32 times",
-  "rivk": "the integer t+1 (32 bytes little-endian) for the first t in 0..7 that makes a valid full viewing key"
- },
- "notes": {
-  "n1": {
-   "txid": "90f6a3354862cf5b2f46e29ad3bfc9db3b9c4618178691df30bff2d7ec562a4b",
-   "pool": "ironwood",
-   "action": 0,
-   "height": 4419987,
-   "value_zat": 100000000,
-   "nullifier": "335f8277b12c0d891b373070ce9452c800e977d89e359f481adbea45032c9110",
-   "spent_in": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b"
-  },
-  "n2": {
-   "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
-   "pool": "ironwood",
-   "action": 0,
-   "height": 4420000,
-   "value_zat": 24743750,
-   "nullifier": "63055efc762b788fb7d1b5e6cc5b5cb609ccbf01aedc76cedfbe9b317cdd120e",
-   "spent_in": "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d"
-  },
-  "n3": {
-   "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
-   "pool": "ironwood",
-   "action": 1,
-   "height": 4420000,
-   "value_zat": 24743750,
-   "nullifier": "eb0f6851180dc8e391b63889e7e718de9f1326528f34beea987492eb00d28239",
-   "spent_in": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8"
-  },
-  "n4": {
-   "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
-   "pool": "ironwood",
-   "action": 3,
-   "height": 4420000,
-   "value_zat": 24743750,
-   "nullifier": "309a6b8661b576d6c17d02a5ae2aba25df7d2e4a2c5410fca250c05f4e203d30",
-   "spent_in": "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43"
-  },
-  "n5": {
-   "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
-   "pool": "ironwood",
-   "action": 4,
-   "height": 4420000,
-   "value_zat": 24743750,
-   "nullifier": "c34dd25cab229847ee82ec8d09e1942950fcd3e05892061b646b9276e2934c08",
-   "spent_in": null
-  },
-  "n6": {
-   "txid": "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d",
-   "pool": "ironwood",
-   "action": 1,
-   "height": 4420003,
-   "value_zat": 22733750,
-   "nullifier": "57dd1281dd0dbac29c8108ee7ee8c96f4a2bd9818e082a6065d02265f378b70d",
-   "spent_in": null
-  },
-  "n7": {
-   "txid": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
-   "pool": "ironwood",
-   "action": 0,
-   "height": 4420005,
-   "value_zat": 10864375,
-   "nullifier": "57bc532f932f410259aa05a6a9f0c3b771624310817efbbf7870221df9247a15",
-   "spent_in": null
-  },
-  "n8": {
-   "txid": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
-   "pool": "ironwood",
-   "action": 1,
-   "height": 4420005,
-   "value_zat": 10864375,
-   "nullifier": "5ae39da590cf9c5a2b937ac822b3dd977b3a7a8bb05651e22ddb5ede8135e811",
-   "spent_in": null
-  },
-  "n9": {
-   "txid": "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43",
-   "pool": "ironwood",
-   "action": 1,
-   "height": 4421345,
-   "value_zat": 100000,
-   "nullifier": "41165a607c7f2a79b9c2f74b46683970d448dffb51251284d075fdaa69410f1d",
-   "spent_in": null
-  }
- },
- "notes_note": "From the live report of 2026-09-30 (testnet.zec.rocks). nullifier = DeriveNullifier_nk(note), computed from nk and the note opening alone; spent_in is the dossier's transaction whose actions carry that nullifier (absent: spent in none of them, so the note is not shown to be the holder's).",
- "cases": [
-  {
-   "name": "real",
-   "why": "the real testnet dossier (PROOF §8), with the reviewer's nonce expected",
-   "patch": [],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 0,
-    "all_verified": true,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified"
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "real_without_expected_nonce",
-   "why": "the same with no expected nonce: control verifies and its details ask the reviewer to check the nonce",
-   "patch": [],
-   "expect": {
-    "exit": 0,
-    "all_verified": true,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified"
-    ],
-    "claim_11": {
-     "status": "verified",
-     "summary": "Answering nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, the holder spent n4 (0.24743750 TAZ) in 10e941e7…6e43: they could spend these funds after the nonce was issued.",
-     "details": [
-      "Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce.",
-      "Loaded without a height (from a file): the inclusion of 10e941e7…6e43, fcfde625…7f0b in the chain was not checked here."
-     ]
-    }
-   },
-   "run": "cli"
-  },
-  {
-   "name": "replayed_control",
-   "why": "the reviewer issued another nonce (an old dossier shown again): control fails",
-   "patch": [],
-   "expect_nonce": "zeceipt-challenge-ffffffffffffffffffffffffffffffff",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "This control claim answers nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, not the one you issued: it was made for another challenge, or an earlier one."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "wrong_nk",
-   "why": "nk with one bit flipped (byte 3): every nullifier claim fails; the origin opens but is no longer shown to be the holder's",
-   "patch": [
+  "cases": [
     {
-     "op": "replace",
-     "path": "/nk",
-     "value": "4a269d94563ab382bf2beac31322ec94ebabbe246560a7285a839db7963d4e37"
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": false,
-    "controlled": false,
-    "statuses": [
-     "not_checked",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 0,
-      "kind": "origin",
-      "status": "not_checked",
-      "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b, funded from the shielded pool by an undisclosed sender."
-     },
-     {
-      "index": 1,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n1's nullifier is not among fcfde625…7f0b's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 2,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n1's nullifier is not among fcfde625…7f0b's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 3,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n1's nullifier is not among fcfde625…7f0b's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 4,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n1's nullifier is not among fcfde625…7f0b's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 5,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "Receipt r1 opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, but not from n1: their nullifiers are not among its spends."
-     },
-     {
-      "index": 6,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n2's nullifier is not among 1c49834b…e39d's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 7,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "Receipt r2 opens a payment of 0.02000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-002\") in 1c49834b…e39d, but not from n2: their nullifiers are not among its spends."
-     },
-     {
-      "index": 8,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n3's nullifier is not among a2619e39…3df8's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 9,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n3's nullifier is not among a2619e39…3df8's spends: that transaction did not spend it (or nk is not the holder's)."
-     },
-     {
-      "index": 10,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "Receipt r3 opens a payment of 0.03000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-003\") in a2619e39…3df8, but not from n3: their nullifiers are not among its spends."
-     },
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "The challenge transaction does not spend n4."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "invalid_nk",
-   "why": "nk is 32 bytes but no valid key (0xff…ff): reported once in problems; every nullifier claim fails",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/nk",
-     "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": false,
-    "controlled": false,
-    "statuses": [
-     "not_checked",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed"
-    ],
-    "problems": [
-     "nk is not a valid Orchard nullifier key encoding: no nullifier can be derived from it"
-    ],
-    "not_verified": [
-     {
-      "index": 0,
-      "kind": "origin",
-      "status": "not_checked",
-      "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b, funded from the shielded pool by an undisclosed sender."
-     },
-     {
-      "index": 1,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 2,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 3,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 4,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 5,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 6,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 7,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 8,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 9,
-      "kind": "path",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 10,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     },
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "nk is not a valid key, so no nullifier can be tested."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "forged_note_value",
-   "why": "n1's opening with its value raised by 1 zatoshi: the note does not open, so nothing that names n1 verifies",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/notes/n1",
-     "value": "zdp:1:SypW7NfyvzDfkYYXGEacO9vJv9Oa4kYvW89iSDWj9pACAAA8QBEegMsyaXMBJZFOX_WkxA1B0dBMw1V-A-k6cKg-cMcJ2WxFLEO-9e-YAeH1BQAAAABSPTO0k4hV8u4ulnbcY9E0X0wBajejyZloJ8ToYDgM8w"
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "failed",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified"
-    ],
-    "not_verified": [
-     {
-      "index": 0,
-      "kind": "origin",
-      "status": "failed",
-      "summary": "Note n1 does not open: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts"
-     },
-     {
-      "index": 1,
-      "kind": "path",
-      "status": "failed",
-      "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n2: ok"
-     },
-     {
-      "index": 2,
-      "kind": "path",
-      "status": "failed",
-      "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n3: ok"
-     },
-     {
-      "index": 3,
-      "kind": "path",
-      "status": "failed",
-      "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n4: ok"
-     },
-     {
-      "index": 4,
-      "kind": "path",
-      "status": "failed",
-      "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n5: ok"
-     },
-     {
-      "index": 5,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "Receipt r1 opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, but not from n1: their nullifiers are not among its spends."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "nonce_mismatch",
-   "why": "the claim names a nonce the reply memo does not carry",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/11/nonce",
-     "value": "zeceipt-challenge-00000000000000000000000000000000"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "The reply note's memo does not carry the nonce zeceipt-challenge-00000000000000000000000000000000 (it reads \"zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8\")."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "control_overclaims_spent",
-   "why": "the control claim says the challenge spent n1, which it did not",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/11/spent",
-     "value": [
-      "n1"
-     ]
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "The challenge transaction does not spend n1."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "control_foreign_note",
-   "why": "a note the holder sent to someone else (INV-T-001, opened as the sender) added to the control's spent list",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/notes/n10",
-     "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g"
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "real",
+      "patch": [],
+      "why": "the real testnet dossier (PROOF §8), with the reviewer's nonce expected"
     },
     {
-     "op": "replace",
-     "path": "/claims/11/spent",
-     "value": [
-      "n4",
-      "n10"
-     ]
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "The challenge transaction does not spend n10."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "path_to_note_of_another_tx",
-   "why": "a path from n1 to n6, which was created by a transaction that spent n2, not n1",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/claims/-",
-     "value": {
-      "type": "path",
-      "from": "n1",
-      "to": "n6"
-     }
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 12,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n1's nullifier is not among 1c49834b…e39d's spends: that transaction did not spend it (or nk is not the holder's)."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "path_from_foreign_note",
-   "why": "a path from a note the holder sent to someone else (INV-T-001) to n6",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/notes/n10",
-     "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g"
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_history_only",
+        "controlled": false,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "name": "real_without_expected_nonce",
+      "patch": [],
+      "why": "the same with no expected nonce: every claim verifies and the control's details ask the reviewer to check the nonce, but controlled is false and the assurance is history only (an old dossier answers an old nonce)"
     },
     {
-     "op": "add",
-     "path": "/claims/-",
-     "value": {
-      "type": "path",
-      "from": "n10",
-      "to": "n6"
-     }
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 12,
-      "kind": "path",
-      "status": "failed",
-      "summary": "n10's nullifier is not among 1c49834b…e39d's spends: that transaction did not spend it (or nk is not the holder's)."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "deposit_not_funded_by",
-   "why": "deposit r1 said to be funded by n2, which its transaction did not spend",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/5/funded_by",
-     "value": [
-      "n2"
-     ]
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 1,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified"
-    ],
-    "not_verified": [
-     {
-      "index": 5,
-      "kind": "deposit",
-      "status": "failed",
-      "summary": "Receipt r1 opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, but not from n2: their nullifiers are not among its spends."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "deposit_without_funded_by",
-   "why": "deposit r1 with no funding notes: verifies, with a detail that nothing ties it to the holder's notes",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/5/funded_by",
-     "value": []
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 0,
-    "all_verified": true,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified"
-    ],
-    "claim_5": {
-     "status": "verified",
-     "summary": "The holder's receipt opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b.",
-     "details": [
-      "No funding notes are listed, so nothing ties this payment to the holder's other notes; whoever knows the output's OCK could make this receipt.",
-      "Loaded without a height (from a file): the inclusion of fcfde625…7f0b in the chain was not checked here."
-     ]
-    }
-   },
-   "run": "cli"
-  },
-  {
-   "name": "origin_of_a_sent_note",
-   "why": "an origin on a note the holder sent to someone else (INV-T-001): it opens, but nothing shows it is the holder's, so not_checked",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/notes/n10",
-     "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g"
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "This control claim answers nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, not the one you issued: it was made for another challenge, or an earlier one."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-ffffffffffffffffffffffffffffffff",
+      "name": "replayed_control",
+      "patch": [],
+      "why": "the reviewer issued another nonce (an old dossier shown again): control fails"
     },
     {
-     "op": "add",
-     "path": "/claims/-",
-     "value": {
-      "type": "origin",
-      "note": "n10"
-     }
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 2,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "not_checked"
-    ],
-    "not_verified": [
-     {
-      "index": 12,
-      "kind": "origin",
-      "status": "not_checked",
-      "summary": "0.01000000 TAZ arrived in note n10, in fcfde625…7f0b, funded by disclosed note n1."
-     }
-    ],
-    "claim_12": {
-     "status": "not_checked",
-     "summary": "0.01000000 TAZ arrived in note n10, in fcfde625…7f0b, funded by disclosed note n1.",
-     "details": [
-      "Nothing here shows n10 is the holder's: its nullifier is in no supplied transaction, and the sender of a note knows its opening too. A path, deposit or control claim that spends it would show it.",
-      "Loaded without a height (from a file): the inclusion of fcfde625…7f0b in the chain was not checked here."
-     ]
-    }
-   },
-   "run": "cli"
-  },
-  {
-   "name": "origin_of_an_unspent_own_note",
-   "why": "an origin on n5, the holder's own change never spent in the dossier's transactions: not_checked for the same reason",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/claims/-",
-     "value": {
-      "type": "origin",
-      "note": "n5"
-     }
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "expect": {
-    "exit": 2,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": true,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "not_checked"
-    ],
-    "not_verified": [
-     {
-      "index": 12,
-      "kind": "origin",
-      "status": "not_checked",
-      "summary": "0.24743750 TAZ arrived in note n5, in fcfde625…7f0b, funded by disclosed note n1."
-     }
-    ],
-    "claim_12": {
-     "status": "not_checked",
-     "summary": "0.24743750 TAZ arrived in note n5, in fcfde625…7f0b, funded by disclosed note n1.",
-     "details": [
-      "Nothing here shows n5 is the holder's: its nullifier is in no supplied transaction, and the sender of a note knows its opening too. A path, deposit or control claim that spends it would show it.",
-      "Loaded without a height (from a file): the inclusion of fcfde625…7f0b in the chain was not checked here."
-     ]
-    }
-   },
-   "run": "cli"
-  },
-  {
-   "name": "control_tx_missing",
-   "why": "the challenge transaction is not supplied (no file; a node that does not know it)",
-   "patch": [],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "txs": {
-    "omit": [
-     "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43"
-    ]
-   },
-   "expect": {
-    "exit": 2,
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "not_checked"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "not_checked",
-      "summary": "The transaction of note n9 (10e941e7…6e43) was not found on the node, or not supplied."
-     }
-    ]
-   },
-   "run": "cli"
-  },
-  {
-   "name": "control_tx_in_mempool",
-   "why": "a node reports the challenge transaction in the mempool: control is not_checked until it is mined",
-   "patch": [],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "txs": {
-    "mempool": [
-     "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43"
-    ]
-   },
-   "expect": {
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "not_checked"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "not_checked",
-      "summary": "Answering nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, the holder spent n4 (0.24743750 TAZ) in 10e941e7…6e43: they could spend these funds after the nonce was issued.",
-      "details": [
-       "10e941e7…6e43 in the mempool, not mined yet: check again once mined.",
-       "Loaded without a height (from a file): the inclusion of fcfde625…7f0b in the chain was not checked here."
-      ]
-     }
-    ]
-   },
-   "run": "checkDossier"
-  },
-  {
-   "name": "every_tx_in_mempool",
-   "why": "every transaction reported in the mempool: every claim is not_checked",
-   "patch": [],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "txs": {
-    "mempool": "all"
-   },
-   "expect": {
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked",
-     "not_checked"
-    ],
-    "not_verified_first_two": [
-     {
-      "index": 0,
-      "kind": "origin",
-      "status": "not_checked",
-      "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b, funded from the shielded pool by an undisclosed sender.",
-      "details": [
-       "n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account.",
-       "90f6a335…2a4b in the mempool, not mined yet: check again once mined."
-      ]
-     },
-     {
-      "index": 1,
-      "kind": "path",
-      "status": "not_checked",
-      "summary": "1.00000000 TAZ in n1 was spent in fcfde625…7f0b, which created n2 (0.24743750 TAZ).",
-      "details": [
-       "90f6a335…2a4b, fcfde625…7f0b in the mempool, not mined yet: check again once mined."
-      ]
-     }
-    ]
-   },
-   "run": "checkDossier"
-  },
-  {
-   "name": "control_tx_bad_hex",
-   "why": "the challenge transaction's hex does not decode: kept as empty bytes, so its note reports it malformed (failed), not missing",
-   "patch": [],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "txs": {
-    "hex": {
-     "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43": "zz"
-    }
-   },
-   "expect": {
-    "all_verified": false,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "failed"
-    ],
-    "not_verified": [
-     {
-      "index": 11,
-      "kind": "control",
-      "status": "failed",
-      "summary": "Notes do not open: n9: transaction bytes are malformed: unexpected end of file",
-      "details": []
-     }
-    ]
-   },
-   "run": "checkDossier"
-  },
-  {
-   "name": "no_control_claim_with_expect_nonce",
-   "why": "the control claim removed and a nonce expected: every remaining claim verifies and controlled is false. The reviewer must read `controlled`: an expected nonce that nothing answers does not fail the dossier",
-   "patch": [
-    {
-     "op": "remove",
-     "path": "/claims/11"
-    }
-   ],
-   "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
-   "txs": {},
-   "expect": {
-    "all_verified": true,
-    "nk_proven": true,
-    "controlled": false,
-    "statuses": [
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified",
-     "verified"
-    ]
-   },
-   "run": "checkDossier"
-  }
- ],
- "parse_cases": [
-  {
-   "name": "holding_claim",
-   "why": "an unspent-at-height claim: not a v1 claim type (§4)",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/claims/-",
-     "value": {
-      "type": "holding",
-      "notes": [
-       "n5"
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": false,
+        "not_verified": [
+          {
+            "index": 0,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b, funded from the shielded pool by an undisclosed sender."
+          },
+          {
+            "index": 1,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n1's nullifier, derived with this dossier's nk, is not among fcfde625…7f0b's spends: that transaction did not spend n1 with this account's key."
+          },
+          {
+            "index": 2,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n1's nullifier, derived with this dossier's nk, is not among fcfde625…7f0b's spends: that transaction did not spend n1 with this account's key."
+          },
+          {
+            "index": 3,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n1's nullifier, derived with this dossier's nk, is not among fcfde625…7f0b's spends: that transaction did not spend n1 with this account's key."
+          },
+          {
+            "index": 4,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n1's nullifier, derived with this dossier's nk, is not among fcfde625…7f0b's spends: that transaction did not spend n1 with this account's key."
+          },
+          {
+            "index": 5,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "Receipt r1 opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, but not from n1: their nullifiers are not among its spends."
+          },
+          {
+            "index": 6,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n2's nullifier, derived with this dossier's nk, is not among 1c49834b…e39d's spends: that transaction did not spend n2 with this account's key."
+          },
+          {
+            "index": 7,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "Receipt r2 opens a payment of 0.02000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-002\") in 1c49834b…e39d, but not from n2: their nullifiers are not among its spends."
+          },
+          {
+            "index": 8,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n3's nullifier, derived with this dossier's nk, is not among a2619e39…3df8's spends: that transaction did not spend n3 with this account's key."
+          },
+          {
+            "index": 9,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n3's nullifier, derived with this dossier's nk, is not among a2619e39…3df8's spends: that transaction did not spend n3 with this account's key."
+          },
+          {
+            "index": 10,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "Receipt r3 opens a payment of 0.03000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-003\") in a2619e39…3df8, but not from n3: their nullifiers are not among its spends."
+          },
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "The challenge transaction does not spend n4."
+          }
+        ],
+        "statuses": [
+          "unproven",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "wrong_nk",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/nk",
+          "value": "4a269d94563ab382bf2beac31322ec94ebabbe246560a7285a839db7963d4e37"
+        }
       ],
-      "height": 4421400
-     }
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "json: unknown variant `holding`, expected one of `origin`, `path`, `deposit`, `control` at line 1 column 3277"
-   }
-  },
-  {
-   "name": "unknown_top_field",
-   "why": "an unknown top-level field",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/holdings",
-     "value": []
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "json: unknown field `holdings`, expected one of `version`, `network`, `created`, `subject`, `nk`, `notes`, `receipts`, `claims` at line 1 column 3270"
-   }
-  },
-  {
-   "name": "unknown_claim_field",
-   "why": "an unknown field in a claim",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/claims/0/height",
-     "value": 1
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "json: unknown field `height`, expected `note` at line 1 column 2671"
-   }
-  },
-  {
-   "name": "nk_missing",
-   "why": "a path claim without nk",
-   "patch": [
-    {
-     "op": "remove",
-     "path": "/nk"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 1 (path) needs nk, which the dossier does not include"
-   }
-  },
-  {
-   "name": "nk_short",
-   "why": "nk of 4 bytes",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/nk",
-     "value": "4a269d95"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "field nk has wrong length: expected 32, got 4"
-   }
-  },
-  {
-   "name": "nonce_short",
-   "why": "a control nonce under 8 characters",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/11/nonce",
-     "value": "abc1234"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 11 (control): a nonce of at least 8 characters, from the reviewer"
-   }
-  },
-  {
-   "name": "control_no_spent",
-   "why": "a control claim with an empty spent list",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/11/spent",
-     "value": []
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 11 (control) names no spent note"
-   }
-  },
-  {
-   "name": "undisclosed_note",
-   "why": "a claim naming a note the dossier does not disclose",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/claims/-",
-     "value": {
-      "type": "path",
-      "from": "n4",
-      "to": "n99"
-     }
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 12 (path) names note \"n99\", which the dossier does not disclose"
-   }
-  },
-  {
-   "name": "missing_receipt",
-   "why": "a deposit naming a receipt the dossier does not include",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims/5/receipt",
-     "value": "r9"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 5 (deposit) names receipt \"r9\", which the dossier does not include"
-   }
-  },
-  {
-   "name": "receipt_other_network",
-   "why": "a receipt for another network",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/receipts/r1/network",
-     "value": "main"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: receipt r1 is for another network than the dossier"
-   }
-  },
-  {
-   "name": "bad_note",
-   "why": "a note that is not 118 bytes",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/notes/n1",
-     "value": "zdp:1:AAAA"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: note n1: field zdp proof has wrong length: expected 118, got 3"
-   }
-  },
-  {
-   "name": "zdp_v2",
-   "why": "a note opening of another zdp version",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/notes/n1",
-     "value": "zdp:2:AAAA"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: note n1: unsupported format version \"zdp:2\""
-   }
-  },
-  {
-   "name": "version_v2",
-   "why": "another dossier version",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/version",
-     "value": "zeceipt-dossier-v2"
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "unsupported format version \"zeceipt-dossier-v2\""
-   }
-  },
-  {
-   "name": "no_claims",
-   "why": "no claims",
-   "patch": [
-    {
-     "op": "replace",
-     "path": "/claims",
-     "value": []
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: a dossier makes at least one claim"
-   }
-  },
-  {
-   "name": "duplicate_output",
-   "why": "n4 disclosed a second time as n4b, both listed as spent (one output counted twice)",
-   "patch": [
-    {
-     "op": "add",
-     "path": "/notes/n4b",
-     "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAwDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAABAupo_u7yUt4QlM-6AySuTy3HL-TLbuhdasD31lOjyBA"
+      "why": "nk with one bit flipped (byte 3): every nullifier claim fails; the origin opens but is no longer shown to be the holder's"
     },
     {
-     "op": "replace",
-     "path": "/claims/11/spent",
-     "value": [
-      "n4",
-      "n4b"
-     ]
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: notes n4 and n4b open the same note"
-   }
-  },
-  {
-   "name": "duplicate_in_claim",
-   "why": "n4 listed twice in the control claim's spent list",
-   "patch": [
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": false,
+        "not_verified": [
+          {
+            "index": 0,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b, funded from the shielded pool by an undisclosed sender."
+          },
+          {
+            "index": 1,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 2,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 3,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 4,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 5,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 6,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 7,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 8,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 9,
+            "kind": "path",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 10,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          },
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "nk is not a valid key, so no nullifier can be tested."
+          }
+        ],
+        "problems": [
+          "nk is not a valid Orchard nullifier key encoding: no nullifier can be derived from it"
+        ],
+        "statuses": [
+          "unproven",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "invalid_nk",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/nk",
+          "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "why": "nk is 32 bytes but no valid key (0xff…ff): reported once in problems; every nullifier claim fails"
+    },
     {
-     "op": "replace",
-     "path": "/claims/11/spent",
-     "value": [
-      "n4",
-      "n4"
-     ]
-    }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 11 (control) lists note n4 twice"
-   }
-  },
-  {
-   "name": "duplicate_in_funded_by",
-   "why": "n1 listed twice in deposit r1's funded_by",
-   "patch": [
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 0,
+            "kind": "origin",
+            "status": "failed",
+            "summary": "Note n1 does not open: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts"
+          },
+          {
+            "index": 1,
+            "kind": "path",
+            "status": "failed",
+            "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n2: ok"
+          },
+          {
+            "index": 2,
+            "kind": "path",
+            "status": "failed",
+            "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n3: ok"
+          },
+          {
+            "index": 3,
+            "kind": "path",
+            "status": "failed",
+            "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n4: ok"
+          },
+          {
+            "index": 4,
+            "kind": "path",
+            "status": "failed",
+            "summary": "A note does not open: n1: the delivery proof does not open ironwood action 0: its note is not the one this action commits to and encrypts; n5: ok"
+          },
+          {
+            "index": 5,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "Receipt r1 opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, but not from n1: their nullifiers are not among its spends."
+          }
+        ],
+        "statuses": [
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "failed",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "forged_note_value",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/notes/n1",
+          "value": "zdp:1:SypW7NfyvzDfkYYXGEacO9vJv9Oa4kYvW89iSDWj9pACAAA8QBEegMsyaXMBJZFOX_WkxA1B0dBMw1V-A-k6cKg-cMcJ2WxFLEO-9e-YAeH1BQAAAABSPTO0k4hV8u4ulnbcY9E0X0wBajejyZloJ8ToYDgM8w"
+        }
+      ],
+      "why": "n1's opening with its value raised by 1 zatoshi: the note does not open, so nothing that names n1 verifies"
+    },
     {
-     "op": "replace",
-     "path": "/claims/5/funded_by",
-     "value": [
-      "n1",
-      "n1"
-     ]
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "The reply note's memo does not carry the nonce zeceipt-challenge-00000000000000000000000000000000 (it reads \"zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8\")."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "name": "nonce_mismatch",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/11/nonce",
+          "value": "zeceipt-challenge-00000000000000000000000000000000"
+        }
+      ],
+      "why": "the claim names a nonce the reply memo does not carry"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "The challenge transaction does not spend n1."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "control_overclaims_spent",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/11/spent",
+          "value": [
+            "n1"
+          ]
+        }
+      ],
+      "why": "the control claim says the challenge spent n1, which it did not"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "The challenge transaction does not spend n10."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "control_foreign_note",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/notes/n10",
+          "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g"
+        },
+        {
+          "op": "replace",
+          "path": "/claims/11/spent",
+          "value": [
+            "n4",
+            "n10"
+          ]
+        }
+      ],
+      "why": "a note the holder sent to someone else (INV-T-001, opened as the sender) added to the control's spent list"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n1's nullifier, derived with this dossier's nk, is not among 1c49834b…e39d's spends: that transaction did not spend n1 with this account's key."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "path_to_note_of_another_tx",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "from": "n1",
+            "to": "n6",
+            "type": "path"
+          }
+        }
+      ],
+      "why": "a path from n1 to n6, which was created by a transaction that spent n2, not n1"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "path",
+            "status": "failed",
+            "summary": "n10's nullifier, derived with this dossier's nk, is not among 1c49834b…e39d's spends: that transaction did not spend n10 with this account's key."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "path_from_foreign_note",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/notes/n10",
+          "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g"
+        },
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "from": "n10",
+            "to": "n6",
+            "type": "path"
+          }
+        }
+      ],
+      "why": "a path from a note the holder sent to someone else (INV-T-001) to n6"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 5,
+            "kind": "deposit",
+            "status": "failed",
+            "summary": "Receipt r1 opens a payment of 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, but not from n2: their nullifiers are not among its spends."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "deposit_not_funded_by",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/5/funded_by",
+          "value": [
+            "n2"
+          ]
+        }
+      ],
+      "why": "deposit r1 said to be funded by n2, which its transaction did not spend"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "deposit_without_funded_by",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/5/funded_by",
+          "value": []
+        }
+      ],
+      "why": "deposit r1 with no funding notes: verifies, with a detail that nothing ties it to the holder's notes"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.01000000 TAZ arrived in note n10, in fcfde625…7f0b, funded by disclosed note n1."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "unproven"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "origin_of_a_sent_note",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/notes/n10",
+          "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g"
+        },
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "note": "n10",
+            "type": "origin"
+          }
+        }
+      ],
+      "why": "an origin on a note the holder sent to someone else (INV-T-001): it opens, but nothing shows it is the holder's, so unproven"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.24743750 TAZ arrived in note n5, in fcfde625…7f0b, funded by disclosed note n1."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "unproven"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "origin_of_an_unspent_own_note",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "note": "n5",
+            "type": "origin"
+          }
+        }
+      ],
+      "why": "an origin on n5, the holder's own change never spent in the dossier's transactions: unproven for the same reason"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 2,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "not_checked",
+            "summary": "The transaction of note n9 (10e941e7…6e43) was not found on the node, or not supplied."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "not_checked"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "control_tx_missing",
+      "patch": [],
+      "txs": {
+        "omit": [
+          "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43"
+        ]
+      },
+      "why": "the challenge transaction is not supplied (no file; a node that does not know it)"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 2,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "not_checked",
+            "summary": "Answering nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, the holder spent n4 (0.24743750 TAZ) in 10e941e7…6e43: they could spend these funds after the nonce was issued."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "not_checked"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "control_tx_in_mempool",
+      "patch": [],
+      "txs": {
+        "mempool": [
+          "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43"
+        ]
+      },
+      "why": "a node reports the challenge transaction in the mempool: control is not_checked until it is mined"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 2,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 0,
+            "kind": "origin",
+            "status": "not_checked",
+            "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b, funded from the shielded pool by an undisclosed sender."
+          },
+          {
+            "index": 1,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "1.00000000 TAZ in n1 was spent in fcfde625…7f0b, which created n2 (0.24743750 TAZ)."
+          },
+          {
+            "index": 2,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "1.00000000 TAZ in n1 was spent in fcfde625…7f0b, which created n3 (0.24743750 TAZ)."
+          },
+          {
+            "index": 3,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "1.00000000 TAZ in n1 was spent in fcfde625…7f0b, which created n4 (0.24743750 TAZ)."
+          },
+          {
+            "index": 4,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "1.00000000 TAZ in n1 was spent in fcfde625…7f0b, which created n5 (0.24743750 TAZ)."
+          },
+          {
+            "index": 5,
+            "kind": "deposit",
+            "status": "not_checked",
+            "summary": "The holder paid 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b, from n1 (1.00000000 TAZ disclosed)."
+          },
+          {
+            "index": 6,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "0.24743750 TAZ in n2 was spent in 1c49834b…e39d, which created n6 (0.22733750 TAZ)."
+          },
+          {
+            "index": 7,
+            "kind": "deposit",
+            "status": "not_checked",
+            "summary": "The holder paid 0.02000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-002\") in 1c49834b…e39d, from n2 (0.24743750 TAZ disclosed)."
+          },
+          {
+            "index": 8,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "0.24743750 TAZ in n3 was spent in a2619e39…3df8, which created n7 (0.10864375 TAZ)."
+          },
+          {
+            "index": 9,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "0.24743750 TAZ in n3 was spent in a2619e39…3df8, which created n8 (0.10864375 TAZ)."
+          },
+          {
+            "index": 10,
+            "kind": "deposit",
+            "status": "not_checked",
+            "summary": "The holder paid 0.03000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-003\") in a2619e39…3df8, from n3 (0.24743750 TAZ disclosed)."
+          },
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "not_checked",
+            "summary": "Answering nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, the holder spent n4 (0.24743750 TAZ) in 10e941e7…6e43: they could spend these funds after the nonce was issued."
+          }
+        ],
+        "statuses": [
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked",
+          "not_checked"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "every_tx_in_mempool",
+      "patch": [],
+      "txs": {
+        "mempool": "all"
+      },
+      "why": "every transaction reported in the mempool: every claim is not_checked"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "Notes do not open: n9: transaction bytes are malformed: unexpected end of file"
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "control_tx_bad_hex",
+      "patch": [],
+      "txs": {
+        "hex": {
+          "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43": "zz"
+        }
+      },
+      "why": "the challenge transaction's hex does not decode: kept as empty bytes, so its note reports it malformed (failed), not missing"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "problems": [
+          "You issued a nonce, and no control claim answers it: this dossier does not show the holder can spend these funds now."
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "no_control_claim_with_expect_nonce",
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/claims/11"
+        }
+      ],
+      "why": "the control claim removed and a nonce expected: every remaining claim verifies, but a problem says nothing answers the nonce, so all_verified is false"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "real_with_heights",
+      "patch": [],
+      "txs": {
+        "heights": true
+      },
+      "why": "the real dossier with every transaction's real height: no inclusion caveats"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "issued_at_height": 4421300,
+      "name": "control_after_issue",
+      "patch": [],
+      "txs": {
+        "heights": true
+      },
+      "why": "the reviewer issued the nonce at height 4,421,300; the challenge was mined at 4,421,345"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "control",
+            "status": "failed",
+            "summary": "The challenge transaction 10e941e7…6e43 was mined at height 4421345, before you issued the nonce at height 4421346: it was not made in answer to your challenge."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "issued_at_height": 4421346,
+      "name": "control_before_issue",
+      "patch": [],
+      "txs": {
+        "heights": true
+      },
+      "why": "the reviewer says they issued the nonce at 4,421,346, after the challenge was mined: the challenge cannot answer it"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "issued_at_height": 4421300,
+      "name": "issue_height_without_heights",
+      "patch": [],
+      "why": "an issue height, but transactions from files: the control verifies with a detail that the height was not checked"
+    },
+    {
+      "dossier": "transparent",
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 13,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.04985000 TAZ arrived in note n10, in c28b6000…cefe at height 4421684, funded by 1 transparent input worth 0.05000000 TAZ from tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu, which the holder paid there from disclosed notes (transparent payment 52af3e0d…105e:0)."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "unproven",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "transparent",
+      "patch": [],
+      "txs": {
+        "heights": true
+      },
+      "why": "the second testnet dossier: 0.05 TAZ paid to tm9vh… (a transparent payment), shielded back (an origin that names the claim), n10 not spent yet (unproven)"
+    },
+    {
+      "dossier": "transparent",
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "transparent_payment",
+            "status": "failed",
+            "summary": "52af3e0d…105e pays 0.05000000 TAZ to tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu (transparent output 0) in 52af3e0d…105e, but not from n1: their nullifiers are not among its spends."
+          },
+          {
+            "index": 13,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.04985000 TAZ arrived in note n10, in c28b6000…cefe, funded by 1 transparent input worth 0.05000000 TAZ from tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu, which the holder paid there from disclosed notes (transparent payment 52af3e0d…105e:0)."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed",
+          "unproven",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "transparent_payment_not_funded_by",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/12/funded_by",
+          "value": [
+            "n1"
+          ]
+        }
+      ],
+      "why": "the transparent payment said to be funded by n1, which its transaction did not spend"
+    },
+    {
+      "dossier": "transparent",
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "transparent_payment",
+            "status": "failed",
+            "summary": "52af3e0d…105e has no transparent output 7."
+          },
+          {
+            "index": 13,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.04985000 TAZ arrived in note n10, in c28b6000…cefe, funded by 1 transparent input worth 0.05000000 TAZ from tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed",
+          "unproven",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "transparent_payment_no_such_output",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/12/output",
+          "value": 7
+        }
+      ],
+      "why": "a transparent payment naming output 7 of a transaction with one transparent output"
+    },
+    {
+      "dossier": "transparent",
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 11,
+            "kind": "path",
+            "status": "not_checked",
+            "summary": "The transaction of note n9 (52af3e0d…105e) was not found on the node, or not supplied."
+          },
+          {
+            "index": 12,
+            "kind": "transparent_payment",
+            "status": "not_checked",
+            "summary": "The payment's transaction (52af3e0d…105e) was not found on the node, or not supplied."
+          },
+          {
+            "index": 13,
+            "kind": "origin",
+            "status": "unproven",
+            "summary": "0.04985000 TAZ arrived in note n10, in c28b6000…cefe, funded by 1 transparent input (their previous transactions were not supplied), which the holder paid there from disclosed notes (transparent payment 52af3e0d…105e:0)."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "not_checked",
+          "not_checked",
+          "unproven",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "transparent_payment_tx_missing",
+      "patch": [],
+      "txs": {
+        "omit": [
+          "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e"
+        ]
+      },
+      "why": "the payment's transaction not supplied"
+    },
+    {
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 12,
+            "kind": "transparent_payment",
+            "status": "failed",
+            "summary": "fcfde625…7f0b has no transparent output 0."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "name": "transparent_payment_to_a_shielded_tx",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "funded_by": [
+              "n1"
+            ],
+            "output": 0,
+            "tx": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+            "type": "transparent_payment"
+          }
+        }
+      ],
+      "why": "a transparent payment claimed in a transaction with no transparent outputs"
+    },
+    {
+      "dossier": "exchange",
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1",
+      "issued_at_height": 4422294,
+      "name": "exchange",
+      "patch": [],
+      "txs": {
+        "heights": true
+      },
+      "why": "the exchange-deposit review (PROOF §9): a withdrawal from the exchange's transparent hot wallet, a deposit to the customer's transparent deposit address, and a control answering the exchange's nonce issued at 4,422,294"
+    },
+    {
+      "dossier": "exchange",
+      "expect": {
+        "all_verified": true,
+        "assurance": "verified_with_control",
+        "controlled": true,
+        "exit": 0,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1",
+      "issued_at_height": 4422294,
+      "name": "exchange_without_prevout",
+      "patch": [],
+      "txs": {
+        "heights": true,
+        "omit": [
+          "773da0147a8d0ba05f4bfe1e0a08a89dbfefda11b792172f7ebd71aeb56b4b0d"
+        ]
+      },
+      "why": "the hot wallet's previous transaction not supplied: the origin still verifies but names no address"
+    },
+    {
+      "dossier": "exchange",
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": false,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 3,
+            "kind": "control",
+            "status": "failed",
+            "summary": "The challenge transaction 14a9551d…cce6 was mined at height 4422305, before you issued the nonce at height 4422306: it was not made in answer to your challenge."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "failed"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1",
+      "issued_at_height": 4422306,
+      "name": "exchange_nonce_issued_after_challenge",
+      "patch": [],
+      "txs": {
+        "heights": true
+      },
+      "why": "an issue height above the challenge's (4,422,305): the control fails"
+    },
+    {
+      "dossier": "exchange",
+      "expect": {
+        "all_verified": false,
+        "assurance": "not_verified",
+        "controlled": true,
+        "exit": 1,
+        "nk_proven": true,
+        "not_verified": [
+          {
+            "index": 2,
+            "kind": "transparent_payment",
+            "status": "failed",
+            "summary": "a51d1271…85cf pays 0.05000000 TAZ to tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR (transparent output 0) in a51d1271…85cf, but not from n2: their nullifiers are not among its spends."
+          }
+        ],
+        "statuses": [
+          "verified",
+          "verified",
+          "failed",
+          "verified"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1",
+      "name": "exchange_deposit_from_change",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/2/funded_by",
+          "value": [
+            "n2"
+          ]
+        }
+      ],
+      "why": "the deposit claimed as funded by n2, the change it created"
     }
-   ],
-   "expect": {
-    "exit": 1,
-    "stage": "parse",
-    "error": "dossier: claim 5 (deposit) lists note n1 twice"
-   }
-  }
- ]
+  ],
+  "dossier": "fixtures/dossier/testnet-dossier.json",
+  "dossier_sha256": "7b8d7ecfa99676a660f27c0c5cbdce03ee130d138a48b51eeb7c0d9f167ea9c1",
+  "dossiers": {
+    "base": "fixtures/dossier/testnet-dossier.json",
+    "exchange": "fixtures/dossier/testnet-dossier-exchange.json",
+    "transparent": "fixtures/dossier/testnet-dossier-transparent-origin.json"
+  },
+  "format": "zeceipt-dossier-v1",
+  "heights": {
+    "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43": 4421345,
+    "14a9551d4b85b05ce48dc6e83784bdb8bad0a68b6ec2a5e2298b2f77bb79cce6": 4422305,
+    "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d": 4420003,
+    "5146f38c0a782f0d76858e575c46c3b0908865987416095e4180a2c6273436e6": 4422279,
+    "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e": 4421678,
+    "773da0147a8d0ba05f4bfe1e0a08a89dbfefda11b792172f7ebd71aeb56b4b0d": 4422275,
+    "90f6a3354862cf5b2f46e29ad3bfc9db3b9c4618178691df30bff2d7ec562a4b": 4419987,
+    "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8": 4420005,
+    "a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf": 4422295,
+    "c28b60004cd8d9fc08ab75ff44aa3062a4d79bdfc29653db8765991b5ae5cefe": 4421684,
+    "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b": 4420000
+  },
+  "network": "test",
+  "nk": "4a269d95563ab382bf2beac31322ec94ebabbe246560a7285a839db7963d4e37",
+  "nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+  "note": "Vectors for spec/dossier-v1.md §11. Every case starts from a real testnet dossier (`dossiers`: `base` unless the case names another), applies `patch` (RFC 6902 add/replace/remove; '/claims/-' appends), and is checked with the transactions it needs from fixtures/testnet/<txid>.hex: first those the claims name, then the previous transactions of the origins' transparent inputs. `txs` changes them: `omit` not supplied; `mempool` reported in the mempool ('all' for every one); `hex` replaces a transaction's hex; `heights: true` gives each its real height from `heights` (otherwise, as from a file, heights are unknown and every verified claim carries a detail saying inclusion was not checked). The check uses `expect_nonce` and `issued_at_height` when given. `expect` is the conformance outcome: exit (the CLI's: 0 all verified, 1 failed/unproven/problems, 2 only not_checked), all_verified, assurance, nk_proven, controlled, the statuses, problems, and the claims that did not verify with zeceipt's English summary (the wording is recorded for orientation; conformance is the rest). Parse cases record the error without serde's line/column. crates/zeceipt-core/tests/dossier_vectors.rs and packages/verify/test/dossier-vectors.mjs run every case; ZECEIPT_WRITE_VECTORS=1 on the Rust test rewrites `expect` from the code.",
+  "notes": {
+    "n1": {
+      "action": 0,
+      "height": 4419987,
+      "nullifier": "335f8277b12c0d891b373070ce9452c800e977d89e359f481adbea45032c9110",
+      "pool": "ironwood",
+      "spent_in": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+      "txid": "90f6a3354862cf5b2f46e29ad3bfc9db3b9c4618178691df30bff2d7ec562a4b",
+      "value_zat": 100000000
+    },
+    "n2": {
+      "action": 0,
+      "height": 4420000,
+      "nullifier": "63055efc762b788fb7d1b5e6cc5b5cb609ccbf01aedc76cedfbe9b317cdd120e",
+      "pool": "ironwood",
+      "spent_in": "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d",
+      "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+      "value_zat": 24743750
+    },
+    "n3": {
+      "action": 1,
+      "height": 4420000,
+      "nullifier": "eb0f6851180dc8e391b63889e7e718de9f1326528f34beea987492eb00d28239",
+      "pool": "ironwood",
+      "spent_in": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
+      "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+      "value_zat": 24743750
+    },
+    "n4": {
+      "action": 3,
+      "height": 4420000,
+      "nullifier": "309a6b8661b576d6c17d02a5ae2aba25df7d2e4a2c5410fca250c05f4e203d30",
+      "pool": "ironwood",
+      "spent_in": "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43",
+      "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+      "value_zat": 24743750
+    },
+    "n5": {
+      "action": 4,
+      "height": 4420000,
+      "nullifier": "c34dd25cab229847ee82ec8d09e1942950fcd3e05892061b646b9276e2934c08",
+      "pool": "ironwood",
+      "spent_in": null,
+      "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+      "value_zat": 24743750
+    },
+    "n6": {
+      "action": 1,
+      "height": 4420003,
+      "nullifier": "57dd1281dd0dbac29c8108ee7ee8c96f4a2bd9818e082a6065d02265f378b70d",
+      "pool": "ironwood",
+      "spent_in": null,
+      "txid": "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d",
+      "value_zat": 22733750
+    },
+    "n7": {
+      "action": 0,
+      "height": 4420005,
+      "nullifier": "57bc532f932f410259aa05a6a9f0c3b771624310817efbbf7870221df9247a15",
+      "pool": "ironwood",
+      "spent_in": null,
+      "txid": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
+      "value_zat": 10864375
+    },
+    "n8": {
+      "action": 1,
+      "height": 4420005,
+      "nullifier": "5ae39da590cf9c5a2b937ac822b3dd977b3a7a8bb05651e22ddb5ede8135e811",
+      "pool": "ironwood",
+      "spent_in": null,
+      "txid": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
+      "value_zat": 10864375
+    },
+    "n9": {
+      "action": 1,
+      "height": 4421345,
+      "nullifier": "41165a607c7f2a79b9c2f74b46683970d448dffb51251284d075fdaa69410f1d",
+      "pool": "ironwood",
+      "spent_in": null,
+      "txid": "10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43",
+      "value_zat": 100000
+    }
+  },
+  "notes_note": "From the live report of 2026-09-30 (testnet.zec.rocks). nullifier = DeriveNullifier_nk(note), computed from nk and the note opening alone; spent_in is the dossier's transaction whose actions carry that nullifier (absent: spent in none of them, so the note is not shown to be the holder's).",
+  "nullifier_key_filler": {
+    "ak": "6ebb833c1d2f8433080abceabe47906097f90678d603f577d0486c9111737b07",
+    "ak_is": "the spend validating key of the Orchard spending key 0x07 repeated 32 times",
+    "rivk": "the integer t+1 (32 bytes little-endian) for the first t in 0..7 that makes a valid full viewing key"
+  },
+  "parse_cases": [
+    {
+      "expect": {
+        "error": "json: unknown variant `holding`, expected one of `origin`, `path`, `deposit`, `control`, `transparent_payment`",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "holding_claim",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "height": 4421400,
+            "notes": [
+              "n5"
+            ],
+            "type": "holding"
+          }
+        }
+      ],
+      "why": "an unspent-at-height claim: not a v1 claim type (§4)"
+    },
+    {
+      "expect": {
+        "error": "json: unknown field `holdings`, expected one of `version`, `network`, `created`, `subject`, `nk`, `notes`, `receipts`, `claims`",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "unknown_top_field",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/holdings",
+          "value": []
+        }
+      ],
+      "why": "an unknown top-level field"
+    },
+    {
+      "expect": {
+        "error": "json: unknown field `height`, expected `note`",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "unknown_claim_field",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/0/height",
+          "value": 1
+        }
+      ],
+      "why": "an unknown field in a claim"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 1 (path) needs nk, which the dossier does not include",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "nk_missing",
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/nk"
+        }
+      ],
+      "why": "a path claim without nk"
+    },
+    {
+      "expect": {
+        "error": "field nk has wrong length: expected 32, got 4",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "nk_short",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/nk",
+          "value": "4a269d95"
+        }
+      ],
+      "why": "nk of 4 bytes"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 11 (control): a nonce of at least 8 characters, from the reviewer",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "nonce_short",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/11/nonce",
+          "value": "abc1234"
+        }
+      ],
+      "why": "a control nonce under 8 characters"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 11 (control) names no spent note",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "control_no_spent",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/11/spent",
+          "value": []
+        }
+      ],
+      "why": "a control claim with an empty spent list"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 12 (path) names note \"n99\", which the dossier does not disclose",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "undisclosed_note",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "from": "n4",
+            "to": "n99",
+            "type": "path"
+          }
+        }
+      ],
+      "why": "a claim naming a note the dossier does not disclose"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 5 (deposit) names receipt \"r9\", which the dossier does not include",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "missing_receipt",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/5/receipt",
+          "value": "r9"
+        }
+      ],
+      "why": "a deposit naming a receipt the dossier does not include"
+    },
+    {
+      "expect": {
+        "error": "dossier: receipt r1 is for another network than the dossier",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "receipt_other_network",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/receipts/r1/network",
+          "value": "main"
+        }
+      ],
+      "why": "a receipt for another network"
+    },
+    {
+      "expect": {
+        "error": "dossier: note n1: field zdp proof has wrong length: expected 118, got 3",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "bad_note",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/notes/n1",
+          "value": "zdp:1:AAAA"
+        }
+      ],
+      "why": "a note that is not 118 bytes"
+    },
+    {
+      "expect": {
+        "error": "dossier: note n1: unsupported format version \"zdp:2\"",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "zdp_v2",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/notes/n1",
+          "value": "zdp:2:AAAA"
+        }
+      ],
+      "why": "a note opening of another zdp version"
+    },
+    {
+      "expect": {
+        "error": "unsupported format version \"zeceipt-dossier-v2\"",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "version_v2",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/version",
+          "value": "zeceipt-dossier-v2"
+        }
+      ],
+      "why": "another dossier version"
+    },
+    {
+      "expect": {
+        "error": "dossier: a dossier makes at least one claim",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "no_claims",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": []
+        }
+      ],
+      "why": "no claims"
+    },
+    {
+      "expect": {
+        "error": "dossier: notes n4 and n4b open the same note",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "duplicate_output",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/notes/n4b",
+          "value": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAwDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAABAupo_u7yUt4QlM-6AySuTy3HL-TLbuhdasD31lOjyBA"
+        },
+        {
+          "op": "replace",
+          "path": "/claims/11/spent",
+          "value": [
+            "n4",
+            "n4b"
+          ]
+        }
+      ],
+      "why": "n4 disclosed a second time as n4b, both listed as spent (one output counted twice)"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 11 (control) lists note n4 twice",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "duplicate_in_claim",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/11/spent",
+          "value": [
+            "n4",
+            "n4"
+          ]
+        }
+      ],
+      "why": "n4 listed twice in the control claim's spent list"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 5 (deposit) lists note n1 twice",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "duplicate_in_funded_by",
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/claims/5/funded_by",
+          "value": [
+            "n1",
+            "n1"
+          ]
+        }
+      ],
+      "why": "n1 listed twice in deposit r1's funded_by"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 12 (transparent_payment) names no funding note",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "transparent_payment_no_funding",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "funded_by": [],
+            "output": 0,
+            "tx": "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e",
+            "type": "transparent_payment"
+          }
+        }
+      ],
+      "why": "a transparent payment with no funding notes says nothing about the holder"
+    },
+    {
+      "expect": {
+        "error": "dossier: claim 12 (transparent_payment): tx is a txid, 64 lowercase hex characters",
+        "exit": 1,
+        "stage": "parse"
+      },
+      "name": "transparent_payment_bad_txid",
+      "patch": [
+        {
+          "op": "add",
+          "path": "/claims/-",
+          "value": {
+            "funded_by": [
+              "n1"
+            ],
+            "output": 0,
+            "tx": "52AF3E0DA4B11854E48B5A0D25AC392AB6145616196ED196C0736E876B34105E",
+            "type": "transparent_payment"
+          }
+        }
+      ],
+      "why": "a transparent payment whose tx is not a lowercase txid"
+    }
+  ]
 }
