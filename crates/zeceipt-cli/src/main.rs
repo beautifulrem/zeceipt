@@ -1333,7 +1333,7 @@ async fn serve_dossiers(
                                 &net,
                                 &d,
                                 &raw,
-                                dir.as_deref().as_deref(),
+                                dir.as_deref(),
                                 expect.as_deref(),
                             )
                             .await
