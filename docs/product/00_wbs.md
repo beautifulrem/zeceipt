@@ -227,6 +227,14 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.3.6.6 ✅ R — Delivery proofs: `zdp:1:` (saplingcash/zcash-delivery-proof SPEC §4) checked by the core, the CLI's `verify`, the WASM verifier, the receipt page and the demo, so a recipient can prove a payment (judge round 1, D6; PM D26). Unplanned and unpriced. Done 2026-09-30: every step of the specification's check, the wtxid reported for receipts too, and that project's vectors checked, including a real mainnet payment fetched live (PROOF §7) `[R136]`.
 - 3.3.6.7 ✅ R — `prove-delivery` and `--expect-issuer`; unplanned, unpriced, done 2026-09-30 (PM round 3, N14). `zeceipt prove-delivery --ufvk-file …` makes `zdp:1:` proofs from a UFVK, for what it received and what it sent, each checked before it is printed; they are byte-identical to zcash-delivery-proof's for its vectors, and the recipient's proof of testnet INV-T-001 is `fixtures/testnet/INV-T-001.recipient.zdp` (test `prove_delivery_makes_the_recipients_proof_from_the_senders_key`). `--expect-issuer <pubkey>` on `verify` and `verify-pack` makes a receipt signed by any other key invalid at stage `issuer` (test `expect_issuer_refuses_another_key`), and the receipt page no longer reads a matching challenge as "matched" until the key's domain confirms it (judge round 2, N1). Recorded in `11_plan.md` §8, window review 2026-09-30.
 
+#### 3.3.7 Source-of-funds dossiers (the 2026-10-01 pivot, `13_pivot.md`)
+- 3.3.7.1 ✅ R — Format and checks: `zeceipt-dossier-v1` (`crates/zeceipt-types/src/dossier.rs`) with origin, path, deposit and control claims over `zdp:1:` note openings, sender receipts and `nk`; nullifiers derived from `nk` alone and tested on chain; the report (`zeceipt-dossier-report-v1`); no "unspent at height" claim, because a wrong `nk` could not be caught there (`crates/zeceipt-core/src/dossier.rs`). Unplanned and unpriced; done 2026-10-01 `[R137]`.
+- 3.3.7.2 ✅ R — Builder and scanner: `dossier build` (from txids or `--scan-from`), `dossier scan` (compact-block trial decryption with the UFVK, nullifiers tracked with `nk`), `dossier verify`, `dossier nonce`; the testnet scan finds exactly the holder's five transactions and rebuilds the committed dossier byte for byte. Done 2026-10-01.
+- 3.3.7.3 ✅ R — WebAssembly and JavaScript: `check_dossier`, `dossier_txids`, `build_dossier`; `checkDossier` and `buildDossier` in `@zeceipt/verify`, which verify the sample live and offline. Done 2026-10-01.
+- 3.3.7.4 ⬜ T — Web: the case review page (reviewer), the dossier builder page (holder) and the site's landing page, with Chrome e2e and axe checks. In progress from 2026-10-01; before the UI freeze moves to 10-03 for these pages only.
+- 3.3.7.5 ⬜ R — `spec/dossier-v1.md`, PROOF §8, the threat model's dossier section, and prior art. In progress from 2026-10-01.
+- 3.3.7.6 ✅ R — A real testnet dossier: a faucet origin, four hops, three payments and a control challenge answered at height 4,421,345 (`fixtures/dossier/testnet-dossier.json`); all 12 claims verified live and offline, and the forgeries tried fail. Done 2026-10-01.
+
 ### 3.4 Evidence and quality
 #### 3.4.1 Proof log
 - 3.4.1.1 ✅ R — mainnet-read. PROOF §1.
@@ -325,9 +333,9 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 68 | 49 | 1 | 17 | 1 |
+| 3 Engineering | 74 | 53 | 1 | 19 | 1 |
 | 4 Launch/GTM | 17 | 3 | 1 | 11 | 2 |
 | 5 Submission | 19 | 4 | 1 | 12 | 2 |
-| **Total** | 192 | 133 | 4 | 47 | 8 |
+| **Total** | 198 | 137 | 4 | 49 | 8 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).
