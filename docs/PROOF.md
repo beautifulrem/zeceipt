@@ -1036,9 +1036,9 @@ The pivot's core (`spec/dossier-v1.md`), on a public chain. The holder is §4's 
   - The control's `value_zat` is 24,743,750. `notes.n9` reads height 4421345, 100,000 zat, memo `zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8`.
 
   The same command without `--expect-nonce` also exits 0 with 12 of 12. The control then carries the detail "Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce."
-- **Offline**, the same command with `--raw-tx-dir fixtures/testnet`: exit 0 in 1.7 s wall, 12 of 12 verified, the same `dossier_sha256`, `nk_proven` and `controlled` true. The summaries are the same without heights. Every claim adds "Loaded without a height (from a file): the inclusion of … in the chain was not checked here." `the_testnet_dossier_verifies_offline` runs this check in CI.
+- **Offline**, the same command with `--raw-tx-dir fixtures/testnet` (on 09-30; since the round-2 review, a report on files without heights is `assurance: consistent_offline`, CLI exit 4, since fabricated files could show anything): exit 0 in 1.7 s wall, 12 of 12 verified, the same `dossier_sha256`, `nk_proven` and `controlled` true. The summaries are the same without heights. Every claim adds "Loaded without a height (from a file): the inclusion of … in the chain was not checked here." `the_testnet_dossier_verifies_offline` runs this check in CI.
 - **In JavaScript**, `checkDossier(text, { expectNonce })` from `packages/verify/src/index.js` on the rebuilt WASM (Node 26, `initVerifier` with the `.wasm` bytes). Live, through its testnet gRPC-web nodes (`zjs.zec.rocks/testnet` first, then ChainSafe's; the report does not say which answered): `all_verified: true`, 12 of 12, the same `dossier_sha256`, and the same control summary. Offline, with `{ txs }` built from `fixtures/testnet/*.hex`: the same.
-- **Forgeries and edge cases.** `spec/test-vectors/dossier-v1.json` records patched copies of this dossier (and of the second one, below) and copies that must not parse: 33 and 19 since the revision of the same day. CI runs every one natively (`crates/zeceipt-core/tests/dossier_vectors.rs`) and through the WASM (`packages/verify/test/dossier-vectors.mjs`). The results:
+- **Forgeries and edge cases.** `spec/test-vectors/dossier-v1.json` records patched copies of this dossier (and of the second one, below) and copies that must not parse: 36 and 19 since the revisions of the same day and the next. CI runs every one natively (`crates/zeceipt-core/tests/dossier_vectors.rs`) and through the WASM (`packages/verify/test/dossier-vectors.mjs`). The results:
   - **Wrong `nk`:** the 11 nullifier claims fail, and the origin is `unproven`, since n1 is no longer shown to be the holder's.
   - **Invalid `nk`** (`ff…ff`): one entry in `problems`, and the 11 nullifier claims fail with "nk is not a valid key".
   - **Forged value in n1's opening:** everything naming n1 fails.
@@ -1136,3 +1136,13 @@ The input's value is that of the whole spent output (0.3 TAZ): the rest went bac
 - That `tmPVt…` is an exchange: the report names an address, not its owner.
 - What the customer holds after 4,422,305.
 - Anything about the customer's other funds.
+
+**Rechecked 2026-10-01 with trace closure and value coverage** (spec §5.6): all three dossiers checked live against `testnet.zec.rocks`, each with its nonce and H₀ (4,421,300 for the first two, 4,422,294 for the exchange review).
+
+| Dossier | Exit | `assurance` | `anchored` | `untraced` | `undisclosed_input_min_zat` |
+|---|---|---|---|---|---|
+| `testnet-dossier.json` | 0 | `verified_with_control` | true | none | 0 |
+| `testnet-dossier-exchange.json` | 0 | `verified_with_control` | true | none | 0 |
+| `testnet-dossier-transparent-origin.json` | 1 | `not_verified` | true | none | 0 |
+
+The transparent-origin dossier is `not_verified` because its n10 origin is `unproven`, as recorded above.

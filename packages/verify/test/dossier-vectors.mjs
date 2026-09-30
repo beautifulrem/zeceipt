@@ -56,8 +56,11 @@ function supply(text, txs = {}) {
 }
 
 function outcome(r) {
-  const exit = r.all_verified ? 0 : r.problems?.length || r.claims.some((c) => c.status === "failed" || c.status === "unproven") ? 1 : 2;
+  const exit = r.all_verified ? (["consistent_offline", "verified_partly_explained"].includes(r.assurance) ? 4 : 0) : r.problems?.length || r.claims.some((c) => c.status === "failed" || c.status === "unproven") ? 1 : 2;
   const v = { exit, all_verified: r.all_verified, assurance: r.assurance, nk_proven: r.nk_proven, controlled: r.controlled, statuses: r.claims.map((c) => c.status) };
+  v.anchored = r.anchored;
+  if (r.untraced?.length) v.untraced = r.untraced;
+  if (r.undisclosed_input_min_zat > 0) v.undisclosed_input_min_zat = r.undisclosed_input_min_zat;
   if (r.problems?.length) v.problems = r.problems;
   const not = r.claims.filter((c) => c.status !== "verified").map(({ index, kind, status, summary }) => ({ index, kind, status, summary }));
   if (not.length) v.not_verified = not;

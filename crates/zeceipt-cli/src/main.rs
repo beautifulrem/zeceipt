@@ -127,6 +127,10 @@ enum DossierCmd {
         /// Read transactions from this directory of `<txid>.hex` files instead of a node (an air-gapped back office).
         #[arg(long)]
         raw_tx_dir: Option<PathBuf>,
+        /// A browser origin allowed to call the service (repeat), e.g. your back office's `https://kyc.example.com`.
+        /// Requests with any other `Origin` header are refused (403).
+        #[arg(long = "allow-origin")]
+        allow_origins: Vec<String>,
     },
     /// Find your transactions in a height range: every one that paid you or spent your notes (trial decryption of
     /// compact blocks with your UFVK, on this machine). Prints them as JSON, oldest first.
@@ -1073,11 +1077,12 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             listen,
             allow_remote,
             raw_tx_dir,
+            allow_origins,
         } => {
             if !listen.ip().is_loopback() && !allow_remote {
                 return Err(anyhow!("{listen} is not a loopback address: pass --allow-remote, and put the service behind your own TLS and authentication"));
             }
-            serve_dossiers(net, listen, raw_tx_dir).await
+            serve_dossiers(net, listen, raw_tx_dir, allow_origins).await
         }
         DossierCmd::Scan {
             net,
@@ -1193,6 +1198,13 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
                     return Ok(ExitCode::from(1));
                 }
             };
+            if let Some(e) = network_conflict(&net, &d) {
+                println!(
+                    "{}",
+                    json!({"all_verified": false, "error": e, "stage": "network"})
+                );
+                return Ok(ExitCode::from(1));
+            }
             let opts = zeceipt_core::dossier::CheckOptions {
                 expect_nonce,
                 issued_at_height,
@@ -1200,7 +1212,12 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             let report = check_dossier_text(&net, &d, &raw, raw_tx_dir.as_deref(), &opts).await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
             Ok(if report.all_verified {
-                ExitCode::SUCCESS
+                // Verified with caveats (checked only against files, or funds not all explained): 4, so a script that
+                // reads only the exit code does not take it for a clean result.
+                match report.assurance {
+                    "consistent_offline" | "verified_partly_explained" => ExitCode::from(4),
+                    _ => ExitCode::SUCCESS,
+                }
             } else if !report.problems.is_empty()
                 || report
                     .claims
@@ -1229,6 +1246,33 @@ fn new_nonce() -> String {
     let mut b = [0u8; 16];
     rand::RngCore::fill_bytes(&mut OsRng, &mut b);
     format!("zeceipt-challenge-{}", hex::encode(b))
+}
+
+/// A `--testnet`/`--regtest` flag that names another network than the dossier's: the transactions would be fetched
+/// from the wrong chain, and a testnet dossier relabelled `main` would read as mainnet ZEC.
+fn network_conflict(
+    net: &NetArgs,
+    d: &zeceipt_core::zeceipt_types::dossier::Dossier,
+) -> Option<String> {
+    let flag = if net.regtest {
+        Some(Network::Regtest)
+    } else if net.testnet {
+        Some(Network::Test)
+    } else {
+        None
+    };
+    let name = |n: Network| match n {
+        Network::Main => "mainnet",
+        Network::Test => "testnet",
+        Network::Regtest => "regtest",
+    };
+    flag.filter(|f| *f != d.network).map(|f| {
+        format!(
+            "the dossier is for {}, and this checks {}: check it without --testnet/--regtest, or against a node of its network",
+            name(d.network),
+            name(f)
+        )
+    })
 }
 
 /// Fetch what a dossier's checks need (two rounds: the transactions its claims name, then the previous transactions
@@ -1287,7 +1331,9 @@ async fn serve_dossiers(
     net: NetArgs,
     listen: std::net::SocketAddr,
     raw_tx_dir: Option<PathBuf>,
+    allow_origins: Vec<String>,
 ) -> anyhow::Result<ExitCode> {
+    let allow_origins = std::sync::Arc::new(allow_origins);
     use http_body_util::{BodyExt, Full, Limited};
     use hyper::body::Bytes;
     use hyper::{Method, Request, Response, StatusCode};
@@ -1303,20 +1349,51 @@ async fn serve_dossiers(
         let (stream, _) = listener.accept().await?;
         let net = net.clone();
         let dir = raw_tx_dir.clone();
+        let allow_origins = allow_origins.clone();
         tokio::spawn(async move {
             let svc = hyper::service::service_fn(move |req: Request<hyper::body::Incoming>| {
                 let net = net.clone();
                 let dir = dir.clone();
+                let allow_origins = allow_origins.clone();
                 async move {
                     let reply = |code: StatusCode, v: serde_json::Value| {
                         Response::builder()
                             .status(code)
                             .header("content-type", "application/json")
                             .header("cache-control", "no-store")
+                            // One request per connection: an early refusal leaves the body unread.
+                            .header("connection", "close")
                             .body(Full::new(Bytes::from(v.to_string())))
                     };
                     let path = req.uri().path().to_string();
                     let query = req.uri().query().unwrap_or("").to_string();
+                    // A browser page on another origin could post here (a "simple" request needs no preflight): the
+                    // service answers only callers that send no Origin, or an allowed one, and JSON bodies only.
+                    if let Some(o) = req.headers().get("origin") {
+                        if !allow_origins.iter().any(|a| a.as_bytes() == o.as_bytes()) {
+                            return reply(
+                                StatusCode::FORBIDDEN,
+                                json!({"error": "cross-origin requests are refused (start the service with --allow-origin to allow one)"}),
+                            );
+                        }
+                    }
+                    if req.method() == Method::POST
+                        && path == "/v1/dossiers/verify"
+                        && !req
+                            .headers()
+                            .get("content-type")
+                            .and_then(|v| v.to_str().ok())
+                            .is_some_and(|v| {
+                                v.split(';').next().is_some_and(|m| {
+                                    m.trim().eq_ignore_ascii_case("application/json")
+                                })
+                            })
+                    {
+                        return reply(
+                            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                            json!({"error": "send the dossier as application/json"}),
+                        );
+                    }
                     match (req.method().clone(), path.as_str()) {
                         (Method::GET, "/healthz") => reply(
                             StatusCode::OK,
@@ -1374,6 +1451,12 @@ async fn serve_dossiers(
                                         )
                                     }
                                 };
+                            if let Some(e) = network_conflict(&net, &d) {
+                                return reply(
+                                    StatusCode::UNPROCESSABLE_ENTITY,
+                                    json!({"all_verified": false, "stage": "network", "error": e}),
+                                );
+                            }
                             let opts = zeceipt_core::dossier::CheckOptions {
                                 expect_nonce: param("expect_nonce"),
                                 issued_at_height,

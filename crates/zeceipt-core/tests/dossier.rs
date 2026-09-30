@@ -651,7 +651,16 @@ fn a_control_mined_before_the_nonce_was_issued_fails() {
     use zeceipt_core::dossier::{check_dossier_with, CheckOptions};
     let (d, raw) = dossier();
     let mut txs = chain(&d);
-    txs.get_mut(CONTROL).unwrap().height = Some(4_421_345);
+    // The real heights: a report on transactions without them is only `consistent_offline`.
+    for (t, h) in [
+        (TXIDS[0], 4_419_987),
+        (TXIDS[1], 4_420_000),
+        (TXIDS[2], 4_420_003),
+        (TXIDS[3], 4_420_005),
+        (CONTROL, 4_421_345),
+    ] {
+        txs.get_mut(t).unwrap().height = Some(h);
+    }
     let at = |h| {
         check_dossier_with(
             &d,
@@ -680,6 +689,12 @@ fn a_control_mined_before_the_nonce_was_issued_fails() {
     assert_eq!(
         (r.all_verified, r.assurance),
         (true, "verified_history_only")
+    );
+    // The same from files, without heights: consistent with them, not checked against the chain.
+    let r = check_dossier(&d, &raw, &chain(&d), Some(NONCE));
+    assert_eq!(
+        (r.all_verified, r.anchored, r.assurance),
+        (true, false, "consistent_offline")
     );
 }
 
@@ -772,4 +787,31 @@ fn an_exchange_deposit_review_verifies_with_control_and_names_both_transparent_e
     // A nonce said to be issued after the challenge was mined: not an answer to it.
     let late = check_dossier_with(&d, &raw, &txs, &opts(4_422_306));
     assert_eq!((late.controlled, late.assurance), (false, "not_verified"));
+}
+
+#[test]
+fn a_challenge_answer_is_only_ever_the_control() {
+    let keys =
+        OutgoingKeys::from_ufvk(Network::Test, fx("testnet/issuer-ufvk.txt").trim()).unwrap();
+    let with = |txs: Vec<&str>, control: bool| {
+        build(BuildInput {
+            keys: &keys,
+            txs: txs.into_iter().map(tx).collect(),
+            control: control.then(|| (tx(CONTROL), NONCE.to_string())),
+            subject: None,
+            created: None,
+        })
+    };
+    // A scan lists the challenge among the holder's transactions: given as the control too, it is the control only.
+    let mut listed: Vec<&str> = TXIDS.to_vec();
+    listed.push(CONTROL);
+    let (d, _) = dossier();
+    let built = with(listed.clone(), true).unwrap();
+    assert_eq!((&built.notes, &built.claims), (&d.notes, &d.claims));
+    // Listed but not given as the control: explaining it as a path would disclose its change, so it is refused.
+    let e = with(listed, false).unwrap_err().to_string();
+    assert!(
+        e.contains("answers a challenge") && e.contains("10e941e7"),
+        "{e}"
+    );
 }

@@ -147,6 +147,8 @@ In `{ txs }`, a transaction whose hex does not decode is kept as empty bytes, so
 
 `check_dossier(dossier, raw, txs, expect_nonce)` is the same with no issue height.
 
+The CLI and the HTTP service refuse a dossier whose `network` is not the one a `--testnet` or `--regtest` flag names (CLI exit 1 with `"stage": "network"`; HTTP 422): its txids would be looked up on the wrong chain, and a testnet dossier relabelled `main` would read as mainnet ZEC. Offline, nothing binds a transaction to a network; that is one more reason offline reports are `consistent_offline`.
+
 ### 5.2 Per note
 
 `spent_at` maps every nullifier of every supplied transaction (Ironwood and Orchard actions, real and dummy) to that transaction. For each note id, the verifier opens the note (§2.2) against its transaction's bytes. If it opens, the verifier records:
@@ -233,9 +235,14 @@ Any value summed over notes (the control's `value_zat`, a deposit's disclosed `f
                                              "paid_in_claim"? }],   // the transparent_payment claim that paid it
                     "shielded_actions", "sapling_spends", "from_disclosed": [id] },   // origin
       "value_zat"?,                         // control: the spent notes; deposit, transparent_payment: the payment
-      "paid_to"? } ],                       // transparent_payment: the output's address
+      "paid_to"?,                           // transparent_payment: the output's address
+      "undisclosed_input_min_zat"? } ],     // §5.6, when above 0                       // transparent_payment: the output's address
   "all_verified": bool,                     // every claim verified and no problems
-  "assurance": "verified_with_control" | "verified_history_only" | "not_verified",
+  "assurance": "verified_with_control" | "verified_history_only" | "verified_partly_explained"
+             | "consistent_offline" | "not_verified",
+  "anchored": bool,                         // every transaction the claims name came from a node, with a height
+  "untraced"?: [id],                        // funding notes no chain of paths leads back to an origin (§5.6)
+  "undisclosed_input_min_zat": number,      // at least this much was paid from undisclosed notes (§5.6)
   "issued_at_height"?: number,              // H₀, when the reviewer gave it
   "disclosed": [string],                    // what the holder gave up by handing this over
   "does_not_prove": [string]                // §1's non-goals
@@ -243,7 +250,8 @@ Any value summed over notes (the control's `value_zat`, a deposit's disclosed `f
 ```
 
 CLI exit codes:
-- 0: `all_verified`;
+- 0: `all_verified`, and `assurance` is `verified_with_control` or `verified_history_only`;
+- 4: `all_verified`, but `assurance` is `consistent_offline` or `verified_partly_explained`: read the report before relying on it;
 - 1: a claim is `failed` or `unproven`, a problem was reported, or the dossier did not parse;
 - 2: otherwise, some claim is `not_checked` (check again later, or supply the missing transaction);
 - 3: an I/O or node error other than "not found", with no report.
@@ -252,7 +260,18 @@ CLI exit codes:
 
 `controlled` is true only when a control claim verified **and** the reviewer gave the nonce they expected: without it, an old dossier answering an old nonce would read as control now (vector `real_without_expected_nonce`: every claim verified, `controlled` false). An expected nonce that no control claim answers is a problem, so `all_verified` is false (vector `no_control_claim_with_expect_nonce`).
 
-`assurance` is the one word a case file needs: `verified_with_control` when `all_verified` and `controlled`; `verified_history_only` when `all_verified` but not `controlled` (the history checks, but nothing shows the holder can spend the funds now); `not_verified` otherwise.
+`assurance` is the one word a case file needs, the first of these that applies:
+1. `not_verified`: not `all_verified`;
+2. `consistent_offline`: every claim holds against the transactions supplied, but not all of them came from a node with a height (`anchored` false). A holder can hand over fabricated files (§9), so this is consistency, not verification against the chain;
+3. `verified_partly_explained`: some payment's or control's funding notes are `untraced`, or `undisclosed_input_min_zat` is above 0 (§5.6);
+4. `verified_history_only`: explained, but not `controlled` (nothing shows the holder can spend the funds now);
+5. `verified_with_control`: all of the above hold.
+
+### 5.6 Trace closure and value coverage
+
+Each claim is checked on its own. A source-of-funds reviewer also needs the claims to add up:
+- **Trace closure.** The traced notes are the origin claims' notes, plus the `to` of every verified path whose `from` is traced (to a fixpoint). Every note in a `deposit`'s or `transparent_payment`'s `funded_by`, and in a `control`'s `spent`, that is not traced is listed in `untraced`. A dossier of a control claim alone (vector `control_only`), or one with a path removed (vector `unlinked_payment`), verifies claim by claim and is `verified_partly_explained`.
+- **Value coverage.** For the transaction of each verified path, deposit, transparent payment and control claim, and for each Orchard-family pool P, the notes it spent in P are worth the notes it created in P plus P's value balance (value leaving the pool, public in the transaction). Of those, the dossier discloses the notes created (and the receipts' outputs, when not also disclosed as notes) and the disclosed notes spent there. So it spent at least max(0, created + receipts + balance − disclosed spent) in P from notes the dossier does not disclose, and at least max(0, Sapling's value balance) from Sapling notes. When the sum is above 0, the claim carries `undisclosed_input_min_zat` and the detail "T also spent at least X from notes this dossier does not disclose". The report sums it once per transaction. So a large deposit "funded by" a small clean note reads as what it is: mostly undisclosed money (vector `history_without_its_origin`: 1 TAZ). The bound is a lower bound; a holder who hides a change note lowers it only down to what the payment and the pool balance force.
 
 ## 6. Building
 
@@ -354,8 +373,11 @@ Test names are in `crates/zeceipt-core/tests/dossier.rs` unless another file is 
 | **Missing transaction** | The claims that need it are `not_checked`: "not found on the node, or not supplied" (CLI exit 2) | `a_wrong_nonce_…`; vector `control_tx_missing` |
 | **Substituted transparent `scriptSig`** in a file or from a hostile node | No effect on the report: funders are read from the previous transaction's output script, which that transaction's txid covers, and which this transaction's prevout names. Without the previous transaction, the address and value are absent | `an_output_script_names_the_address_it_pays` (unit); `a_transparent_origin_names_its_funder_from_the_spent_output` and vector `transparent` on the real deshield/shield pair `52af3e0d…`/`c28b6000…` |
 | **Unknown fields, claim types, versions; malformed `nk`, nonce, openings** | Parse error ("unsupported format version" for another dossier or `zdp` version) | `zeceipt-types` `a_dossier_parses_and_refuses_what_it_cannot_be`; `parse_cases` in the vectors |
+| **Small clean funds "funding" a large payment** (mixing): a deposit of undisclosed money listing one small disclosed note | The claim holds (that note was spent there), but `undisclosed_input_min_zat` states the rest, and `assurance` is `verified_partly_explained` | vector `history_without_its_origin` |
+| **Claims that do not add up**: a control or a payment whose funds no path leads back to an origin | `untraced`; `verified_partly_explained` | vectors `control_only`, `unlinked_payment` |
+| **Network relabelling** (`"network": "main"` on a testnet dossier) | Refused by the CLI and the service when a network flag disagrees; offline, `consistent_offline` | `dossier_serve_answers_over_http` |
 | **Colluding owner with a key sharing `nk`** | Notes of that key read as this account's (§3.3) | Inherent to v1; stated in the report's scope |
-| **Fabricated transaction files** (offline, holder-supplied) | Anything can be shown, since no proof or signature is checked, and the txid covers only the bytes given. Every claim that rests on a file carries "inclusion … was not checked here" | Inherent to offline mode; verify against a trusted node |
+| **Fabricated transaction files** (offline, holder-supplied) | Anything can be shown, since no proof or signature is checked, and the txid covers only the bytes given. Every claim that rests on a file carries "inclusion … was not checked here", and the report is `consistent_offline` (CLI exit 4), never `verified_*` | Inherent to offline mode; verify against a trusted node. Vectors `real`, `issue_height_without_heights` |
 
 Trust assumptions:
 - the node or the file source, for inclusion and heights. A v5/v6 txid binds all the effecting data the checks use, including the previous transactions' output scripts, but not inclusion in the chain;
@@ -379,7 +401,7 @@ Trust assumptions:
 - **`spec/test-vectors/dossier-v1.json`**:
   - `nk`, the filler `ak`, and for each of the nine notes its txid, pool, action, height, value, nullifier and the transaction that spends it. With these, an implementer can check an `nk`-only nullifier derivation against chain data;
   - the real heights of the eleven transactions, for the cases that use them;
-  - 33 cases. Each is a patch to one of the real dossiers, plus an expected nonce, an issue height and changes to the transactions supplied, with the expected exit code, `all_verified`, `assurance`, `nk_proven`, `controlled`, statuses, problems, and the summaries of the claims that do not verify;
+  - 36 cases. Each is a patch to one of the real dossiers, plus an expected nonce, an issue height and changes to the transactions supplied, with the expected exit code, `all_verified`, `assurance`, `nk_proven`, `controlled`, statuses, problems, and the summaries of the claims that do not verify;
   - 19 parse cases, each with its expected error (without serde's line and column).
 
-  `crates/zeceipt-core/tests/dossier_vectors.rs` and `packages/verify/test/dossier-vectors.mjs` run all 52 in CI, natively and through the WASM; `ZECEIPT_WRITE_VECTORS=1` on the Rust test rewrites the expectations from the code, for review in the diff.
+  `crates/zeceipt-core/tests/dossier_vectors.rs` and `packages/verify/test/dossier-vectors.mjs` run all 55 in CI, natively and through the WASM; `ZECEIPT_WRITE_VECTORS=1` on the Rust test rewrites the expectations from the code, for review in the diff.

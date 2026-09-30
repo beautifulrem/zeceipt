@@ -126,6 +126,11 @@ pub struct ClaimResult {
     /// For transparent payment claims: the address the output pays (P2PKH or P2SH), read from its script.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paid_to: Option<String>,
+    /// For path, deposit, transparent payment and control claims: a lower bound on the value the claim's transaction
+    /// spent from shielded notes the dossier does not disclose (from the pools' public value balances), when above 0.
+    /// The claim holds, but the disclosed notes do not explain all of what that transaction paid.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub undisclosed_input_min_zat: Option<u64>,
 }
 
 /// The whole report.
@@ -150,10 +155,23 @@ pub struct Report {
     pub claims: Vec<ClaimResult>,
     /// Every claim verified.
     pub all_verified: bool,
-    /// What the report as a whole supports: `verified_with_control` (every claim verified and a control claim answers
-    /// the nonce the reviewer issued), `verified_history_only` (every claim verified, but nothing shows the holder can
-    /// spend the funds now), or `not_verified`.
+    /// What the report as a whole supports, the first that applies:
+    /// - `not_verified`: some claim did not verify, or there is a problem;
+    /// - `consistent_offline`: every claim holds against the transactions supplied, but some came without a height from
+    ///   a node (files): nothing was checked against the chain;
+    /// - `verified_partly_explained`: every claim verified, but some funds are not traced back to an origin
+    ///   (`untraced`), or a transaction spent undisclosed funds too (`undisclosed_input_min_zat`);
+    /// - `verified_history_only`: the history is verified and explained, but no control answers the reviewer's nonce;
+    /// - `verified_with_control`: all of it, and the holder answered the reviewer's nonce.
     pub assurance: &'static str,
+    /// Every transaction the claims rest on came from a node, with the height it was mined at.
+    pub anchored: bool,
+    /// Funding notes of payments and control claims that no chain of path claims leads back to an origin claim.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub untraced: Vec<String>,
+    /// The sum of the claims' `undisclosed_input_min_zat`: at least this much of what the claims' transactions paid
+    /// came from notes the dossier does not disclose.
+    pub undisclosed_input_min_zat: u64,
     /// The height the reviewer says the nonce was issued at, when given: a control transaction mined before it fails.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub issued_at_height: Option<u64>,
@@ -164,6 +182,9 @@ pub struct Report {
 }
 
 pub const REPORT_VERSION: &str = "zeceipt-dossier-report-v1";
+
+/// How `zeceipt dossier nonce` (and the case page) start a nonce; a memo starting so marks a challenge answer.
+pub const CHALLENGE_PREFIX: &str = "zeceipt-challenge-";
 
 const DOES_NOT_PROVE: &[&str] = &[
     "who the counterparties are: an origin shows the transparent addresses that funded a transaction, not who holds them",
@@ -599,6 +620,7 @@ pub fn check_dossier_with(
             funding: None,
             value_zat: None,
             paid_to: None,
+            undisclosed_input_min_zat: None,
         };
         let ids = c.notes();
         if let Some(m) = ids.iter().find(|n| missing(n)) {
@@ -694,6 +716,23 @@ pub fn check_dossier_with(
                         None => {
                             r.status = Status::Unproven;
                             r.details.push(format!("Nothing here shows {note} is the holder's: its nullifier is in no supplied transaction, and the sender of a note knows its opening too. A path, deposit or control claim that spends it would show it."));
+                        }
+                    }
+                    // Funders' change: a transparent output of this transaction back to an address that funded it.
+                    let funders: Vec<&String> = funding
+                        .transparent_inputs
+                        .iter()
+                        .filter_map(|i| i.address.as_ref())
+                        .collect();
+                    let vouts = tx.transparent_bundle().map_or(0, |b| b.vout.len());
+                    for k in 0..vouts as u32 {
+                        if let Some((v, Some(a))) = output_facts(&tx, k, net) {
+                            if funders.contains(&&a) {
+                                r.details.push(format!(
+                                    "{} of the inputs went back to {a} (output {k}): change to the funder.",
+                                    amount(v, net)
+                                ));
+                            }
                         }
                     }
                     r.funding = Some(funding);
@@ -963,6 +1002,131 @@ pub fn check_dossier_with(
             if d.receipts.len() == 1 { "" } else { "s" }
         ));
     }
+    // Trace closure: which notes a chain of verified path claims leads back to an origin claim.
+    let mut traced: std::collections::BTreeSet<&str> = d
+        .claims
+        .iter()
+        .filter_map(|c| match c {
+            Claim::Origin { note } => Some(note.as_str()),
+            _ => None,
+        })
+        .collect();
+    loop {
+        let before = traced.len();
+        for (c, r) in d.claims.iter().zip(&claims) {
+            if let Claim::Path { from, to } = c {
+                if r.status == Status::Verified && traced.contains(from.as_str()) {
+                    traced.insert(to.as_str());
+                }
+            }
+        }
+        if traced.len() == before {
+            break;
+        }
+    }
+    let mut untraced: Vec<String> = Vec::new();
+    for c in &d.claims {
+        let funding: Vec<&String> = match c {
+            Claim::Deposit { funded_by, .. } | Claim::TransparentPayment { funded_by, .. } => {
+                funded_by.iter().collect()
+            }
+            Claim::Control { spent, .. } => spent.iter().collect(),
+            _ => vec![],
+        };
+        for n in funding {
+            if !traced.contains(n.as_str()) && !untraced.contains(n) {
+                untraced.push(n.clone());
+            }
+        }
+    }
+    // Value coverage: for each claim's transaction, how much it must have spent from undisclosed shielded notes. Per
+    // pool, the notes spent are worth the notes created plus the pool's value balance (value leaving the pool); the
+    // disclosed ones are known, so the rest is at least (disclosed created + receipts paid + balance − disclosed spent).
+    let receipts_by_tx = |txid: &str, pool: Pool| -> u64 {
+        d.claims
+            .iter()
+            .zip(&claims)
+            .filter_map(|(c, r)| match c {
+                // A receipt whose output is also a disclosed note is counted once, as the note.
+                Claim::Deposit { receipt, .. }
+                    if r.status == Status::Verified
+                        && d.receipts[receipt].txid.to_lowercase() == txid
+                        && d.receipts[receipt].pool == pool
+                        && !notes.values().any(|f| {
+                            f.txid == txid
+                                && f.pool == pool.as_str()
+                                && f.action == d.receipts[receipt].output_index
+                        }) =>
+                {
+                    r.value_zat
+                }
+                _ => None,
+            })
+            .sum()
+    };
+    let undisclosed_min = |txid: &str| -> u64 {
+        let Some(tx) = parsed(txid) else { return 0 };
+        let mut total: i128 = 0;
+        for (pool, bundle) in [
+            (Pool::Ironwood, tx.ironwood_bundle()),
+            (Pool::Orchard, tx.orchard_bundle()),
+        ] {
+            let Some(b) = bundle else { continue };
+            let balance = i64::from(*b.value_balance()) as i128;
+            let created: i128 = notes
+                .values()
+                .filter(|f| f.txid == txid && f.pool == pool.as_str())
+                .filter_map(|f| f.value_zat)
+                .sum::<u64>() as i128;
+            let spent: i128 = notes
+                .values()
+                .filter(|f| f.spent_in.as_deref() == Some(txid) && f.pool == pool.as_str())
+                .filter_map(|f| f.value_zat)
+                .sum::<u64>() as i128;
+            let paid = receipts_by_tx(txid, pool) as i128;
+            total += (created + paid + balance - spent).max(0);
+        }
+        total += (i64::from(tx.sapling_value_balance()) as i128).max(0);
+        total as u64
+    };
+    let bounds: Vec<Option<(String, u64)>> = d
+        .claims
+        .iter()
+        .zip(&claims)
+        .map(|(c, r)| {
+            if r.status != Status::Verified {
+                return None;
+            }
+            let txid = match c {
+                Claim::Path { to, .. } => notes[to].txid.clone(),
+                Claim::Deposit { receipt, .. } => d.receipts[receipt].txid.to_lowercase(),
+                Claim::TransparentPayment { tx, .. } => tx.clone(),
+                Claim::Control { reply, .. } => notes[reply].txid.clone(),
+                Claim::Origin { .. } => return None,
+            };
+            let u = undisclosed_min(&txid);
+            (u > 0).then_some((txid, u))
+        })
+        .collect();
+    for (r, b) in claims.iter_mut().zip(&bounds) {
+        if let Some((txid, u)) = b {
+            let (txid, u) = (txid.clone(), *u);
+            r.undisclosed_input_min_zat = Some(u);
+            r.details.push(format!("{} also spent at least {} from notes this dossier does not disclose: the disclosed notes do not explain all of what it paid.", short(&txid), amount(u, net)));
+        }
+    }
+    // A transaction's bound is counted once, however many claims rest on it.
+    let mut counted: Vec<&String> = Vec::new();
+    let mut undisclosed_total = 0u64;
+    for (txid, u) in bounds.iter().flatten() {
+        if !counted.contains(&txid) {
+            counted.push(txid);
+            undisclosed_total += u;
+        }
+    }
+    let anchored = txids_needed(d)
+        .iter()
+        .all(|t| txs.get(t).is_some_and(|x| x.height.is_some()));
     let control_ok = claims
         .iter()
         .any(|c| c.kind == "control" && c.status == Status::Verified);
@@ -972,6 +1136,9 @@ pub fn check_dossier_with(
     }
     let mut report = Report {
         assurance: "not_verified", // set below
+        anchored,
+        untraced,
+        undisclosed_input_min_zat: undisclosed_total,
         issued_at_height: opts.issued_at_height,
         version: REPORT_VERSION,
         network: d.network,
@@ -987,10 +1154,16 @@ pub fn check_dossier_with(
         does_not_prove: DOES_NOT_PROVE.to_vec(),
     };
     report.all_verified = all_ok && report.problems.is_empty();
-    report.assurance = match (report.all_verified, report.controlled) {
-        (true, true) => "verified_with_control",
-        (true, false) => "verified_history_only",
-        (false, _) => "not_verified",
+    report.assurance = if !report.all_verified {
+        "not_verified"
+    } else if !report.anchored {
+        "consistent_offline"
+    } else if !report.untraced.is_empty() || report.undisclosed_input_min_zat > 0 {
+        "verified_partly_explained"
+    } else if !report.controlled {
+        "verified_history_only"
+    } else {
+        "verified_with_control"
     };
     report
 }
@@ -1091,7 +1264,20 @@ pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
     let mut claims: Vec<Claim> = Vec::new();
     let mut nullifiers: Vec<(String, String)> = Vec::new(); // (note id, nullifier hex)
     let mut n = 0usize;
-    let mut all: Vec<(Vec<u8>, Option<String>)> = spend_order(input.txs, &proving, &nkey, network)?
+    // The challenge transaction listed among the others too (a scan finds it): it is the control, only.
+    let control_txid = match &input.control {
+        Some((b, _)) => Some(txid_hex(&parse_transaction(b)?)),
+        None => None,
+    };
+    let listed: Vec<Vec<u8>> = input
+        .txs
+        .into_iter()
+        .filter(|b| {
+            control_txid.is_none()
+                || parse_transaction(b).map(|t| txid_hex(&t)).ok() != control_txid
+        })
+        .collect();
+    let mut all: Vec<(Vec<u8>, Option<String>)> = spend_order(listed, &proving, &nkey, network)?
         .into_iter()
         .map(|b| (b, None))
         .collect();
@@ -1107,6 +1293,20 @@ pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
             .map(|(id, _)| id.clone())
             .collect();
         let found = prove_with(bytes, &proving)?;
+        // A challenge answer explained as an ordinary transaction would disclose its change, which the control claim
+        // keeps back (spec §6.2): refuse it, and say how to list it.
+        if nonce.is_none() {
+            if let Some(f) = found.iter().find(|f| {
+                f.side != Side::Sent
+                    && memo_text(&f.delivered.recovered.memo).starts_with(CHALLENGE_PREFIX)
+            }) {
+                return Err(crate::CoreError::Malformed(format!(
+                    "transaction {} answers a challenge (a memo reads {:?}): give it as the control transaction with that nonce, not in the list, or its change would be disclosed",
+                    txid_hex(&tx),
+                    memo_text(&f.delivered.recovered.memo)
+                )));
+            }
+        }
         let mut created: Vec<(String, String)> = Vec::new(); // (id, memo)
                                                              // Minimal disclosure: in the challenge transaction only the reply note (its memo carries the nonce).
         let wanted = |f: &&crate::delivery::Found| {

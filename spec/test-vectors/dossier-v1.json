@@ -3,9 +3,10 @@
     {
       "expect": {
         "all_verified": true,
-        "assurance": "verified_with_control",
+        "anchored": false,
+        "assurance": "consistent_offline",
         "controlled": true,
-        "exit": 0,
+        "exit": 4,
         "nk_proven": true,
         "statuses": [
           "verified",
@@ -30,9 +31,10 @@
     {
       "expect": {
         "all_verified": true,
-        "assurance": "verified_history_only",
+        "anchored": false,
+        "assurance": "consistent_offline",
         "controlled": false,
-        "exit": 0,
+        "exit": 4,
         "nk_proven": true,
         "statuses": [
           "verified",
@@ -56,6 +58,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -91,6 +94,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -182,6 +186,11 @@
           "failed",
           "failed",
           "failed"
+        ],
+        "untraced": [
+          "n2",
+          "n3",
+          "n4"
         ]
       },
       "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
@@ -198,6 +207,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -292,6 +302,11 @@
           "failed",
           "failed",
           "failed"
+        ],
+        "untraced": [
+          "n2",
+          "n3",
+          "n4"
         ]
       },
       "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
@@ -308,6 +323,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -363,6 +379,11 @@
           "verified",
           "verified",
           "verified"
+        ],
+        "untraced": [
+          "n2",
+          "n3",
+          "n4"
         ]
       },
       "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
@@ -379,6 +400,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -419,6 +441,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -462,6 +485,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -487,6 +511,9 @@
           "verified",
           "verified",
           "failed"
+        ],
+        "untraced": [
+          "n10"
         ]
       },
       "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
@@ -511,6 +538,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -557,6 +585,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -608,6 +637,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -651,9 +681,10 @@
     {
       "expect": {
         "all_verified": true,
-        "assurance": "verified_with_control",
+        "anchored": false,
+        "assurance": "consistent_offline",
         "controlled": true,
-        "exit": 0,
+        "exit": 4,
         "nk_proven": true,
         "statuses": [
           "verified",
@@ -684,6 +715,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -734,6 +766,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -779,6 +812,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 2,
@@ -819,6 +853,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 2,
@@ -859,6 +894,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 2,
@@ -950,6 +986,11 @@
           "not_checked",
           "not_checked",
           "not_checked"
+        ],
+        "untraced": [
+          "n2",
+          "n3",
+          "n4"
         ]
       },
       "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
@@ -963,6 +1004,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -1003,6 +1045,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -1037,6 +1080,7 @@
     {
       "expect": {
         "all_verified": true,
+        "anchored": true,
         "assurance": "verified_with_control",
         "controlled": true,
         "exit": 0,
@@ -1067,6 +1111,7 @@
     {
       "expect": {
         "all_verified": true,
+        "anchored": true,
         "assurance": "verified_with_control",
         "controlled": true,
         "exit": 0,
@@ -1098,6 +1143,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": true,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -1137,9 +1183,10 @@
     {
       "expect": {
         "all_verified": true,
-        "assurance": "verified_with_control",
+        "anchored": false,
+        "assurance": "consistent_offline",
         "controlled": true,
-        "exit": 0,
+        "exit": 4,
         "nk_proven": true,
         "statuses": [
           "verified",
@@ -1166,6 +1213,7 @@
       "dossier": "transparent",
       "expect": {
         "all_verified": false,
+        "anchored": true,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -1208,6 +1256,7 @@
       "dossier": "transparent",
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -1261,6 +1310,7 @@
       "dossier": "transparent",
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -1312,6 +1362,7 @@
       "dossier": "transparent",
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -1367,6 +1418,7 @@
     {
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -1417,6 +1469,7 @@
       "dossier": "exchange",
       "expect": {
         "all_verified": true,
+        "anchored": true,
         "assurance": "verified_with_control",
         "controlled": true,
         "exit": 0,
@@ -1441,6 +1494,7 @@
       "dossier": "exchange",
       "expect": {
         "all_verified": true,
+        "anchored": true,
         "assurance": "verified_with_control",
         "controlled": true,
         "exit": 0,
@@ -1468,6 +1522,7 @@
       "dossier": "exchange",
       "expect": {
         "all_verified": false,
+        "anchored": true,
         "assurance": "not_verified",
         "controlled": false,
         "exit": 1,
@@ -1500,6 +1555,7 @@
       "dossier": "exchange",
       "expect": {
         "all_verified": false,
+        "anchored": false,
         "assurance": "not_verified",
         "controlled": true,
         "exit": 1,
@@ -1531,6 +1587,177 @@
         }
       ],
       "why": "the deposit claimed as funded by n2, the change it created"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "anchored": true,
+        "assurance": "verified_partly_explained",
+        "controlled": true,
+        "exit": 4,
+        "nk_proven": true,
+        "statuses": [
+          "verified"
+        ],
+        "untraced": [
+          "n4"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "issued_at_height": 4421300,
+      "name": "control_only",
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/claims/10"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/9"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/8"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/7"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/6"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/5"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/4"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/3"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/2"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/1"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/0"
+        }
+      ],
+      "txs": {
+        "heights": true
+      },
+      "why": "every claim but the control removed: the control verifies, but nothing traces its funds to an origin (untraced), so the report is only partly explained"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "anchored": true,
+        "assurance": "verified_partly_explained",
+        "controlled": true,
+        "exit": 4,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ],
+        "untraced": [
+          "n3"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "issued_at_height": 4421300,
+      "name": "unlinked_payment",
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/claims/2"
+        }
+      ],
+      "txs": {
+        "heights": true
+      },
+      "why": "the path n1→n3 removed: deposit r3 and the paths from n3 no longer trace back to the origin"
+    },
+    {
+      "expect": {
+        "all_verified": true,
+        "anchored": true,
+        "assurance": "verified_partly_explained",
+        "controlled": true,
+        "exit": 4,
+        "nk_proven": true,
+        "statuses": [
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified",
+          "verified"
+        ],
+        "undisclosed_input_min_zat": 100000000,
+        "untraced": [
+          "n2",
+          "n3",
+          "n4"
+        ]
+      },
+      "expect_nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "issued_at_height": 4421300,
+      "name": "history_without_its_origin",
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/claims/4"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/3"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/2"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/1"
+        },
+        {
+          "op": "remove",
+          "path": "/claims/0"
+        },
+        {
+          "op": "replace",
+          "path": "/claims/0/funded_by",
+          "value": []
+        },
+        {
+          "op": "remove",
+          "path": "/notes/n1"
+        }
+      ],
+      "txs": {
+        "heights": true
+      },
+      "why": "the faucet note n1 and every claim on it removed, deposit r1 left with no funding notes: its transaction spent about 1 TAZ the dossier no longer discloses (undisclosed_input_min_zat), and nothing is traced"
     }
   ],
   "dossier": "fixtures/dossier/testnet-dossier.json",

@@ -88,9 +88,12 @@ export interface DossierReport {
   controlled: boolean;
   problems?: string[];
   notes: Record<string, { txid: string; pool: string; action: number; height?: number; recipient?: string; value_zat?: number; memo?: string; nullifier?: string; spent_in?: string; error?: string }>;
-  claims: { index: number; kind: "origin" | "path" | "deposit" | "control" | "transparent_payment"; status: "verified" | "failed" | "not_checked" | "unproven"; summary: string; details?: string[]; value_zat?: number; paid_to?: string; funding?: { transparent_inputs: { prevout: string; address?: string; value_zat?: number; paid_in_claim?: number }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
+  claims: { index: number; kind: "origin" | "path" | "deposit" | "control" | "transparent_payment"; status: "verified" | "failed" | "not_checked" | "unproven"; summary: string; details?: string[]; value_zat?: number; paid_to?: string; undisclosed_input_min_zat?: number; funding?: { transparent_inputs: { prevout: string; address?: string; value_zat?: number; paid_in_claim?: number }[]; shielded_actions: number; sapling_spends: number; from_disclosed: string[] } }[];
   all_verified: boolean;
-  assurance: "verified_with_control" | "verified_history_only" | "not_verified";
+  assurance: "verified_with_control" | "verified_history_only" | "verified_partly_explained" | "consistent_offline" | "not_verified";
+  anchored: boolean;
+  untraced?: string[];
+  undisclosed_input_min_zat: number;
   issued_at_height?: number;
   disclosed: string[];
   does_not_prove: string[];

@@ -1197,10 +1197,16 @@ fn dossier_serve_answers_over_http() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .unwrap();
-    let ask = |method: &str, path: &str, body: &str| -> (u16, serde_json::Value) {
+    let ask_with = |method: &str,
+                    path: &str,
+                    headers: &str,
+                    body: &str|
+     -> (u16, serde_json::Value) {
         for _ in 0..50 {
             if let Ok(mut s) = std::net::TcpStream::connect(("127.0.0.1", port)) {
-                write!(s, "{method} {path} HTTP/1.1\r\nhost: localhost\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).unwrap();
+                s.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+                    .unwrap();
+                write!(s, "{method} {path} HTTP/1.1\r\nhost: localhost\r\n{headers}content-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).unwrap();
                 let mut out = String::new();
                 s.read_to_string(&mut out).unwrap();
                 let code = out[9..12].parse().unwrap();
@@ -1213,6 +1219,9 @@ fn dossier_serve_answers_over_http() {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         panic!("the service did not start");
+    };
+    let ask = |method: &str, path: &str, body: &str| {
+        ask_with(method, path, "content-type: application/json\r\n", body)
     };
     let (code, v) = ask("GET", "/healthz", "");
     assert_eq!((code, v["ok"].as_bool()), (200, Some(true)));
@@ -1240,6 +1249,26 @@ fn dossier_serve_answers_over_http() {
     assert_eq!((code, v["stage"].as_str()), (422, Some("parse")));
     let (code, _) = ask("GET", "/nope", "");
     assert_eq!(code, 404);
+    // A page on another origin cannot drive it, and a body that is not declared JSON (a "simple" request) is refused.
+    let (code, _) = ask_with(
+        "POST",
+        "/v1/nonces",
+        "origin: https://evil.example\r\ncontent-type: text/plain\r\n",
+        "",
+    );
+    assert_eq!(code, 403);
+    let (code, _) = ask_with(
+        "POST",
+        "/v1/dossiers/verify",
+        "content-type: text/plain\r\n",
+        &dossier,
+    );
+    assert_eq!(code, 415);
+    // A testnet dossier relabelled mainnet is refused by a testnet service, not reported as ZEC.
+    let main = dossier.replace("\"network\": \"test\"", "\"network\": \"main\"");
+    assert_ne!(main, dossier);
+    let (code, v) = ask("POST", "/v1/dossiers/verify", &main);
+    assert_eq!((code, v["stage"].as_str()), (422, Some("network")), "{v}");
     child.kill().unwrap();
     let _ = child.wait();
 }

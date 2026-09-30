@@ -108,7 +108,10 @@ fn supply(d: &Dossier, txs: &Value, heights: &Value) -> HashMap<String, TxData> 
 /// The outcome a case records: what conformance means (spec §11), plus the summaries of the claims that did not verify.
 fn outcome(r: &Report) -> Value {
     let exit = if r.all_verified {
-        0
+        match r.assurance {
+            "consistent_offline" | "verified_partly_explained" => 4,
+            _ => 0,
+        }
     } else if !r.problems.is_empty()
         || r.claims
             .iter()
@@ -126,6 +129,13 @@ fn outcome(r: &Report) -> Value {
         "controlled": r.controlled,
         "statuses": r.claims.iter().map(|c| c.status).collect::<Vec<_>>(),
     });
+    v["anchored"] = json!(r.anchored);
+    if !r.untraced.is_empty() {
+        v["untraced"] = json!(r.untraced);
+    }
+    if r.undisclosed_input_min_zat > 0 {
+        v["undisclosed_input_min_zat"] = json!(r.undisclosed_input_min_zat);
+    }
     if !r.problems.is_empty() {
         v["problems"] = json!(r.problems);
     }
