@@ -3,7 +3,7 @@
 //! vectors' value, memo and address; and tampered copies fail closed at the step that catches them.
 
 use serde_json::Value;
-use zeceipt_core::delivery::{check, prove, Side};
+use zeceipt_core::delivery::{check, prove, prove_with, ProvingKeys, Side};
 use zeceipt_core::zeceipt_types::delivery::DeliveryProof;
 use zeceipt_core::zeceipt_types::{Network, Pool};
 use zeceipt_core::OutgoingKeys;
@@ -146,7 +146,7 @@ fn tampered_proofs_and_transactions_fail_closed() {
     let other = hex::decode(vectors("testnet.json")["txHex"].as_str().unwrap()).unwrap();
     assert!(matches!(
         check(&other, &proof, Network::Main),
-        Err(CoreError::TxidMismatch { .. })
+        Err(CoreError::DeliveryTxidMismatch { .. })
     ));
     // Bytes that are not exactly one canonical transaction.
     let mut longer = tx.clone();
@@ -174,7 +174,7 @@ fn tampered_proofs_and_transactions_fail_closed() {
     flipped[at] ^= 1;
     assert!(matches!(
         check(&flipped, &proof, Network::Main),
-        Err(CoreError::TxidMismatch { .. })
+        Err(CoreError::DeliveryTxidMismatch { .. })
     ));
 }
 
@@ -224,6 +224,19 @@ fn prove_makes_the_vectors_proofs_byte_for_byte() {
             prove(&tx, &keys("strangerUfvk")).unwrap().is_empty(),
             "{}",
             c["name"]
+        );
+        // The merchant's UIVK alone (an incoming key, no outgoing one) makes the same proof (judge round 3, N3-3).
+        let uivk =
+            ProvingKeys::from_uivk(Network::Test, c["keys"]["merchantUivk"].as_str().unwrap())
+                .unwrap();
+        let by_uivk = prove_with(&tx, &uivk).unwrap();
+        assert_eq!(by_uivk.len(), 1);
+        assert_eq!(
+            (by_uivk[0].side, by_uivk[0].proof.encode()),
+            (
+                Side::Received,
+                payments[0]["proof"].as_str().unwrap().to_string()
+            )
         );
     }
 }

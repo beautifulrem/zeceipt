@@ -92,7 +92,7 @@ fn zec(zat: u64) -> String {
 fn stage(e: &CoreError) -> &'static str {
     use zeceipt_core::zeceipt_types::TypesError as T;
     match e {
-        CoreError::TxidMismatch { .. } => "txid",
+        CoreError::TxidMismatch { .. } | CoreError::DeliveryTxidMismatch { .. } => "txid",
         CoreError::Types(T::SignatureInvalid) | CoreError::Types(T::Unsigned) => "signature",
         CoreError::Types(T::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",

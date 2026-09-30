@@ -68,6 +68,12 @@ check("proves says what spec §4 says: whoever produced the receipt knew the OCK
   check("zdp: parsed for a fetch, with no network named", is_delivery_proof(zdp.proof) && parse_delivery_proof(zdp.proof).txid === zdp.txid && parse_delivery_proof(zdp.proof).output_index === 0);
   const bad = zdp.proof.slice(0, -2) + (zdp.proof.endsWith("AA") ? "BB" : "AA");
   check("zdp: a changed proof does not hold", verify_delivery_proof(bad, zdp.txHex, "main").valid === false);
+  {
+    const failed = verify_delivery_proof(bad, zdp.txHex, "main");
+    const pv = await import("../r/view.js");
+    const view = pv.outcome(failed, { kind: "file" });
+    check("zdp: a failure is worded for a delivery proof, not a receipt (judge round 3, N3-1)", failed.kind === "delivery-proof" && view.stageCopy === pv.DELIVERY_STAGE_COPY[failed.stage] && !/receipt/i.test(view.stageCopy) && !/receipt says|\bock\b/i.test(failed.error), JSON.stringify([failed, view.stageCopy]));
+  }
   check("zdp: another version is refused by name", /unsupported receipt version "zdp:2"/.test(verify_delivery_proof(zdp.proof.replace("zdp:1:", "zdp:2:"), zdp.txHex, "main").error ?? ""));
   const w = await import("../src/index.js");
   const via = w.verifyReceipt(zdp.proof, zdp.txHex);

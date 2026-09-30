@@ -93,7 +93,8 @@ fn prove_delivery_makes_the_recipients_proof_from_the_senders_key() {
     let sides: Vec<&str> = proofs.iter().map(|p| p["side"].as_str().unwrap()).collect();
     assert_eq!(
         sides,
-        ["received", "received", "sent", "received", "received"]
+        ["change", "change", "sent", "change", "change"],
+        "the issuer's own change is named change"
     );
     let sent = &proofs[2];
     let recipients = std::fs::read_to_string(fixture("testnet/INV-T-001.recipient.zdp")).unwrap();
@@ -114,6 +115,35 @@ fn prove_delivery_makes_the_recipients_proof_from_the_senders_key() {
         &raw,
     ]);
     assert_eq!(code, 0, "{out}");
+    // A key that sees nothing in the transaction: exit 1, the txid still named, no proofs (judge round 3, N3-3).
+    let vectors: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture("zdp/constructed.json")).unwrap())
+            .unwrap();
+    let stranger = vectors["cases"][0]["keys"]["strangerUfvk"]
+        .as_str()
+        .unwrap();
+    let (code, out, _) = run(&[
+        "prove-delivery",
+        "--testnet",
+        "--raw-tx-file",
+        &raw,
+        "--ufvk",
+        stranger,
+    ]);
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(
+        (
+            code,
+            v["txid"].as_str(),
+            v["proofs"].as_array().map(Vec::len)
+        ),
+        (
+            1,
+            Some("fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b"),
+            Some(0)
+        ),
+        "{out}"
+    );
 }
 
 /// A `zdp:1:` delivery proof (zcash-delivery-proof's real mainnet vector, `fixtures/zdp/`) verifies through the same
@@ -190,6 +220,20 @@ fn expect_issuer_refuses_another_key() {
         &key.to_uppercase(),
     ]);
     assert_eq!(ok.0, 0, "{}", ok.2);
+    // Not a key at all: a usage error.
+    assert_eq!(
+        run(&[
+            "verify",
+            &file,
+            "--testnet",
+            "--raw-tx-file",
+            &raw,
+            "--expect-issuer",
+            "cd34"
+        ])
+        .0,
+        3
+    );
     let other = "ab".repeat(32);
     let (code, out, _) = run(&[
         "verify",

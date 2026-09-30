@@ -3,7 +3,7 @@
 // Nothing is stored; a request outside this site is made only when the user asks: the transaction
 // lookup (fetchRawTx, which carries the txid and nothing else) and the issuer check (checkIssuerBinding,
 // a GET of the claimed domain's well-known file, spec §7, which carries nothing from the receipt).
-import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, issuerClaim, checkIssuerBinding, GRPC_WEB_ENDPOINTS } from "../src/index.js";
+import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchRawTxAnyNetwork, fetchChainTip, issuerClaim, checkIssuerBinding, GRPC_WEB_ENDPOINTS } from "../src/index.js";
 
 // Each node gets 12 s here, not the package's 20 s: two hanging default nodes would otherwise keep a person waiting
 // 40 s before the page says so (review A1b).
@@ -26,14 +26,8 @@ function networksToTry(receipt) {
 /** fetchRawTx over networksToTry: the first network whose nodes have the transaction; a not-found on mainnet moves on
  * to testnet, any other failure is reported as it is. Returns fetchRawTx's result and the network it came from. */
 async function fetchFromNetworks(receipt) {
-  const nets = networksToTry(receipt);
-  for (const [i, network] of nets.entries()) {
-    try {
-      return { ...(await fetchRawTx(receipt.txid, network, undefined, { timeoutMs: PAGE_TIMEOUT_MS })), network };
-    } catch (e) {
-      if (i === nets.length - 1 || !/not found/i.test(String(e))) throw e;
-    }
-  }
+  if (receipt.network) return { ...(await fetchRawTx(receipt.txid, receipt.network, undefined, { timeoutMs: PAGE_TIMEOUT_MS })), network: receipt.network };
+  return fetchRawTxAnyNetwork(receipt.txid, networksToTry(receipt), { timeoutMs: PAGE_TIMEOUT_MS });
 }
 
 let generation = 0; // bumps on every new link, so a late result for an old link is dropped

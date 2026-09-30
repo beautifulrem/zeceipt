@@ -15,7 +15,7 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Team location / country | | 👤 |
 | Logo / graphic | the original mark, `docs/assets/zeceipt-icon.svg` (with `zeceipt-mark.svg`; added 2026-09-29 with the public release, `ba6abac`; WBS 5.1.2.5); a PNG exported from it for the form at the upload | ✅ mark; PNG at upload |
 | GitHub repository | https://github.com/beautifulrem/zeceipt, public since 2026-09-29, Apache-2.0 (open source encouraged; the private alternative was access for hackathon@colosseum.com `[R109]`) | ✅ |
-| Colosseum account (each member) + project registered on the Arena | each member signs in at colosseum.com with a completed profile, and the project is created on the Arena; rule 6 requires every member to register and fill in the profile by 2026-10-12 23:59 PT (KB `03_rules_eligibility.md`); the weekly updates and the upload most likely need the project (§5, 09-28 row). Owner-only | 👤 |
+| Colosseum account (each member) + project registered on the Arena | each member signs in at colosseum.com with a completed profile, and the project is created on the Arena; rule 6 requires every member to register and fill in the profile by 2026-10-12 23:59 PT (KB `03_rules_eligibility.md`); the weekly updates and the upload most likely need the project (§5, 09-28 row). Owner-only, ASAP: WBS 5.2.1.0 and the asks table (added 2026-09-30, PM round 3, D11 residue) | 👤 |
 | Presentation (pitch) video | 2–3 min ("one of the first resources judges review" `[R109]`), YouTube unlisted | ⬜ |
 | Product demo video | ≤ 3 min, how the product works `[R109]`, YouTube unlisted | ⬜ |
 | Go-to-market (the form asks for "Go-to-market strategy, demand validation, and plans for developing distribution" `[R109]`) | draft in §2b (slice D9): first users, demand in a user's words, channels, milestones, draft pricing | 🟡 fill the status placeholder |
@@ -79,13 +79,13 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 ## 3. Videos
 
 - **Pitch (≤ 3:00):** script and shot list in `docs/outreach/pitch-video.md` (slices V2b, V2c1, V2c2), about 2:44 with the team lines.
-  - Every shot is recorded on the local regtest chain by `apps/console/test/shots/demo-video.ts`, and each row names its take and its cue times, checked on frames. The takes (09-25/26) predate slice F's UI (09-29) and the 09-30 page changes: re-record after the UI freeze of 10-01, before the narration on 10-04 (`11_plan.md` §8, RSK-27).
+  - Every shot is recorded on the local regtest chain by `apps/console/test/shots/demo-video.ts`, and each row names its take and its cue times, checked on frames. Re-recorded 2026-09-30, take `20260930083345` (`docs/outreach/footage-20260930.md`), after slice F's UI (09-29) and the 09-30 page changes, and every row re-cued on its frames (PM round 3, P01); the UI freeze from 10-01 keeps it valid, and only a blocking fix that changes a segment re-records it (`11_plan.md` §8, RSK-27).
   - The user's part: the team lines, narration, editing, and uploading (WBS 5.1.1.1, 5.1.1.4).
 - **Technical demo (≤ 3:00):** script and shot list in `docs/outreach/tech-demo-video.md` (slices V2d, V2e), about 2:52.
-  - The terminal (`inspect`, `issue`, `verify` against the node, with no key on screen), the custody panels and the proof document's sections are recorded (take 20260926184526), and the receipt page is reused from L2. The 1:30 row, zeceipt's testnet receipts (PROOF §6), was added on 2026-09-30 and is recorded with the re-recording.
+  - The terminal (`inspect`, `issue`, `verify` against the node, with no key on screen), the custody panels, the proof document's sections and the receipt page are recorded, re-recorded 2026-09-30 in take `20260930083345`. The 1:30 row, zeceipt's testnet receipts (PROOF §6), was added on 2026-09-30; its shot is the separate public-chain recording `../raw/demo/public-20260930/` (the live page on INV-T-001), due by 10-03 (PM round 3, P07).
   - The user's part: narration, editing, and uploading (WBS 5.1.1.2).
 - **Both scripts** carry a do-not-say list. The public repository and the testnet run are applied (2026-09-30); the claims that still depend on the user's own steps (the forum post, a mainnet receipt) are marked conditional.
-- **Weekly updates:** 2026-09-28, 2026-10-05 (60 s each). The first script is `docs/outreach/weekly-update-1.md`.
+- **Weekly updates:** 2026-09-28, 2026-10-05 (60 s each). The first (`docs/outreach/weekly-update-1.md`) was recorded as skipped on 2026-09-30, its fallback date (PM round 3, P09); the second is `docs/outreach/weekly-update-2.md`, due 10-05.
 
 ## 4. Repository readiness
 
@@ -94,7 +94,13 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 - [x] Commit history inside the window (first commit 2026-09-21 PT; `git log` shows 2026-09-22 00:07 +08:00)
 - [x] CI green on GitHub: the repository is public since 2026-09-29 (first green run 36595874577, `e8c5058`); green on master since `d33ecd8` (run 36626374879)
 - [ ] In this order (RSK-17; publishing is irreversible), moved earlier on 2026-09-30 (PM round 2, D04): 1. `scripts/security_review.sh` passes on the commit to be tagged: `cargo audit`, `npm audit`, the secrets scan (CI's security job runs it on every push, green since `fd5271a`; first pass 2026-09-25, `docs/SECURITY_REVIEW.md`) → 2. tag v0.1.0 + release notes (4.1.1.4, 10-02 → 10-03; 👤 the push and the GitHub release) → 3. `npm publish @zeceipt/verify` (4.1.1.3, 👤, 10-03). The pre-submission rerun (3.4.2.3, 10-08 → 10-09) stays; a finding then ships as v0.1.1
+- [ ] Before the tag (10-02 → 10-03), a stale-phrase sweep of what the release and the posts carry (PM round 2, N01 ④; round 3). Run from the repository root; each command must print nothing:
+  - `grep -rnE 'waits on faucet|No receipts on a public chain|Footage \(regtest only|not enforce HTTPS|20260925230743|20260926144231|20260926182327|20260926184526' CHANGELOG.md docs/release docs/outreach --exclude=footage-20260930.md` (old claims and the takes of 09-25/26, which `footage-20260930.md` names only as replaced);
+  - `grep -rnoE '[0-9]+ run by default|[0-9]+ Rust|[0-9]+ console' CHANGELOG.md docs/release docs/outreach | grep -vE '\b(540 run by default|75 Rust|465 console)\b'` (every count agrees with `python3 scripts/check_test_counts.py` on the day; update the three numbers in this line when the suites change).
+  
+  Any hit is fixed before the tag, or the tag waits. Not scripted: a manual step, like the rest of `docs/RELEASING.md`.
 - [x] Demo page hosted: GitHub Pages, enabled 2026-09-30, `https://beautifulremi.dpdns.org/zeceipt/` (the receipt page and the demo, deployed by `.github/workflows/pages.yml`)
+- [x] HTTPS enforced on the Pages site since 2026-09-30 (`https_enforced: true`; http answers 301 to https; the owner's setting, RSK-29; PM round 3, P04)
 - [x] Receipts on a public chain: three signed testnet receipts, 2026-09-30 (PROOF §6, `fixtures/testnet/`); mainnet 👤 (funds by 10-02)
 
 ## 5. Timeline (authoritative for external milestones)
@@ -104,10 +110,10 @@ This table is the authority for dates visible outside the team (posts, videos, u
 | Date | Milestone | Source |
 |---|---|---|
 | 2026-09-22 | Product/research phase closed ✅ | `11_plan.md` §3 |
-| 2026-09-28 | Push the repo and enable CI (✅ done 2026-09-29, public); confirm the product name; register the project on the Arena if it is not yet (weekly updates and the upload most likely need it); record and post weekly update 1 (fallback: by 09-30, or skipped); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
-| 2026-09-30 | ✅ Testnet done 09-30: the faucet claim and three signed receipts (PROOF §6). ✅ The page hosted on GitHub Pages (4.1.1.2, a day early). Mainnet funding of the issuing wallet (U) stays open, to 10-02 | `11_plan.md` §8; WBS asks |
+| 2026-09-28 | Push the repo and enable CI (✅ done 2026-09-29, public); confirm the product name; register the project on the Arena if it is not yet (weekly updates and the upload most likely need it); record and post weekly update 1 (fallback: by 09-30, or skipped; recorded as skipped on 09-30, P09); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
+| 2026-09-30 | ✅ Testnet done 09-30: the faucet claim and three signed receipts (PROOF §6). ✅ The page hosted on GitHub Pages (4.1.1.2, a day early), HTTPS enforced. ✅ Regtest footage re-recorded (take `20260930083345`). Mainnet funding of the issuing wallet (U) stays open, to 10-02. Colosseum profiles and the project on the Arena (U, 5.2.1.0): ASAP, overdue since 09-28 | `11_plan.md` §8; WBS asks |
 | 2026-10-01 | UI freeze (the receipt page, the demo, the console: blocking fixes only); post the forum pilot call (U), the day of the Zcash Foundation's architecture workshop; decide whether to contact Konclave's author as a pilot channel (U) | `11_plan.md` §8; WBS asks |
-| 2026-10-01 → 10-03 | Demo footage re-recorded after the freeze, before the narration on 10-04; mainnet go/no-go by the owner by 10-02 (U; no decision → testnet only, RSK-3); tag v0.1.0 and the GitHub release on 10-02 → 10-03 (R cuts the tag, 👤 pushes it and creates the release); `npm publish @zeceipt/verify` on 10-03 (👤, after the tag); the pilot is not expected (RSK-28 triggered 09-30): a batch from a later answer is named with consent | `11_plan.md` §8; WBS 4.1.1.4, 4.1.1.3 |
+| 2026-10-01 → 10-03 | The public-chain shots (`../raw/demo/public-20260930/`) by 10-03, before the narration on 10-04; the regtest footage was re-recorded on 09-30 and the freeze keeps it valid (only a blocking fix that changes a segment re-records it); mainnet go/no-go by the owner by 10-02 (U; no decision → testnet only, RSK-3); the issuer's well-known file served from the user site by 10-02 (U, WBS 4.1.1.5, once R has made it; not served → the binding stays "unknown", PM round 3, N11); tag v0.1.0 and the GitHub release on 10-02 → 10-03 (R cuts the tag, 👤 pushes it and creates the release); `npm publish @zeceipt/verify` on 10-03 (👤, after the tag); the pilot is not expected (RSK-28 triggered 09-30): a batch from a later answer is named with consent | `11_plan.md` §8; WBS 4.1.1.4, 4.1.1.3 |
 | 2026-10-03 | Team roster and founder lines; confirm the window-open date, inferred 10-05 or 10-06 `[R106]` (U) | `11_plan.md` §8; WBS asks |
 | 2026-10-04 → 10-07 | Pitch video and technical demo recorded | `11_plan.md` §8 |
 | 2026-10-05 | Record and post weekly update 2 (U; fallback: by 10-07, or skipped); initial upload on the window-open day | `11_plan.md` §8 |

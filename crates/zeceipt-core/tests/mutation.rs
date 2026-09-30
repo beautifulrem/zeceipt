@@ -39,6 +39,8 @@ const FIXTURES: &[(&str, &str)] = &[
 const UFVK: &str = include_str!("../../../fixtures/regtest-issuer-ufvk.txt");
 const OVK: &str = include_str!("../../../fixtures/synthetic-ovk.hex");
 const RECEIPT: &str = include_str!("../../../fixtures/regtest-20kb-receipt.json");
+/// zcash-delivery-proof's mainnet vector proof (`fixtures/zdp/mainnet.json`), tried against every mutated transaction.
+const ZDP_PROOF: &str = "zdp:1:WXvYf_frFEgVwXWPSRVtapErcRDlljHTNvGK5H5d-W4CAADxmRh1VsecY8DmWr_q_tgANvb0jq3j1RgadHLEZyn5ZatN3aoO7fCrw0wdECcAAAAAAABCBHYMP_cPDLK8l-ADNQ-by718ii6Z5IwVxCO_g0Mgbg";
 
 /// xorshift64*: seeded and dependency-free, so a failure names the iteration that reproduces it.
 struct Rng(u64);
@@ -135,6 +137,20 @@ fn exercise(bytes: &[u8], keys: &[OutgoingKeys], ock: [u8; 32]) -> Result<usize,
             }
         }
     }
+    // Delivery proofs (PM round 3, P02): the one path that re-serializes a parsed transaction (`parse_canonical`, as
+    // zcash-delivery-proof's SPEC §4 requires). Bytes that write back identically must give proofs from a full viewing
+    // key, each of which `check` accepts (prove checks them), and a foreign proof must be refused without a panic.
+    if zeceipt_core::delivery::parse_canonical(bytes).is_ok() {
+        for k in keys {
+            match zeceipt_core::delivery::prove(bytes, k) {
+                Ok(found) => issued += found.len(),
+                Err(zeceipt_core::CoreError::MissingKey(_)) => {} // a bare OVK has no incoming key
+                Err(e) => return Err(format!("prove failed on canonical bytes: {e}")),
+            }
+        }
+    }
+    let foreign = zeceipt_core::zeceipt_types::delivery::DeliveryProof::decode(ZDP_PROOF).unwrap();
+    let _ = zeceipt_core::delivery::check(bytes, &foreign, Network::Main);
     let mut txid_bytes = [0u8; 32];
     txid_bytes.copy_from_slice(&hex::decode(&txid).unwrap());
     for o in outputs.iter().take(8) {

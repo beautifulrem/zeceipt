@@ -81,7 +81,7 @@
 </footer>
 
 <script type="module">
-import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx } from "../src/index.js";
+import { initVerifier, verifyReceipt, parseReceipt, fetchRawTx, fetchRawTxAnyNetwork } from "../src/index.js";
 import { el, issuerLine, kvRows, noteNodes } from "../r/ui.js";
 import { outcome, verdictNote, verdictParts } from "../r/view.js";
 const $ = (id) => document.getElementById(id);
@@ -116,10 +116,7 @@ $("fetch").addEventListener("click", async () => {
     const r = parseReceipt($("receipt").value);
     status.textContent = `Fetching ${r.txid.slice(0, 16)}… from a public node.`;
     // A zdp:1 delivery proof names no network: mainnet's nodes, then testnet's (as the receipt page does).
-    let got, network;
-    for (const n of r.network ? [r.network] : ["main", "test"]) {
-      try { got = await fetchRawTx(r.txid, n); network = n; break; } catch (e) { if (n === "test" || r.network || !/not found/i.test(String(e))) throw e; }
-    }
+    const { network, ...got } = r.network ? { ...(await fetchRawTx(r.txid, r.network)), network: r.network } : await fetchRawTxAnyNetwork(r.txid);
     $("rawtx").value = got.hex;
     fetched = { hex: got.hex, chain: got.chain, endpoint: got.endpoint, network };
     const where = { mined: `mined at height ${got.chain.height}`, mempool: "in the mempool, not mined yet", fork: "on a fork, not the main chain" }[got.chain.status];

@@ -1,0 +1,10 @@
+{
+  "version": "zeceipt-v0",
+  "keys": [
+    {
+      "key_id": "testnet-2026-09@beautifulremi.dpdns.org",
+      "pubkey": "cd34f5535c1398580429f82b4d2344e553132148c8e67376b5678901f84a3f6e",
+      "note": "zeceipt's testnet issuer key (2026-09-30)"
+    }
+  ]
+}

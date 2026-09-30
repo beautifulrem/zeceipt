@@ -49,6 +49,9 @@ pub enum CoreError {
     UnsupportedBranch { id: u32, name: &'static str },
     #[error("txid mismatch: receipt says {expected}, transaction is {actual}")]
     TxidMismatch { expected: String, actual: String },
+    /// A `zdp:1:` delivery proof names another transaction than the bytes given (judge round 3, N3-1).
+    #[error("txid mismatch: the delivery proof names {expected}, the transaction is {actual}")]
+    DeliveryTxidMismatch { expected: String, actual: String },
     #[error("transaction has no {0} bundle")]
     NoBundle(&'static str),
     #[error("output index {index} out of range for {pool} bundle with {len} outputs")]

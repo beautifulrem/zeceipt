@@ -231,6 +231,9 @@ test("a zdp:1 proof of a testnet payment: mainnet's nodes do not have it, so the
   assert.match(await text(s.page, "#payment"), /0\.00000546 TAZ \(546 zat\)/, "a testnet amount is named TAZ");
   assert.match(await text(s.page, "#verdict-note"), /^0\.00000546 TAZ to utest1/);
   assert.match(await text(s.page, "#inclusion"), /^Mined at height 4398896, 10 confirmations, according to zjs\.zec\.rocks\/testnet\./);
+  // One mainnet node's "not found" answers for mainnet: its second node is not asked (judge round 3, N3-5).
+  const asked = s.requests.filter((r) => /GetTransaction$/.test(r.url)).map((r) => r.url.replace(/\/cash\.z.*$/, ""));
+  assert.deepEqual(asked, ["https://zjs.zec.rocks/mainnet", "https://zjs.zec.rocks/testnet"]);
   await assertPrivate(s, { expectedErrors: [/ERR_FAILED|net::/] });
   await s.context.close();
 });

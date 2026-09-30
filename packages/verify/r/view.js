@@ -14,6 +14,18 @@ export const STAGE_COPY = {
   other: "The receipt could not be checked.",
 };
 
+/** The same stages, for a `zdp:1:` delivery proof, which has no issuer key or challenge (judge round 3, N3-1). */
+export const DELIVERY_STAGE_COPY = {
+  parse: "This is not a zdp:1 delivery proof (or it is for a newer version).",
+  tx: "The transaction data could not be read, or is not exactly one canonical transaction.",
+  txid: "This delivery proof is for a different transaction than the one provided.",
+  signature: "A delivery proof carries no signature, so it cannot meet a required one.",
+  challenge: "A delivery proof cannot be bound to a challenge.",
+  output: "The proof points at an action that does not exist in this transaction.",
+  recovery: "The proof's note is not the one this action carries: the proof is not valid for this payment.",
+  other: "The delivery proof could not be checked.",
+};
+
 /** 04 §4 "pending": the node does not have the transaction (yet). */
 export const NOT_FOUND_COPY = "The transaction was not found yet. It may be unconfirmed — try again later.";
 
@@ -167,7 +179,8 @@ export function coinUnit(recipient) {
 export function outcome(result, source) {
   if (!result || !result.valid) {
     const stage = result?.stage ?? "other";
-    return { valid: false, headline: "INVALID", stageCopy: STAGE_COPY[stage] ?? STAGE_COPY.other, error: result?.error ?? "" };
+    const copy = result?.kind === "delivery-proof" ? DELIVERY_STAGE_COPY : STAGE_COPY;
+    return { valid: false, headline: "INVALID", stageCopy: copy[stage] ?? copy.other, error: result?.error ?? "" };
   }
   if (result.kind === "delivery-proof") {
     return {
