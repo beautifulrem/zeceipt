@@ -47,7 +47,7 @@ Receipts compose into audit packs whose totals are lower bounds. An issuer can b
 - Mainnet v6 transactions parsed and fetched over gRPC.
 - On a Zebra regtest chain: a consensus-valid Ironwood transaction, with receipts issued from the sender's viewing key and verified over gRPC and offline; and the console end to end, from USD payables at Kraken's live rate to verified receipts.
 - Tampered receipts fail closed at a named stage.
-- 536 automated tests (71 Rust, 465 TypeScript), including the official Orchard note-encryption vectors, plus opt-in Chrome suites for the console and the receipt page.
+- 537 automated tests (72 Rust, 465 TypeScript), including the official Orchard note-encryption vectors, plus opt-in Chrome suites for the console and the receipt page.
 - [Public-chain receipts and the pilot organisation: ≤ 10 words.]
 
 **Market.** First users are Zcash grant programs and DAOs: FPF's Q1 2026 report lists 62 milestone payouts and 129 ZecHub bounty payments. Then payroll teams, such as Konclave's users.
@@ -121,7 +121,7 @@ Six criteria (rules §8) `[R1]`:
 
 | Criterion | Where it is answered |
 |---|---|
-| Functionality — how well it works, code quality | 536 tests (71 Rust, 465 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow |
+| Functionality — how well it works, code quality | 537 tests (72 Rust, 465 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow |
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
 | Novelty | issuer-attributed, chain-fetched per-output receipts for Ironwood, Orchard and Sapling, with a payout workflow; see PRIOR_ART (`docs/PRIOR_ART.md` states what is new against ZIP 311, Glasspane, zcash-delivery-proof and the 2026-09-30 rescan, `[R135]`); format + vectors |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4); one design system for the receipt page and the console, light and dark, WCAG AA contrast tested per token pair `[R134]` |

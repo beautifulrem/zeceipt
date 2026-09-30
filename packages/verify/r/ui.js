@@ -25,10 +25,11 @@ export function copyButton(value, label, live) {
   return b;
 }
 
-/** "2.5" + lighter "0000000" + " ZEC" + the zatoshi on its own line; textContent is "2.50000000 ZEC (250000000 zat)". */
-export function amountNodes({ zec, zat }) {
+/** "2.5" + lighter "0000000" + " ZEC" (or " TAZ" off mainnet) + the zatoshi on its own line; textContent is
+ * "2.50000000 ZEC (250000000 zat)". */
+export function amountNodes({ zec, zat, unit = "ZEC" }) {
   const { major, zeros } = valueParts(zec);
-  return [el("span", "amount", major), el("span", "amount-zeros", zeros), el("span", "amount-unit", " ZEC"), el("span", "amount-zat", ` (${zat} zat)`)];
+  return [el("span", "amount", major), el("span", "amount-zeros", zeros), el("span", "amount-unit", ` ${unit}`), el("span", "amount-zat", ` (${zat} zat)`)];
 }
 
 /** Text with any "(key id …)" kept on one line (a key id such as 2026-09 must not break at its hyphen; review F

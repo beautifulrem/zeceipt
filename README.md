@@ -25,7 +25,7 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="536 tests" src="https://img.shields.io/badge/tests-536-2ea44f?style=flat-square">
+  <img alt="537 tests" src="https://img.shields.io/badge/tests-537-2ea44f?style=flat-square">
 </p>
 
 ---
@@ -34,7 +34,7 @@
 > Built for **Colosseum's Crypto World's Fair 2026** (Zcash track) by one developer, [@beautifulrem](https://github.com/beautifulrem). The repository started on 2026-09-21 PT, during the event. See [For judges](#for-judges) for a ten-minute run and where each claim's evidence is.
 
 <p align="center">
-  <strong>Try it live:</strong> <a href="https://beautifulremi.dpdns.org/zeceipt/r/#zdp:1:WXvYf_frFEgVwXWPSRVtapErcRDlljHTNvGK5H5d-W4CAADxmRh1VsecY8DmWr_q_tgANvb0jq3j1RgadHLEZyn5ZatN3aoO7fCrw0wdECcAAAAAAABCBHYMP_cPDLK8l-ADNQ-by718ii6Z5IwVxCO_g0Mgbg">a real mainnet payment, verified in your browser</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/demo/">the verifier demo</a>
+  <strong>Try it live:</strong> <a href="https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ">a signed zeceipt receipt on testnet</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/r/#zdp:1:WXvYf_frFEgVwXWPSRVtapErcRDlljHTNvGK5H5d-W4CAADxmRh1VsecY8DmWr_q_tgANvb0jq3j1RgadHLEZyn5ZatN3aoO7fCrw0wdECcAAAAAAABCBHYMP_cPDLK8l-ADNQ-by718ii6Z5IwVxCO_g0Mgbg">a real mainnet payment, verified in your browser</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/demo/">the verifier demo</a>
 </p>
 
 <p align="center">
@@ -223,7 +223,7 @@ flowchart LR
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 71 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 72 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
@@ -241,7 +241,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 | A `zdp:1:` delivery proof of a real payment ([`fixtures/zdp/mainnet.json`](fixtures/zdp)) | **Mainnet**, height 3,499,556, fetched live | Zeceipt's verifier checking a real shielded Ironwood payment from a public node ([`docs/PROOF.md`](docs/PROOF.md) §7) |
 | The mainnet transaction parsed and its outputs listed | **Mainnet** | Real v6 Ironwood transactions read through zec.rocks (§1) |
 | Payout batches paid, receipted and verified | Local **regtest** (Zebra, Zaino, Zkool) | The console end to end, with real proofs and signatures, on a private chain (§5–§5g) |
-| Zeceipt receipts on a public chain | Testnet: **not yet** | Waits on faucet funds (§4); the run is rehearsed |
+| Zeceipt's own signed receipts for three payments ([`fixtures/testnet/`](fixtures/testnet)) | **Testnet**, heights 4,420,000–4,420,005 | Issue, verify online and offline, an audit pack of 0.06 TAZ, a tampered copy refused, and a link verified on the live page (§6) |
 | The README screenshot and the demo's sample | None: a synthetic transaction | The page's layout; the height and confirmations in the screenshot are simulated |
 
 | Where to look | What it shows |
@@ -262,8 +262,8 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 
 | | |
 |---|---|
-| ✅ Done | Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. `zdp:1:` delivery proofs checked, a real mainnet one included. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
-| 🟡 In progress | Receipts on a public chain: the testnet run is rehearsed and waits on faucet funds ([`docs/PROOF.md`](docs/PROOF.md) §4). Publishing `@zeceipt/verify` to npm |
+| ✅ Done | Signed receipts on testnet for three payments (PROOF §6). Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. `zdp:1:` delivery proofs checked, a real mainnet one included. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
+| 🟡 In progress | Receipts on mainnet (testnet is done, [`docs/PROOF.md`](docs/PROOF.md) §6). Publishing `@zeceipt/verify` to npm |
 | ⏳ Next | NU7 support once a `zcash_protocol` release carries it ([`docs/RELEASING.md`](docs/RELEASING.md)). Sign-in for the console. A v1 aligned with ZIP 311's encoding |
 | ✖ Out of scope for v0 | The spend-authority proof (full ZIP 311) |
 

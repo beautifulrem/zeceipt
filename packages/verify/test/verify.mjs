@@ -353,6 +353,11 @@ check("receipt page stores nothing", !/localStorage|sessionStorage|indexedDB|doc
   const parts = pageView.verdictParts(pageView.outcome({ valid: true, recipient: "u1792v3nrp9qn6pe74qa06eapjjlh60sdgd47cg46atejesujes03qj04qmm3zs62a2qjfaju7kx7e83mml47rlenm66mqm2z0v5j5mtel", value_zec: "2.50000000", value_zat: "250000000", memo: { kind: "text", text: "INV-2026-0142" }, label: "", pool: "ironwood", output_index: 0, txid: "ab" }, { kind: "file" }));
   check("verdictParts puts the address apart, for the mono face (review F round 8)", parts.addr === "u1792v3n…j5mtel" && parts.lead + parts.addr + parts.rest === summary, JSON.stringify(parts));
   check("verdictNote leads with which payment (review F round 7)", summary === "2.5 ZEC to u1792v3n…j5mtel, memo INV-2026-0142, is proven. Its chain inclusion is not confirmed: see 2. Chain inclusion.", summary);
+  check("the coin is named by the network the recipient's address is on: TAZ off mainnet, ZEC on it", pageView.coinUnit("utest1abc") === "TAZ" && pageView.coinUnit("uregtest1abc") === "TAZ" && pageView.coinUnit("ztestsapling1abc") === "TAZ" && pageView.coinUnit("u1abc") === "ZEC" && pageView.coinUnit("zs1abc") === "ZEC" && pageView.coinUnit(undefined) === "ZEC");
+  {
+    const t = pageView.outcome({ ...good, recipient: "utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u", value_zat: 1000000, value_zec: "0.01000000" }, { kind: "file" });
+    check("a testnet receipt reads 0.01 TAZ in its row and its verdict line", t.payment.find(([k]) => k === "Value")[1] === "0.01000000 TAZ (1000000 zat)" && t.amount.unit === "TAZ" && pageView.verdictNote(t).startsWith("0.01 TAZ to utest19q…rwd44u"), JSON.stringify(t.amount));
+  }
   for (const state of ["file", "mempool", "fork", "unknown"]) check(`verdictNote: ${state} says inclusion not confirmed`, /not confirmed/.test(verdictNote({ valid: true, inclusion: { state } })));
   check("verdictNote: INVALID has none (the stage copy speaks)", verdictNote({ valid: false }) === "");
   for (const t of ["2.50000000", "0.00000000", "12.34567891", "not a value"]) {

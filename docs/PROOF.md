@@ -240,7 +240,7 @@ The system resolver gave a public address (104.20.26.136), and TLS was verified 
 
 `ironwood_round_trip_ock_derivation_and_recovery`: encrypt a V3 (Ironwood) note with a random FVK using the `orchard` crate's `IronwoodNoteEncryption`, derive the OCK with `Domain::derive_ock`, recover with `try_output_recovery_with_ock`, and check that a flipped OCK bit and another key's OCK both fail.
 
-## 4. testnet — rehearsed, waiting on a faucet claim (the user's call)
+## 4. testnet — rehearsed on 2026-09-28, run on 2026-09-30 (§6)
 
 A testnet light wallet was created with `zcash-devtool` (built from source at `raw/tools/zcash-devtool`, wallet dir `raw/tools/testnet-wallet`, mnemonic encrypted to a local age identity; nothing from it is in this repository):
 
@@ -887,9 +887,51 @@ The transcript is `raw/tools/regtest/console-payables-e2e-20260925181051.json`. 
 
 No receipt link, OCK or wrap key appears in the transcript or the server output (asserted). The run's database is deleted afterwards.
 
-## 6. testnet — placeholder
+## 6. testnet — three payments, three signed receipts, verified online, offline and in the browser (2026-09-30)
 
-To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.
+Zeceipt's own receipts on a public chain. The run followed §4, starting from `fd5271a`'s release build with the delivery-proof work in the tree; the CLI's receipt path was the same as at `10dfeef`.
+
+- **Funding.** The user authorized the faucet claim. fauzec's API (no human check) accepted request `01M3RKDCFTR8V9DHKYW6ZM8H4X` at 07:17 UTC. It paid 1 TAZ to the issuer account's address above in `90f6a3354862cf5b2f46e29ad3bfc9db3b9c4618178691df30bff2d7ec562a4b`, confirmed at 4,419,987, and it was spendable (Ironwood) after 10 confirmations.
+- **Payments.** A second account, `recipient` (`51da3da5-…`), was generated in the same wallet so that the payee is not the issuer. Otherwise the payments would be change, which `issue` skips. `zcash-devtool wallet send` paid it three times from account `c1637de7-…`, each after a `propose` dry run:
+
+| Memo | Value | txid | Height | Receipt (output) |
+|---|---|---|---|---|
+| INV-T-001 | 0.01 TAZ | `fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b` | 4,420,000 | Ironwood 2 |
+| INV-T-002 | 0.02 TAZ | `1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d` | 4,420,003 | Ironwood 0 |
+| INV-T-003 | 0.03 TAZ | `a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8` | 4,420,005 | Ironwood 2 |
+
+- **Issuance.** Each transaction was issued once it was mined, with `zeceipt issue --testnet --txid … --ufvk-file <the UFVK above> --key-file <a new testnet issuer key> --key-id testnet-2026-09 --label INV-T-00n --host https://beautifulremi.dpdns.org/zeceipt`. Each issued exactly one receipt: the payment. The UFVK recognised the four change outputs of each transaction and skipped them. The issuer key is `cd34f5535c1398580429f82b4d2344e553132148c8e67376b5678901f84a3f6e`. The receipts are committed in `fixtures/testnet/`, with the three raw transactions and the pack.
+- **Online verification**, 07:58 UTC, `zeceipt verify --testnet --require-signature fixtures/testnet/<file>.json`: all three exit 0, valid. INV-T-001's output, verbatim except that `proves` and `does_not_prove` are omitted:
+
+```json
+{
+  "challenge_checked": false,
+  "confirmations": 3,
+  "height": 4420000,
+  "issuer_pubkey": "cd34f5535c1398580429f82b4d2344e553132148c8e67376b5678901f84a3f6e",
+  "kind": "receipt",
+  "label": "INV-T-001",
+  "memo": {
+    "kind": "text",
+    "text": "INV-T-001"
+  },
+  "output_index": 2,
+  "pool": "ironwood",
+  "recipient": "utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u",
+  "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+  "valid": true,
+  "value_zat": 1000000,
+  "value_zec": "0.01000000",
+  "wtxid": "0b7f68da0a3c4f9849e1c6bfab88fea8d7665a8f706917abd7435b6825e6fdfc241ef2b870311887a5a5ffe7f6ff9520b7672ae4843d6657ca5fc28b7dc7b733"
+}
+```
+
+- **The pack.** `zeceipt pack` then `verify-pack --testnet --require-signature`, from the node and again offline with `--raw-tx-dir fixtures/testnet`, gave `all_valid: true` and `verified_total_zat: 6000000`, with no duplicates. The offline check runs in CI (`the_testnet_receipts_verify_offline`).
+- **Tampered copies** of INV-T-001, with the OCK's first character changed, both exit 1. Signed, it fails at `signature` ("signature is invalid"). Unsigned, it fails at `recovery` ("the ock does not open ironwood output 2").
+- **In the browser**, the live receipt page on GitHub Pages opened INV-T-001's link as issued ([the link](https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ)). The link landed on `/zeceipt/r/` with its fragment, and after "Fetch" the page showed **VALID**, "0.01 ZEC to utest19q…rwd44u, memo INV-T-001, is proven" (the page named every amount ZEC then; since the next commit a testnet or regtest amount reads TAZ, "0.01 TAZ to …"). It showed "Mined at height 4420000, 4 confirmations, according to zjs.zec.rocks/testnet" and "Signed by key cd34f553…3f6e (key id testnet-2026-09)". It logged no error.
+
+The recipient is shown as the unified address holding only the Orchard-family receiver that the output paid (`utest19qmzk8…`). That address is the account's default address's receiver, not the full default address, as in §5b.
+
 
 ## 7. mainnet + testnet — a third party's delivery proofs, fetched live and checked (2026-09-30)
 

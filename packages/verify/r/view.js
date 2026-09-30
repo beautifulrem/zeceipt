@@ -151,6 +151,13 @@ export function memoText(memo) {
   return `bytes ${memo.hex}`;
 }
 
+/** The coin's name for an amount paid to `recipient`: TAZ on testnet and regtest (whose addresses say so: `utest…`,
+ * `uregtest…`, `ztestsapling…`, `zregtestsapling…`), ZEC on mainnet. A testnet receipt showing "0.01 ZEC" misnamed
+ * a coin with no value. */
+export function coinUnit(recipient) {
+  return /^(utest1|uregtest1|ztestsapling1|zregtestsapling1)/.test(recipient ?? "") ? "TAZ" : "ZEC";
+}
+
 /** The whole outcome as data: invalid → headline and stage copy; valid → the three parts. */
 export function outcome(result, source) {
   if (!result || !result.valid) {
@@ -163,11 +170,11 @@ export function outcome(result, source) {
       headline: "VALID",
       payment: [
         ["Recipient", result.recipient],
-        ["Value", `${result.value_zec} ZEC (${result.value_zat} zat)`],
+        ["Value", `${result.value_zec} ${coinUnit(result.recipient)} (${result.value_zat} zat)`],
         ["Memo", memoText(result.memo)],
         ["Output", `${result.pool} output ${result.output_index} of ${result.txid}`],
       ],
-      amount: { zec: result.value_zec, zat: result.value_zat },
+      amount: { zec: result.value_zec, zat: result.value_zat, unit: coinUnit(result.recipient) },
       inclusion: inclusion(source),
       issuer: ["No issuer: a delivery proof is unsigned. It shows that this note was delivered, not who sent it or who made the proof (the recipient or the sender can)."],
       challenge: "A delivery proof cannot be bound to a challenge: this does not prove who is showing it to you.",
@@ -178,13 +185,13 @@ export function outcome(result, source) {
     headline: "VALID",
     payment: [
       ["Recipient", result.recipient],
-      ["Value", `${result.value_zec} ZEC (${result.value_zat} zat)`],
+      ["Value", `${result.value_zec} ${coinUnit(result.recipient)} (${result.value_zat} zat)`],
       ["Memo", memoText(result.memo)],
       ["Label", result.label ? result.label : "(none)"],
       ["Output", `${result.pool} output ${result.output_index} of ${result.txid}`],
     ],
     // The value as data too (review F round 2), so the page lays it out from the numbers, not by parsing its text.
-    amount: { zec: result.value_zec, zat: result.value_zat },
+    amount: { zec: result.value_zec, zat: result.value_zat, unit: coinUnit(result.recipient) },
     inclusion: inclusion(source),
     issuer: issuerLines(result),
     challenge: challengeLine(result),
@@ -213,7 +220,7 @@ export function verdictParts(view) {
   const tail = view.inclusion.state === "mined" ? "; the node reports its transaction mined." : ". Its chain inclusion is not confirmed: see 2. Chain inclusion.";
   if (!(view.amount && row("Recipient"))) return { lead: `The payment is proven${tail}`, addr: "", rest: "" };
   return {
-    lead: `${valueParts(view.amount.zec).major} ZEC to `,
+    lead: `${valueParts(view.amount.zec).major} ${view.amount.unit ?? "ZEC"} to `,
     addr: middle(row("Recipient")),
     rest: `${memo && memo !== "(empty)" ? `, memo ${memo},` : ""} is proven${tail}`,
   };

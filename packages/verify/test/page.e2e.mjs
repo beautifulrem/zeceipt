@@ -225,7 +225,8 @@ test("a zdp:1 proof of a testnet payment: mainnet's nodes do not have it, so the
   await s.page.waitForFunction(() => !/asking it for its chain tip/.test(document.querySelector("#inclusion").textContent));
   assert.equal(await text(s.page, "#headline"), "VALID");
   assert.match(await text(s.page, "#payment"), /utest1[0-9a-z]+/, "a testnet unified address");
-  assert.match(await text(s.page, "#payment"), /\(546 zat\)/);
+  assert.match(await text(s.page, "#payment"), /0\.00000546 TAZ \(546 zat\)/, "a testnet amount is named TAZ");
+  assert.match(await text(s.page, "#verdict-note"), /^0\.00000546 TAZ to utest1/);
   assert.match(await text(s.page, "#inclusion"), /^Mined at height 4398896, 10 confirmations, according to zjs\.zec\.rocks\/testnet\./);
   await assertPrivate(s, { expectedErrors: [/ERR_FAILED|net::/] });
   await s.context.close();
@@ -472,7 +473,7 @@ test("regtest: no public node, the file load verifies with inclusion unknown", {
   await s.page.setInputFiles("#rawfile", REGTEST_HEX_FILE);
   await verified(s.page);
   assert.equal(await text(s.page, "#headline"), "VALID");
-  assert.match(await text(s.page, "#payment"), /2\.50000000 ZEC/);
+  assert.match(await text(s.page, "#payment"), /2\.50000000 TAZ \(250000000 zat\)/, "regtest coins are named TAZ, as testnet's");
   assert.equal(await text(s.page, "#inclusion"), "Unknown: the transaction was loaded from a file. Check the txid on an explorer or your own node.");
   assert.equal(await s.page.getAttribute("#outcome", "class"), "pending", "no success colour for a transaction nobody vouched for");
   assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 0, "a file load makes no outside request");

@@ -39,6 +39,36 @@ fn usage_errors_exit_3_and_help_exits_0() {
     assert_eq!(run(&["--help"]).0, 0);
 }
 
+/// Zeceipt's own receipts on a public chain (testnet, 2026-09-30; PROOF §6): three signed receipts for three payments,
+/// packed, verify offline against the mined transactions' bytes, with the signature required; the total is 0.06 TAZ.
+#[test]
+fn the_testnet_receipts_verify_offline() {
+    let (code, out, err) = run(&[
+        "verify-pack",
+        &fixture("testnet/pack.json"),
+        "--testnet",
+        "--require-signature",
+        "--raw-tx-dir",
+        &fixture("testnet"),
+    ]);
+    assert_eq!(code, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(v["all_valid"], true);
+    assert_eq!(v["verified_total_zat"], 6_000_000);
+    let labels: std::collections::BTreeSet<String> = v["receipts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["label"].as_str().unwrap_or_default().to_string())
+        .collect();
+    assert_eq!(
+        labels,
+        ["INV-T-001", "INV-T-002", "INV-T-003"]
+            .map(String::from)
+            .into()
+    );
+}
+
 /// A `zdp:1:` delivery proof (zcash-delivery-proof's real mainnet vector, `fixtures/zdp/`) verifies through the same
 /// `verify` command, offline; it cannot meet `--require-signature`, and takes no challenge (judge round 1, D6).
 #[test]
