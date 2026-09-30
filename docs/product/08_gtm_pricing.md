@@ -13,12 +13,14 @@ Dates here are a subset of the single timeline in `09_submission_checklist.md` �
 
 | Date | Action | Owner |
 |---|---|---|
-| 2026-09-28 | Push the repo, enable CI; then post the forum call "Shielded payment receipts: looking for one pilot" (drafted) | U |
+| 2026-09-28 ✅ | Push the repo, enable CI (done 2026-09-29) | U |
 | 2026-09-28 | Weekly update 1 (60 s), most likely on the Arena dashboard (inferred from `isCurrentWeekUpdateSubmitted`; needs the project registered), with X tagging @colosseum as an extra; script and footage ready (`docs/outreach/weekly-update-1.md`) | U records and posts; PM prepares |
-| 2026-09-30 ✅ | Host the demo page (GitHub Pages, `https://beautifulremi.dpdns.org/zeceipt/`; `zeceipt.xyz` dropped) | U |
-| 2026-10-01 → 10-03 | First pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | PM, with the pilot |
+| 2026-09-30 ✅ | Host the demo page (GitHub Pages, `https://beautifulremi.dpdns.org/zeceipt/`; `zeceipt.xyz` dropped; the domain's risk is RSK-29) | U |
+| 2026-09-30 ✅ | Three signed receipts on Zcash testnet (PROOF §6); mainnet only if the owner funds the wallet by 10-02 | T runs; U funds |
+| 2026-10-01 | Post the forum call "Shielded payment receipts: looking for one pilot" (drafted, refreshed 2026-09-30) | U |
+| 2026-10-01 → 10-03 | First pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call): not expected, since RSK-28 triggered on 09-30; a later answer is still welcome | PM, with the pilot |
+| 2026-10-02 → 10-03 | Tag v0.1.0 and the GitHub release; `npm publish @zeceipt/verify` on 10-03, after the tag (moved from 10-10, PM round 2, D04) | R tags; U pushes, releases and publishes |
 | 2026-10-05 | Weekly update 2; initial submission upload on the window-open day | U records and posts; PM uploads |
-| 2026-10-10 | `npm publish @zeceipt/verify` (the day after the security review) | U |
 | 2026-10-11 | Final submission | PM |
 
 ## 3. Pilot candidates (ranked by reachability)
@@ -53,4 +55,6 @@ Optional revenue: 1Click affiliate fee on ZEC→USDC settlement (Could).
 
 ## 6. Metrics (detail in `11_plan.md` §4)
 
-Baseline plan, pre-submission: ≥ 15 receipts on public chains (blocked on funding), ≥ 1 real issuing org, ≥ 1 third-party emitter/consumer, npm/crate downloads ≥ 50, ≥ 3 publicly posted verifications; 90 days: 3 orgs / 300 receipts / 2 integrations. Solo branch: ≥ 3 receipts, 1 org, 1 public external verification, ≥ 20 downloads; 90 days: 2 / 100 / 1 (`11_plan.md` §4).
+Baseline plan (two-person, superseded on 2026-09-24), pre-submission: ≥ 15 receipts on public chains, ≥ 1 real issuing org, ≥ 1 third-party emitter/consumer, npm/crate downloads ≥ 50, ≥ 3 publicly posted verifications; 90 days: 3 orgs / 300 receipts / 2 integrations.
+
+Solo branch, reset 2026-09-30 to what can be met (PM round 1 D05, round 2 N05; `11_plan.md` §4): **3 receipts on testnet, done** (PROOF §6), and mainnet only if funded by 10-02; issuing organisations 0–1, reported as they stand, since the pilot is not reached (RSK-28, fallback); a third-party verification counts only if the owner gets one (0 on 09-30), and is not promised; npm downloads reported as they stand, with no target (no crate is published); 90 days, as targets: 1 organisation and 1 integration.

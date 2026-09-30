@@ -69,6 +69,53 @@ fn the_testnet_receipts_verify_offline() {
     );
 }
 
+/// Judge round 2, N10: `prove-delivery` makes `zdp:1:` proofs from a UFVK, offline. From the testnet issuer's published
+/// UFVK, INV-T-001's transaction gives its four change notes (received, internal scope) and the payment (sent); the
+/// payment's proof is byte for byte the one the recipient's own key made (`fixtures/testnet/INV-T-001.recipient.zdp`,
+/// PROOF §6), since both open the same note; and it verifies.
+#[test]
+fn prove_delivery_makes_the_recipients_proof_from_the_senders_key() {
+    let raw =
+        fixture("testnet/fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b.hex");
+    let (code, out, err) = run(&[
+        "prove-delivery",
+        "--testnet",
+        "--raw-tx-file",
+        &raw,
+        "--ufvk-file",
+        &fixture("testnet/issuer-ufvk.txt"),
+        "--host",
+        "https://h.example/zeceipt/",
+    ]);
+    assert_eq!(code, 0, "stderr: {err}");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    let proofs = v["proofs"].as_array().unwrap();
+    let sides: Vec<&str> = proofs.iter().map(|p| p["side"].as_str().unwrap()).collect();
+    assert_eq!(
+        sides,
+        ["received", "received", "sent", "received", "received"]
+    );
+    let sent = &proofs[2];
+    let recipients = std::fs::read_to_string(fixture("testnet/INV-T-001.recipient.zdp")).unwrap();
+    assert_eq!(sent["proof"].as_str().unwrap(), recipients.trim());
+    assert_eq!(
+        (sent["value_zat"].as_u64(), sent["memo"]["text"].as_str()),
+        (Some(1_000_000), Some("INV-T-001"))
+    );
+    assert_eq!(
+        sent["url"].as_str().unwrap(),
+        format!("https://h.example/zeceipt/r#{}", recipients.trim())
+    );
+    let (code, out, _) = run(&[
+        "verify",
+        "--testnet",
+        recipients.trim(),
+        "--raw-tx-file",
+        &raw,
+    ]);
+    assert_eq!(code, 0, "{out}");
+}
+
 /// A `zdp:1:` delivery proof (zcash-delivery-proof's real mainnet vector, `fixtures/zdp/`) verifies through the same
 /// `verify` command, offline; it cannot meet `--require-signature`, and takes no challenge (judge round 1, D6).
 #[test]
@@ -119,6 +166,71 @@ fn verify_checks_a_zdp_delivery_proof() {
     let (code, out, _) = run(&["verify", &tampered, "--raw-tx-file", raw.to_str().unwrap()]);
     std::fs::remove_file(&raw).unwrap();
     assert_eq!(code, 1, "{out}");
+}
+
+/// Judge round 2, N1: a receipt re-signed with a stranger's key verifies as "made with the key shown"; a verifier who
+/// knows the issuer's key names it, and anything else is invalid at stage `issuer`.
+#[test]
+fn expect_issuer_refuses_another_key() {
+    let r: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture("testnet/fcfde625685b43d7-ironwood-2.json")).unwrap(),
+    )
+    .unwrap();
+    let key = r["issuer_pubkey"].as_str().unwrap().to_string();
+    let file = fixture("testnet/fcfde625685b43d7-ironwood-2.json");
+    let raw =
+        fixture("testnet/fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b.hex");
+    let ok = run(&[
+        "verify",
+        &file,
+        "--testnet",
+        "--raw-tx-file",
+        &raw,
+        "--expect-issuer",
+        &key.to_uppercase(),
+    ]);
+    assert_eq!(ok.0, 0, "{}", ok.2);
+    let other = "ab".repeat(32);
+    let (code, out, _) = run(&[
+        "verify",
+        &file,
+        "--testnet",
+        "--raw-tx-file",
+        &raw,
+        "--expect-issuer",
+        &other,
+    ]);
+    assert_eq!((code, stage(&out)), (1, "issuer".into()), "{out}");
+    // The pack: the right key counts all three; another key counts none.
+    let pack = |k: &str| {
+        run(&[
+            "verify-pack",
+            &fixture("testnet/pack.json"),
+            "--testnet",
+            "--raw-tx-dir",
+            &fixture("testnet"),
+            "--expect-issuer",
+            k,
+        ])
+    };
+    let (code, out, _) = pack(&key);
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(
+        (code, v["verified_total_zat"].as_u64()),
+        (0, Some(6_000_000)),
+        "{out}"
+    );
+    let (code, out, _) = pack(&other);
+    let v: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(
+        (
+            code,
+            v["all_valid"].as_bool(),
+            v["verified_total_zat"].as_u64()
+        ),
+        (1, Some(false), Some(0)),
+        "{out}"
+    );
 }
 
 /// Judge round 1, D4: a forwarder strips the signature and writes the verifier's challenge into the receipt. The

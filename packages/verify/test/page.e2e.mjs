@@ -190,6 +190,9 @@ test("a zdp:1 delivery proof opened by its link: no network named, fetched from 
   await ready(s.page);
   const summary = await text(s.page, "#summary");
   assert.match(summary, /zdp:1 delivery proof/);
+  // Each item of the proves/does-not-prove lists is one grid row: its icon and one text block (judge round 2, N2: a bare
+  // <code> became its own grid cell, "zdp:" beside the icon and the rest below).
+  assert.deepEqual(await s.page.evaluate(() => [...document.querySelectorAll(".checks li, .limits li")].filter((li) => li.children.length > 1 || (li.children.length === 1 && li.firstElementChild.tagName !== "SPAN")).map((li) => li.textContent.slice(0, 40))), []);
   assert.match(summary, /not named in the proof: the page asks Zcash mainnet, then testnet/);
   assert.match(summary, new RegExp(ZDP_MAIN.txid));
   assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 0, "nothing is fetched before the click");
@@ -435,7 +438,7 @@ test("a challenge-bound receipt waits for the challenge: wrong is INVALID at cha
   await s.page.fill("#challenge", "auditor-nonce-7");
   await s.page.click("#verify");
   await s.page.waitForFunction(() => document.getElementById("headline").textContent === "VALID");
-  assert.match(await text(s.page, "#challenge-line"), /Bound to your challenge, and it matched: the holder of the signing key/);
+  assert.match(await text(s.page, "#challenge-line"), /^Your challenge matched, but by key [0-9a-f]{8}…[0-9a-f]{8}, which no domain has confirmed here/);
   await assertPrivate(s);
   await s.context.close();
 });

@@ -8,7 +8,7 @@ import { initVerifier, parseReceipt, verifyReceipt, fetchRawTx, fetchChainTip, i
 // Each node gets 12 s here, not the package's 20 s: two hanging default nodes would otherwise keep a person waiting
 // 40 s before the page says so (review A1b).
 const PAGE_TIMEOUT_MS = 12_000;
-import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, verdictNote, verdictParts } from "./view.js";
+import { STAGE_COPY, NOT_FOUND_COPY, summaryRows, fetchPlan, outcome, inclusion, bindingOffer, bindingText, challengeLine, verdictNote, verdictParts } from "./view.js";
 import { issuerLine, keyIdNodes, kvRows, noteNodes } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
@@ -94,6 +94,7 @@ function verifyNow() {
   if (!current || current.raw === null) return;
   const result = verifyReceipt(current.link, current.raw, { challenge: $("challenge").value, requireSignature: false, network: current.network ?? "main" });
   const view = outcome(result, current.source);
+  current.lastResult = result;
   current.lastStage = result?.valid ? undefined : result?.stage;
   $("headline").textContent = view.headline;
   show("invalid", !view.valid);
@@ -218,6 +219,8 @@ $("check-issuer").addEventListener("click", async () => {
   const b = bindingText(await checkIssuerBinding(current.link));
   if (mine !== generation) return;
   $("binding").textContent = b.text;
+  // The challenge line depends on whether the key's domain vouches for it (judge round 2, N1).
+  if (current.lastResult) $("challenge-line").textContent = challengeLine(current.lastResult, { state: b.state, domain: issuerClaim(current.link).claim?.domain });
   // Green only when the domain vouches; amber otherwise, never red: the payment is proven either way.
   $("binding").className = b.state === "confirmed" ? "ok" : "pending";
   $("check-issuer").disabled = false;

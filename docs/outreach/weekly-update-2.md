@@ -11,30 +11,32 @@ id; `apps/console/test/shots/nu7-refusal.ts`, slice WU2a). Cue times are video t
 
 # Weekly update 2 (week of 28 September to 4 October): script and shot list
 
-128 spoken words in 60 seconds (1.3 to 2.3 words a second per row; the last two rows leave room for the lines that depend on the week). The voice-over is spoken over the footage. Title cards are plain text on a dark background.
+> **Current footage: take `20260930083345`** ([`footage-20260930.md`](footage-20260930.md): every segment's offsets). The takes and raw offsets named below were measured on the 09-25/26 takes, which show the interface before 09-29's design system; cut from the new take at the same steps.
+
+125 spoken words in 60 seconds (1.57 to 2.3 words a second per row; the week's lines are applied, 2026-09-30). The voice-over is spoken over the footage. Title cards are plain text on a dark background.
 
 | Time | Picture | Voice-over |
 |---|---|---|
 | 0:00–0:05 | Title card: "Zeceipt — update 2 (28 Sep–4 Oct)" and the line "A receipt for one shielded Zcash payment" | "Zeceipt, update two: a receipt for one shielded Zcash payment." |
 | 0:05–0:21 | Take 20260926182327. `5-export.webm` at 1.5 s, held to 0:10; at 4.5 s, the downloaded file as a table, held to 0:15. Then `6-pack.webm` at 1.0 s: `verify-pack`, five receipts valid, held to 0:21 | "Not shown last time: a paid batch downloads in the format OpenZcash's export uses, with a receipt link on every row. And an auditor checks a pack of receipts instead of asking for your viewing key." |
 | 0:21–0:44 | `10-nu7-refusal.webm` (take 20260928091704): 0.1–4.1 s (its first frame is white), the batch transaction as it is (v6, six outputs), held to 0:26; from 4.1 s, the same bytes with NU7's branch id, refused by name, held to 0:44. The on-screen comment says the second file is a stand-in | "This week's challenge: the draft spec for Zcash's next upgrade, NU7, gives it a new consensus branch. Our verifier would have called such a transaction malformed. Now it names the upgrade, and says this version can't read it yet. With the upstream fix, not yet released, the same test transaction issues and verifies." |
-| 0:44–0:53 | Title card: "Receipt pages: a fallback testnet endpoint" (see "Rows that depend on the week") | "The receipt page gained a fallback testnet endpoint, and says the node and any service behind it see the lookup." |
-| 0:53–1:00 | Title card: "Next: …" (see below) | "Next: receipts on a public chain, and the videos." |
+| 0:44–0:53 | To record (no take yet; with the footage re-recorded after the 10-01 UI freeze, `11_plan.md` §8): the live receipt page opening the README's testnet link (INV-T-001), Fetch pressed: VALID, 0.01 TAZ, "Mined at height 4420000, N confirmations" | "Receipts now run on testnet: this one, signed by us, verifies against a public node." |
+| 0:53–1:00 | Title card: "Next: the videos and the submission" | "Next: the videos, and the submission. The code is open source." |
 
 ## Rows that depend on the week
 
 Say these only if they are true when recording. Each replaces the 0:44 row, keeping the total at about 60 seconds.
 
-- **The public-chain run has happened** (PROOF §6): use its footage, `zeceipt verify` on a public-chain receipt and the transaction in an explorer. Say "on testnet" or "on mainnet", as PROOF §6 records it: "Receipts now run on [testnet]: this one verifies against a public node." The last card then reads "Next: the videos, and one pilot", and so does its line.
+- **The public-chain run has happened: applied 2026-09-30.** It ran on testnet (PROOF §6), so the 0:44 row shows the testnet receipt and says "testnet", and the fallback-endpoint card it replaced is dropped. Say "mainnet" only if a mainnet receipt is issued by the recording (RSK-3, cut-off 10-02). The pilot is not in the last line: RSK-28 triggered on 09-30, and no pilot is expected by 10-05.
 - **A pilot paid a real batch** (4.2.1.1): one sentence naming the payer only if they agreed to be named, otherwise "one team".
-- **The repository is public** (4.1.1.1; true since 2026-09-29): add "The code is open source" to the last line.
-- **Neither happened:** keep the rows above as written. They are true today.
+- **The repository is public** (4.1.1.1; true since 2026-09-29): applied, "The code is open source" is in the last line.
+- **No pilot:** keep the rows above as written. They are true on 2026-09-30.
 
 ## Do not say
 
 - **"NU7 transaction"** without saying it is a stand-in. No NU7 transaction exists yet: the second file is the batch's own bytes with the header's branch id changed, and it is not consensus-valid, because its signatures commit to the old branch. The on-screen comment says so, and "test transaction" in the voice-over covers it.
 - **"Ready for NU7" or "supports NU7":** the released build refuses NU7's branch. Support waits for Zcash's crates to release it (U1c, RSK-14).
-- **"on mainnet" or "on testnet"** over the export and pack footage: both are regtest.
+- **"on mainnet" or "on testnet"** over the export and pack footage: both are regtest. And "on mainnet" about zeceipt's own receipts while they are testnet only (PROOF §6); the mainnet payment the page can show is zcash-delivery-proof's vector (§7).
 - **"NU7 has been released" or "NU7 is live":** ZIP 259 is a draft; activation is announced for 2026-10-06 on testnet and 2026-11-05 on mainnet (R121, R128). Recorded on 10-05, neither is live.
 - **"Independent nodes"** or **"a second node":** both testnet endpoints reach one operator, zec.rocks, because ChainSafe's is a proxy to it (R125).
 - **"audited":** the security work is a self-review (`docs/SECURITY_REVIEW.md`).

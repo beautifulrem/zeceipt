@@ -1,6 +1,7 @@
 <!--
 DRAFT, not posted (WBS 4.1.2.2; slice L1). Posting is the user's decision: a public action on forum.zcashcommunity.com.
 Links filled 2026-09-30: the repository is public at https://github.com/beautifulrem/zeceipt since 2026-09-29 (WBS 4.1.1.1).
+Refreshed 2026-09-30 (PM round 2, N02): the testnet receipts (PROOF §6), the `zdp:1:` check (§7) and the live page are in; "What does not exist yet" now names mainnet, not the testnet run. If a mainnet receipt exists by the day it is posted (RSK-3, cut-off 10-02), change that line first. Target post date 10-01, the day of the Zcash Foundation's architecture workshop (`11_plan.md` §8).
 Suggested category: Applications, or Ecosystem Tooling if the forum has it. Suggested title below.
 the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 -->
@@ -29,6 +30,8 @@ Both follow the spec's own wording ([`spec/receipt-v0.md`](https://github.com/be
 ## What works today
 
 - **Receipt core and CLI** (Rust, `librustzcash` crates): Ironwood outputs of v6 transactions, issued and verified end to end on a regtest chain and on a synthetic transaction built from a real mainnet v6 template (it is on no chain); real mainnet v6 transactions are parsed and fetched over gRPC. Orchard and Sapling output recovery is implemented and tested against the official Orchard vectors and Sapling round trips; the Orchard pool is sealed, so Orchard receipts are historical. `zeceipt issue` recovers each output the viewing key opens and writes a signed receipt; `zeceipt verify` fails closed at a named step (txid, signature, challenge, output, recovery). `zeceipt pack` and `verify-pack` bundle a period's receipts with a verified total, labelled a lower bound.
+- **Receipts on Zcash testnet:** three payments (0.01, 0.02 and 0.03 TAZ, mined at heights 4,420,000 to 4,420,005), each with a signed receipt that verifies against a public node, offline from the raw transaction, and on the live receipt page: [open one in your browser](https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ) (the page asks a public testnet node for the transaction when you click Fetch). Their pack totals 0.06 TAZ, and a tampered copy is refused.
+- **Recipients can prove a payment too.** The same verifier checks zcash-delivery-proof's `zdp:1:` proofs, which a recipient makes with an incoming viewing key. That project's own mainnet test vector verifies live, in the CLI and on the receipt page; it is their payment, not ours.
 - **Consensus-valid proof on a private regtest chain:**
   - a real wallet (zcash-devtool) builds an Ironwood transaction, Zebra mines it and Zaino indexes it;
   - receipts are issued from the sender's UFVK and verified over gRPC and offline;
@@ -46,11 +49,11 @@ Both follow the spec's own wording ([`spec/receipt-v0.md`](https://github.com/be
 
   It drives Zkool: the seed stays in the wallet, and the console holds a viewing key and a Zkool token for its own account only. It refuses to pay through a Zkool that answers requests without a token. Shown on regtest end to end: batches made on the form, and batches made from USD payables at Kraken's live rate with receipts issued automatically.
 
-Evidence for each item: [`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §1, §2, §2b–§2e, §5 and §5b–§5g.
+Evidence for each item: [`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §1, §2, §2b–§2e, §5, §5b–§5g, §6 (testnet) and §7 (delivery proofs).
 
 ## What does not exist yet
 
-- **Receipts on a public chain:** the testnet run is prepared and waits on faucet funds, and mainnet comes after. This is why I'm asking for a pilot.
+- **Receipts on mainnet:** three signed receipts verify on testnet today (above; `docs/PROOF.md` §6); a pilot's batch would be the first zeceipt receipts on mainnet. This is why I'm asking for a pilot.
 - **Two approvers:** the console has one approver and no sign-in yet.
 - **Accounting exports:** the console exports a batch in OpenZcash's own CSV format, plus a receipt link per row; QuickBooks and Xero are not built for this hackathon. If you maintain a ledger, would that format be useful to you?
 
@@ -62,7 +65,7 @@ One team that pays 3–10 contributors in shielded ZEC and wants each of them, o
 2. Each recipient gets a receipt link and can verify it in the browser, with nothing installed.
 3. You tell me what was missing.
 
-Timing: a batch paid between 1 and 3 October makes it into our hackathon submission; later is just as welcome.
+Timing: a batch paid by 9 October can be named in our hackathon submission, with your consent; later is just as welcome.
 
 Your keys stay yours: the console never holds a spending key, and the CLI needs a viewing key plus a receipt-signing key it generates (`zeceipt keygen`), never a spending key. Expect about an hour of your time. ZecHub's bounty payouts, a ZCG grantee team, or a payroll team (hello, Konclave users) would be ideal.
 

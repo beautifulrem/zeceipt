@@ -25,7 +25,9 @@ The first release. This section becomes `0.1.0` when the tag is cut.
   - Evidence: the official Orchard note-encryption vectors, round trips and tamper cases (`docs/PROOF.md` §2, §3), and a seeded mutation test that finds no panic: every committed transaction through parse, issue and verify (55,000 inputs in its deep run), and a signed receipt (as JSON and as a link), an audit pack and a well-known file through parsing, the signature and verification (250,000).
   - A v5 or v6 transaction whose own consensus branch its version is not valid in (such as v6 under NU6.1) is refused as malformed, as Zebra has refused it since 6.4.2 (GHSA-h5rr-8pqv-grp9); a transaction under a branch the crates do not know is refused by name. A recovered note value above MAX_MONEY is refused at recovery, when issuing and when verifying, instead of being reported valid.
 - **Delivery proofs from recipients (`zdp:1:`).** The core, the CLI's `verify`, the WASM verifier, the receipt page (`/r#zdp:1:…`) and the demo check the delivery proofs of saplingcash/zcash-delivery-proof (its SPEC.md §4), which a recipient makes with an incoming viewing key. The check re-serialises the transaction, rebuilds the note against the action's `cmx` and decrypts the action with the note's own key. A delivery proof names no network, so the page asks mainnet's nodes, then testnet's. That project's vectors are in `fixtures/zdp/`, and its real mainnet payment verifies live (`docs/PROOF.md` §7). Every verification now also reports the ZIP 239 `wtxid` and a `kind`.
-- **Receipts on a public chain.** Three signed receipts for three testnet payments (`fixtures/testnet/`, `docs/PROOF.md` §6), verified online, offline in CI and on the live receipt page. The receipt page and demo are hosted on GitHub Pages, and they name testnet and regtest amounts TAZ.
+- **`zeceipt prove-delivery`**: `zdp:1:` delivery proofs made from a UFVK, received or sent, each checked before it is printed. They are byte-identical to zcash-delivery-proof's own for its vectors. A recipient's proof for testnet INV-T-001 is in `fixtures/testnet/`.
+- **`--expect-issuer <pubkey>`** on `verify` and `verify-pack`: a receipt signed by any other key is invalid at stage `issuer`. The receipt page no longer reads a matching challenge as "matched" until the key's domain confirms it.
+- **Receipts on a public chain.** Three signed receipts for three testnet payments (`fixtures/testnet/`, `docs/PROOF.md` §6), verified online, offline in CI and on the live receipt page. The receipt page and demo are hosted on GitHub Pages at `https://beautifulremi.dpdns.org/zeceipt/` (since 2026-09-30), and they name testnet and regtest amounts TAZ.
 - **`npm run try`** (in `apps/console`): the payout console in a realistic state (paid, draft and receipted batches, payables) with a fake wallet and a local rate, for clicking through with no chain. The design gallery uses the same setup.
 - **`zeceipt-lwd`.** A lightwalletd and Zaino gRPC client: `GetTransaction`, `GetLatestBlock`, and a `GetBlockRange` scan. It was checked against `zec.rocks` on mainnet (§1).
 - **`zeceipt` CLI.**
@@ -68,7 +70,7 @@ The first release. This section becomes `0.1.0` when the tag is cut.
     - a refusal to pay through a Zkool that serves requests without a token.
 
 Not in this release:
-- receipts on a public chain (the testnet run waits on faucet funds; `docs/PROOF.md` §4);
+- receipts on mainnet: zeceipt's own public-chain receipts are on testnet only (`docs/PROOF.md` §6), and a mainnet run waits on funds (RSK-3). The mainnet payment the live page checks is zcash-delivery-proof's own test vector, not zeceipt's (§7);
 - `@zeceipt/verify` on npm (it is packaged, not published);
 - sign-in for the console;
 - transactions made after NU7 activates: its consensus branch (`0x77190AD9`, ZIP 259) isn't known to the Zcash crates this release is built on, and such a transaction is refused with an error naming NU7;

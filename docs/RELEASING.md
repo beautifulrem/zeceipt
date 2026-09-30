@@ -1,6 +1,6 @@
 # Releasing
 
-How a version of Zeceipt is released, written for the first one, v0.1.0. The tag is cut on 2026-10-09 after the security review rerun, and `@zeceipt/verify` is published on 2026-10-10 (`docs/product/11_plan.md` §8; WBS 4.1.1.4, 3.4.2.3, 4.1.1.3).
+How a version of Zeceipt is released, written for the first one, v0.1.0. The tag is cut on 2026-10-02 → 10-03, and `@zeceipt/verify` is published on 2026-10-03 (moved earlier on 2026-09-30, PM round 1 D04, so both are visible during judging; the 10-08 → 10-09 security rerun then checks the final submission, and fixes after the tag ship as 0.1.x) (`docs/product/11_plan.md` §8; WBS 4.1.1.4, 3.4.2.3, 4.1.1.3).
 
 Steps marked 👤 are the maintainer's own, because they publish or use the maintainer's accounts or keys. The others can be run by anyone with the repository. Each step says what must be true before the next.
 
@@ -56,7 +56,7 @@ Then, in this order. The last step needs a clean tree, so every earlier step tha
    
    If the Rust crates changed since `pkg/` was built, rebuild it (README, "Building the WASM package"), run the checks again, and commit. `verify.mjs`, and `check_release.py` (which reads the WASM's own `version()`), fail on a stale build.
 5. **The changelog.** In `CHANGELOG.md`:
-   - rename `## [Unreleased]` to `## [0.1.0] - 2026-10-09`, the day the tag is cut;
+   - rename `## [Unreleased]` to `## [0.1.0] - <the day the tag is cut>` (planned 2026-10-02 → 10-03);
    - delete its sentence "This section becomes `0.1.0` when the tag is cut";
    - add a new, empty `## [Unreleased]` above it.
    

@@ -185,7 +185,7 @@ try {
     await page.getByRole("button", { name: "Issue receipts" }).waitFor();
     await step("confirmed on chain (2 confirmations): receipts can be issued");
     await page.getByRole("button", { name: "Issue receipts" }).click();
-    await page.getByRole("link", { name: "receipt link" }).nth(4).waitFor({ timeout: 180_000 });
+    await page.getByRole("link", { name: /^Receipt for / }).nth(4).waitFor({ timeout: 180_000 }); // named per payee since slice F
     await page.locator("#receipts-heading").scrollIntoViewIfNeeded();
     await step("five receipts, one per payment: each link verifies one output");
     await page.locator("#history-heading").scrollIntoViewIfNeeded();

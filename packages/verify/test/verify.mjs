@@ -269,7 +269,18 @@ check("receipt page: mempool is pending, fork is not the main chain, a file is u
   pageView.inclusion(node({ status: "mempool" })).state === "pending" && pageView.inclusion(node({ status: "fork" })).state === "fork" && pageView.inclusion({ kind: "file" }).state === "unknown");
 check("receipt page: signed issuer says binding unknown; unsigned says the label is unauthenticated",
   pageView.issuerLines(good).join(" ").includes("issuer binding: unknown") && /^Unsigned: the label is the sender's unauthenticated text/.test(pageView.issuerLines({ ...good, issuer_pubkey: undefined })[0]));
-check("receipt page: challenge line for bound and bearer receipts, never 'the issuer made this receipt for you' (judge round 1, D4)", /matched: the holder of the signing key/.test(pageView.challengeLine({ challenge_checked: true })) && /not bound to a signed challenge/i.test(pageView.challengeLine({ challenge_checked: false })) && !/issuer made this receipt for you/.test(pageView.challengeLine({ challenge_checked: true })));
+{
+  // Judge round 2, N1: a receipt re-signed with a stranger's key under a claimed key id matches the challenge; until the
+  // key's domain confirms it, the line says anyone holding a receipt could have made it, and only then "matched".
+  const signed = { challenge_checked: true, issuer_pubkey: "8fdf" + "0".repeat(56) + "beef", issuer_key_id: "2026-09@zfnd.org" };
+  const unconfirmed = pageView.challengeLine(signed);
+  const notListed = pageView.challengeLine(signed, { state: "not_listed", domain: "zfnd.org" });
+  const confirmed = pageView.challengeLine(signed, { state: "confirmed", domain: "zfnd.org" });
+  check("receipt page: an unconfirmed key's matching challenge says anyone holding a receipt could make one, and names the key", /^Your challenge matched, but by key 8fdf0000…0000beef, which no domain has confirmed here: anyone who holds a receipt for this payment can make one like this with their own key/.test(unconfirmed) && /or check its domain/.test(unconfirmed) && notListed === unconfirmed, unconfirmed);
+  check("receipt page: only a key its domain lists reads as matched, naming the domain", confirmed === "Bound to your challenge, and it matched: the holder of the key zfnd.org lists made this receipt after you sent the challenge.", confirmed);
+  check("receipt page: a bearer receipt's line, and never 'the issuer made this receipt for you' (judge round 1, D4)", /not bound to a signed challenge/i.test(pageView.challengeLine({ challenge_checked: false })) && ![unconfirmed, confirmed].some((l) => /issuer made this receipt for you/.test(l)));
+  check("receipt page: the summary marks a key id's domain as claimed and not checked", pageView.summaryRows({ network: "main", txid: "ab", pool: "ironwood", output_index: 0, label: "L", signature: "s", issuer_pubkey: signed.issuer_pubkey, issuer_key_id: "2026-09@zfnd.org" }).find(([k]) => k === "Issuer signature")[1].includes("(key id 2026-09@zfnd.org); claims zfnd.org, not checked"));
+}
 {
   // A forwarder strips the signature and writes the verifier's challenge in: valid, but the challenge is not checked.
   const f = JSON.parse(receipt);

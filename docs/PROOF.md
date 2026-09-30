@@ -282,6 +282,22 @@ $Z verify --testnet --require-signature receipts/<file>.json         # exit 0, w
 
 Record the txids, the receipt URLs' hosts, the `verify` outputs (never an OCK) and the tampered copy's exit code in §6 as a **testnet** entry.
 
+**Mainnet, when the owner funds it** (3.4.1.5; about 0.0011 ZEC: 10,000 zat paid, as zcash-delivery-proof's vector did, plus the ZIP 317 fee of 10,000–25,000 zat and margin). Use a **new** wallet whose UFVK is not published (judge round 2, N7; PM D14), so the receipt shows that one payment and nothing else of the wallet:
+
+```bash
+D=raw/tools/zcash-devtool/target/release/zcash-devtool; M=raw/tools/mainnet-wallet; Z=zeceipt/target/release/zeceipt
+$D wallet -w $M init -n main -s zecrocks -i $M/identity.txt --name zeceipt-mainnet   # prints its address; keep the mnemonic offline
+# the owner sends ~0.0011 ZEC to that address from their own wallet; then, after 10 confirmations:
+$D wallet -w $M sync && $D wallet -w $M balance
+$D wallet -w $M send -i $M/identity.txt --address <a recipient that is not this wallet> --value 10000 --memo "INV-M-001"
+$D wallet -w $M list-accounts        # its UFVK, saved to $M/ufvk.txt (outside the repository, never published)
+$Z keygen --out $M/issuer.key
+$Z issue --txid <txid> --ufvk-file $M/ufvk.txt --key-file $M/issuer.key --key-id mainnet-2026-10 --label INV-M-001 --host https://beautifulremi.dpdns.org/zeceipt --out-dir zeceipt/fixtures/mainnet
+$Z verify --require-signature zeceipt/fixtures/mainnet/<file>.json    # exit 0, with height and confirmations
+```
+
+Must be mined before mainnet NU7 (2026-11-05), since this build refuses NU7's branch. A receipt mined before then keeps verifying after it.
+
 ## 5. regtest — consensus-valid Ironwood transaction, UFVK issuance, gRPC verification (2026-09-22, verbatim transcript)
 
 Setup (all built from source under `raw/tools/`, outside this repo): `zebrad` v6.3.0 with `--features internal-miner`, Regtest with every upgrade including NU6.3 (Ironwood) at height 1; `zainod` (Zaino) indexing it with the fetch backend on `http://127.0.0.1:8137`; `zcash-devtool` built with `regtest_support`, wallet restored from a throwaway mnemonic. Coinbase was mined to the wallet's transparent address, matured, shielded into the Ironwood pool (`shield` txid `e97e6c39…088d`), and 2.5 REG was sent from account 0 to account 1 with a memo (`send` txid `48be62e2…a92d`, mined at height 324; account 1's balance showed `Ironwood Spendable: 2.50000000 REG` after sync). The raw transaction (`getrawtransaction` from zebrad) is committed as `fixtures/regtest-48be62e2…a92d.hex` and the receipt as `fixtures/regtest-receipt.json`; `crates/zeceipt-cli/tests/cli.rs::regtest_receipt_verifies_offline_and_tamper_fails` replays the offline part.
@@ -901,7 +917,7 @@ Zeceipt's own receipts on a public chain. The run followed §4, starting from `f
 | INV-T-003 | 0.03 TAZ | `a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8` | 4,420,005 | Ironwood 2 |
 
 - **Issuance.** Each transaction was issued once it was mined, with `zeceipt issue --testnet --txid … --ufvk-file <the UFVK above> --key-file <a new testnet issuer key> --key-id testnet-2026-09 --label INV-T-00n --host https://beautifulremi.dpdns.org/zeceipt`. Each issued exactly one receipt: the payment. The UFVK recognised the four change outputs of each transaction and skipped them. The issuer key is `cd34f5535c1398580429f82b4d2344e553132148c8e67376b5678901f84a3f6e`. The receipts are committed in `fixtures/testnet/`, with the three raw transactions and the pack.
-- **Online verification**, 07:58 UTC, `zeceipt verify --testnet --require-signature fixtures/testnet/<file>.json`: all three exit 0, valid. INV-T-001's output, verbatim except that `proves` and `does_not_prove` are omitted:
+- **Online verification**, `zeceipt verify --testnet --require-signature fixtures/testnet/<file>.json`. INV-T-001 was verified as soon as it was issued, before the other two were sent, with 3 confirmations. All three were verified again at 07:58 UTC, all exit 0 and valid, with 6, 3 and 1 confirmations. INV-T-001's first output, verbatim except that `proves` and `does_not_prove` are omitted:
 
 ```json
 {
@@ -926,9 +942,11 @@ Zeceipt's own receipts on a public chain. The run followed §4, starting from `f
 }
 ```
 
-- **The pack.** `zeceipt pack` then `verify-pack --testnet --require-signature`, from the node and again offline with `--raw-tx-dir fixtures/testnet`, gave `all_valid: true` and `verified_total_zat: 6000000`, with no duplicates. The offline check runs in CI (`the_testnet_receipts_verify_offline`).
+- **The pack.** `zeceipt pack --declared-total-zat 6000000` then `verify-pack --testnet --require-signature`, from the node and again offline with `--raw-tx-dir fixtures/testnet`, gave `all_valid: true` and `verified_total_zat: 6000000`, with no duplicates. The offline check runs in CI (`the_testnet_receipts_verify_offline`).
 - **Tampered copies** of INV-T-001, with the OCK's first character changed, both exit 1. Signed, it fails at `signature` ("signature is invalid"). Unsigned, it fails at `recovery` ("the ock does not open ironwood output 2").
 - **In the browser**, the live receipt page on GitHub Pages opened INV-T-001's link as issued ([the link](https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ)). The link landed on `/zeceipt/r/` with its fragment, and after "Fetch" the page showed **VALID**, "0.01 ZEC to utest19q…rwd44u, memo INV-T-001, is proven" (the page named every amount ZEC then; since the next commit a testnet or regtest amount reads TAZ, "0.01 TAZ to …"). It showed "Mined at height 4420000, 4 confirmations, according to zjs.zec.rocks/testnet" and "Signed by key cd34f553…3f6e (key id testnet-2026-09)". It logged no error.
+
+- **The recipient's own proof.** `zeceipt prove-delivery --testnet --txid fcfde625… --ufvk-file <the recipient account's UFVK, outside the repository> --host https://beautifulremi.dpdns.org/zeceipt` made one `zdp:1:` proof, side `received`, for Ironwood action 2: 0.01 TAZ, memo INV-T-001. `zeceipt verify --testnet "<proof>"` fetched the transaction and answered valid, `delivery-proof`, height 4,420,000 (`fixtures/testnet/INV-T-001.recipient.zdp`; [its link on the live page](https://beautifulremi.dpdns.org/zeceipt/r#zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g)). From the issuer's published UFVK, the same transaction gives that proof byte for byte as `sent`, plus its four change notes as `received`, which the CLI test `prove_delivery_makes_the_recipients_proof_from_the_senders_key` checks offline. Proofs made from zcash-delivery-proof's constructed vectors match that project's own bytes (`crates/zeceipt-core/tests/delivery.rs`).
 
 The recipient is shown as the unified address holding only the Orchard-family receiver that the output paid (`utest19qmzk8…`). That address is the account's default address's receiver, not the full default address, as in §5b.
 
@@ -961,7 +979,7 @@ Zeceipt checks `zdp:1:` delivery proofs, the format of [saplingcash/zcash-delive
 }
 ```
 
-**Testnet**, same run, `zeceipt verify --testnet "<testnet.json's proof>"`: `valid: true`, 546 zat to `utest1qk2vp9yrz9…mqz5y823`, mined at 4,398,896 with 21,074 confirmations. That payment is one of sapling.cash's shielded "stamps", whose nine-line receipt memo the verifier decrypts, so zeceipt checks that product's stamps as well.
+**Testnet**, same run, `zeceipt verify --testnet "<testnet.json's proof>"`: `valid: true`, 546 zat to `utest1qk2vp9yrz9…mqz5y823`, mined at 4,398,896 with 21,074 confirmations. That payment is one of sapling.cash's shielded "stamps", and the verifier decrypts its nine-line receipt memo. What zeceipt checks is the `zdp:1:` note opening of that payment. It does not read a stamp's own certificate format (`splg-proof:1:`), and one fed to it is refused as "not a receipt payload" (judge round 2, N4).
 
 **In Chrome**, same day. The receipt page, served from `scripts/build_site.sh`'s output under a `/zeceipt/` path as GitHub Pages will serve it, opened `r/#<the mainnet proof>`. It showed the summary first: the format, "not named in the proof: the page asks Zcash mainnet, then testnet", the transaction and the output. After the click it showed **VALID**, "0.0001 ZEC to u1avnwj3…cnjfzs, memo zcash-delivery-proof test vector, is proven", "Mined at height 3499556, 1628 confirmations, according to zjs.zec.rocks/mainnet", "No issuer: a delivery proof is unsigned…" and no issuer check. The page logged no error. The paste demo fetched the testnet proof's transaction ("Fetched from https://zjs.zec.rocks/testnet (mined at height 4398896)") and showed VALID. The page's Chrome suite covers both paths offline: mainnet, and the testnet fallback after mainnet's nodes answer "not found" (`packages/verify/test/page.e2e.mjs`).
 

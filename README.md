@@ -25,7 +25,7 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="537 tests" src="https://img.shields.io/badge/tests-537-2ea44f?style=flat-square">
+  <img alt="540 tests" src="https://img.shields.io/badge/tests-540-2ea44f?style=flat-square">
 </p>
 
 ---
@@ -34,15 +34,15 @@
 > Built for **Colosseum's Crypto World's Fair 2026** (Zcash track) by one developer, [@beautifulrem](https://github.com/beautifulrem). The repository started on 2026-09-21 PT, during the event. See [For judges](#for-judges) for a ten-minute run and where each claim's evidence is.
 
 <p align="center">
-  <strong>Try it live:</strong> <a href="https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ">a signed zeceipt receipt on testnet</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/r/#zdp:1:WXvYf_frFEgVwXWPSRVtapErcRDlljHTNvGK5H5d-W4CAADxmRh1VsecY8DmWr_q_tgANvb0jq3j1RgadHLEZyn5ZatN3aoO7fCrw0wdECcAAAAAAABCBHYMP_cPDLK8l-ADNQ-by718ii6Z5IwVxCO_g0Mgbg">a real mainnet payment, verified in your browser</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/demo/">the verifier demo</a>
+  <strong>Try it live:</strong> <a href="https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDkiLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6IjFiNmQ2Nzc0YzdkNDkwYjQ2NjZhNWI0NWQ1NmM1MTM3NGVkMmRhYzUzZWI2NGE4YWI0M2QzOTc4MTA5Mjk5ZDk0ZDBkMmE2YmNhMjA1ZjU2MTQwMzBlNjI2Y2U2ZTMzYTlhMmE5YzRkNTI5OGQ5MmIwNTgxOGE2ODA0YjJlNzAwIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ">a signed zeceipt receipt on testnet</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/r/#zdp:1:WXvYf_frFEgVwXWPSRVtapErcRDlljHTNvGK5H5d-W4CAADxmRh1VsecY8DmWr_q_tgANvb0jq3j1RgadHLEZyn5ZatN3aoO7fCrw0wdECcAAAAAAABCBHYMP_cPDLK8l-ADNQ-by718ii6Z5IwVxCO_g0Mgbg">a real mainnet payment (zcash-delivery-proof's test vector, a recipient-side proof), verified in your browser</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/demo/">the verifier demo</a>
 </p>
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/receipt-page-dark.png">
-    <img src="docs/assets/receipt-page.png" alt="The receipt page showing VALID: the payment's recipient, value and memo, its chain inclusion, and the issuer's signature" width="720">
+    <img src="docs/assets/receipt-page.png" alt="The live receipt page showing VALID for a testnet receipt: 0.01 TAZ with memo INV-T-001, mined at height 4420000, signed by the issuer key" width="720">
   </picture><br>
-  <sub>The receipt page verifying a receipt in the browser (WebAssembly). The transaction is the committed synthetic fixture, which is on no chain: the network, height and confirmations shown are simulated, as in the page's test suite (<code>packages/verify/test/shots/receipt-page.mjs</code>).</sub>
+  <sub>The live receipt page verifying one of zeceipt's own signed receipts in the browser (WebAssembly): a real testnet payment, fetched from a public node (<code>fixtures/testnet/</code>, <code>docs/PROOF.md</code> §6; shot by <code>packages/verify/test/shots/receipt-page.mjs</code> with <code>ZECEIPT_SHOT_URL</code>).</sub>
 </p>
 
 ## Why
@@ -82,7 +82,7 @@ A receipt is a small signed JSON envelope, `zeceipt-v0` ([`spec/receipt-v0.md`](
 
 | A valid receipt proves | It does not prove |
 |---|---|
-| The named transaction pays the shown value to the shown recipient, with the shown memo | Who is presenting it (for interactive proofs, ask for a signed receipt bound to your challenge) |
+| The named transaction pays the shown value to the shown recipient, with the shown memo | Who is presenting it (for interactive proofs, ask for a receipt bound to your challenge and signed by a key you know, `--expect-issuer`, or that its domain confirms, `--check-issuer`) |
 | Whoever made it knew that output's OCK | That the output is still unspent, or that whoever presents the receipt can spend it (a receipt carries no spending ability) |
 | If signed: the holder of the issuer key made this envelope and wrote its label | Anything about other outputs, transactions or balances |
 | | Spend authority: it is not a full ZIP 311 disclosure (see below) |
@@ -94,7 +94,7 @@ Verification also reports the transaction's depth in confirmations, as the node 
 
 ### The recipient's side: `zdp:1:` delivery proofs
 
-A receipt comes from the sender, since an OCK derives from the outgoing viewing key. A recipient can prove a payment with a [zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof) `zdp:1:` proof instead: it opens one note by its receiver, value and rseed, and is made with an incoming viewing key. Zeceipt's CLI, WASM verifier, receipt page and demo check these proofs as that specification requires. They rebuild the note, match its commitment, and decrypt the action with the note's own key. They also report the wtxid and the depth. A delivery proof is unsigned and takes no challenge, and the page says so. Try it on a real **mainnet** payment:
+A receipt comes from the sender, since an OCK derives from the outgoing viewing key. A recipient can prove a payment with a [zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof) `zdp:1:` proof instead: it opens one note by its receiver, value and rseed, and is made with an incoming viewing key. Zeceipt's CLI, WASM verifier, receipt page and demo check these proofs as that specification requires, and `zeceipt prove-delivery --ufvk-file …` makes them: from the recipient's key for what it received, from the sender's for what it sent, byte for byte as zcash-delivery-proof does. They rebuild the note, match its commitment, and decrypt the action with the note's own key. They also report the wtxid and the depth. A delivery proof is unsigned and takes no challenge, and the page says so. Try it on a real **mainnet** payment:
 
 ```bash
 cargo build --release
@@ -109,7 +109,7 @@ target/release/zeceipt verify "$(python3 -c 'import json; print(json.load(open("
 | [`crates/zeceipt-core`](crates/zeceipt-core) | Parses v4, v5 and v6 transactions. Derives the OCK, recovers individual outputs for Ironwood, Orchard and Sapling, and issues and verifies receipts. Checks `zdp:1:` delivery proofs |
 | [`crates/zeceipt-types`](crates/zeceipt-types) | The `zeceipt-v0` envelope, canonical signing bytes, ed25519 and the URL form (no Zcash dependencies) |
 | [`crates/zeceipt-lwd`](crates/zeceipt-lwd) | A lightwalletd/Zaino gRPC client (`GetTransaction`, `GetLatestBlock`, block-range scan) |
-| [`crates/zeceipt-cli`](crates/zeceipt-cli) | The `zeceipt` binary: `inspect`, `find-ironwood`, `keygen`, `issue`, `verify`, `pack`, `verify-pack`, `well-known` |
+| [`crates/zeceipt-cli`](crates/zeceipt-cli) | The `zeceipt` binary: `inspect`, `find-ironwood`, `keygen`, `issue`, `prove-delivery`, `verify`, `pack`, `verify-pack`, `well-known` |
 | [`packages/verify`](packages/verify) | `@zeceipt/verify`: the WASM verifier for the browser and Node, the static receipt page (`r/`) and a paste-a-receipt demo |
 | [`apps/console`](apps/console) | A self-hosted payout console (Next.js, SQLite, loopback only). It pays a batch in one shielded transaction and issues a receipt for each line |
 
@@ -223,7 +223,7 @@ flowchart LR
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 72 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 75 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
@@ -238,15 +238,16 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 
 | Evidence | Chain | What it shows |
 |---|---|---|
-| A `zdp:1:` delivery proof of a real payment ([`fixtures/zdp/mainnet.json`](fixtures/zdp)) | **Mainnet**, height 3,499,556, fetched live | Zeceipt's verifier checking a real shielded Ironwood payment from a public node ([`docs/PROOF.md`](docs/PROOF.md) §7) |
+| A `zdp:1:` delivery proof of a real payment, made and proven by saplingcash (zcash-delivery-proof's own test vector, [`fixtures/zdp/mainnet.json`](fixtures/zdp)), not by zeceipt | **Mainnet**, height 3,499,556, fetched live | Zeceipt's verifier checking a third party's real shielded Ironwood payment from a public node ([`docs/PROOF.md`](docs/PROOF.md) §7) |
+| Zeceipt's own receipts on mainnet | **None yet** | Waits on mainnet funds; the runbook is in PROOF §4 |
 | The mainnet transaction parsed and its outputs listed | **Mainnet** | Real v6 Ironwood transactions read through zec.rocks (§1) |
 | Payout batches paid, receipted and verified | Local **regtest** (Zebra, Zaino, Zkool) | The console end to end, with real proofs and signatures, on a private chain (§5–§5g) |
 | Zeceipt's own signed receipts for three payments ([`fixtures/testnet/`](fixtures/testnet)) | **Testnet**, heights 4,420,000–4,420,005 | Issue, verify online and offline, an audit pack of 0.06 TAZ, a tampered copy refused, and a link verified on the live page (§6) |
-| The README screenshot and the demo's sample | None: a synthetic transaction | The page's layout; the height and confirmations in the screenshot are simulated |
+| The demo's "Load the sample receipt" | None: a synthetic transaction | The page's layout and checks; the page says the sample is on no chain |
 
 | Where to look | What it shows |
 |---|---|
-| [`docs/PROOF.md`](docs/PROOF.md) | Each claim with its transcript: mainnet parsing (§1), offline issue, verify and tamper (§2), the browser verifier (§2b–§2e), and the console on a live regtest chain (§5–§5g) |
+| [`docs/PROOF.md`](docs/PROOF.md) | Each claim with its transcript: mainnet parsing (§1), offline issue, verify and tamper (§2), the browser verifier (§2b–§2e), the console on a live regtest chain (§5–§5g), zeceipt's own signed receipts on testnet (§6), and a third party's mainnet delivery proof checked live (§7) |
 | [`spec/receipt-v0.md`](spec/receipt-v0.md) | The receipt format, with test vectors |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) | What is defended and what is not |
 | [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) | Other Zcash receipt and disclosure work, and how this differs |
@@ -264,7 +265,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 |---|---|
 | ✅ Done | Signed receipts on testnet for three payments (PROOF §6). Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. `zdp:1:` delivery proofs checked, a real mainnet one included. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
 | 🟡 In progress | Receipts on mainnet (testnet is done, [`docs/PROOF.md`](docs/PROOF.md) §6). Publishing `@zeceipt/verify` to npm |
-| ⏳ Next | NU7 support once a `zcash_protocol` release carries it ([`docs/RELEASING.md`](docs/RELEASING.md)). Sign-in for the console. A v1 aligned with ZIP 311's encoding |
+| ⏳ Next | NU7 support once a `zcash_protocol` release carries it ([`docs/RELEASING.md`](docs/RELEASING.md)): until then a transaction made after NU7 activates (testnet 2026-10-06, mainnet 2026-11-05) is refused by name, while every receipt for an earlier transaction, including the testnet ones above, keeps verifying, since the branch is read from each transaction's own header. Sign-in for the console. A v1 aligned with ZIP 311's encoding |
 | ✖ Out of scope for v0 | The spend-authority proof (full ZIP 311) |
 
 <details>
@@ -275,7 +276,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `91b11d71b24487569f8ef8daeb5368a0cb0536bbc0decc081f9e1191d3456417`.
+- **Committed hash:** the committed `.wasm` has sha256 `5259fd709c810a8bddd7c22ce22d552af598a5cd7e0df896b1229bd71ee9c8d6`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 

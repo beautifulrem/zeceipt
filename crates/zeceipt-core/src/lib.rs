@@ -59,6 +59,10 @@ pub enum CoreError {
     },
     #[error("recovery failed: the ock does not open {pool} output {index}")]
     RecoveryFailed { pool: &'static str, index: u32 },
+    /// A `zdp:1:` delivery proof's note is not the one the action carries: its commitment differs, or the note's own key
+    /// does not open the action's ciphertext to exactly that note (`delivery`; judge round 2, N3).
+    #[error("the delivery proof does not open {pool} action {index}: its note is not the one this action commits to and encrypts")]
+    DeliveryMismatch { pool: &'static str, index: u32 },
     /// The opened note's value is above MAX_MONEY, so no valid transaction carries it (slice U5, R131). Sprout and
     /// Sapling note values are typed {0 .. MAX_MONEY}. The Orchard-like note type (Orchard, Ironwood) allows 64 bits, but
     /// a sender selects an Action's value in {0 .. MAX_MONEY}, and a note is funded from a pool whose balance cannot go

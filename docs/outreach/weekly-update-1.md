@@ -26,10 +26,11 @@ About 130 spoken words, for 60 seconds at about 2 words a second. The voice-over
 
 - Replace the first card with the speaker on camera for the first sentence.
 - If the forum pilot call is posted by then, add to the last card: "Pilot call on the Zcash forum."
+- Recorded on 09-30 or later (the fallback date): the testnet receipts exist (PROOF §6), so the last card reads "Next: mainnet receipts and one pilot", and its line "Next: receipts on mainnet, and one team paying a real batch." (two words shorter).
 
 ## Do not say
 
-- "on mainnet" or "on testnet": every shot is regtest, and the public-chain run waits on funding (`11_plan.md` §8).
+- "on mainnet" or "on testnet" over the footage: every shot is regtest. The testnet run of 09-30 (PROOF §6) is not in this footage, and zeceipt has no mainnet receipt.
 - "audited": the security work is a self-review (`docs/SECURITY_REVIEW.md`).
 - Anything about Solana or accounting exports: they were dropped, or are planned and not built.
 - "automatically" about the receipts in this footage: this recording issues them with the Issue receipts button (the automatic worker is PROOF §5g, not on screen).

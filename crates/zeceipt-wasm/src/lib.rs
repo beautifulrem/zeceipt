@@ -96,7 +96,9 @@ fn stage(e: &CoreError) -> &'static str {
         CoreError::Types(T::SignatureInvalid) | CoreError::Types(T::Unsigned) => "signature",
         CoreError::Types(T::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",
-        CoreError::RecoveryFailed { .. } | CoreError::ValueOutOfRange { .. } => "recovery",
+        CoreError::RecoveryFailed { .. }
+        | CoreError::DeliveryMismatch { .. }
+        | CoreError::ValueOutOfRange { .. } => "recovery",
         CoreError::UnsupportedBranch { .. } => "tx",
         _ => "other",
     }

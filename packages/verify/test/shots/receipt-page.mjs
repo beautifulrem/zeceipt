@@ -3,7 +3,9 @@
 // and depth shown are the test suite's, not a real block. Usage: node test/shots/receipt-page.mjs [out.png]
 // Chrome on macOS labels the file input in the system's language; ZECEIPT_SHOT_CHROME=<path to Playwright's
 // chrome-headless-shell> takes --lang=en-US, as the committed image did. ZECEIPT_SHOT_SCHEME=dark, ZECEIPT_SHOT_WIDTH=390
-// and ZECEIPT_SHOT_FULL=1 render the other variants the design review looks at.
+// and ZECEIPT_SHOT_FULL=1 render the other variants the design review looks at. ZECEIPT_SHOT_URL=<a receipt link> shoots
+// that link as it is, with nothing simulated: the page asks the real node (the README's image is the live page on a real
+// testnet receipt, fixtures/testnet/, since 2026-09-30; PM round 2, N16).
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -36,7 +38,7 @@ const headers = { "content-type": "application/grpc-web+proto", "access-control-
 
 const browser = await chromium.launch(process.env.ZECEIPT_SHOT_CHROME ? { executablePath: process.env.ZECEIPT_SHOT_CHROME, args: ["--lang=en-US"] } : { channel: "chrome", args: ["--lang=en-US"] });
 const context = await browser.newContext({ viewport: { width: Number(process.env.ZECEIPT_SHOT_WIDTH ?? 900), height: 900 }, deviceScaleFactor: 2, locale: "en-US", colorScheme: process.env.ZECEIPT_SHOT_SCHEME ?? "light", reducedMotion: "reduce" });
-await context.route("https://**/*", (route) => {
+if (!process.env.ZECEIPT_SHOT_URL) await context.route("https://**/*", (route) => {
   const url = route.request().url();
   if (!url.startsWith("https://zjs.zec.rocks/")) return route.abort();
   if (url.endsWith("/GetLatestBlock")) return route.fulfill({ status: 200, headers, body: Buffer.concat([frame(0, [0x08, ...varint(3491293n)]), trailer]) });
@@ -44,7 +46,7 @@ await context.route("https://**/*", (route) => {
   return route.fulfill({ status: 200, headers, body: Buffer.concat([frame(0, [0x0a, ...varint(data.length), ...data, 0x10, ...varint(3491284n)]), trailer]) });
 });
 const page = await context.newPage();
-await page.goto(`${base}/r/#${Buffer.from(BEARER).toString("base64url")}`);
+await page.goto(process.env.ZECEIPT_SHOT_URL ?? `${base}/r/#${Buffer.from(BEARER).toString("base64url")}`);
 await page.waitForFunction(() => /verification runs in this page/.test(document.getElementById("status").textContent));
 await page.click("#fetch");
 await page.waitForSelector("#outcome:not([hidden])");

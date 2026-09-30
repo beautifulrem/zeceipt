@@ -163,4 +163,6 @@ Its guarantees are that specification's, not this one's:
 - It names no network: a verifier chooses one to write the recipient, and a page that fetches the transaction asks mainnet, then testnet.
 - Like a receipt's OCK, it is known to whoever made it (the recipient with an incoming viewing key, or the sender with an outgoing one) and to anyone holding an earlier copy of it.
 
+`zeceipt prove-delivery` makes such proofs from a UFVK: trial decryption of each Orchard and Ironwood action's `enc_ciphertext` with the incoming viewing keys of both ZIP 32 scopes (received), then recovery from `out_ciphertext` with the outgoing ones (sent). It checks every proof before printing it, and its output for that project's constructed vectors is byte-identical to theirs.
+
 Every verification also reports the transaction's ZIP 239 `wtxid`, which, unlike a v5/v6 txid, covers the proofs and signatures.

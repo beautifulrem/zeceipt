@@ -3,9 +3,10 @@
 //! vectors' value, memo and address; and tampered copies fail closed at the step that catches them.
 
 use serde_json::Value;
-use zeceipt_core::delivery::check;
+use zeceipt_core::delivery::{check, prove, Side};
 use zeceipt_core::zeceipt_types::delivery::DeliveryProof;
 use zeceipt_core::zeceipt_types::{Network, Pool};
+use zeceipt_core::OutgoingKeys;
 use zeceipt_core::{CoreError, MemoView};
 
 fn vectors(name: &str) -> Value {
@@ -118,7 +119,7 @@ fn tampered_proofs_and_transactions_fail_closed() {
     p.value += 1;
     assert!(matches!(
         check(&tx, &p, Network::Main),
-        Err(CoreError::RecoveryFailed { .. })
+        Err(CoreError::DeliveryMismatch { .. })
     ));
     let mut p = proof.clone();
     p.rseed[0] ^= 1;
@@ -175,4 +176,54 @@ fn tampered_proofs_and_transactions_fail_closed() {
         check(&flipped, &proof, Network::Main),
         Err(CoreError::TxidMismatch { .. })
     ));
+}
+
+/// Judge round 2, N10: zeceipt makes `zdp:1:` proofs too. From zcash-delivery-proof's constructed vectors (their keys
+/// are published there), the merchant's UFVK makes exactly the vector's proof of its payment, byte for byte, as a
+/// received note; the sender's UFVK makes both payments' proofs as sent notes; a stranger's makes none.
+#[test]
+fn prove_makes_the_vectors_proofs_byte_for_byte() {
+    for c in vectors("constructed.json")["cases"].as_array().unwrap() {
+        let tx = hex::decode(c["txHex"].as_str().unwrap()).unwrap();
+        let keys = |k: &str| {
+            OutgoingKeys::from_ufvk(Network::Test, c["keys"][k].as_str().unwrap()).unwrap()
+        };
+        let payments = c["payments"].as_array().unwrap();
+        let merchant = prove(&tx, &keys("merchantUfvk")).unwrap();
+        assert_eq!(
+            merchant.len(),
+            1,
+            "{}: the merchant sees its own payment",
+            c["name"]
+        );
+        assert_eq!(merchant[0].side, Side::Received);
+        assert_eq!(
+            merchant[0].proof.encode(),
+            payments[0]["proof"].as_str().unwrap(),
+            "{}",
+            c["name"]
+        );
+        assert_eq!(
+            merchant[0].delivered.recovered.value_zat,
+            payments[0]["value"].as_u64().unwrap()
+        );
+        let sender = prove(&tx, &keys("senderUfvk")).unwrap();
+        let mut made: Vec<String> = sender
+            .iter()
+            .filter(|f| f.side == Side::Sent)
+            .map(|f| f.proof.encode())
+            .collect();
+        let mut want: Vec<String> = payments
+            .iter()
+            .map(|p| p["proof"].as_str().unwrap().to_string())
+            .collect();
+        made.sort();
+        want.sort();
+        assert_eq!(made, want, "{}: the sender sees both payments", c["name"]);
+        assert!(
+            prove(&tx, &keys("strangerUfvk")).unwrap().is_empty(),
+            "{}",
+            c["name"]
+        );
+    }
 }

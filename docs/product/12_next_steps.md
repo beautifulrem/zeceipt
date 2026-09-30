@@ -55,37 +55,39 @@ Progress: A1 done 2026-09-28 (with per-endpoint timeouts, A1b); A2 done 2026-09-
 
 ## B. Public-chain evidence (Must 6: scheduled 09-27 → 09-30 in §8; cut-off 10-02 in RSK-3; hard limit 10-06, when NU7 activates on testnet `[R128]`)
 
-- **B1. U: the faucet claim.** PROOF §4 has the fauzec API command, which needs no human check "for now" `[R126]`.
+Progress: B1, B2 and B3 done on testnet on 2026-09-30 (PROOF §6; WBS 3.4.1.4): three payments, INV-T-001..003, mined at 4,420,000, 4,420,003 and 4,420,005, before NU7; three signed receipts verified online, offline (in CI) and on the live page; one tampered copy refused. Mainnet (3.4.1.5) waits on the owner's funds, with a go/no-go by 10-02. After 10-06: re-check the testnet link (`11_plan.md` §8, 10-04 → 10-07; RSK-14b).
+
+- **B1. U: the faucet claim.** ✅ 2026-09-30. PROOF §4 has the fauzec API command, which needs no human check "for now" `[R126]`.
   - **B1.1** U decides and claims. The drip is spendable after 10 confirmations, about 12.5 min.
     - Check: `wallet balance` shows it as spendable.
-- **B2. The testnet run,** following PROOF §4.
+- **B2. The testnet run,** following PROOF §4. ✅ 2026-09-30 (PROOF §6).
   - **B2.1** Generate the recipient account, then make three sends, `INV-T-001` to `INV-T-003`, each waiting for its change to confirm.
     - Check: three txids, mined before 2026-10-06 `[R128]`.
   - **B2.2** `zeceipt issue --testnet … --host`, then `verify --testnet --require-signature` for each receipt, and one tampered copy.
     - Check: exit 0 three times with heights (and, after A3, confirmations); exit 1 for the tamper.
   - **B2.3** Open one receipt link on the page, which fetches from `zjs.zec.rocks/testnet` with ChainSafe's as the fallback.
     - Check: VALID, mined at the recorded height.
-- **B3. Records.**
+- **B3. Records.** ✅ 2026-09-30: PROOF §6, RSK-3 and the checklist; the videos' conditional rows applied (the technical demo's 1:30 row, weekly update 2's 0:44 row, the pitch's 1:51 line).
   - **B3.1** PROOF §6 is written as a testnet entry, with no OCK. RSK-3 and the checklist's "public chain" lines are updated.
     - Check: both checkers pass. The videos' conditional rows ("If the public-chain run has happened") are applied.
 
-## C. Release v0.1.0 (the tag on 10-09, after the security rerun)
+## C. Release v0.1.0 (the tag on 10-02 → 10-03, after `scripts/security_review.sh` passes on the tagged commit; moved from 10-09 on 2026-09-30, PM round 2, D04)
 
 - **C1. The pre-tag checks** (`docs/RELEASING.md`).
   - **C1.1** Check crates.io for a NU7-capable `zcash_protocol`. If one is released, U1c runs first (RELEASING's list); if not, the tag ships with the NU7 limitation.
     - Check: the version found is recorded, and the release notes match.
   - **C1.2** `check_release.py --tag v0.1.0`, `build_wasm.sh --check --require-identical-wasm`, and the full test suites.
     - Check: all pass.
-- **C2. The security rerun** (WBS 3.4.2.3, 10-08).
+- **C2. The security check before the tag** (`scripts/security_review.sh` on the commit to be tagged; CI's security job runs it on every push). The WBS 3.4.2.3 rerun on 10-08 stays as the pre-submission check; a finding then ships as v0.1.1.
   - **C2.1** `scripts/security_review.sh`, recorded as its own dated section.
     - Check: exit 0, or each finding fixed or accepted with its reason.
 - **C3. The changelog and the tag.**
-  - **C3.1** `Unreleased` becomes `0.1.0`, dated 10-09; the tag is annotated.
+  - **C3.1** `Unreleased` becomes `0.1.0`, dated the day the tag is cut (10-02 or 10-03); the tag is annotated. First, the release notes and CHANGELOG say what is true that day (PM round 2, N01: fixed 2026-09-30).
     - Check: `check_release.py --tag v0.1.0` passes on the tagged commit.
 - **C4. U: the push, and the first CI run.** A failing first run is fixed as its own slice.
   - Check: CI is green, including the featureless `cargo check` (slice G1).
   - Done 2026-09-29: the repository is public at `github.com/beautifulrem/zeceipt` (Apache-2.0). The first run failed 20 console tests, because the step passed a relative `ZECEIPT_BIN`, which the configuration refuses. The fix is 2518462, and the second run is green: 65 Rust tests, 459 console tests, 17 page e2e and 26 app e2e. On the runner's clang 18, the wasm-bindgen outputs are identical and the `.wasm` differs (sha256 `59b3a12e…`), as the README's reproducibility note allows.
-- **C5. U: `npm publish @zeceipt/verify`, on 10-10,** after C2.
+- **C5. U: `npm publish @zeceipt/verify`, on 10-03,** after the tag and C2 (moved from 10-10); the npm org `zeceipt` is reserved first.
   - Check: `test:pack` passes on the tarball that is published.
 
 ## D. Submission (10-04 → 10-11)

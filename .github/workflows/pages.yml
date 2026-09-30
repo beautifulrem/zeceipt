@@ -1,9 +1,12 @@
 name: pages
 # Publishes the receipt page and the verifier demo (scripts/build_site.sh) to GitHub Pages (PM round 1, D08; judge
 # round 1, D2). Pages is a repository setting the maintainer turns on (Settings → Pages → Source: GitHub Actions);
-# until then the check below finds none and the deploy is skipped, not failed.
+# until then the check below finds none and the deploy is skipped, not failed. It deploys only a commit whose ci run
+# passed (PM round 2, N10): after ci completes green on master, or by hand.
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [master]
   workflow_dispatch:
 permissions:
@@ -13,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   check:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.pages.outputs.enabled }}
@@ -39,6 +43,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }} # the commit ci passed
       - run: scripts/build_site.sh "$RUNNER_TEMP/site"
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3

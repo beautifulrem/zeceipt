@@ -29,6 +29,8 @@ export function nodeHost(endpoint) {
   }
 }
 
+/** The domain a `<label>@<domain>` key id claims (spec §7), for display only; the claim is checked by the issuer check. */
+const claimedDomain = (keyId) => (typeof keyId === "string" && keyId.includes("@") ? keyId.slice(keyId.lastIndexOf("@") + 1) : "");
 const shortKey = (hex) => (hex && hex.length > 20 ? `${hex.slice(0, 8)}…${hex.slice(-8)}` : hex ?? "");
 
 /** What the link says, shown before anything is fetched. Values are plain text. */
@@ -50,7 +52,7 @@ export function summaryRows(r) {
     ["Transaction", r.txid],
     ["Output", `${r.pool} output ${r.output_index}`],
     ["Label", r.label ? r.label : "(none)"],
-    ["Issuer signature", r.signature ? `present, key ${shortKey(r.issuer_pubkey)}${r.issuer_key_id ? ` (key id ${r.issuer_key_id})` : ""} — checked when you verify` : "none (unsigned)"],
+    ["Issuer signature", r.signature ? `present, key ${shortKey(r.issuer_pubkey)}${r.issuer_key_id ? ` (key id ${r.issuer_key_id})${claimedDomain(r.issuer_key_id) ? `; claims ${claimedDomain(r.issuer_key_id)}, not checked` : ""}` : ""} — checked when you verify` : "none (unsigned)"],
     ["Challenge", r.challenge ? "bound — enter the challenge you sent to the issuer" : "none (a bearer receipt: anyone holding it can verify it)"],
   ];
 }
@@ -137,11 +139,14 @@ export function bindingText(b) {
 }
 
 /** Whether the receipt proves anything about who is presenting it. The verifier counts a challenge only on a signed
- * receipt (spec §6): anyone holding an output's OCK can write any challenge into an unsigned one (judge round 1, D4). */
-export function challengeLine(result) {
-  return result.challenge_checked
-    ? "Bound to your challenge, and it matched: the holder of the signing key in part 3 made this receipt after you sent the challenge."
-    : "Not bound to a signed challenge: this does not prove who is showing it to you.";
+ * receipt (spec §6): anyone holding an output's OCK can write any challenge into an unsigned one (judge round 1, D4).
+ * A signed one proves only that the holder of the signing key made it after the challenge, and anyone holding a receipt
+ * for the payment can sign one with their own key; so until the key's domain confirms it (`binding`, spec §7), the line
+ * says so (judge round 2, N1: a receipt re-signed with a stranger's key read as "matched"). */
+export function challengeLine(result, binding) {
+  if (!result.challenge_checked) return "Not bound to a signed challenge: this does not prove who is showing it to you.";
+  if (binding?.state === "confirmed") return `Bound to your challenge, and it matched: the holder of the key ${binding.domain ?? "the domain"} lists made this receipt after you sent the challenge.`;
+  return `Your challenge matched, but by key ${shortKey(result.issuer_pubkey)}, which no domain has confirmed here: anyone who holds a receipt for this payment can make one like this with their own key. Compare the key with the one the issuer gave you${result.issuer_key_id?.includes("@") ? ", or check its domain (part 3)" : ""}.`;
 }
 
 export function memoText(memo) {

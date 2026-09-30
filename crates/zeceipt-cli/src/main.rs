@@ -87,6 +87,24 @@ enum Cmd {
         #[command(flatten)]
         tx: TxSource,
     },
+    /// Make a `zdp:1:` delivery proof for every Orchard/Ironwood note the UFVK received or sent in the transaction
+    /// (zcash-delivery-proof's format): the recipient's proof of a payment, which a receipt cannot give. Each proof is
+    /// checked before it is printed.
+    ProveDelivery {
+        #[command(flatten)]
+        net: NetArgs,
+        #[command(flatten)]
+        tx: TxSource,
+        /// Unified full viewing key (uview1… / uviewtest1…).
+        #[arg(long)]
+        ufvk: Option<String>,
+        /// Read the unified full viewing key from a file (keeps it off the process list).
+        #[arg(long, conflicts_with = "ufvk")]
+        ufvk_file: Option<PathBuf>,
+        /// Receipt page host (e.g. https://beautifulremi.dpdns.org/zeceipt): each proof also gets a link `<host>/r#zdp:1:…`.
+        #[arg(long)]
+        host: Option<String>,
+    },
     /// Issue receipts for every output the viewing key can open.
     Issue {
         #[command(flatten)]
@@ -147,6 +165,10 @@ enum Cmd {
         /// Fail if the receipt is unsigned.
         #[arg(long)]
         require_signature: bool,
+        /// The issuer's ed25519 public key (64 hex) the verifier already knows: the receipt must be signed by it, or
+        /// it is invalid at stage `issuer` (exit 1). Without it, a signature proves only "made with the key shown".
+        #[arg(long, value_name = "PUBKEY_HEX")]
+        expect_issuer: Option<String>,
         /// Look up the issuer binding the key id claims (spec §7): fetch
         /// https://<domain>/.well-known/zeceipt.json and report confirmed / not listed / unknown.
         /// This tells that domain one of its receipts is being checked. It never changes `valid`.
@@ -180,6 +202,9 @@ enum Cmd {
         /// Expected challenge bound into the receipts (UTF-8), if any.
         #[arg(long)]
         challenge: Option<String>,
+        /// The issuer key (64 hex) every receipt must be signed by; any other is invalid and not counted.
+        #[arg(long, value_name = "PUBKEY_HEX")]
+        expect_issuer: Option<String>,
     },
     /// Find recent transactions with Ironwood actions (for fixtures and demos).
     FindIronwood {
@@ -285,6 +310,53 @@ async fn run() -> anyhow::Result<ExitCode> {
                     "version": format!("{:?}", parsed.version()),
                     "height": height,
                     "outputs": outputs,
+                }))?
+            );
+            Ok(ExitCode::SUCCESS)
+        }
+        Cmd::ProveDelivery {
+            net,
+            tx,
+            ufvk,
+            ufvk_file,
+            host,
+        } => {
+            let network = network_of(&net);
+            let ufvk = match (ufvk, ufvk_file) {
+                (Some(u), _) => u,
+                (None, Some(p)) => std::fs::read_to_string(&p)
+                    .with_context(|| format!("reading --ufvk-file {}", p.display()))?,
+                (None, None) => return Err(anyhow!("one of --ufvk or --ufvk-file is required")),
+            };
+            let keys = OutgoingKeys::from_ufvk(network, ufvk.trim())?;
+            let (bytes, height) = load_tx(&net, &tx).await?;
+            let found = zeceipt_core::delivery::prove(&bytes, &keys)?;
+            let proofs: Vec<serde_json::Value> = found
+                .iter()
+                .map(|f| {
+                    let text = f.proof.encode();
+                    let mut o = json!({
+                        "side": f.side.as_str(),
+                        "pool": f.delivered.recovered.pool.as_str(),
+                        "output_index": f.delivered.recovered.index,
+                        "recipient": f.delivered.recovered.recipient,
+                        "value_zat": f.delivered.recovered.value_zat,
+                        "value_zec": format_zec(f.delivered.recovered.value_zat),
+                        "memo": memo_json(&f.delivered.recovered.memo),
+                        "proof": text,
+                    });
+                    if let Some(h) = &host {
+                        o["url"] = json!(format!("{}/r#{}", h.trim_end_matches('/'), text));
+                    }
+                    o
+                })
+                .collect();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "txid": found.first().map(|f| f.delivered.txid.clone()),
+                    "height": height,
+                    "proofs": proofs,
                 }))?
             );
             Ok(ExitCode::SUCCESS)
@@ -421,6 +493,7 @@ async fn run() -> anyhow::Result<ExitCode> {
             challenge,
             raw_tx_file,
             require_signature,
+            expect_issuer,
             check_issuer,
             issuer_file,
         } => {
@@ -436,7 +509,11 @@ async fn run() -> anyhow::Result<ExitCode> {
             // A `zdp:1:` delivery proof (the recipient's side, zcash-delivery-proof SPEC §4) is checked as that
             // specification says; it is unsigned and names no network, so the flags choose the network.
             if DeliveryProof::is_delivery_proof(&input) {
-                if challenge.is_some() || check_issuer || issuer_file.is_some() {
+                if challenge.is_some()
+                    || check_issuer
+                    || issuer_file.is_some()
+                    || expect_issuer.is_some()
+                {
                     eprintln!("error: a delivery proof carries no challenge and no issuer key");
                     return Ok(ExitCode::from(3));
                 }
@@ -486,6 +563,18 @@ async fn run() -> anyhow::Result<ExitCode> {
             let parsed = zeceipt_core::parse_transaction(&bytes)?;
             let expected = challenge.as_deref().unwrap_or("").as_bytes();
             match zeceipt_core::verify(&r, &parsed, expected, require_signature) {
+                Ok(v)
+                    if expect_issuer.as_deref().is_some_and(|want| {
+                        v.issuer_pubkey.as_deref() != Some(want.trim().to_lowercase().as_str())
+                    }) =>
+                {
+                    let got = v.issuer_pubkey.as_deref().unwrap_or("none (unsigned)");
+                    println!(
+                        "{}",
+                        json!({"valid": false, "error": format!("signed by {got}, not by the expected issuer key"), "stage": "issuer"})
+                    );
+                    Ok(ExitCode::from(1))
+                }
                 Ok(v) => {
                     // The binding (spec §7) is looked up only when asked, after the receipt verified; it never
                     // changes `valid`.
@@ -568,8 +657,10 @@ async fn run() -> anyhow::Result<ExitCode> {
             require_signature,
             raw_tx_dir,
             challenge,
+            expect_issuer,
         } => {
             let expected = challenge.unwrap_or_default();
+            let expect_issuer = expect_issuer.map(|k| k.trim().to_lowercase());
             let p = AuditPack::from_json(&std::fs::read_to_string(&pack)?)?;
             let mut total = 0u64;
             let mut rows = Vec::new();
@@ -598,6 +689,10 @@ async fn run() -> anyhow::Result<ExitCode> {
                     Ok((bytes, _)) => match zeceipt_core::parse_transaction(&bytes).and_then(|tx| {
                         zeceipt_core::verify(r, &tx, expected.as_bytes(), require_signature)
                     }) {
+                        Ok(v) if expect_issuer.is_some() && v.issuer_pubkey != expect_issuer => {
+                            all_ok = false;
+                            json!({"txid": r.txid, "index": r.output_index, "valid": false, "stage": "issuer", "error": format!("signed by {}, not by the expected issuer key", v.issuer_pubkey.as_deref().unwrap_or("none (unsigned)"))})
+                        }
                         Ok(v) => {
                             let output = (v.txid.clone(), format!("{:?}", r.pool), r.output_index);
                             if let Some(&first) = counted.get(&output) {
@@ -838,7 +933,9 @@ fn stage(e: &CoreError) -> &'static str {
         }
         CoreError::Types(TypesError::ChallengeMismatch) => "challenge",
         CoreError::OutputIndexOutOfRange { .. } | CoreError::NoBundle(_) => "output",
-        CoreError::RecoveryFailed { .. } | CoreError::ValueOutOfRange { .. } => "recovery",
+        CoreError::RecoveryFailed { .. }
+        | CoreError::DeliveryMismatch { .. }
+        | CoreError::ValueOutOfRange { .. } => "recovery",
         _ => "other",
     }
 }

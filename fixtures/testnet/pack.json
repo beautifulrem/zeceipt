@@ -1,7 +1,7 @@
 {
   "version": "zeceipt-v0",
   "title": "Testnet INV-T-001..003 (2026-09-30)",
-  "declared_total_zat": 0,
+  "declared_total_zat": 6000000,
   "receipts": [
     {
       "version": "zeceipt-v0",

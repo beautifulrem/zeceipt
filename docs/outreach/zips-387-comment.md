@@ -2,6 +2,7 @@
 DRAFT, not posted (WBS 3.3.3.4, REQ-INT-4; slice Z1). Posting is the user's decision: a public comment on
 https://github.com/zcash/zips/issues/387 (ZIP 311, Zcash Payment Disclosures).
 Links filled 2026-09-30: the repository is public at https://github.com/beautifulrem/zeceipt since 2026-09-29 (WBS 4.1.1.1).
+Refreshed 2026-09-30 (PM round 2, N02): the testnet receipts (PROOF §6) and the `zdp:1:` check (§7) are in "What exists". If a mainnet receipt exists by the day it is posted (RSK-3), change the Evidence line first.
 the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 -->
 
@@ -14,7 +15,8 @@ We built an open-source receipt format for disclosing one shielded output: Zecei
 - **The format.** One receipt discloses one output of one transaction: network, pool, txid, output index, OCK, a free-text label, and optionally a verifier's challenge. These are optionally signed by the issuer with ed25519 over canonical bytes, with deterministic test vectors ([`spec/test-vectors/receipt-v0.json`](https://github.com/beautifulrem/zeceipt/blob/master/spec/test-vectors/receipt-v0.json)).
 - **Verification.** It recovers the note from the transaction's `out_ciphertext` and `enc_ciphertext` with the OCK (`zcash_note_encryption`'s `try_output_recovery_with_ock`, which checks the recovered note against its commitment). It then reports the recipient address, value and memo, and fails closed at a named stage. The same Rust code runs in a CLI and, through WASM, in the browser.
 - **Pools:** Ironwood outputs of v6 transactions, and Orchard and Sapling (tested against the official Orchard note-encryption vectors and round trips).
-- **Evidence.** A consensus-valid v6 Ironwood transaction on a Zebra regtest chain, issued from the sender's UFVK and verified over gRPC and offline. Real mainnet v6 transactions have been parsed and fetched only.
+- **Evidence.** A consensus-valid v6 Ironwood transaction on a Zebra regtest chain, issued from the sender's UFVK and verified over gRPC and offline. On testnet, three payments (mined at heights 4,420,000 to 4,420,005), each with a signed receipt issued from the sender's UFVK and verified against a public node, offline and in the browser ([`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §6). Real mainnet v6 transactions have been parsed and fetched; we have issued no receipt for a mainnet payment yet.
+- **The recipient's side.** The same verifier checks zcash-delivery-proof's `zdp:1:` note openings, which a recipient makes with an incoming viewing key, including that project's own mainnet vector, fetched live (§7). Together the two cover a disclosure by the sender (OCK) and by the recipient (IVK); neither carries spend authority.
 
 **How it maps to ZIP 311**
 
