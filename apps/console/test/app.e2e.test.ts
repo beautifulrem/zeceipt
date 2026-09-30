@@ -909,6 +909,9 @@ test("the linkability warning through next start (REQ-CON-6, slice H6): after re
     { payableId: "p-3", label: "R3", address: "uregtest1km3xxn9hysaxd6umac95x2dckkv4hdmjevkfar0qqs7056n9m04ays3u64e9zfmdtxdmd0mlqtqhcp2c4nal7znqf30l00yetcp28syj", zat: "102000000", memo: "INV-R-003" },
     { payableId: "p-4", label: "R4", address: "uregtest17mjv2tq2m6xpyurrqnvsc5rva5ypshg8tr0v9cd0w59vxt2e0rrxhf592457hg939efj3tw9a8u4u0ct3h5nyrxpjwj9wj3hecrk5pt5", zat: "103000000", memo: "INV-R-004" },
   ];
+  // Every receipt secret batch A's issuance produced, in each form it could leak in: the link's payload, the OCK
+  // (base64url and hex) and the signature (ShieldCheck's review of 09-30: the "never logged" claim needs a test).
+  const secrets: string[] = [];
   try {
     await waitHealthy(s.port, s.child, s.output);
     const self = `127.0.0.1:${s.port}`;
@@ -932,7 +935,13 @@ test("the linkability warning through next start (REQ-CON-6, slice H6): after re
       const keyFile = join(dir, "linkability-issuer.key");
       execFileSync(BIN, ["keygen", "--out", keyFile]);
       const out = await autoIssue({ batch: toExecutionBatch(rec), txid: TXID, status: { state: "mined", height: 626, confirmations: 3, tip: 628 }, requiredConfirmations: 1, cli: { bin: BIN, rawTxFile: join(ROOT, `fixtures/regtest-${TXID}.hex`), ufvkFile: join(ROOT, "fixtures/regtest-issuer-ufvk.txt"), keyFile, host: "https://receipts.example", keyId: "2026-09", challenge: "h6e2e" } });
-      await recordReceipts(side, new Keyring([{ kid: "k1", key: KEY }]), { orgId: "demo-org", batchId: rec.id, issued: out as Extract<AutoIssueResult, { state: "issued" }> });
+      const issued = out as Extract<AutoIssueResult, { state: "issued" }>;
+      await recordReceipts(side, new Keyring([{ kid: "k1", key: KEY }]), { orgId: "demo-org", batchId: rec.id, issued });
+      for (const r of issued.receipts) {
+        const ock = String(r.receipt.ock);
+        secrets.push(r.url.slice(r.url.indexOf("#") + 1), ock, Buffer.from(ock, "base64url").toString("hex"), String(r.receipt.signature));
+      }
+      assert.equal(secrets.length, 12, "three receipts, four forms each");
     } finally {
       side.$client.close();
     }
@@ -953,6 +962,12 @@ test("the linkability warning through next start (REQ-CON-6, slice H6): after re
     assert.equal(file.body.split("\r\n").length, 4, "three rows");
     assert.equal((await raw(s.port, "GET", `/api/batches/${a.id}/exports/openzcash`, { host: self, "sec-fetch-site": "cross-site" })).status, 403, "not for another site");
     assert.ok(!s.output().includes("receipts.example/r#") && !s.output().includes("/r#ey"), "no receipt link in the server output");
+    for (const secret of secrets) assert.ok(!s.output().includes(secret), `a receipt secret in the server output: ${secret.slice(0, 12)}…`);
+    // Pages that are not about batch A's receipts carry none of them either (batch A's own page and export do, by design).
+    for (const page of [`/batches/${quiet.id}`, "/recipients", "/batches", "/"]) {
+      const body = await get(page);
+      for (const secret of secrets) assert.ok(!body.includes(secret), `a receipt secret on ${page}`);
+    }
     assert.ok(!(await get(`/batches/${quiet.id}`)).includes("Download for OpenZcash"), "no receipts, no export link");
     const people = await get("/recipients");
     assert.ok(people.includes('A receipt already disclosed this address (batch "September").') && people.includes('id="linkability"'), "the recipients page flags Bob and explains");

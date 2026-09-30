@@ -224,6 +224,12 @@ node packages/verify/test/verify.mjs                       # the committed WASM 
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
 
+**Click through the payout console** with no chain, wallet or network. A fake wallet stands in for Zkool, and the rate is a local $1,600. It runs on loopback and prints the pages to open; Ctrl-C deletes its database:
+
+```bash
+cargo build && cd apps/console && npm ci && npm run build && npm run try
+```
+
 **What is real and what is simulated.**
 
 | Evidence | Chain | What it shows |
