@@ -19,10 +19,10 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Presentation (pitch) video | 2–3 min ("one of the first resources judges review" `[R109]`), YouTube unlisted | ⬜ |
 | Product demo video | ≤ 3 min, how the product works `[R109]`, YouTube unlisted | ⬜ |
 | Go-to-market (the form asks for "Go-to-market strategy, demand validation, and plans for developing distribution" `[R109]`) | draft in §2b (slice D9): first users, demand in a user's words, channels, milestones, draft pricing | 🟡 fill the status placeholder |
-| Live demo / website URL | `zeceipt.xyz` demo page (or GitHub Pages fallback) — field not in the 2026-09-17 capture; prepare anyway | ⬜ |
+| Live demo / website URL | `https://beautifulremi.dpdns.org/zeceipt/` (GitHub Pages, enabled 2026-09-30, deployed by `.github/workflows/pages.yml`): the demo, and the receipt page verifying a real mainnet `zdp:1:` payment (PROOF §7) — field not in the 2026-09-17 capture; prepare anyway | ✅ |
 | X / social handle | team handle for weekly updates — not in the capture; prepare anyway | 👤 |
 | Past development work (required: "teams must disclose all relevant past development work in the submission form" `[R109]`) | Draft, from `docs/PRE_EVENT_STATE.md`: the repository started on 2026-09-21 PT, a week into the event, and no product code predates it; before the event there was only a general study library of other hackathons' winning projects (June 2026: notes, and local clones of their public repositories for reading), not specific to this product, and none of that code is used; the competition research and the product definition were written during the event (2026-09-17 → 09-21) in a private knowledge base, before the repository started; third-party material is published crates and npm packages (lockfiles), and data files copied unchanged and attributed in `NOTICE` (`zcash-test-vectors` vectors; zecpay's sample CSV; the Geist fonts and Lucide icons); the development workflow's local tooling is not part of the repository; `docs/PRIOR_ART.md` reviews other people's projects and none of their code is used. The same statement is public in `docs/PRE_EVENT_STATE.md` and the README "For judges" section. The user adds any earlier work only they know of | ⬜ the user confirms and submits it |
-| AI-assistance disclosure | if the form asks: AI-assisted coding and research were used; all cryptography comes from upstream crates; disclose plainly | ⬜ |
+| AI-assistance disclosure | Disclosed in the README ("How it was built") and `docs/PRE_EVENT_STATE.md` on 2026-09-30, with the three history rewrites of 09-29: AI coding assistants directed by one developer; all cryptography from upstream crates; dates and code unchanged by the rewrites. Paste the same paragraph into the form if it asks | ✅ |
 | isUniversityProject / isSolanaMobile | no / no | ✅ |
 
 ## 2. Description draft (≤ 500 words, English; rewritten in slice D8 from what the code and PROOF show)
@@ -94,7 +94,7 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 - [x] Commit history inside the window (first commit 2026-09-21 PT; `git log` shows 2026-09-22 00:07 +08:00)
 - [x] CI green on GitHub: the repository is public since 2026-09-29 (first green run 36595874577, `e8c5058`); green on master since `d33ecd8` (run 36626374879)
 - [ ] In this order (RSK-17; publishing is irreversible): 1. `scripts/security_review.sh` passes: `cargo audit`, `npm audit`, the secrets scan (3.4.2.3, 10-08 → 10-09; first pass 2026-09-25, `docs/SECURITY_REVIEW.md`) → 2. tag v0.1.0 + release notes (4.1.1.4, 10-09) → 3. `npm publish @zeceipt/verify` (4.1.1.3, U, 10-10)
-- [ ] Demo page hosted (GitHub Pages or zeceipt.xyz): the Pages workflow (`.github/workflows/pages.yml`, `fd5271a`) deploys the receipt page and the demo once the owner enables Pages in the repository's settings (owner-only)
+- [x] Demo page hosted: GitHub Pages, enabled 2026-09-30, `https://beautifulremi.dpdns.org/zeceipt/` (the receipt page and the demo, deployed by `.github/workflows/pages.yml`)
 
 ## 5. Timeline (authoritative for external milestones)
 

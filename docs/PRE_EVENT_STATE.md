@@ -8,6 +8,8 @@ What existed before the event, and is not in this repo:
 
 Made during the event, before this repository started, and not in this repo: the competition research and the product definition (a private Markdown knowledge base, written 2026-09-17 → 09-21), including the review of prior art summarised in `docs/PRIOR_ART.md` (reading other people's projects; none of their code is used).
 
+**How it was built.** One developer directed the work with AI coding assistants, which wrote code, reviewed it and ran searches; every change went through the tests and checks in this repository, and all cryptography is the upstream Zcash crates'. Before the repository went public on 2026-09-29, its history was rewritten three times. The rewrites gave every commit the maintainer's GitHub noreply identity, removed the local workflow-tool directories (task notes, editor and agent settings) and a local username and paths from old files, and reworded three commit messages that named those tools. Commit dates, authorship dates and code were not changed ([`SECURITY_REVIEW.md`](SECURITY_REVIEW.md), publication check).
+
 Third-party code:
 - published crates and npm packages, pinned by `Cargo.lock` and the npm lockfiles;
 - data files copied unchanged, each attributed in `NOTICE`: test vectors from `zcash/zcash-test-vectors` (MIT OR Apache-2.0; `spec/test-vectors/orchard_note_encryption.json`, and the F4Jumble and unified-address vectors in `apps/console/test/fixtures/`), zecpay's sample payroll CSV (MIT; `apps/console/test/fixtures/zecpay-sample-payroll.csv`), and, for the interfaces, the Geist fonts (SIL OFL; `packages/verify/r/fonts/`, and the `geist` npm package in the console) and Lucide icons (ISC; `packages/verify/r/icons/`, and `lucide-react` in the console);

@@ -245,7 +245,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 ### 4.1 Publishing
 #### 4.1.1 Repository and package
 - 4.1.1.1 ✅ U — Create GitHub org/repo, push, enable CI. Done 2026-09-29: https://github.com/beautifulrem/zeceipt, public, Apache-2.0; first green CI run 36595874577 (`e8c5058`).
-- 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example. The receipt page needs `packages/verify/` as the site root, with `/r` redirected to `/r/` (README, "Receipt links"). Check it on the host, and add the page's CSP and `Referrer-Policy` as response headers there (a meta cannot carry `frame-ancestors`).
+- 4.1.1.2 ✅ U — Host the demo page (done 2026-09-30 on GitHub Pages instead of `zeceipt.xyz`: `https://beautifulremi.dpdns.org/zeceipt/`, the owner's Pages domain, deployed by `.github/workflows/pages.yml` from `scripts/build_site.sh`; the live receipt page verified a real mainnet `zdp:1:` payment, PROOF §7). `zeceipt.xyz` is not registered and not ours (PROOF's note on old links). Originally: register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example. The receipt page needs `packages/verify/` as the site root, with `/r` redirected to `/r/` (README, "Receipt links"). Check it on the host, and add the page's CSP and `Referrer-Policy` as response headers there (a meta cannot carry `frame-ancestors`).
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve. The package is ready (slice R1b1): public access set, its own README, and `packages/verify/test/pack.mjs` installs the packed tarball offline and runs the README's Node example through it `[R115]`. The first version is published by hand (trusted publishing needs the package to exist), from an npm account with 2FA that owns the `zeceipt` scope, after `repository.url` matches the pushed repository; the steps are R1b2's procedure.
 - 4.1.1.4 ⬜ R — Tag v0.1.0; README badges and a "For judges" section (where to start, commands, what runs where; winner lessons item 9); release notes. 0.25 pd, 2026-10-08 → 10-09. Added back in the solo branch (slice D10b): the section and notes in 09-27 → 09-30, the tag on 10-09. The "For judges" section exists (slice J2, `8844222`). Slice R1a: `CHANGELOG.md` in Keep a Changelog form, its first release under `Unreleased` until the tag `[R114]`; R1b: the release notes and the release procedure, with the badges once the repository has a URL; `scripts/check_release.py` (slice R1b3a, in CI) holds the nine version sources to the workspace's and, with `--tag`, the changelog to a dated section and a clean tree before the annotated tag `[R116]`; `docs/RELEASING.md` (slice R1b3b) is the procedure, step by step with who runs each `[R117]`; R1b4: the release notes, `docs/release/v0.1.0.md` (a summary, how to try it, the evidence, known limitations from the threat model and risk register, provenance) `[R118]`; R1c: the tag on 10-09.
 #### 4.1.2 Community and design test
@@ -308,7 +308,6 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 | 2026-09-28 | 5.1.1.3 | Record and post weekly update 1 (60 s; script and footage ready; most likely on the Arena dashboard, inferred from `isCurrentWeekUpdateSubmitted` and needing the project registered, with X tagging @colosseum as an extra) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8); 4.2.2.4 counts the posts | the officially "strongly recommend"-ed weekly update; fallback: by 09-30 or skipped |
 | 2026-09-30 | 3.4.1.4 | Claim testnet TAZ from a faucet: the user's decision (fauzec's API has no human gate "for now"; its web form and jinolabs's have one; PROOF §4 `[R126]`) | first public-chain receipt (PROOF §6) |
 | 2026-09-30 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | public-chain receipts (solo target ≥ 3), which must land by 10-03, before the videos |
-| 2026-10-01 | 4.1.1.2 | Register `zeceipt.xyz`; host demo page and well-known example | receipt links in videos |
 | 2026-10-01 | 4.1.2.3 | Decide whether to contact Konclave's author (default: yes). The adapter was dropped with the solo branch (`11_plan.md` §1.1), so this is now only a pilot channel | a second pilot candidate |
 | 2026-10-03 | 1.1.1.4 | Confirm the submission window open date (Colosseum Discord/FAQ); inferred 2026-10-05 11:00 to 10-06 11:00 UTC `[R106]` | sets the initial-upload day (5.2.1.1) |
 | 2026-10-03 | 2.4.3.3 | Team roster and two founder-market-fit sentences | pitch video (recorded from 10-04), submission form |
@@ -323,8 +322,8 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
 | 3 Engineering | 66 | 46 | 1 | 17 | 2 |
-| 4 Launch/GTM | 16 | 1 | 1 | 11 | 3 |
+| 4 Launch/GTM | 16 | 2 | 1 | 11 | 2 |
 | 5 Submission | 18 | 4 | 1 | 12 | 1 |
-| **Total** | 188 | 128 | 4 | 47 | 9 |
+| **Total** | 188 | 129 | 4 | 47 | 8 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

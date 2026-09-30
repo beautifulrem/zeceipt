@@ -15,7 +15,7 @@ Dates here are a subset of the single timeline in `09_submission_checklist.md` �
 |---|---|---|
 | 2026-09-28 | Push the repo, enable CI; then post the forum call "Shielded payment receipts: looking for one pilot" (drafted) | U |
 | 2026-09-28 | Weekly update 1 (60 s), most likely on the Arena dashboard (inferred from `isCurrentWeekUpdateSubmitted`; needs the project registered), with X tagging @colosseum as an extra; script and footage ready (`docs/outreach/weekly-update-1.md`) | U records and posts; PM prepares |
-| 2026-10-01 | Register `zeceipt.xyz`, host the demo page | U |
+| 2026-09-30 ✅ | Host the demo page (GitHub Pages, `https://beautifulremi.dpdns.org/zeceipt/`; `zeceipt.xyz` dropped) | U |
 | 2026-10-01 → 10-03 | First pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | PM, with the pilot |
 | 2026-10-05 | Weekly update 2; initial submission upload on the window-open day | U records and posts; PM uploads |
 | 2026-10-10 | `npm publish @zeceipt/verify` (the day after the security review) | U |
