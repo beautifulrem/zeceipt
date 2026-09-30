@@ -31,7 +31,7 @@
     <h2>1. The receipt</h2>
     <button id="sample" type="button" class="btn btn-secondary">Load the sample receipt</button>
   </div>
-  <label class="field">Receipt (JSON, URL, or base64url payload)<textarea id="receipt" spellcheck="false"></textarea></label>
+  <label class="field">Receipt (JSON, URL, or base64url payload), or a <code>zdp:1:</code> delivery proof<textarea id="receipt" spellcheck="false"></textarea></label>
 </section>
 
 <section class="card">
@@ -59,7 +59,7 @@
 <section class="card">
 <h2>What a valid result proves</h2>
 <ul class="checks">
-  <li>The named transaction pays the shown value to the shown recipient with the shown memo. This is recovered cryptographically from the transaction with the per-output key in the receipt.</li>
+  <li>The named transaction pays the shown value to the shown recipient with the shown memo. This is recovered cryptographically from the transaction with the per-output key in the receipt, or, for a <code>zdp:1</code> delivery proof, with the note it opens.</li>
   <li>If signed: the holder of the shown issuer key made this receipt and wrote its label.</li>
 </ul>
 </section>
@@ -92,7 +92,7 @@ initVerifier().then((v) => { status.textContent = "Ready: verification runs in t
 
 // What a node said about the bytes now in the box: green only if they are exactly what it served and it reports them
 // mined, as on the receipt page; anything pasted or loaded from a file is amber.
-let fetched = null; // { hex, chain, endpoint }: what a node served
+let fetched = null; // { hex, chain, endpoint, network }: what a node served
 let fromFile = null; // the text of the last file loaded
 let fromSample = null; // the sample transaction's text
 
@@ -115,9 +115,13 @@ $("fetch").addEventListener("click", async () => {
   try {
     const r = parseReceipt($("receipt").value);
     status.textContent = `Fetching ${r.txid.slice(0, 16)}… from a public node.`;
-    const got = await fetchRawTx(r.txid, r.network);
+    // A zdp:1 delivery proof names no network: mainnet's nodes, then testnet's (as the receipt page does).
+    let got, network;
+    for (const n of r.network ? [r.network] : ["main", "test"]) {
+      try { got = await fetchRawTx(r.txid, n); network = n; break; } catch (e) { if (n === "test" || r.network || !/not found/i.test(String(e))) throw e; }
+    }
     $("rawtx").value = got.hex;
-    fetched = { hex: got.hex, chain: got.chain, endpoint: got.endpoint };
+    fetched = { hex: got.hex, chain: got.chain, endpoint: got.endpoint, network };
     const where = { mined: `mined at height ${got.chain.height}`, mempool: "in the mempool, not mined yet", fork: "on a fork, not the main chain" }[got.chain.status];
     status.textContent = `Fetched from ${got.endpoint} (${where}).`;
   } catch (e) { status.textContent = `The fetch failed: ${e}`; }
@@ -158,7 +162,7 @@ function show(tone, word, note, ...body) {
 $("verify").addEventListener("click", () => {
   let r;
   try {
-    r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked });
+    r = verifyReceipt($("receipt").value, $("rawtx").value, { challenge: $("challenge").value, requireSignature: $("reqsig").checked, network: fetched?.network ?? "main" });
   } catch (e) { show("bad", "Verifier error", "The verifier could not run on this input.", el("p", "verdict-detail", String(e))); return; }
   // The page's own view model (r/view.js outcome), so the rows, their order, the numbered parts and the wording are
   // the receipt page's. The source is what put exactly these bytes in the box: a node, a file, or typing/pasting.

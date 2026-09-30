@@ -1,6 +1,6 @@
 <!--
 DRAFT, not posted (WBS 4.1.2.2; slice L1). Posting is the user's decision: a public action on forum.zcashcommunity.com.
-Prerequisite: push the repository (WBS 4.1.1.1), then replace every `[after the push]` with the public link.
+Links filled 2026-09-30: the repository is public at https://github.com/beautifulrem/zeceipt since 2026-09-29 (WBS 4.1.1.1).
 Suggested category: Applications, or Ecosystem Tooling if the forum has it. Suggested title below.
 the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 -->
@@ -16,7 +16,7 @@ If your team pays contributors in shielded ZEC, you can already keep amounts and
 **It proves** that the named transaction contains an output paying this value to this recipient with this memo, and that whoever made the receipt knew that output's key. Deriving the key takes the sender's outgoing viewing key, but anyone holding an earlier receipt for that output knows it too; a signature says which key made the receipt, not who the sender is.
 
 **It does not prove**:
-- who is showing it: a receipt is a bearer document. For an interactive check, bind a challenge.
+- who is showing it: a receipt is a bearer document. For an interactive check, ask for a signed receipt bound to your challenge (a challenge counts only on a signed receipt).
 - that the output is still unspent, or that whoever shows it can spend it (a receipt carries no spending ability);
 - anything about the transaction's other outputs, or about balances;
 - which organisation holds the signing key, unless the key id names a domain and that domain lists the key when you check it (then it vouches for the key now, not for when the receipt was made);
@@ -24,7 +24,7 @@ If your team pays contributors in shielded ZEC, you can already keep amounts and
 
 **What it costs** (the spec's §9): a receipt reveals that output's address, so receipts to the same address are linkable; pay each contributor at a fresh address from their wallet (the console warns before paying an address an earlier receipt disclosed). And disclosure is permanent: a receipt cannot be revoked.
 
-Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the push]).
+Both follow the spec's own wording ([`spec/receipt-v0.md`](https://github.com/beautifulrem/zeceipt/blob/master/spec/receipt-v0.md) §4 and §9).
 
 ## What works today
 
@@ -46,7 +46,7 @@ Both follow the spec's own wording (`spec/receipt-v0.md` §4 and §9 [after the 
 
   It drives Zkool: the seed stays in the wallet, and the console holds a viewing key and a Zkool token for its own account only. It refuses to pay through a Zkool that answers requests without a token. Shown on regtest end to end: batches made on the form, and batches made from USD payables at Kraken's live rate with receipts issued automatically.
 
-Evidence for each item: `docs/PROOF.md` §1, §2, §2b–§2e, §5 and §5b–§5g [after the push].
+Evidence for each item: [`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md) §1, §2, §2b–§2e, §5 and §5b–§5g.
 
 ## What does not exist yet
 
@@ -76,4 +76,4 @@ Your keys stay yours: the console never holds a spending key, and the CLI needs 
 
 Konclave pays shielded payroll with FROST approvals. Laminar (the RFC and grant thread on this forum) proposes a local-first treasury console whose receipt bundles prove the integrity of payment intent. Zeceipt is complementary to both: it proves what a shielded output actually paid, per output, against the chain.
 
-Code and docs: [after the push]. Built for Colosseum's Crypto World's Fair, Zcash track.
+Code and docs: https://github.com/beautifulrem/zeceipt (start with the [README](https://github.com/beautifulrem/zeceipt/blob/master/README.md)). Built for Colosseum's Crypto World's Fair, Zcash track.

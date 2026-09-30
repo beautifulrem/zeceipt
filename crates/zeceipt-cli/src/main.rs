@@ -11,6 +11,7 @@ use anyhow::{anyhow, Context};
 use clap::{Args, Parser, Subcommand};
 use rand::rngs::OsRng;
 use serde_json::json;
+use zeceipt_core::zeceipt_types::delivery::DeliveryProof;
 use zeceipt_core::zeceipt_types::ed25519_dalek::SigningKey;
 use zeceipt_core::zeceipt_types::{binding, AuditPack, Network, Receipt, TypesError};
 use zeceipt_core::{CoreError, IssueOptions, OutgoingKeys};
@@ -432,6 +433,15 @@ async fn run() -> anyhow::Result<ExitCode> {
             } else {
                 receipt
             };
+            // A `zdp:1:` delivery proof (the recipient's side, zcash-delivery-proof SPEC §4) is checked as that
+            // specification says; it is unsigned and names no network, so the flags choose the network.
+            if DeliveryProof::is_delivery_proof(&input) {
+                if challenge.is_some() || check_issuer || issuer_file.is_some() {
+                    eprintln!("error: a delivery proof carries no challenge and no issuer key");
+                    return Ok(ExitCode::from(3));
+                }
+                return verify_delivery(&input, net, raw_tx_file, require_signature).await;
+            }
             let r = match Receipt::parse(&input) {
                 Ok(r) => r,
                 Err(e) => {
@@ -500,7 +510,9 @@ async fn run() -> anyhow::Result<ExitCode> {
                     };
                     let mut out = json!({
                             "valid": true,
+                            "kind": "receipt",
                             "txid": v.txid,
+                            "wtxid": zeceipt_core::delivery::wtxid_hex(&parsed),
                             "height": height,
                             "pool": v.recovered.pool.as_str(),
                             "output_index": v.recovered.index,
@@ -736,6 +748,86 @@ fn depth_field(height: Option<u64>, tip: Option<Option<u64>>) -> Option<serde_js
 
 fn is_pending(e: &anyhow::Error) -> bool {
     matches!(e.downcast_ref::<LwdError>(), Some(LwdError::NotFound(_)))
+}
+
+const DELIVERY_PROVES: &str = "this transaction delivers the shown value to the shown receiver with the shown memo: the proof's note is the one the action commits to, and the note's own key decrypts the action's ciphertext; whoever made the proof could see that note (the recipient with an incoming viewing key, or the sender with an outgoing one), as can anyone holding an earlier copy of it";
+const DELIVERY_DOES_NOT_PROVE: &str = "who sent it, or who is presenting this proof (a delivery proof carries no signature and no challenge); that the output is still unspent; anything about other outputs, transactions or balances";
+
+/// `verify` for a `zdp:1:` delivery proof: the transaction from the file or the node, then the specification's check.
+async fn verify_delivery(
+    input: &str,
+    net: NetArgs,
+    raw_tx_file: Option<PathBuf>,
+    require_signature: bool,
+) -> anyhow::Result<ExitCode> {
+    let proof = match DeliveryProof::decode(input) {
+        Ok(p) => p,
+        Err(e) => {
+            println!(
+                "{}",
+                json!({"valid": false, "error": e.to_string(), "stage": "parse"})
+            );
+            return Ok(ExitCode::from(1));
+        }
+    };
+    if require_signature {
+        println!(
+            "{}",
+            json!({"valid": false, "error": "a delivery proof carries no signature", "stage": "signature"})
+        );
+        return Ok(ExitCode::from(1));
+    }
+    let network = network_of(&net);
+    let src = TxSource {
+        txid: Some(proof.txid_hex()),
+        raw_tx_file,
+    };
+    let (bytes, height, tip) = match load_tx_with_tip(&net, &src).await {
+        Ok(v) => v,
+        Err(e) => {
+            if is_pending(&e) {
+                println!(
+                    "{}",
+                    json!({"valid": null, "status": "pending", "error": e.to_string()})
+                );
+                return Ok(ExitCode::from(2));
+            }
+            return Err(e);
+        }
+    };
+    match zeceipt_core::delivery::check(&bytes, &proof, network) {
+        Ok(d) => {
+            let mut out = json!({
+                "valid": true,
+                "kind": "delivery-proof",
+                "txid": d.txid,
+                "wtxid": d.wtxid,
+                "height": height,
+                "pool": d.recovered.pool.as_str(),
+                "output_index": d.recovered.index,
+                "recipient": d.recovered.recipient,
+                "value_zat": d.recovered.value_zat,
+                "value_zec": format_zec(d.recovered.value_zat),
+                "memo": memo_json(&d.recovered.memo),
+                "issuer_pubkey": null,
+                "challenge_checked": false,
+                "proves": DELIVERY_PROVES,
+                "does_not_prove": DELIVERY_DOES_NOT_PROVE,
+            });
+            if let Some(depth) = depth_field(height, tip) {
+                out["confirmations"] = depth;
+            }
+            println!("{}", serde_json::to_string_pretty(&out)?);
+            Ok(ExitCode::SUCCESS)
+        }
+        Err(e) => {
+            println!(
+                "{}",
+                json!({"valid": false, "error": e.to_string(), "stage": stage(&e)})
+            );
+            Ok(ExitCode::from(1))
+        }
+    }
 }
 
 fn stage(e: &CoreError) -> &'static str {

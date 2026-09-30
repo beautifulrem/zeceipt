@@ -21,6 +21,9 @@ const b64 = (json) => Buffer.from(json).toString("base64url");
 const BEARER = read(path.join(root, "demo/fixtures/synthetic-receipt-bearer.json"));
 const BOUND = read(path.join(root, "demo/fixtures/synthetic-receipt.json"));
 const SYNTH_HEX = read(path.join(root, "demo/fixtures/synthetic-ironwood.hex"));
+// zcash-delivery-proof's real vectors (fixtures/zdp/, Apache-2.0): a `zdp:1:` link opens on the same page (judge round 1, D6).
+const ZDP_MAIN = JSON.parse(read(path.join(root, "../../fixtures/zdp/mainnet.json")));
+const ZDP_TEST = JSON.parse(read(path.join(root, "../../fixtures/zdp/testnet.json")));
 const REGTEST = read(path.join(repo, "fixtures/regtest-receipt.json"));
 const REGTEST_HEX_FILE = path.join(repo, "fixtures/regtest-48be62e21bdc98080da9aa396844c8bd7f86496ca0cb1759ea91d1a19e0fa92d.hex");
 const variant = (json, mut) => { const o = JSON.parse(json); mut(o); return JSON.stringify(o); };
@@ -178,6 +181,53 @@ test("a bearer receipt opened by its link: summary first, then VALID with the th
   const prefix = (u) => u.slice(0, u.lastIndexOf("/"));
   assert.equal(prefix(outside[1].url), prefix(outside[0].url), "the tip is asked of the node that served the transaction");
   await assertPrivate(s);
+  await s.context.close();
+});
+
+test("a zdp:1 delivery proof opened by its link: no network named, fetched from mainnet, VALID with no issuer and no challenge", { skip: !RUN }, async () => {
+  const s = await openPage({ nodeHex: ZDP_MAIN.txHex, height: 3499556n, tip: 3499565n });
+  await s.page.goto(`${base}/r/#${ZDP_MAIN.proof}`);
+  await ready(s.page);
+  const summary = await text(s.page, "#summary");
+  assert.match(summary, /zdp:1 delivery proof/);
+  assert.match(summary, /not named in the proof: the page asks Zcash mainnet, then testnet/);
+  assert.match(summary, new RegExp(ZDP_MAIN.txid));
+  assert.equal(s.requests.filter((r) => !r.url.startsWith(base)).length, 0, "nothing is fetched before the click");
+  await s.page.click("#fetch");
+  await verified(s.page);
+  await s.page.waitForFunction(() => !/asking it for its chain tip/.test(document.querySelector("#inclusion").textContent));
+  assert.equal(await text(s.page, "#headline"), "VALID");
+  const payment = await text(s.page, "#payment");
+  assert.ok(payment.includes(ZDP_MAIN.address) && payment.includes("(10000 zat)") && payment.includes(ZDP_MAIN.memoText), payment);
+  assert.doesNotMatch(payment, /Label/, "a delivery proof has no label");
+  assert.equal(await text(s.page, "#inclusion"), "Mined at height 3499556, 10 confirmations, according to zjs.zec.rocks/mainnet. ZIP 315 recommends 10 confirmations before spending funds from an untrusted sender.");
+  assert.match(await text(s.page, "#issuer"), /^No issuer: a delivery proof is unsigned/);
+  assert.match(await text(s.page, "#challenge-line"), /cannot be bound to a challenge/);
+  assert.equal(await visible(s.page, "binding-row"), false, "no issuer check to offer");
+  assert.equal(await s.page.getAttribute("#outcome", "class"), "ok");
+  const outside = s.requests.filter((r) => !r.url.startsWith(base)).map((r) => r.url);
+  assert.deepEqual(outside.map((u) => u.split("/").pop()), ["GetTransaction", "GetLatestBlock"]);
+  assert.ok(outside.every((u) => u.startsWith("https://zjs.zec.rocks/mainnet/")), outside.join(" "));
+  await assertPrivate(s);
+  await s.context.close();
+});
+
+test("a zdp:1 proof of a testnet payment: mainnet's nodes do not have it, so the page asks testnet's, and writes the recipient for testnet", { skip: !RUN }, async () => {
+  const s = await openPage({ nodeHex: "" }); // mainnet (zjs) answers with no data: not found
+  const grpcHeaders = { "content-type": "application/grpc-web+proto", "access-control-allow-origin": "*", "access-control-allow-headers": "*" };
+  await s.context.route("https://zjs.zec.rocks/testnet/**", (route) => route.request().url().endsWith("/GetLatestBlock")
+    ? route.fulfill({ status: 200, headers: grpcHeaders, body: Buffer.concat([frame(0, [0x08, ...varint(4398905n)]), frame(0x80, Buffer.from("grpc-status:0\r\n"))]) })
+    : route.fulfill({ status: 200, headers: grpcHeaders, body: grpcWeb(ZDP_TEST.txHex, 4398896n) }));
+  await s.page.goto(`${base}/r/#${ZDP_TEST.proof}`);
+  await ready(s.page);
+  await s.page.click("#fetch");
+  await verified(s.page);
+  await s.page.waitForFunction(() => !/asking it for its chain tip/.test(document.querySelector("#inclusion").textContent));
+  assert.equal(await text(s.page, "#headline"), "VALID");
+  assert.match(await text(s.page, "#payment"), /utest1[0-9a-z]+/, "a testnet unified address");
+  assert.match(await text(s.page, "#payment"), /\(546 zat\)/);
+  assert.match(await text(s.page, "#inclusion"), /^Mined at height 4398896, 10 confirmations, according to zjs\.zec\.rocks\/testnet\./);
+  await assertPrivate(s, { expectedErrors: [/ERR_FAILED|net::/] });
   await s.context.close();
 });
 

@@ -15,6 +15,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 
 pub mod binding;
+pub mod delivery;
 
 /// Format identifier. Also the domain prefix of the canonical signing string.
 pub const VERSION: &str = "zeceipt-v0";
@@ -46,6 +47,9 @@ pub enum TypesError {
     Unsigned,
     #[error("challenge mismatch")]
     ChallengeMismatch,
+    /// A `zdp:1:` delivery proof names a pool other than Orchard (1) or Ironwood (2).
+    #[error("delivery proof names pool {0}; only 1 (Orchard) and 2 (Ironwood) exist")]
+    DeliveryPool(u8),
 }
 
 /// Which shielded pool the disclosed output lives in.

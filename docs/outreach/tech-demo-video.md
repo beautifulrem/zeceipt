@@ -34,4 +34,4 @@ The pitch's list applies (`docs/outreach/pitch-video.md`, "Do not say"). The rul
 - **"from the chain"** over the receipt page: it loads the transaction from a file. Over the `zeceipt verify --regtest` shot it is true: the CLI fetches the transaction from the node.
 - **"on mainnet" or "on testnet"** over regtest shots.
 - **"proves the sender"** or **"proves who paid"**: a signature attributes a receipt to a key.
-- **"the tests run in CI"**, until the repository is pushed and CI has run.
+- (Lifted 2026-09-30: "the tests run in CI" is true since the repository went public on 2026-09-29, and CI is green on master. Say it with a count only if it is the checked one: 532 run by default, 67 Rust and 465 console.)

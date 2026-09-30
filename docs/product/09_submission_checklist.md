@@ -13,8 +13,9 @@ Source for fields and rules: `[R1]` (form fields captured 2026-09-17 from the FA
 | Category | **Developer Infrastructure**: the solo branch replaced the baseline on 2026-09-24, since no second person was confirmed (`11_plan.md` §1.1, RSK-19), and its rule forces this category. Payments & Remittance would have been the primary otherwise | ✅ by rule |
 | Team members with background | "All teammates, with context on their backgrounds and previous experience" `[R109]`: names, roles, backgrounds, previous experience | 👤 |
 | Team location / country | | 👤 |
-| Logo / graphic | a plain text wordmark (the designed logo, WBS 5.1.2.5, was dropped with the solo branch) | ⬜ |
-| GitHub repository | public URL (open source encouraged; or private with access granted to hackathon@colosseum.com `[R109]`) | 👤 push |
+| Logo / graphic | the original mark, `docs/assets/zeceipt-icon.svg` (with `zeceipt-mark.svg`; added 2026-09-29 with the public release, `ba6abac`; WBS 5.1.2.5); a PNG exported from it for the form at the upload | ✅ mark; PNG at upload |
+| GitHub repository | https://github.com/beautifulrem/zeceipt, public since 2026-09-29, Apache-2.0 (open source encouraged; the private alternative was access for hackathon@colosseum.com `[R109]`) | ✅ |
+| Colosseum account (each member) + project registered on the Arena | each member signs in at colosseum.com with a completed profile, and the project is created on the Arena; rule 6 requires every member to register and fill in the profile by 2026-10-12 23:59 PT (KB `03_rules_eligibility.md`); the weekly updates and the upload most likely need the project (§5, 09-28 row). Owner-only | 👤 |
 | Presentation (pitch) video | 2–3 min ("one of the first resources judges review" `[R109]`), YouTube unlisted | ⬜ |
 | Product demo video | ≤ 3 min, how the product works `[R109]`, YouTube unlisted | ⬜ |
 | Go-to-market (the form asks for "Go-to-market strategy, demand validation, and plans for developing distribution" `[R109]`) | draft in §2b (slice D9): first users, demand in a user's words, channels, milestones, draft pricing | 🟡 fill the status placeholder |
@@ -46,7 +47,7 @@ Receipts compose into audit packs whose totals are lower bounds. An issuer can b
 - Mainnet v6 transactions parsed and fetched over gRPC.
 - On a Zebra regtest chain: a consensus-valid Ironwood transaction, with receipts issued from the sender's viewing key and verified over gRPC and offline; and the console end to end, from USD payables at Kraken's live rate to verified receipts.
 - Tampered receipts fail closed at a named stage.
-- 532 automated tests (67 Rust, 465 TypeScript), including the official Orchard note-encryption vectors, plus opt-in Chrome suites for the console and the receipt page.
+- 536 automated tests (71 Rust, 465 TypeScript), including the official Orchard note-encryption vectors, plus opt-in Chrome suites for the console and the receipt page.
 - [Public-chain receipts and the pilot organisation: ≤ 10 words.]
 
 **Market.** First users are Zcash grant programs and DAOs: FPF's Q1 2026 report lists 62 milestone payouts and 129 ZecHub bounty payments. Then payroll teams, such as Konclave's users.
@@ -91,9 +92,9 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 - [x] README with proof, prior art, status, what is/isn't proven
 - [x] `docs/PRE_EVENT_STATE.md`, `docs/PRIOR_ART.md`
 - [x] Commit history inside the window (first commit 2026-09-21 PT; `git log` shows 2026-09-22 00:07 +08:00)
-- [ ] CI green on GitHub (needs push)
+- [x] CI green on GitHub: the repository is public since 2026-09-29 (first green run 36595874577, `e8c5058`); green on master since `d33ecd8` (run 36626374879)
 - [ ] In this order (RSK-17; publishing is irreversible): 1. `scripts/security_review.sh` passes: `cargo audit`, `npm audit`, the secrets scan (3.4.2.3, 10-08 → 10-09; first pass 2026-09-25, `docs/SECURITY_REVIEW.md`) → 2. tag v0.1.0 + release notes (4.1.1.4, 10-09) → 3. `npm publish @zeceipt/verify` (4.1.1.3, U, 10-10)
-- [ ] Demo page hosted (GitHub Pages or zeceipt.xyz)
+- [ ] Demo page hosted (GitHub Pages or zeceipt.xyz): the Pages workflow (`.github/workflows/pages.yml`, `fd5271a`) deploys the receipt page and the demo once the owner enables Pages in the repository's settings (owner-only)
 
 ## 5. Timeline (authoritative for external milestones)
 
@@ -102,7 +103,7 @@ This table is the authority for dates visible outside the team (posts, videos, u
 | Date | Milestone | Source |
 |---|---|---|
 | 2026-09-22 | Product/research phase closed ✅ | `11_plan.md` §3 |
-| 2026-09-28 | Push the repo and enable CI; confirm the product name; register the project on the Arena if it is not yet (weekly updates and the upload most likely need it); record and post weekly update 1 (fallback: by 09-30, or skipped); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
+| 2026-09-28 | Push the repo and enable CI (✅ done 2026-09-29, public); confirm the product name; register the project on the Arena if it is not yet (weekly updates and the upload most likely need it); record and post weekly update 1 (fallback: by 09-30, or skipped); then post the forum pilot call (U) | `11_plan.md` §8; WBS asks |
 | 2026-09-30 | Testnet faucet claim and mainnet funding of the issuing wallet (U); the first public-chain issuance run once funded (§8, 09-27 → 09-30) | `11_plan.md` §8; WBS asks |
 | 2026-10-01 | Register the domain and host the page; decide whether to contact Konclave's author as a pilot channel (U) | `11_plan.md` §8; WBS asks |
 | 2026-10-01 → 10-03 | Fallback for the public-chain run: it must land by 10-03 (mainnet cut-off 10-02, then testnet only); the pilot batch, issued by the pilot's sender (FPF for ZecHub's bounties, or a payer from the forum call) | `11_plan.md` §8 |
@@ -120,9 +121,9 @@ Six criteria (rules §8) `[R1]`:
 
 | Criterion | Where it is answered |
 |---|---|
-| Functionality — how well it works, code quality | 532 tests (67 Rust, 465 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow |
+| Functionality — how well it works, code quality | 536 tests (71 Rust, 465 TypeScript), clippy `-D warnings`, `docs/PROOF.md` §1–§5, CI workflow |
 | Potential Impact — TAM, ecosystem effect | `03_market_competition.md` §1; `02_personas_jtbd.md` §0; `07_compliance_tax.md` §3 |
-| Novelty | first per-output receipts on Ironwood; format + vectors; `docs/PRIOR_ART.md` states exactly what is new vs Glasspane/ZIP 311 |
+| Novelty | issuer-attributed, chain-fetched per-output receipts for Ironwood, Orchard and Sapling, with a payout workflow; see PRIOR_ART (`docs/PRIOR_ART.md` states what is new against ZIP 311, Glasspane, zcash-delivery-proof and the 2026-09-30 rescan, `[R135]`); format + vectors |
 | UX — using the chain for downstream users | no-login browser verification, three-part outcome, proves/does-not-prove copy (`04_ux_flows.md`, spec §4); one design system for the receipt page and the console, light and dark, WCAG AA contrast tested per token pair `[R134]` |
 | Open-source, composability | Apache-2.0 `[R133]`; crates + npm package (publishing is the user's) + vectors; the issuer's well-known key file; an OpenZcash-compatible export (built, slices X1–X2c); planned in the solo schedule: a CSV import of Konclave's format (`11_plan.md` §8; `05_data_model_api.md` §4) |
 | Business Plan, team ability | `08_gtm_pricing.md`; `11_plan.md` §1–§4; team section (U) |

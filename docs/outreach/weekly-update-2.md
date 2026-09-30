@@ -27,7 +27,7 @@ Say these only if they are true when recording. Each replaces the 0:44 row, keep
 
 - **The public-chain run has happened** (PROOF §6): use its footage, `zeceipt verify` on a public-chain receipt and the transaction in an explorer. Say "on testnet" or "on mainnet", as PROOF §6 records it: "Receipts now run on [testnet]: this one verifies against a public node." The last card then reads "Next: the videos, and one pilot", and so does its line.
 - **A pilot paid a real batch** (4.2.1.1): one sentence naming the payer only if they agreed to be named, otherwise "one team".
-- **The repository is public** (4.1.1.1): add "The code is open source" to the last line.
+- **The repository is public** (4.1.1.1; true since 2026-09-29): add "The code is open source" to the last line.
 - **Neither happened:** keep the rows above as written. They are true today.
 
 ## Do not say

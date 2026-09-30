@@ -18,7 +18,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 1.1.2.1 ✅ PM — 337 past winners profiled (180 deep, 157 honourable); win patterns summarised. `[R42]` `[R36]` `[R22]`; `03_market_competition.md` §5.
 - 1.1.2.2 ✅ PM — 36 current public repos profiled, 17 deep; overlaps listed. `[R42]` `[R9]` `[R15]` `[R16]`; `03_market_competition.md` §3.
 - 1.1.2.3 ✅ PM — 86 external hackathons / 167 projects reviewed for win patterns. `[R42]` `[R36]`.
-- 1.1.2.4 🟡 PM — Weekly rescan of new Zcash-track repos (done 2026-09-21 only; next 2026-09-28). `03_market_competition.md` §5.
+- 1.1.2.4 🟡 PM — Weekly rescan of new Zcash-track repos (done 2026-09-21; 2026-09-28, Zcash repositories created since 09-10 `[R129]`; 2026-09-30, 255 new event repositories and 162 new Zcash ones, with zcash-delivery-proof, stamps, Cove, zkSEND, ShieldCheck, Corridor and Quorum added to `docs/PRIOR_ART.md` `[R135]`; next 2026-10-05). `03_market_competition.md` §5.
 #### 1.1.3 Judges
 - 1.1.3.1 ✅ PM — 21 judges profiled with X handles and inferred tracks. `[R42]` `[R1]`; answer sheet `11_plan.md` §6.
 - 1.1.3.2 ✅ PM — Receipt-version Q&A per judge. `11_plan.md` §6.
@@ -146,7 +146,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 #### 3.1.1 Repository and process
 - 3.1.1.1 ✅ R — Cargo workspace, pinned crate set. `Cargo.toml`.
 - 3.1.1.2 ✅ R — Task workflow initialised; coding conventions written.
-- 3.1.1.3 ✅ R — CI workflow (Rust gates + wasm + node guard). `.github/workflows/ci.yml` (never run: no remote).
+- 3.1.1.3 ✅ R — CI workflow (Rust gates + wasm + node guard). `.github/workflows/ci.yml`; first run on GitHub 2026-09-29 once the repository was public (first green run 36595874577), green on master since `d33ecd8`; since `fd5271a` also a security job (weekly too), an MSRV build on 1.88, the static site build and the test-count check.
 - 3.1.1.4 ✅ R — Pre-event state and prior-art disclosure. `docs/PRE_EVENT_STATE.md`, `docs/PRIOR_ART.md`.
 #### 3.1.2 Receipt core (crate `zeceipt-core`)
 - 3.1.2.1 ✅ R — v4/v5/v6 parsing, Ironwood enumeration. test `parses_mainnet_v6_fixture_and_enumerates_ironwood_actions`.
@@ -222,6 +222,8 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
   Then (slice F3): the console's links point at the page's site (`ZECEIPT_RECEIPT_HOST` → `zeceipt issue --host`, GitLab's `external_url` pattern `[R69]`). Live on regtest, each console link opens on the page in Chrome as VALID with its item's memo and value, and the page's host never sees a receipt (PROOF §5d). Then (slice S2): no default host anywhere, since the page a host serves reads the fragment and `zeceipt.xyz` is not ours yet. The console refuses to start without `ZECEIPT_RECEIPT_HOST`; `zeceipt issue` without `--host` issues with `"url": null`; the examples and vectors use the reserved `receipts.example` `[R96]`.
 - 3.3.6.3 ⬜ R — Audit-pack page + JSON; exports OpenZcash/QBO/Xero/1099 totals with column tests (REQ-CON-13, REQ-CON-14, NFR-9). 1.5 pd, 2026-09-29 → 09-30.
 - 3.3.6.4 ⬜ T — Notifications and UFVK reconciliation view (REQ-CON-15, REQ-CON-16; cut order item 2). 1 pd, 2026-10-08 → 10-09 (only if restored).
+- 3.3.6.5 ✅ T — Design system, slice F: unplanned and unpriced, recorded after the fact (PM round 1, D02). Done 2026-09-29 PT in 16 commits (`e65a3d6` "F: one design system for the receipt page, the demo and the console" … `1f215b6`): one set of tokens for the receipt page, the demo and the console, light and dark, WCAG AA contrast per token pair `[R134]`; the design gallery (`apps/console/test/shots/gallery.ts`) runs in CI and fails on overflow or an axe WCAG A/AA violation on any console page. It took the day Must 6 and the forum post were due, left 7 of the 10 CI runs before `d33ecd8` red (mostly the gallery's measurements under Linux fonts, once a SQLite contention test), and made the video takes of 09-26 out of date (RSK-27; `11_plan.md` §8, window review 2026-09-30).
+- 3.3.6.6 ✅ R — Delivery proofs: `zdp:1:` (saplingcash/zcash-delivery-proof SPEC §4) checked by the core, the CLI's `verify`, the WASM verifier, the receipt page and the demo, so a recipient can prove a payment (judge round 1, D6; PM D26). Unplanned and unpriced. Done 2026-09-30: every step of the specification's check, the wtxid reported for receipts too, and that project's vectors checked, including a real mainnet payment fetched live (PROOF §7) `[R136]`.
 
 ### 3.4 Evidence and quality
 #### 3.4.1 Proof log
@@ -231,10 +233,10 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 3.4.1.4 👤 ⬜ U — testnet public-chain transaction (the faucet claim is the user's decision: fauzec's API has no human gate "for now", while its web form and jinolabs's have one `[R126]`). PROOF §4/§6.
 - 3.4.1.5 👤 ⬜ U — Fund the issuing wallet: testnet faucet + mainnet ZEC for ≥ 15 receipts (≈ 0.02 ZEC incl. fees), by 2026-09-26; without it the headline metric (`11_plan.md` §4) cannot be met.
 #### 3.4.2 Quality gates
-- 3.4.2.1 ✅ R — 67 Rust tests + 465 TypeScript console tests (and 3 opt-in regtest e2e: the library, PROOF §5c; the app through HTTP, §5d; the payables path, §5g; the 26 build-and-serve tests, four of them in Chrome, run in CI with `ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1`; the public receipt page's 19 Chrome tests, `packages/verify/test/page.e2e.mjs`, also run in CI), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`, `packages/verify/test/pack.mjs` (the npm tarball as published, slice R1b1).
+- 3.4.2.1 ✅ R — 71 Rust tests + 465 TypeScript console tests (and 3 opt-in regtest e2e: the library, PROOF §5c; the app through HTTP, §5d; the payables path, §5g; the 26 build-and-serve tests, four of them in Chrome, run in CI with `ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1`; the public receipt page's 21 Chrome tests, `packages/verify/test/page.e2e.mjs`, also run in CI), clippy `-D warnings`, fmt, grep guards (key-material flags, secrets in logs), demo copy check. `.github/workflows/ci.yml`, `packages/verify/test/verify.mjs`, `packages/verify/test/pack.mjs` (the npm tarball as published, slice R1b1).
 - 3.4.2.2 ✅ R — Independent implementation review 100/100 (five rounds; the records are kept privately).
 - 3.4.2.3 🟡 R — Security self-review checklist before submission (deps audit `cargo audit`, secrets scan). 0.25 pd, 2026-10-08 → 10-09. First pass done early (slice J1, 2026-09-25): `scripts/security_review.sh` runs `cargo audit`, `npm audit` on both lockfiles, gitleaks on the history and the working tree, and the source guards, and exits 1 on any finding. The one real finding (esbuild 0.18.20 under drizzle-kit, GHSA-67mh-4wv8-2f99) is fixed by an npm override; every accepted finding is recorded with its reason (`docs/SECURITY_REVIEW.md`) `[R90]`. The leaf closes with the pre-submission rerun. The console's threat model (slice T1): `docs/THREAT_MODEL.md` "The payout console", with a data-flow sketch, trust boundaries, assets, and fourteen threats by STRIDE, each with its control, evidence and residual. Its mapping found three gaps, fixed as S3 (the wallet reachable around the console), S4 (clickjacking) and S5 (a restored database paying twice) `[R100]`. A dry run passed on 2026-09-27 at c91729c (slice S6, `docs/SECURITY_REVIEW.md` "Interim pass"); the formal rerun keeps its date. An upstream advisory checked against this code (slice U2): Zebra's GHSA-h5rr-8pqv-grp9 showed that `zcash_primitives` parses a v6 transaction under a pre-NU6.3 branch; zeceipt did too, without the crash (nothing re-serializes), and now refuses it as malformed `[R127]`. A crafted note value above MAX_MONEY, which the protocol spec rules out, verified as valid from a file-loaded transaction; it is now refused at recovery (slice U5) `[R131]`.
-- 3.4.2.4 ⬜ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09. Slice X3a: the committed WASM carried the builder's local paths; `scripts/build_wasm.sh` remaps them, two builds from different checkouts are byte-identical on one toolchain, the package is rebuilt, and `verify.mjs` refuses a local path; the README states the toolchain and the hash `[R119]`. The release notes' provenance says so. Slice X3b: CI rebuilds it on Linux (`ubuntu-24.04`, slice X3c) with the pinned toolchain and the runner's clang 18, requires the wasm-bindgen outputs to match and the Linux build to pass `verify.mjs`, and reports the `.wasm` comparison; `scripts/build_wasm.sh --check` does the same locally `[R120]`. The Linux answer comes with the first CI run, after the push. The optional 20 KB measurement is done with a real transaction instead of a synthetic one (slice P3): a consensus-valid regtest batch of 21,790 bytes, verified in at most 4.2 ms in Chrome in that run, 5.9 ms in the reviewer's (`packages/verify/test/timing.mjs`).
+- 3.4.2.4 ✅ R — Reproducible wasm build note or CI artifact; if time allows, a synthetic 20 KB v6 fixture to measure NFR-4 at its stated bound. 0.25 pd, 2026-10-08 → 10-09. Slice X3a: the committed WASM carried the builder's local paths; `scripts/build_wasm.sh` remaps them, two builds from different checkouts are byte-identical on one toolchain, the package is rebuilt, and `verify.mjs` refuses a local path; the README states the toolchain and the hash `[R119]`. The release notes' provenance says so. Slice X3b: CI rebuilds it on Linux (`ubuntu-24.04`, slice X3c) with the pinned toolchain and the runner's clang 18, requires the wasm-bindgen outputs to match and the Linux build to pass `verify.mjs`, and reports the `.wasm` comparison; `scripts/build_wasm.sh --check` does the same locally `[R120]`. Done 2026-09-29 with the first CI runs on GitHub: the wasm-bindgen outputs match and the Linux build passes `verify.mjs` (both required), and the Linux `.wasm` differs from the committed one (reported, as designed: the clang differs; README "Building the WASM package"). The optional 20 KB measurement is done with a real transaction instead of a synthetic one (slice P3): a consensus-valid regtest batch of 21,790 bytes, verified in at most 4.2 ms in Chrome in that run, 5.9 ms in the reviewer's (`packages/verify/test/timing.mjs`).
 
 ---
 
@@ -242,13 +244,13 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 
 ### 4.1 Publishing
 #### 4.1.1 Repository and package
-- 4.1.1.1 👤 ⬜ U — Create GitHub org/repo, push, enable CI.
+- 4.1.1.1 ✅ U — Create GitHub org/repo, push, enable CI. Done 2026-09-29: https://github.com/beautifulrem/zeceipt, public, Apache-2.0; first green CI run 36595874577 (`e8c5058`).
 - 4.1.1.2 👤 ⬜ U — Register `zeceipt.xyz`; host demo page and `/.well-known/zeceipt.json` example. The receipt page needs `packages/verify/` as the site root, with `/r` redirected to `/r/` (README, "Receipt links"). Check it on the host, and add the page's CSP and `Referrer-Policy` as response headers there (a meta cannot carry `frame-ancestors`).
 - 4.1.1.3 👤 ⬜ U — `npm publish @zeceipt/verify` after links resolve. The package is ready (slice R1b1): public access set, its own README, and `packages/verify/test/pack.mjs` installs the packed tarball offline and runs the README's Node example through it `[R115]`. The first version is published by hand (trusted publishing needs the package to exist), from an npm account with 2FA that owns the `zeceipt` scope, after `repository.url` matches the pushed repository; the steps are R1b2's procedure.
 - 4.1.1.4 ⬜ R — Tag v0.1.0; README badges and a "For judges" section (where to start, commands, what runs where; winner lessons item 9); release notes. 0.25 pd, 2026-10-08 → 10-09. Added back in the solo branch (slice D10b): the section and notes in 09-27 → 09-30, the tag on 10-09. The "For judges" section exists (slice J2, `8844222`). Slice R1a: `CHANGELOG.md` in Keep a Changelog form, its first release under `Unreleased` until the tag `[R114]`; R1b: the release notes and the release procedure, with the badges once the repository has a URL; `scripts/check_release.py` (slice R1b3a, in CI) holds the nine version sources to the workspace's and, with `--tag`, the changelog to a dated section and a clean tree before the annotated tag `[R116]`; `docs/RELEASING.md` (slice R1b3b) is the procedure, step by step with who runs each `[R117]`; R1b4: the release notes, `docs/release/v0.1.0.md` (a summary, how to try it, the evidence, known limitations from the threat model and risk register, provenance) `[R118]`; R1c: the tag on 10-09.
 #### 4.1.2 Community and design test
 - 4.1.2.1 ⬜ R — Post format v0 to zips #387 and follow the thread (the post itself is 3.3.3.4; this is monitoring/replies). 0.25 pd, 2026-10-08 → 10-09.
-- 4.1.2.2 🟡 PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24. Drafted 2026-09-25 (slice L1): `docs/outreach/forum-pilot-post.md`, every claim tied to PROOF, links marked for after the push `[R92]`. Posting is the user's action, after the repository is public (4.1.1.1).
+- 4.1.2.2 🟡 PM — Forum post "Shielded payment receipts: looking for one pilot" (2026-09-24 plan). 0.5 pd, 2026-09-23 → 09-24. Drafted 2026-09-25 (slice L1): `docs/outreach/forum-pilot-post.md`, every claim tied to PROOF, links marked for after the push `[R92]`. Links filled 2026-09-30 (the repository is public, 4.1.1.1). Posting is the user's action; still a draft, not posted.
 - 4.1.2.3 👤 ⬜ U — Decide on contacting Konclave's author (default yes).
 - 4.1.2.4 ⬜ PM — ZecHub Discord announcement with demo link. 0.25 pd, 2026-09-27 → 09-28.
 
@@ -280,7 +282,7 @@ Numbering is `phase.workstream.task.subtask`. Every leaf is a level-4 item.
 - 5.1.2.2 🟡 PM — Product description (English, ≤ 500 words) and GTM paragraph. `09_submission_checklist.md` §2 and §2b. 0.5 pd, 2026-10-04 → 10-07. Drafted 2026-09-26 (slices D8 and D9); the placeholders (team, public-chain receipts, pilot, traction, post status) are filled at the 10-05 upload.
 - 5.1.2.3 👤 ⬜ U — Team members with background context; team location.
 - 5.1.2.4 ⬜ PM — Category choice (Payments & Remittance vs Developer Infrastructure) decided with rationale. Dropped with the solo branch, which forces Developer Infrastructure (`11_plan.md` §1.1, RSK-19); recorded in `09_submission_checklist.md` §1 (slice D8). 0.25 pd, 2026-10-04 → 10-07.
-- 5.1.2.5 ⬜ PM — Logo / graphic: simple wordmark + receipt glyph (SVG) for the form. 0.25 pd, 2026-10-04 → 10-07.
+- 5.1.2.5 ✅ PM — Logo / graphic: simple wordmark + receipt glyph (SVG) for the form. 0.25 pd, 2026-10-04 → 10-07. Dropped in the solo branch, then delivered with the public release on 2026-09-29 (`ba6abac`): the original mark, `docs/assets/zeceipt-icon.svg` and `zeceipt-mark.svg`; the form takes a PNG exported from the icon at the upload (5.2.1.1).
 
 ### 5.2 Process
 #### 5.2.1 Timeline
@@ -303,7 +305,6 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 | Due | Leaf | Ask | Why it blocks |
 |---|---|---|---|
 | 2026-09-28 | 2.4.3.4 | Confirm the product name (default: Zeceipt) | README, npm scope, domain |
-| 2026-09-28 | 4.1.1.1 | Create the GitHub org/repo, push, enable CI | CI has never run; judges need a public URL; dead links in README/package.json; the forum and zips #387 drafts wait on it |
 | 2026-09-28 | 5.1.1.3 | Record and post weekly update 1 (60 s; script and footage ready; most likely on the Arena dashboard, inferred from `isCurrentWeekUpdateSubmitted` and needing the project registered, with X tagging @colosseum as an extra) — a PM leaf whose recording and posting are the user's (`11_plan.md` §8); 4.2.2.4 counts the posts | the officially "strongly recommend"-ed weekly update; fallback: by 09-30 or skipped |
 | 2026-09-30 | 3.4.1.4 | Claim testnet TAZ from a faucet: the user's decision (fauzec's API has no human gate "for now"; its web form and jinolabs's have one; PROOF §4 `[R126]`) | first public-chain receipt (PROOF §6) |
 | 2026-09-30 | 3.4.1.5 | Fund the issuing wallet with mainnet ZEC (≈ 0.02 ZEC) | public-chain receipts (solo target ≥ 3), which must land by 10-03, before the videos |
@@ -321,9 +322,9 @@ Re-dated 2026-09-26 from `11_plan.md` §8 (the solo schedule): the asks due 09-2
 |---|---|---|---|---|---|
 | 1 Research | 44 | 37 | 1 | 5 | 1 |
 | 2 Product definition | 44 | 40 | 0 | 2 | 2 |
-| 3 Engineering | 64 | 43 | 1 | 18 | 2 |
-| 4 Launch/GTM | 16 | 0 | 1 | 11 | 4 |
-| 5 Submission | 18 | 3 | 1 | 13 | 1 |
-| **Total** | 186 | 123 | 4 | 49 | 10 |
+| 3 Engineering | 66 | 46 | 1 | 17 | 2 |
+| 4 Launch/GTM | 16 | 1 | 1 | 11 | 3 |
+| 5 Submission | 18 | 4 | 1 | 12 | 1 |
+| **Total** | 188 | 128 | 4 | 47 | 9 |
 
 Counts are maintained by `scripts/check_product_docs.py` (run it after editing this file).

@@ -13,10 +13,10 @@ Steps
 3. `zcash-devtool wallet -w regtest-wallet restore-mnemonic -n regtest -s localhost:8137 --birthday 1 -i regtest-wallet/identity.txt` (paste mnemonic), then `sync`, `balance`.
 4. `shield` transparent coinbase into Ironwood; mine; `sync`.
 5. `send --address <uregtest1… of a second account> --value 250000000 --memo "INV-R-001"`; mine; `sync`; note txid.
-6. `zeceipt issue --endpoint http://127.0.0.1:8137 --ufvk <uviewregtest…> --txid <txid> --label … --key-file …` (regtest network handling: see notes)
-7. `zeceipt verify --endpoint http://127.0.0.1:8137 …` and offline with `getrawtransaction` hex from zebrad RPC.
+6. `zeceipt issue --regtest --endpoint http://127.0.0.1:8137 --ufvk <uviewregtest…> --txid <txid> --label … --key-file …`
+7. `zeceipt verify --regtest --endpoint http://127.0.0.1:8137 …`, and offline with `zeceipt verify --regtest --raw-tx-file <hex file> …`, the hex from zebrad's `getrawtransaction` RPC.
 
-Notes: Zeceipt's `Network` enum has main/test only; regtest addresses use testnet-style prefixes for keys (`uviewregtest1`) which zcash_keys decodes with the Regtest network type. A `--network regtest` flag may need adding to the CLI (map to zcash_protocol::consensus::NetworkType::Regtest for key decoding and address encoding).
+Notes: `--regtest` (a global flag; any command that contacts a node needs `--endpoint` with it, since there is no public regtest node, while `--raw-tx-file` needs none) selects the regtest network for key decoding (`uviewregtest1…`) and address encoding; see Lessons for the activation heights it assumes.
 
 ## Lessons (2026-09-22)
 - `zcash-devtool wallet shield` proposes spending every transparent UTXO of the account, including immature coinbase (rejected by the validator: "spends are invalid before Height(created+100)"). With the internal miner paying our own address forever, some UTXO is always immature. Fix: after ~130 blocks, restart zebrad with `miner_address` set to an address **outside** the wallet (used the Zebra doc's testnet P2SH `t27eWDgjFYJGVXmzrXeVjnb5J3uXDM9xH9v`), keep mining, and shield once the last wallet coinbase is 100 blocks deep.

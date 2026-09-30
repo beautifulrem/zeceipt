@@ -25,7 +25,7 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="532 tests" src="https://img.shields.io/badge/tests-532-2ea44f?style=flat-square">
+  <img alt="536 tests" src="https://img.shields.io/badge/tests-536-2ea44f?style=flat-square">
 </p>
 
 ---
@@ -48,7 +48,7 @@ Shielded Zcash hides who paid whom and how much. That is the point, until someon
 - an auditor needs this quarter's payouts;
 - a DAO's public ledger needs to show a grant went out.
 
-Today the answer is to share a **viewing key**, which exposes *every* payment the wallet has made or will make. Zeceipt gives a receipt for **one output**, which anyone can check against the chain. Nothing else is disclosed.
+Today the answer is to share a **viewing key**, which exposes *every* payment the wallet has made or will make, or a spreadsheet the auditor has to trust. OpenZcash mirrors the Zcash Community Grants ledger: 1,016 disbursements, 825 marked paid, budgeted at $23.3M, and no row is checked against the chain (read 2026-09-26). Zeceipt gives a receipt for **one output**, which anyone can check against the chain. Nothing else is disclosed.
 
 ## How it works
 
@@ -88,11 +88,21 @@ Verification also reports the transaction's depth in confirmations, as the node 
 > [!IMPORTANT]
 > Zeceipt is **not** a full ZIP 311 payment disclosure. ZIP 311 also requires a spend-authority signature, which needs the spending key, and zeceipt never touches spending keys. The issuer is attested by an application-layer ed25519 signature instead. It follows that anyone who holds the sender's viewing key, or an earlier receipt for the same output, can also produce a receipt for that output.
 
+### The recipient's side: `zdp:1:` delivery proofs
+
+A receipt comes from the sender, since an OCK derives from the outgoing viewing key. A recipient can prove a payment with a [zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof) `zdp:1:` proof instead: it opens one note by its receiver, value and rseed, and is made with an incoming viewing key. Zeceipt's CLI, WASM verifier, receipt page and demo check these proofs as that specification requires. They rebuild the note, match its commitment, and decrypt the action with the note's own key. They also report the wtxid and the depth. A delivery proof is unsigned and takes no challenge, and the page says so. Try it on a real **mainnet** payment:
+
+```bash
+cargo build --release
+target/release/zeceipt verify "$(python3 -c 'import json; print(json.load(open("fixtures/zdp/mainnet.json"))["proof"])')"
+# fetches 6ef95d7e…7b59 from a public node: valid, 10000 zat, the memo, mined at 3499556, and its confirmations
+```
+
 ## What's inside
 
 | Component | What it is |
 |---|---|
-| [`crates/zeceipt-core`](crates/zeceipt-core) | Parses v4, v5 and v6 transactions. Derives the OCK, recovers individual outputs for Ironwood, Orchard and Sapling, and issues and verifies receipts |
+| [`crates/zeceipt-core`](crates/zeceipt-core) | Parses v4, v5 and v6 transactions. Derives the OCK, recovers individual outputs for Ironwood, Orchard and Sapling, and issues and verifies receipts. Checks `zdp:1:` delivery proofs |
 | [`crates/zeceipt-types`](crates/zeceipt-types) | The `zeceipt-v0` envelope, canonical signing bytes, ed25519 and the URL form (no Zcash dependencies) |
 | [`crates/zeceipt-lwd`](crates/zeceipt-lwd) | A lightwalletd/Zaino gRPC client (`GetTransaction`, `GetLatestBlock`, block-range scan) |
 | [`crates/zeceipt-cli`](crates/zeceipt-cli) | The `zeceipt` binary: `inspect`, `find-ironwood`, `keygen`, `issue`, `verify`, `pack`, `verify-pack`, `well-known` |
@@ -209,10 +219,20 @@ flowchart LR
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 67 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 71 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
+
+**What is real and what is simulated.**
+
+| Evidence | Chain | What it shows |
+|---|---|---|
+| A `zdp:1:` delivery proof of a real payment ([`fixtures/zdp/mainnet.json`](fixtures/zdp)) | **Mainnet**, height 3,499,556, fetched live | Zeceipt's verifier checking a real shielded Ironwood payment from a public node ([`docs/PROOF.md`](docs/PROOF.md) §7) |
+| The mainnet transaction parsed and its outputs listed | **Mainnet** | Real v6 Ironwood transactions read through zec.rocks (§1) |
+| Payout batches paid, receipted and verified | Local **regtest** (Zebra, Zaino, Zkool) | The console end to end, with real proofs and signatures, on a private chain (§5–§5g) |
+| Zeceipt receipts on a public chain | Testnet: **not yet** | Waits on faucet funds (§4); the run is rehearsed |
+| The README screenshot and the demo's sample | None: a synthetic transaction | The page's layout; the height and confirmations in the screenshot are simulated |
 
 | Where to look | What it shows |
 |---|---|
@@ -230,7 +250,7 @@ node packages/verify/test/verify.mjs                       # the committed WASM 
 
 | | |
 |---|---|
-| ✅ Done | Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
+| ✅ Done | Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. `zdp:1:` delivery proofs checked, a real mainnet one included. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
 | 🟡 In progress | Receipts on a public chain: the testnet run is rehearsed and waits on faucet funds ([`docs/PROOF.md`](docs/PROOF.md) §4). Publishing `@zeceipt/verify` to npm |
 | ⏳ Next | NU7 support once a `zcash_protocol` release carries it ([`docs/RELEASING.md`](docs/RELEASING.md)). Sign-in for the console. A v1 aligned with ZIP 311's encoding |
 | ✖ Out of scope for v0 | The spend-authority proof (full ZIP 311) |
@@ -243,7 +263,7 @@ node packages/verify/test/verify.mjs                       # the committed WASM 
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `38f2e74c33923ff3fc6427c1572d9659497829053ace7d7749ee3f6989c1425e`.
+- **Committed hash:** the committed `.wasm` has sha256 `91b11d71b24487569f8ef8daeb5368a0cb0536bbc0decc081f9e1191d3456417`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 

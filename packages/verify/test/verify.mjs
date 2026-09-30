@@ -57,6 +57,24 @@ check("receipt page: its 'does not prove' list names the unspent point, and no l
 check("proves says what spec §4 says: whoever produced the receipt knew the OCK, never 'the issuer' (slice D5)",
   /whoever produced this receipt knew this output's OCK, as does anyone holding an earlier receipt for it/.test(ok.proves) && !/the issuer knew/.test(ok.proves), ok.proves);
 
+{
+  // zcash-delivery-proof's `zdp:1:` proofs (judge round 1, D6): its real mainnet vector through the WASM and through the
+  // wrapper's verifyReceipt, which routes it; tampered, and asked for a signature or a challenge, it fails.
+  const { verify_delivery_proof, parse_delivery_proof, is_delivery_proof } = await import(pathToFileURL(path.join(pkgDir, "zeceipt_wasm.js")).href);
+  const zdp = JSON.parse(fs.readFileSync(path.join(here, "../../../fixtures/zdp/mainnet.json"), "utf8"));
+  const d = verify_delivery_proof(zdp.proof, zdp.txHex, "main");
+  check("zdp mainnet vector holds: 10,000 zat, its memo, its address, kind delivery-proof, a wtxid", d.valid === true && d.kind === "delivery-proof" && d.value_zat === 10000 && d.memo?.text === zdp.memoText && d.recipient === zdp.address && d.txid === zdp.txid && /^[0-9a-f]{128}$/.test(d.wtxid) && d.challenge_checked === false && !d.issuer_pubkey, JSON.stringify(d));
+  check("zdp: says what it proves and not, naming the recipient's side and the missing signature", /incoming viewing key/.test(d.proves) && /carries no signature and no challenge/.test(d.does_not_prove));
+  check("zdp: parsed for a fetch, with no network named", is_delivery_proof(zdp.proof) && parse_delivery_proof(zdp.proof).txid === zdp.txid && parse_delivery_proof(zdp.proof).output_index === 0);
+  const bad = zdp.proof.slice(0, -2) + (zdp.proof.endsWith("AA") ? "BB" : "AA");
+  check("zdp: a changed proof does not hold", verify_delivery_proof(bad, zdp.txHex, "main").valid === false);
+  check("zdp: another version is refused by name", /unsupported receipt version "zdp:2"/.test(verify_delivery_proof(zdp.proof.replace("zdp:1:", "zdp:2:"), zdp.txHex, "main").error ?? ""));
+  const w = await import("../src/index.js");
+  const via = w.verifyReceipt(zdp.proof, zdp.txHex);
+  check("wrapper routes a zdp proof: verifyReceipt holds, parseReceipt names no network", via.valid === true && via.kind === "delivery-proof" && w.parseReceipt(zdp.proof).network === null && w.isDeliveryProof(zdp.proof) && !w.isDeliveryProof(receipt));
+  check("wrapper: a zdp proof cannot meet requireSignature or a challenge", w.verifyReceipt(zdp.proof, zdp.txHex, { requireSignature: true }).stage === "signature" && w.verifyReceipt(zdp.proof, zdp.txHex, { challenge: "n" }).stage === "challenge");
+  check("receipts say kind receipt and carry a wtxid", ok.kind === "receipt" && /^[0-9a-f]{128}$/.test(ok.wtxid) && ok.wtxid.startsWith(Buffer.from(ok.txid, "hex").reverse().toString("hex")));
+}
 const r = JSON.parse(receipt);
 const flip = (mut) => { const c = JSON.parse(JSON.stringify(r)); mut(c); return verify_receipt(JSON.stringify(c), rawTx, "auditor-nonce-7", true); };
 check("network flip -> signature", flip((c) => { c.network = "test"; }).stage === "signature");

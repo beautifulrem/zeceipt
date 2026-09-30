@@ -7,7 +7,8 @@
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
-use zeceipt_core::zeceipt_types::{binding, Receipt};
+use zeceipt_core::zeceipt_types::delivery::DeliveryProof;
+use zeceipt_core::zeceipt_types::{binding, Network, Receipt};
 use zeceipt_core::{CoreError, MemoView};
 
 #[derive(Serialize)]
@@ -22,12 +23,18 @@ struct MemoOut {
 #[derive(Serialize)]
 struct VerifyOut {
     valid: bool,
+    /// `receipt` (a zeceipt receipt, the sender's side) or `delivery-proof` (a `zdp:1:` proof, either side).
+    kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     stage: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     txid: Option<String>,
+    /// ZIP 239 wtxid (txid then authorizing-data digest, internal byte order), hex: it also covers the signatures and
+    /// proofs, which a v5/v6 txid does not.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wtxid: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pool: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,6 +62,33 @@ const PROVES: &str = "this transaction pays the shown value to the shown recipie
 const DOES_NOT_PROVE: &str =
     "who is presenting this receipt; that the output is still unspent, or that whoever presents the receipt can spend it; anything about other outputs, transactions or balances";
 
+const DELIVERY_PROVES: &str = "this transaction delivers the shown value to the shown receiver with the shown memo: the proof's note is the one the action commits to, and the note's own key decrypts the action's ciphertext; whoever made the proof could see that note (the recipient with an incoming viewing key, or the sender with an outgoing one), as can anyone holding an earlier copy of it";
+const DELIVERY_DOES_NOT_PROVE: &str = "who sent it, or who is presenting this proof (a delivery proof carries no signature and no challenge); that the output is still unspent; anything about other outputs, transactions or balances";
+
+fn memo_out(m: MemoView) -> MemoOut {
+    match m {
+        MemoView::Empty => MemoOut {
+            kind: "empty",
+            text: None,
+            hex: None,
+        },
+        MemoView::Text(t) => MemoOut {
+            kind: "text",
+            text: Some(t),
+            hex: None,
+        },
+        MemoView::Bytes(h) => MemoOut {
+            kind: "bytes",
+            text: None,
+            hex: Some(h),
+        },
+    }
+}
+
+fn zec(zat: u64) -> String {
+    format!("{}.{:08}", zat / 100_000_000, zat % 100_000_000)
+}
+
 fn stage(e: &CoreError) -> &'static str {
     use zeceipt_core::zeceipt_types::TypesError as T;
     match e {
@@ -71,9 +105,11 @@ fn stage(e: &CoreError) -> &'static str {
 fn fail(stage: &'static str, error: String) -> VerifyOut {
     VerifyOut {
         valid: false,
+        kind: "receipt",
         stage: Some(stage),
         error: Some(error),
         txid: None,
+        wtxid: None,
         pool: None,
         output_index: None,
         recipient: None,
@@ -137,35 +173,17 @@ fn verify_inner(
     match zeceipt_core::verify(&r, &tx, challenge.as_bytes(), require_signature) {
         Ok(v) => VerifyOut {
             valid: true,
+            kind: "receipt",
             stage: None,
             error: None,
             txid: Some(v.txid),
+            wtxid: Some(zeceipt_core::delivery::wtxid_hex(&tx)),
             pool: Some(v.recovered.pool.as_str()),
             output_index: Some(v.recovered.index),
             recipient: Some(v.recovered.recipient),
             value_zat: Some(v.recovered.value_zat),
-            value_zec: Some(format!(
-                "{}.{:08}",
-                v.recovered.value_zat / 100_000_000,
-                v.recovered.value_zat % 100_000_000
-            )),
-            memo: Some(match v.recovered.memo {
-                MemoView::Empty => MemoOut {
-                    kind: "empty",
-                    text: None,
-                    hex: None,
-                },
-                MemoView::Text(t) => MemoOut {
-                    kind: "text",
-                    text: Some(t),
-                    hex: None,
-                },
-                MemoView::Bytes(h) => MemoOut {
-                    kind: "bytes",
-                    text: None,
-                    hex: Some(h),
-                },
-            }),
+            value_zec: Some(zec(v.recovered.value_zat)),
+            memo: Some(memo_out(v.recovered.memo)),
             label: Some(r.label.clone()),
             issuer_pubkey: v.issuer_pubkey,
             issuer_key_id: r.issuer_key_id.clone(),
@@ -174,6 +192,96 @@ fn verify_inner(
             does_not_prove: DOES_NOT_PROVE,
         },
         Err(e) => fail(stage(&e), e.to_string()),
+    }
+}
+
+/// Is this input a `zdp:1:` delivery proof rather than a receipt? (Any `zdp:` prefix: another version is then refused
+/// by name.)
+#[wasm_bindgen]
+pub fn is_delivery_proof(input: &str) -> bool {
+    DeliveryProof::is_delivery_proof(input)
+}
+
+/// Decode a `zdp:1:` delivery proof: `{ txid, pool, output_index, value_zat }` (display-order txid), so the caller can
+/// fetch the transaction it names. Throws on a malformed proof.
+#[wasm_bindgen]
+pub fn parse_delivery_proof(input: &str) -> Result<JsValue, JsValue> {
+    let p = DeliveryProof::decode(input).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_json::json!({
+        "txid": p.txid_hex(),
+        "pool": p.pool.as_str(),
+        "output_index": p.action,
+        "value_zat": p.value,
+    })
+    .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+    .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Check a `zdp:1:` delivery proof against `raw_tx_hex` (zcash-delivery-proof SPEC §4; `zeceipt_core::delivery`).
+/// `network` (`main`, `test` or `regtest`) only chooses how the recipient is written: a proof does not name its
+/// network. Returns the same shape as `verify_receipt`, with `kind: "delivery-proof"`; never throws for a proof that
+/// does not hold.
+#[wasm_bindgen]
+pub fn verify_delivery_proof(proof: &str, raw_tx_hex: &str, network: &str) -> JsValue {
+    let out = delivery_inner(proof, raw_tx_hex, network);
+    serde_wasm_bindgen::to_value(&out).unwrap_or_else(|e| {
+        serde_wasm_bindgen::to_value(&fail(
+            "other",
+            format!("the result cannot be represented: {e}"),
+        ))
+        .unwrap_or(JsValue::NULL)
+    })
+}
+
+fn delivery_inner(proof: &str, raw_tx_hex: &str, network: &str) -> VerifyOut {
+    let failed = |stage, error| VerifyOut {
+        kind: "delivery-proof",
+        proves: DELIVERY_PROVES,
+        does_not_prove: DELIVERY_DOES_NOT_PROVE,
+        ..fail(stage, error)
+    };
+    let network = match network {
+        "main" => Network::Main,
+        "test" => Network::Test,
+        "regtest" => Network::Regtest,
+        other => return failed("other", format!("unknown network {other:?}")),
+    };
+    let p = match DeliveryProof::decode(proof) {
+        Ok(p) => p,
+        Err(e) => return failed("parse", e.to_string()),
+    };
+    let bytes = match hex::decode(raw_tx_hex.trim()) {
+        Ok(b) => b,
+        Err(_) => return failed("tx", "raw transaction is not hex".into()),
+    };
+    match zeceipt_core::delivery::check(&bytes, &p, network) {
+        Ok(d) => VerifyOut {
+            valid: true,
+            kind: "delivery-proof",
+            stage: None,
+            error: None,
+            txid: Some(d.txid),
+            wtxid: Some(d.wtxid),
+            pool: Some(d.recovered.pool.as_str()),
+            output_index: Some(d.recovered.index),
+            recipient: Some(d.recovered.recipient),
+            value_zat: Some(d.recovered.value_zat),
+            value_zec: Some(zec(d.recovered.value_zat)),
+            memo: Some(memo_out(d.recovered.memo)),
+            label: None,
+            issuer_pubkey: None,
+            issuer_key_id: None,
+            challenge_checked: false,
+            proves: DELIVERY_PROVES,
+            does_not_prove: DELIVERY_DOES_NOT_PROVE,
+        },
+        Err(e) => failed(
+            match e {
+                CoreError::Malformed(_) | CoreError::UnsupportedBranch { .. } => "tx",
+                _ => stage(&e),
+            },
+            e.to_string(),
+        ),
     }
 }
 

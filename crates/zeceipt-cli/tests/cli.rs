@@ -39,6 +39,58 @@ fn usage_errors_exit_3_and_help_exits_0() {
     assert_eq!(run(&["--help"]).0, 0);
 }
 
+/// A `zdp:1:` delivery proof (zcash-delivery-proof's real mainnet vector, `fixtures/zdp/`) verifies through the same
+/// `verify` command, offline; it cannot meet `--require-signature`, and takes no challenge (judge round 1, D6).
+#[test]
+fn verify_checks_a_zdp_delivery_proof() {
+    let v: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture("zdp/mainnet.json")).unwrap())
+            .unwrap();
+    let raw = std::env::temp_dir().join(format!("zeceipt-zdp-{}.hex", std::process::id()));
+    std::fs::write(&raw, v["txHex"].as_str().unwrap()).unwrap();
+    let proof = v["proof"].as_str().unwrap();
+    let (code, out, err) = run(&["verify", proof, "--raw-tx-file", raw.to_str().unwrap()]);
+    assert_eq!(code, 0, "stderr: {err}");
+    let o: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(o["valid"], true);
+    assert_eq!(o["kind"], "delivery-proof");
+    assert_eq!(o["value_zat"], 10_000);
+    assert_eq!(o["memo"]["text"], "zcash-delivery-proof test vector");
+    assert_eq!(o["recipient"], v["address"]);
+    assert_eq!(o["txid"], v["txid"]);
+    assert!(o["wtxid"].as_str().unwrap().starts_with(&{
+        let mut t = hex::decode(v["txid"].as_str().unwrap()).unwrap();
+        t.reverse();
+        hex::encode(t)
+    }));
+    let (code, out, _) = run(&[
+        "verify",
+        proof,
+        "--raw-tx-file",
+        raw.to_str().unwrap(),
+        "--require-signature",
+    ]);
+    assert_eq!((code, stage(&out)), (1, "signature".into()));
+    let (code, _, err) = run(&[
+        "verify",
+        proof,
+        "--raw-tx-file",
+        raw.to_str().unwrap(),
+        "--challenge",
+        "n",
+    ]);
+    assert_eq!(code, 3, "{err}");
+    // One changed character of the proof: another value, rseed or receiver, or not base64url at all.
+    let tampered = format!(
+        "{}{}",
+        &proof[..proof.len() - 1],
+        if proof.ends_with('A') { 'B' } else { 'A' }
+    );
+    let (code, out, _) = run(&["verify", &tampered, "--raw-tx-file", raw.to_str().unwrap()]);
+    std::fs::remove_file(&raw).unwrap();
+    assert_eq!(code, 1, "{out}");
+}
+
 /// Judge round 1, D4: a forwarder strips the signature and writes the verifier's challenge into the receipt. The
 /// payment still verifies (anyone with the receipt knows its OCK), but the challenge must not count as checked.
 #[test]

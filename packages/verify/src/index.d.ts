@@ -13,11 +13,24 @@ export interface Receipt {
   signature?: string;
   zip311_profile?: string;
 }
+/** A `zdp:1:` delivery proof (zcash-delivery-proof's format), as `parseReceipt` reads it; it names no network. */
+export interface DeliveryProofInfo {
+  kind: "delivery-proof";
+  network: null;
+  txid: string;
+  pool: "ironwood" | "orchard";
+  output_index: number;
+  value_zat: number;
+}
 export interface VerifyResult {
   valid: boolean;
+  /** "receipt" for a zeceipt receipt, "delivery-proof" for a `zdp:1:` proof. */
+  kind: "receipt" | "delivery-proof";
   stage?: "parse" | "tx" | "txid" | "signature" | "challenge" | "output" | "recovery" | "other";
   error?: string;
   txid?: string;
+  /** ZIP 239 wtxid, hex (txid then authorizing-data digest, internal byte order). */
+  wtxid?: string;
   pool?: string;
   output_index?: number;
   recipient?: string;
@@ -36,9 +49,10 @@ export interface VerifyResult {
  * the module. In Node, pass the bytes (Node's fetch cannot read a `file:` URL).
  */
 export function initVerifier(wasm?: string | URL | Response | BufferSource | WebAssembly.Module): Promise<string>;
-export function parseReceipt(input: string): Receipt;
+export function parseReceipt(input: string): Receipt | DeliveryProofInfo;
+export function isDeliveryProof(input: string): boolean;
 export function checkSignature(receipt: string): { signed: boolean; valid: boolean; issuer_pubkey?: string; error?: string };
-export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean }): VerifyResult;
+export function verifyReceipt(receipt: string, rawTxHex: string, opts?: { challenge?: string; requireSignature?: boolean; network?: Network }): VerifyResult;
 export const GRPC_WEB_ENDPOINTS: { main: string[]; test: string[] };
 /** The outcome of an issuer-binding lookup (spec §7); never a verdict on the receipt's validity. */
 export type IssuerBinding = { state: "confirmed" | "not_listed"; domain: string } | { state: "unknown"; reason: string };

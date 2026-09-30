@@ -8,6 +8,12 @@
 export function check_signature(receipt: string): any;
 
 /**
+ * Is this input a `zdp:1:` delivery proof rather than a receipt? (Any `zdp:` prefix: another version is then refused
+ * by name.)
+ */
+export function is_delivery_proof(input: string): boolean;
+
+/**
  * Compare a receipt with a well-known file (spec §7): `body` as served by `served_by`, the domain the caller fetched
  * from. Returns `{ state: "confirmed" | "not_listed", domain }` or `{ state: "unknown", reason }`. Never a verdict on
  * the receipt's validity.
@@ -22,9 +28,23 @@ export function issuer_binding(receipt: string, served_by: string, body: Uint8Ar
 export function issuer_claim(receipt: string): any;
 
 /**
+ * Decode a `zdp:1:` delivery proof: `{ txid, pool, output_index, value_zat }` (display-order txid), so the caller can
+ * fetch the transaction it names. Throws on a malformed proof.
+ */
+export function parse_delivery_proof(input: string): any;
+
+/**
  * Parse a receipt (JSON, URL, or base64url payload) and return it as a JS object.
  */
 export function parse_receipt(input: string): any;
+
+/**
+ * Check a `zdp:1:` delivery proof against `raw_tx_hex` (zcash-delivery-proof SPEC §4; `zeceipt_core::delivery`).
+ * `network` (`main`, `test` or `regtest`) only chooses how the recipient is written: a proof does not name its
+ * network. Returns the same shape as `verify_receipt`, with `kind: "delivery-proof"`; never throws for a proof that
+ * does not hold.
+ */
+export function verify_delivery_proof(proof: string, raw_tx_hex: string, network: string): any;
 
 /**
  * Verify `receipt` against `raw_tx_hex`. `challenge` is the expected challenge
@@ -42,9 +62,12 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly check_signature: (a: number, b: number) => any;
+    readonly is_delivery_proof: (a: number, b: number) => number;
     readonly issuer_binding: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
     readonly issuer_claim: (a: number, b: number) => any;
+    readonly parse_delivery_proof: (a: number, b: number) => [number, number, number];
     readonly parse_receipt: (a: number, b: number) => [number, number, number];
+    readonly verify_delivery_proof: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
     readonly verify_receipt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => any;
     readonly version: () => [number, number];
     readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;

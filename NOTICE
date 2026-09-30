@@ -96,3 +96,14 @@ projects:
    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
+
+5. zcash-delivery-proof test vectors
+   Files: fixtures/zdp/mainnet.json, fixtures/zdp/testnet.json, fixtures/zdp/constructed.json
+   (copied unchanged from test-vectors/ at commit d68ba2d3a23231b37ba512c00562c590ea01a5e4;
+   their NOTICE is kept as fixtures/zdp/NOTICE)
+   Source: https://github.com/saplingcash/zcash-delivery-proof
+   Licence: Apache License, Version 2.0.
+   Copyright 2026 Sapling (sapling.cash)
+   Zeceipt's checker of the zdp:1 format (crates/zeceipt-core/src/delivery.rs,
+   crates/zeceipt-types/src/delivery.rs) is written from the project's SPEC.md, not
+   copied from its code. The licence grants no rights to the Sapling name or logo.

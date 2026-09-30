@@ -33,6 +33,18 @@ const shortKey = (hex) => (hex && hex.length > 20 ? `${hex.slice(0, 8)}…${hex.
 
 /** What the link says, shown before anything is fetched. Values are plain text. */
 export function summaryRows(r) {
+  if (r.kind === "delivery-proof") {
+    // A `zdp:1:` delivery proof (zcash-delivery-proof's format; judge round 1, D6): it names no network and has no
+    // label, signature or challenge, so the rows say so rather than leave them out.
+    return [
+      ["Format", "zdp:1 delivery proof (the recipient's or the sender's; zcash-delivery-proof)"],
+      ["Network", "not named in the proof: the page asks Zcash mainnet, then testnet"],
+      ["Transaction", r.txid],
+      ["Output", `${r.pool} output ${r.output_index}`],
+      ["Issuer signature", "none (a delivery proof carries none)"],
+      ["Challenge", "none (a delivery proof cannot be bound to one)"],
+    ];
+  }
   return [
     ["Network", NETWORK_NAME[r.network] ?? r.network],
     ["Transaction", r.txid],
@@ -43,7 +55,8 @@ export function summaryRows(r) {
   ];
 }
 
-/** How the page can get the transaction for this receipt's network. */
+/** How the page can get the transaction for this receipt's network. A delivery proof names none (`network` null):
+ * its endpoints are mainnet's then testnet's. */
 export function fetchPlan(network, endpoints) {
   if (Array.isArray(endpoints) && endpoints.length > 0) {
     return { canFetch: true, note: `The node (${endpoints.map(nodeHost).join(", then ")}), and any service behind it, learns which transaction you look up. Nothing else is sent; the page then asks the same node for its chain tip, a request that carries nothing.` };
@@ -143,6 +156,22 @@ export function outcome(result, source) {
   if (!result || !result.valid) {
     const stage = result?.stage ?? "other";
     return { valid: false, headline: "INVALID", stageCopy: STAGE_COPY[stage] ?? STAGE_COPY.other, error: result?.error ?? "" };
+  }
+  if (result.kind === "delivery-proof") {
+    return {
+      valid: true,
+      headline: "VALID",
+      payment: [
+        ["Recipient", result.recipient],
+        ["Value", `${result.value_zec} ZEC (${result.value_zat} zat)`],
+        ["Memo", memoText(result.memo)],
+        ["Output", `${result.pool} output ${result.output_index} of ${result.txid}`],
+      ],
+      amount: { zec: result.value_zec, zat: result.value_zat },
+      inclusion: inclusion(source),
+      issuer: ["No issuer: a delivery proof is unsigned. It shows that this note was delivered, not who sent it or who made the proof (the recipient or the sender can)."],
+      challenge: "A delivery proof cannot be bound to a challenge: this does not prove who is showing it to you.",
+    };
   }
   return {
     valid: true,

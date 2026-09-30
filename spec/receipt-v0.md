@@ -153,3 +153,14 @@ None of these changes whether the receipt is cryptographically valid: a binding 
 | ironwood | v6 (NU6.3+) | 0x03 | `IronwoodDomain` |
 | orchard | v5/v6 | 0x02 | `OrchardDomain` (pool sealed 2026-07-28; historical receipts only) |
 | sapling | v4+ | 0x01/0x02 | `SaplingDomain` with `Zip212Enforcement::GracePeriod` (both lead bytes accepted; the note commitment binds the plaintext) |
+
+## 11. Delivery proofs (`zdp:1:`), accepted alongside receipts
+
+A receipt comes from the sender: its OCK derives from the outgoing viewing key. For the recipient's side, verifiers also accept the delivery proofs of [zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof) (its `SPEC.md`, version 1): `zdp:1:` then 118 bytes in base64url. The bytes are the txid, the pool (Orchard or Ironwood), the action index, the receiver, the value and the rseed. A proof is checked exactly as that specification's §4 says. A verifier recognises one by its `zdp:` prefix, refuses another version by name, and reports it with `kind: "delivery-proof"` beside the same recovered fields as a receipt.
+
+Its guarantees are that specification's, not this one's:
+- It is unsigned and takes no challenge, so §5–§7 do not apply to it: a verifier asked to require a signature or a challenge refuses it.
+- It names no network: a verifier chooses one to write the recipient, and a page that fetches the transaction asks mainnet, then testnet.
+- Like a receipt's OCK, it is known to whoever made it (the recipient with an incoming viewing key, or the sender with an outgoing one) and to anyone holding an earlier copy of it.
+
+Every verification also reports the transaction's ZIP 239 `wtxid`, which, unlike a v5/v6 txid, covers the proofs and signatures.

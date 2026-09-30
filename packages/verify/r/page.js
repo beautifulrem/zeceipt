@@ -17,6 +17,25 @@ const rows = (table, pairs, opts) => table.replaceChildren(...kvRows(pairs, { li
 // On INVALID, the claim the check failed on is marked in the claims card (review F round 2).
 const FAILED_ROW = { txid: "Transaction", signature: "Issuer signature", challenge: "Challenge", output: "Output", recovery: "Output" };
 
+/** The networks whose nodes are asked for this receipt's transaction: its own, or for a delivery proof (which names
+ * none) mainnet, then testnet. */
+function networksToTry(receipt) {
+  return receipt.network ? [receipt.network] : ["main", "test"];
+}
+
+/** fetchRawTx over networksToTry: the first network whose nodes have the transaction; a not-found on mainnet moves on
+ * to testnet, any other failure is reported as it is. Returns fetchRawTx's result and the network it came from. */
+async function fetchFromNetworks(receipt) {
+  const nets = networksToTry(receipt);
+  for (const [i, network] of nets.entries()) {
+    try {
+      return { ...(await fetchRawTx(receipt.txid, network, undefined, { timeoutMs: PAGE_TIMEOUT_MS })), network };
+    } catch (e) {
+      if (i === nets.length - 1 || !/not found/i.test(String(e))) throw e;
+    }
+  }
+}
+
 let generation = 0; // bumps on every new link, so a late result for an old link is dropped
 let current = null; // { link, receipt, raw, source }
 
@@ -58,9 +77,10 @@ function render() {
     document.body.dataset.state = "unreadable";
     return;
   }
-  current = { link, receipt, raw: null, source: null };
+  current = { link, receipt, raw: null, source: null, network: receipt.network };
   rows($("summary"), summaryRows(receipt));
-  const plan = fetchPlan(receipt.network, GRPC_WEB_ENDPOINTS[receipt.network]);
+  // A delivery proof names no network: mainnet's nodes are asked, then testnet's (networksToTry).
+  const plan = fetchPlan(receipt.network, networksToTry(receipt).flatMap((n) => GRPC_WEB_ENDPOINTS[n] ?? []));
   $("fetch").hidden = !plan.canFetch;
   $("fetch").disabled = false;
   $("fetch-note").textContent = plan.note;
@@ -72,7 +92,7 @@ function render() {
 
 function verifyNow() {
   if (!current || current.raw === null) return;
-  const result = verifyReceipt(current.link, current.raw, { challenge: $("challenge").value, requireSignature: false });
+  const result = verifyReceipt(current.link, current.raw, { challenge: $("challenge").value, requireSignature: false, network: current.network ?? "main" });
   const view = outcome(result, current.source);
   current.lastStage = result?.valid ? undefined : result?.stage;
   $("headline").textContent = view.headline;
@@ -157,8 +177,9 @@ $("fetch").addEventListener("click", async () => {
   $("fetch").disabled = true;
   $("source-status").textContent = "Fetching the transaction…";
   try {
-    const got = await fetchRawTx(receipt.txid, receipt.network, undefined, { timeoutMs: PAGE_TIMEOUT_MS });
+    const got = await fetchFromNetworks(receipt);
     if (mine !== generation) return;
+    current.network = got.network;
     // The verdict is shown as soon as the transaction is in (slice A2b); the depth follows from the same node's tip
     // (slice A2), a request that carries nothing about the transaction. Only the inclusion line changes when it
     // arrives, so an issuer check started meanwhile is kept; a node without a usable tip leaves the depth unknown, and
@@ -166,7 +187,7 @@ $("fetch").addEventListener("click", async () => {
     const source = { kind: "node", chain: got.chain, endpoint: got.endpoint, tip: got.chain.status === "mined" ? undefined : null };
     transactionLoaded(got.hex, source, "Transaction fetched.");
     if (got.chain.status === "mined") {
-      source.tip = await fetchChainTip(receipt.network, [got.endpoint], { timeoutMs: PAGE_TIMEOUT_MS }).then((t) => t.height, () => null);
+      source.tip = await fetchChainTip(got.network, [got.endpoint], { timeoutMs: PAGE_TIMEOUT_MS }).then((t) => t.height, () => null);
       if (mine !== generation || current.source !== source) return;
       if (!$("parts").hidden) $("inclusion").textContent = inclusion(source).text;
     }

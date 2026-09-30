@@ -1,17 +1,17 @@
 <!--
 DRAFT, not posted (WBS 3.3.3.4, REQ-INT-4; slice Z1). Posting is the user's decision: a public comment on
 https://github.com/zcash/zips/issues/387 (ZIP 311, Zcash Payment Disclosures).
-Prerequisite: push the repository (WBS 4.1.1.1), then replace every `[after the push]` with the public link.
+Links filled 2026-09-30: the repository is public at https://github.com/beautifulrem/zeceipt since 2026-09-29 (WBS 4.1.1.1).
 the evidence in `docs/PROOF.md`, the tests and `docs/product/10_research_log.md`, checked claim by claim before writing.
 -->
 
 **An implementation report on the outputs half of ZIP 311, and a question about requiring spend authority**
 
-We built an open-source receipt format for disclosing one shielded output: Zeceipt `receipt-v0` [after the push]. It uses the same disclosure unit as ZIP 311's outputs: the per-output OCK (`PRF^ock`, protocol spec §4.20). We are posting it here for two reasons. The ZIP's reference implementation is still marked TBD, and we deliberately made the one choice the ZIP rules out, so the reasoning should be in the open.
+We built an open-source receipt format for disclosing one shielded output: Zeceipt [`receipt-v0`](https://github.com/beautifulrem/zeceipt/blob/master/spec/receipt-v0.md). It uses the same disclosure unit as ZIP 311's outputs: the per-output OCK (`PRF^ock`, protocol spec §4.20). We are posting it here for two reasons. The ZIP's reference implementation is still marked TBD, and we deliberately made the one choice the ZIP rules out, so the reasoning should be in the open.
 
 **What exists**
 
-- **The format.** One receipt discloses one output of one transaction: network, pool, txid, output index, OCK, a free-text label, and optionally a verifier's challenge. These are optionally signed by the issuer with ed25519 over canonical bytes, with deterministic test vectors (`spec/test-vectors/receipt-v0.json`) [after the push].
+- **The format.** One receipt discloses one output of one transaction: network, pool, txid, output index, OCK, a free-text label, and optionally a verifier's challenge. These are optionally signed by the issuer with ed25519 over canonical bytes, with deterministic test vectors ([`spec/test-vectors/receipt-v0.json`](https://github.com/beautifulrem/zeceipt/blob/master/spec/test-vectors/receipt-v0.json)).
 - **Verification.** It recovers the note from the transaction's `out_ciphertext` and `enc_ciphertext` with the OCK (`zcash_note_encryption`'s `try_output_recovery_with_ock`, which checks the recovered note against its commitment). It then reports the recipient address, value and memo, and fails closed at a named stage. The same Rust code runs in a CLI and, through WASM, in the browser.
 - **Pools:** Ironwood outputs of v6 transactions, and Orchard and Sapling (tested against the official Orchard note-encryption vectors and round trips).
 - **Evidence.** A consensus-valid v6 Ironwood transaction on a Zebra regtest chain, issued from the sender's UFVK and verified over gRPC and offline. Real mainnet v6 transactions have been parsed and fetched only.
@@ -42,4 +42,4 @@ So stripping does not upgrade anything. It downgrades a signed receipt to an uns
 2. If the ZIP moves forward, we would align our field names and encoding with it, and add a `zip311_profile` value for whatever the ZIP calls this mode. The current receipt already carries an informational `zip311_profile: "outputs-only"`. Are the ZIP's field names settled enough to align with now?
 3. Is **Ironwood** in scope for ZIP 311's output disclosures? Our implementation handles Ironwood outputs as the Orchard family under Ironwood's own note-encryption domain version (`IronwoodVersion` in the orchard crate), and it is tested on regtest v6 transactions.
 
-The code, the vectors and the proof log are at [after the push]. We would be glad to change the format to match the ZIP, and to contribute test vectors.
+The code, the vectors and the proof log are at https://github.com/beautifulrem/zeceipt (the proof log: [`docs/PROOF.md`](https://github.com/beautifulrem/zeceipt/blob/master/docs/PROOF.md)). We would be glad to change the format to match the ZIP, and to contribute test vectors.

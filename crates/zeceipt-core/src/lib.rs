@@ -31,6 +31,8 @@ use zeceipt_types::{Network, Pool, Receipt, TypesError};
 
 pub use zeceipt_types;
 
+pub mod delivery;
+
 #[cfg(feature = "synthetic")]
 pub mod synthetic;
 

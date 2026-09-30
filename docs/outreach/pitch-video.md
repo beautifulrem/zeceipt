@@ -29,7 +29,7 @@ offsets, and the recorder can shorten a clip where the page does not change.
 ## Choices that depend on the user's own steps
 
 Say these only when they are true at the time of recording:
-- **"The code is open source"**, after the repository is public (WBS 4.1.1.1). It could go at the end of the 1:51 line.
+- **"The code is open source"**, after the repository is public (WBS 4.1.1.1; true since 2026-09-29). It could go at the end of the 1:51 line.
 - **"Receipts are live on a public chain"**, only after the public-chain run (PROOF §6). If it has happened, it replaces "and receipts on a public chain" in the 1:51 line, and "local Zcash test chain" stays for the regtest footage.
 - **"We've opened a pilot call on the Zcash forum"**, after the forum post.
 

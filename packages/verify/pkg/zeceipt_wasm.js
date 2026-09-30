@@ -14,6 +14,19 @@ export function check_signature(receipt) {
 }
 
 /**
+ * Is this input a `zdp:1:` delivery proof rather than a receipt? (Any `zdp:` prefix: another version is then refused
+ * by name.)
+ * @param {string} input
+ * @returns {boolean}
+ */
+export function is_delivery_proof(input) {
+    const ptr0 = passStringToWasm0(input, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.is_delivery_proof(ptr0, len0);
+    return ret !== 0;
+}
+
+/**
  * Compare a receipt with a well-known file (spec §7): `body` as served by `served_by`, the domain the caller fetched
  * from. Returns `{ state: "confirmed" | "not_listed", domain }` or `{ state: "unknown", reason }`. Never a verdict on
  * the receipt's validity.
@@ -48,6 +61,22 @@ export function issuer_claim(receipt) {
 }
 
 /**
+ * Decode a `zdp:1:` delivery proof: `{ txid, pool, output_index, value_zat }` (display-order txid), so the caller can
+ * fetch the transaction it names. Throws on a malformed proof.
+ * @param {string} input
+ * @returns {any}
+ */
+export function parse_delivery_proof(input) {
+    const ptr0 = passStringToWasm0(input, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parse_delivery_proof(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Parse a receipt (JSON, URL, or base64url payload) and return it as a JS object.
  * @param {string} input
  * @returns {any}
@@ -60,6 +89,27 @@ export function parse_receipt(input) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Check a `zdp:1:` delivery proof against `raw_tx_hex` (zcash-delivery-proof SPEC §4; `zeceipt_core::delivery`).
+ * `network` (`main`, `test` or `regtest`) only chooses how the recipient is written: a proof does not name its
+ * network. Returns the same shape as `verify_receipt`, with `kind: "delivery-proof"`; never throws for a proof that
+ * does not hold.
+ * @param {string} proof
+ * @param {string} raw_tx_hex
+ * @param {string} network
+ * @returns {any}
+ */
+export function verify_delivery_proof(proof, raw_tx_hex, network) {
+    const ptr0 = passStringToWasm0(proof, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(raw_tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.verify_delivery_proof(ptr0, len0, ptr1, len1, ptr2, len2);
+    return ret;
 }
 
 /**

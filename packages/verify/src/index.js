@@ -1,7 +1,7 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // It makes a request only when the caller asks: fetchRawTx (a gRPC-web lookup of one transaction) and
 // checkIssuerBinding (the claimed domain's well-known file). Verifying needs no network.
-import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasm) {
@@ -17,17 +17,44 @@ export function checkSignature(receipt) {
   return check_signature(receipt);
 }
 
+/** The `zdp:` text in an input: the proof itself, or a link whose fragment is one (`…/r/#zdp:1:…`). */
+function deliveryText(input) {
+  const s = String(input).trim();
+  const at = s.indexOf("#zdp:");
+  return at >= 0 ? s.slice(at + 1) : s;
+}
+
+/** Is this input a `zdp:1:` delivery proof (zcash-delivery-proof's format), or a link to one, rather than a receipt? */
+export function isDeliveryProof(input) {
+  return is_delivery_proof(deliveryText(input));
+}
+
+/**
+ * Parse a receipt, or a `zdp:1:` delivery proof. A delivery proof gives `{ kind: "delivery-proof", txid, pool,
+ * output_index, value_zat, network: null }`: it does not name its network, so a caller that fetches its transaction
+ * tries mainnet, then testnet.
+ */
 export function parseReceipt(input) {
+  if (isDeliveryProof(input)) return { kind: "delivery-proof", network: null, ...parse_delivery_proof(deliveryText(input)) };
   return parse_receipt(input);
 }
 
 /**
- * Verify a receipt against a raw transaction.
- * @param {string} receipt JSON, URL or base64url payload
+ * Verify a receipt, or a `zdp:1:` delivery proof (the recipient's side too), against a raw transaction. The result has
+ * the same shape either way, with `kind` "receipt" or "delivery-proof".
+ * @param {string} receipt JSON, URL or base64url payload, or `zdp:1:…`
  * @param {string} rawTxHex raw transaction bytes as hex
- * @param {{challenge?: string, requireSignature?: boolean}} [opts]
+ * @param {{challenge?: string, requireSignature?: boolean, network?: "main" | "test" | "regtest"}} [opts] `network`
+ *   only writes a delivery proof's recipient (default main); a receipt names its own.
  */
 export function verifyReceipt(receipt, rawTxHex, opts = {}) {
+  if (isDeliveryProof(receipt)) {
+    const r = verify_delivery_proof(deliveryText(receipt), rawTxHex, opts.network ?? "main");
+    // A delivery proof carries no signature and no challenge: asked for either, it cannot meet it.
+    if (r.valid && opts.requireSignature) return { ...r, valid: false, stage: "signature", error: "a delivery proof carries no signature" };
+    if (r.valid && opts.challenge) return { ...r, valid: false, stage: "challenge", error: "a delivery proof carries no challenge" };
+    return r;
+  }
   return verify_receipt(receipt, rawTxHex, opts.challenge ?? "", opts.requireSignature ?? false);
 }
 

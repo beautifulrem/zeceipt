@@ -248,6 +248,8 @@ A testnet light wallet was created with `zcash-devtool` (built from source at `r
 - Receiving address (testnet UA): `utest1jlj43jsyqkek9nwnt80p50dl4tr4helrvlvh7fwykpalnn0y7xz2z4f9xhemvgrn5rnacu8h7r70tneqf78d20yzlm2rf7580fu6shql0s7520p99gu9sdq4y5rcqd4kf6rwjwu698pm4vq6g7k5mxyqcy8p6uq7xa8de3446al7chh5x5hpf0tare89x2898kvlzxfzef49vwyzhjt`
 - UFVK: `uviewtest1llrzcdcc6v26y5rppkmff3mcu2sd0lyfkalt82qlsr5fxwc9842t8v3lyz02lnhtkuufze5x8t33gj3e9j6dlv4xk86vjp3c4ar9dxd2mj2vp2zp0g0ua2cwhzhju8eaqxcdvh963dun3d7uujpvg97w509nhm8ywlaudyf0637arudw5625usjq4gnw9rf7a29e7624m4dldsyj2tp2zjp6fnwfz7nt03syt8ns24k57lz7qsd8slv3vd8t2dwcqnxxewyccea50zmdqkm7jjc48uf3k4szg4uftlwtgvf3zu8tfgxmpzg99akzk3mtah77775vqkhv0z8vr3axphkflex8gvrlagjllx9xayp7yyyv5ajgyt3qfvkrx8qahz3urepkd4dk6eaau5mtq75m4t445808n47fmnuwcgf4ra64j66c325ax89z366um62k7jw6wtefux084ndd64rzdgm7e3mxuhchcmurl37nrxz9e55g24wh`
 
+This testnet wallet's UFVK is published for reproducibility; §6's verification uses only the receipts, never the UFVK, and a mainnet run would use an account whose UFVK is not published.
+
 **Rehearsed without funds on 2026-09-28 (slice RB1, `[R126]`), up to the funding step.** The wallet synced from its birthday to the tip (4,407,531) in 42 s against `testnet.zec.rocks`, with a balance of 0; `propose` for 0.01 TAZ stopped only at "Insufficient balance (have 0, need 1010000 including fee)" (the ZIP 317 fee, 10,000 zat); and `zeceipt inspect --testnet` read a live v6 transaction with two Ironwood outputs (`6e01882b…dbf5`, height 4,407,227) from the CLI's default endpoint.
 
 Remaining step (3.4.1.4), the user's call: claim TAZ into the receiving address above. `https://fauzec.com` gives 1 TAZ per address every 24 hours, to Unified or Sapling addresses; its web form uses Cloudflare Turnstile, but its documented API omits the human check "for now while we settle the long-term automation policy" (its FAQ, read 2026-09-28), so one command claims (below). `https://zcashfaucet.jinolabs.xyz` gives 0.1 TAZ per 24 hours behind a browser puzzle (its page was served on 09-28; its status panel fills in client-side). One fauzec drip pays for well over three receipts.
@@ -888,3 +890,42 @@ No receipt link, OCK or wrap key appears in the transcript or the server output 
 ## 6. testnet — placeholder
 
 To be recorded once the faucet claim in §4 is made: txid, receipt URL, `verify --testnet` output and one tampered copy at exit 1.
+
+## 7. mainnet + testnet — a third party's delivery proofs, fetched live and checked (2026-09-30)
+
+Zeceipt checks `zdp:1:` delivery proofs, the format of [saplingcash/zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof), so a recipient can prove a payment too (`crates/zeceipt-core/src/delivery.rs`; judge round 1, D6). The proofs below are that project's own test vectors (`fixtures/zdp/`, copied unchanged from its commit `d68ba2d`, Apache-2.0). Neither zeceipt nor its author made these payments or proofs. What this section shows is zeceipt's verifier independently checking a real shielded payment on each public chain. Zeceipt's own receipts on a public chain are still §4 and §6.
+
+**Mainnet**, 2026-09-30T07:08Z, at `fd5271a` plus the working tree that became the delivery-proof commit, `zeceipt verify "$(python3 -c 'import json; print(json.load(open("fixtures/zdp/mainnet.json"))["proof"])')"`. The transaction came from the default public node (zec.rocks) and the verifier exited 0. Output, verbatim except that `proves` and `does_not_prove` are omitted:
+
+```json
+{
+  "challenge_checked": false,
+  "confirmations": 1629,
+  "height": 3499556,
+  "issuer_pubkey": null,
+  "kind": "delivery-proof",
+  "memo": {
+    "kind": "text",
+    "text": "zcash-delivery-proof test vector"
+  },
+  "output_index": 0,
+  "pool": "ironwood",
+  "recipient": "u1avnwj3u0690unqlfv0pjt9tsam8sy0k0y4aj7eqggk5h29y9t3r8vg802p0qe4wu6p452r3h6l6dt3s5gwlj9d5gdqhllrtp9ccnjfzs",
+  "txid": "6ef95d7ee48af136d33196e510712b916a6d15498f75c1154814ebf77fd87b59",
+  "valid": true,
+  "value_zat": 10000,
+  "value_zec": "0.00010000",
+  "wtxid": "597bd87ff7eb144815c1758f49156d6a912b7110e59631d336f18ae47e5df96eeda6e5570e5e3b3d20bd173ce7826fd0529291f1a8ab945f6aaf38caf60a29a3"
+}
+```
+
+**Testnet**, same run, `zeceipt verify --testnet "<testnet.json's proof>"`: `valid: true`, 546 zat to `utest1qk2vp9yrz9…mqz5y823`, mined at 4,398,896 with 21,074 confirmations. That payment is one of sapling.cash's shielded "stamps", whose nine-line receipt memo the verifier decrypts, so zeceipt checks that product's stamps as well.
+
+**In Chrome**, same day. The receipt page, served from `scripts/build_site.sh`'s output under a `/zeceipt/` path as GitHub Pages will serve it, opened `r/#<the mainnet proof>`. It showed the summary first: the format, "not named in the proof: the page asks Zcash mainnet, then testnet", the transaction and the output. After the click it showed **VALID**, "0.0001 ZEC to u1avnwj3…cnjfzs, memo zcash-delivery-proof test vector, is proven", "Mined at height 3499556, 1628 confirmations, according to zjs.zec.rocks/mainnet", "No issuer: a delivery proof is unsigned…" and no issuer check. The page logged no error. The paste demo fetched the testnet proof's transaction ("Fetched from https://zjs.zec.rocks/testnet (mined at height 4398896)") and showed VALID. The page's Chrome suite covers both paths offline: mainnet, and the testnet fallback after mainnet's nodes answer "not found" (`packages/verify/test/page.e2e.mjs`).
+
+**Failures.** `crates/zeceipt-core/tests/delivery.rs` checks every proof in the three vector files (6) and tampered copies, which must fail:
+- another value, rseed or receiver byte, another action, the other pool, another transaction;
+- bytes that are not exactly one canonical transaction;
+- a flipped ciphertext byte, which changes the txid.
+
+A flipped byte in the authorizing data (proofs and signatures) is outside a v5/v6 txid, so the proof still holds; the reported wtxid (ZIP 239) differs, which is why it is reported.
