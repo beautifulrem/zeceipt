@@ -1173,3 +1173,73 @@ fn verify_says_what_a_receipt_proves_as_spec_section_4_does() {
     );
     assert!(!proves.contains("the issuer knew"), "{proves}");
 }
+
+/// `dossier serve` (a back office's verification service): the health check, a nonce, the testnet dossier verified
+/// offline from the committed transactions with the reviewer's nonce, and a body that is not a dossier refused.
+#[test]
+fn dossier_serve_answers_over_http() {
+    use std::io::{Read, Write};
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let mut child = bin()
+        .args([
+            "dossier",
+            "serve",
+            "--testnet",
+            "--listen",
+            &format!("127.0.0.1:{port}"),
+            "--raw-tx-dir",
+            &fixture("testnet"),
+        ])
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let ask = |method: &str, path: &str, body: &str| -> (u16, serde_json::Value) {
+        for _ in 0..50 {
+            if let Ok(mut s) = std::net::TcpStream::connect(("127.0.0.1", port)) {
+                write!(s, "{method} {path} HTTP/1.1\r\nhost: localhost\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).unwrap();
+                let mut out = String::new();
+                s.read_to_string(&mut out).unwrap();
+                let code = out[9..12].parse().unwrap();
+                let json = out.split("\r\n\r\n").nth(1).unwrap_or("");
+                return (
+                    code,
+                    serde_json::from_str(json).unwrap_or(serde_json::Value::Null),
+                );
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        panic!("the service did not start");
+    };
+    let (code, v) = ask("GET", "/healthz", "");
+    assert_eq!((code, v["ok"].as_bool()), (200, Some(true)));
+    let (code, v) = ask("POST", "/v1/nonces", "");
+    assert!(
+        code == 201
+            && v["nonce"]
+                .as_str()
+                .unwrap()
+                .starts_with("zeceipt-challenge-")
+    );
+    let dossier = std::fs::read_to_string(fixture("dossier/testnet-dossier.json")).unwrap();
+    let (code, v) = ask(
+        "POST",
+        "/v1/dossiers/verify?expect_nonce=zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+        &dossier,
+    );
+    assert_eq!(
+        (code, v["all_verified"].as_bool(), v["controlled"].as_bool()),
+        (200, Some(true), Some(true)),
+        "{v}"
+    );
+    assert_eq!(v["claims"].as_array().unwrap().len(), 12);
+    let (code, v) = ask("POST", "/v1/dossiers/verify", "{}");
+    assert_eq!((code, v["stage"].as_str()), (422, Some("parse")));
+    let (code, _) = ask("GET", "/nope", "");
+    assert_eq!(code, 404);
+    child.kill().unwrap();
+    let _ = child.wait();
+}

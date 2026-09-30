@@ -100,6 +100,22 @@ enum DossierCmd {
     },
     /// Print a fresh random nonce for a control challenge (for the reviewer to send the holder).
     Nonce,
+    /// Serve dossier checks over HTTP for a compliance back office (self-hosted): `POST /v1/dossiers/verify` (the
+    /// dossier as the body; `?expect_nonce=` optional) returns the report; `POST /v1/nonces` returns a nonce;
+    /// `GET /healthz`. Transactions are fetched from the endpoint, as `dossier verify` does.
+    Serve {
+        #[command(flatten)]
+        net: NetArgs,
+        /// Address to listen on.
+        #[arg(long, default_value = "127.0.0.1:8787")]
+        listen: std::net::SocketAddr,
+        /// Listen on a non-loopback address (put it behind your own TLS and authentication).
+        #[arg(long)]
+        allow_remote: bool,
+        /// Read transactions from this directory of `<txid>.hex` files instead of a node (an air-gapped back office).
+        #[arg(long)]
+        raw_tx_dir: Option<PathBuf>,
+    },
     /// Find your transactions in a height range: every one that paid you or spent your notes (trial decryption of
     /// compact blocks with your UFVK, on this machine). Prints them as JSON, oldest first.
     Scan {
@@ -1026,16 +1042,23 @@ fn pubkey_hex(s: &str) -> Result<String, String> {
 }
 
 async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
-    use zeceipt_core::dossier::{
-        build, check_dossier, prevout_txids, txids_needed, BuildInput, Status, TxData,
-    };
+    use zeceipt_core::dossier::{build, BuildInput, Status};
     use zeceipt_core::zeceipt_types::dossier::Dossier;
     match cmd {
         DossierCmd::Nonce => {
-            let mut b = [0u8; 16];
-            rand::RngCore::fill_bytes(&mut OsRng, &mut b);
-            println!("zeceipt-challenge-{}", hex::encode(b));
+            println!("{}", new_nonce());
             Ok(ExitCode::SUCCESS)
+        }
+        DossierCmd::Serve {
+            net,
+            listen,
+            allow_remote,
+            raw_tx_dir,
+        } => {
+            if !listen.ip().is_loopback() && !allow_remote {
+                return Err(anyhow!("{listen} is not a loopback address: pass --allow-remote, and put the service behind your own TLS and authentication"));
+            }
+            serve_dossiers(net, listen, raw_tx_dir).await
         }
         DossierCmd::Scan {
             net,
@@ -1150,47 +1173,14 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
                     return Ok(ExitCode::from(1));
                 }
             };
-            let net = NetArgs {
-                testnet: matches!(d.network, Network::Test) || net.testnet,
-                regtest: matches!(d.network, Network::Regtest) || net.regtest,
-                endpoint: net.endpoint,
-            };
-            let mut txs = std::collections::HashMap::new();
-            // Two rounds: the transactions the claims name, then the ones whose outputs the origin transactions spend
-            // (each funder's address and value come from the spent output, which the txid covers).
-            let first = txids_needed(&d);
-            for round in 0..2 {
-                let ids = if round == 0 {
-                    first.clone()
-                } else {
-                    prevout_txids(&d, &txs)
-                };
-                for t in ids {
-                    let file = raw_tx_dir.as_ref().map(|dir| dir.join(format!("{t}.hex")));
-                    if file.as_ref().is_some_and(|f| !f.exists()) {
-                        continue; // not supplied: the claims that need it say so
-                    }
-                    let src = TxSource {
-                        txid: Some(t.clone()),
-                        raw_tx_file: file.clone(),
-                    };
-                    match load_tx(&net, &src).await {
-                        Ok((bytes, height)) => {
-                            txs.insert(
-                                t,
-                                TxData {
-                                    bytes,
-                                    height,
-                                    mempool: file.is_none() && height.is_none(),
-                                },
-                            );
-                        }
-                        Err(e) if is_pending(&e) => {}
-                        Err(e) => return Err(e),
-                    }
-                }
-            }
-            let report = check_dossier(&d, &raw, &txs, expect_nonce.as_deref());
+            let report = check_dossier_text(
+                &net,
+                &d,
+                &raw,
+                raw_tx_dir.as_deref(),
+                expect_nonce.as_deref(),
+            )
+            .await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
             Ok(if report.all_verified {
                 ExitCode::SUCCESS
@@ -1205,6 +1195,171 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
                 ExitCode::from(2)
             })
         }
+    }
+}
+
+fn new_nonce() -> String {
+    let mut b = [0u8; 16];
+    rand::RngCore::fill_bytes(&mut OsRng, &mut b);
+    format!("zeceipt-challenge-{}", hex::encode(b))
+}
+
+/// Fetch what a dossier's checks need (two rounds: the transactions its claims name, then the previous transactions
+/// of its origins' transparent inputs) from `raw_tx_dir` or the endpoint, and check it.
+async fn check_dossier_text(
+    net: &NetArgs,
+    d: &zeceipt_core::zeceipt_types::dossier::Dossier,
+    raw: &str,
+    raw_tx_dir: Option<&std::path::Path>,
+    expect_nonce: Option<&str>,
+) -> anyhow::Result<zeceipt_core::dossier::Report> {
+    use zeceipt_core::dossier::{check_dossier, prevout_txids, txids_needed, TxData};
+    let net = NetArgs {
+        testnet: matches!(d.network, Network::Test) || net.testnet,
+        regtest: matches!(d.network, Network::Regtest) || net.regtest,
+        endpoint: net.endpoint.clone(),
+    };
+    let mut txs = std::collections::HashMap::new();
+    let first = txids_needed(d);
+    for round in 0..2 {
+        let ids = if round == 0 {
+            first.clone()
+        } else {
+            prevout_txids(d, &txs)
+        };
+        for t in ids {
+            let file = raw_tx_dir.map(|dir| dir.join(format!("{t}.hex")));
+            if file.as_ref().is_some_and(|f| !f.exists()) {
+                continue; // not supplied: the claims that need it say so
+            }
+            let src = TxSource {
+                txid: Some(t.clone()),
+                raw_tx_file: file.clone(),
+            };
+            match load_tx(&net, &src).await {
+                Ok((bytes, height)) => {
+                    txs.insert(
+                        t,
+                        TxData {
+                            bytes,
+                            height,
+                            mempool: file.is_none() && height.is_none(),
+                        },
+                    );
+                }
+                Err(e) if is_pending(&e) => {}
+                Err(e) => return Err(e),
+            }
+        }
+    }
+    Ok(check_dossier(d, raw, &txs, expect_nonce))
+}
+
+/// `dossier serve`: a small HTTP/1.1 service for a back office. Bodies are capped at 1 MiB; every answer is JSON.
+async fn serve_dossiers(
+    net: NetArgs,
+    listen: std::net::SocketAddr,
+    raw_tx_dir: Option<PathBuf>,
+) -> anyhow::Result<ExitCode> {
+    use http_body_util::{BodyExt, Full, Limited};
+    use hyper::body::Bytes;
+    use hyper::{Method, Request, Response, StatusCode};
+    use std::sync::Arc;
+    const MAX_BODY: usize = 1 << 20;
+    let net = Arc::new(net);
+    let raw_tx_dir = Arc::new(raw_tx_dir);
+    let listener = tokio::net::TcpListener::bind(listen)
+        .await
+        .with_context(|| format!("listen on {listen}"))?;
+    eprintln!("zeceipt dossier service on http://{listen} (POST /v1/dossiers/verify, POST /v1/nonces, GET /healthz)");
+    loop {
+        let (stream, _) = listener.accept().await?;
+        let net = net.clone();
+        let dir = raw_tx_dir.clone();
+        tokio::spawn(async move {
+            let svc = hyper::service::service_fn(move |req: Request<hyper::body::Incoming>| {
+                let net = net.clone();
+                let dir = dir.clone();
+                async move {
+                    let reply = |code: StatusCode, v: serde_json::Value| {
+                        Response::builder()
+                            .status(code)
+                            .header("content-type", "application/json")
+                            .header("cache-control", "no-store")
+                            .body(Full::new(Bytes::from(v.to_string())))
+                    };
+                    let path = req.uri().path().to_string();
+                    let query = req.uri().query().unwrap_or("").to_string();
+                    match (req.method().clone(), path.as_str()) {
+                        (Method::GET, "/healthz") => reply(
+                            StatusCode::OK,
+                            json!({"ok": true, "version": zeceipt_core::zeceipt_types::dossier::DOSSIER_VERSION}),
+                        ),
+                        (Method::POST, "/v1/nonces") => {
+                            reply(StatusCode::CREATED, json!({"nonce": new_nonce()}))
+                        }
+                        (Method::POST, "/v1/dossiers/verify") => {
+                            let body = match Limited::new(req.into_body(), MAX_BODY).collect().await
+                            {
+                                Ok(b) => b.to_bytes(),
+                                Err(_) => {
+                                    return reply(
+                                        StatusCode::PAYLOAD_TOO_LARGE,
+                                        json!({"error": "the body is over 1 MiB, or broken"}),
+                                    )
+                                }
+                            };
+                            let Ok(raw) = String::from_utf8(body.to_vec()) else {
+                                return reply(
+                                    StatusCode::BAD_REQUEST,
+                                    json!({"error": "the body is not UTF-8"}),
+                                );
+                            };
+                            let d = match zeceipt_core::zeceipt_types::dossier::Dossier::parse(&raw)
+                            {
+                                Ok(d) => d,
+                                Err(e) => {
+                                    return reply(
+                                        StatusCode::UNPROCESSABLE_ENTITY,
+                                        json!({"all_verified": false, "stage": "parse", "error": e.to_string()}),
+                                    )
+                                }
+                            };
+                            let expect = query
+                                .split('&')
+                                .find_map(|kv| kv.strip_prefix("expect_nonce="))
+                                .map(|v| v.replace('+', " "));
+                            match check_dossier_text(
+                                &net,
+                                &d,
+                                &raw,
+                                dir.as_deref().as_deref(),
+                                expect.as_deref(),
+                            )
+                            .await
+                            {
+                                Ok(r) => reply(
+                                    StatusCode::OK,
+                                    serde_json::to_value(r).unwrap_or_default(),
+                                ),
+                                Err(e) => reply(
+                                    StatusCode::BAD_GATEWAY,
+                                    json!({"error": format!("fetching transactions: {e}")}),
+                                ),
+                            }
+                        }
+                        _ => reply(
+                            StatusCode::NOT_FOUND,
+                            json!({"error": "POST /v1/dossiers/verify, POST /v1/nonces or GET /healthz"}),
+                        ),
+                    }
+                }
+            });
+            let io = hyper_util::rt::TokioIo::new(stream);
+            let _ = hyper::server::conn::http1::Builder::new()
+                .serve_connection(io, svc)
+                .await;
+        });
     }
 }
 

@@ -22,7 +22,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 # The issuer-binding lookup (spec §7): a small HTTPS GET on crates already in the tree (tonic's stack), so the
 # connection can be pinned to the address that was checked (review W1 round 2).
-hyper = { version = "1", features = ["client", "http1"] }
+hyper = { version = "1", features = ["client", "server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

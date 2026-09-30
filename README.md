@@ -25,7 +25,7 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="552 tests" src="https://img.shields.io/badge/tests-552-2ea44f?style=flat-square">
+  <img alt="553 tests" src="https://img.shields.io/badge/tests-553-2ea44f?style=flat-square">
 </p>
 
 ---
@@ -105,6 +105,8 @@ cargo build --release && Z=target/release/zeceipt
 $Z dossier verify fixtures/dossier/testnet-dossier.json --raw-tx-dir fixtures/testnet   # exit 0: all 12 claims verified
 $Z dossier verify fixtures/dossier/testnet-dossier.json                                  # the same, fetched from testnet.zec.rocks
 $Z dossier nonce                                                                          # a challenge to send a holder
+$Z dossier serve --listen 127.0.0.1:8787                                                  # the same checks over HTTP, for a back office
+# POST /v1/dossiers/verify?expect_nonce=…  (the dossier as the body) → the report · POST /v1/nonces · GET /healthz
 ```
 
 **As a holder.** Find your transactions and build a dossier. The UFVK is read from a file and never leaves your machine:
@@ -238,7 +240,7 @@ flowchart LR
 
 ## Integrations
 
-- **Exchanges, OTC desks, bridges.** Ask for a dossier instead of a viewing key or a deshield: send a nonce, receive `dossier.json`, check it with `zeceipt dossier verify` in a back office, or in the case page. The report JSON (with the dossier's sha256) goes into the case file.
+- **Exchanges, OTC desks, bridges.** Ask for a dossier instead of a viewing key or a deshield: send a nonce, receive `dossier.json`, and check it in the case page, with `zeceipt dossier verify`, or through `zeceipt dossier serve`, a self-hosted HTTP service for a compliance back office (loopback by default; `--raw-tx-dir` for an air-gapped one). The report JSON, with the dossier's sha256, goes into the case file.
 - **Wallets (Zodl, Zingo, …).** An "Export source-of-funds dossier" button: the wallet already has the UFVK and the transaction list, and `buildDossier` in `@zeceipt/verify` (or `zeceipt_core::dossier::build`) does the rest locally. The control challenge is a send to self with the reviewer's nonce as the memo.
 
 - **Payout tools (Konclave, ZBooks, …).** After broadcast, call `zeceipt_core::issue` or the CLI, and attach the receipt URL to each payslip row.
@@ -253,7 +255,7 @@ flowchart LR
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 87 tests, including the official Orchard note-encryption vectors and the dossier forgeries
+cargo test --workspace --features zeceipt-core/synthetic   # 88 tests, including the official Orchard note-encryption vectors and the dossier forgeries
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
