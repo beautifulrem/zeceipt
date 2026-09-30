@@ -80,7 +80,7 @@
     <label id="scan-from-field" class="field">First height to scan (your wallet's birthday, or just before the funds arrived)
       <input id="scan-from" class="text" inputmode="numeric" autocomplete="off" aria-describedby="scan-hint">
     </label>
-    <span id="scan-hint" class="hint">Each 1,000 blocks take about two seconds. The found ids replace the list above; you can remove any you do not want to explain.</span>
+    <span id="scan-hint" class="hint">Recent blocks scan at about 1,000 a second; the 2022–23 spam blocks at about 30, so start from the height the funds arrived, and use <code>zeceipt dossier scan</code> for long ranges. The found ids replace the list above; you can remove any you do not want to explain.</span>
     <p class="actions"><button id="scan" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span>Find my transactions</button> <button id="scan-stop" type="button" class="btn btn-secondary" hidden>Stop</button></p>
     <p id="scan-status" class="muted" role="status"></p>
   </fieldset>

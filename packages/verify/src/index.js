@@ -441,16 +441,33 @@ export async function scanWallet({ ufvk, network = "main", from, to = null, endp
               if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
               // Frames arrive in pieces: [flag][u32 BE length][payload]; flag 0 = a CompactBlock, 0x80 = trailers.
               const reader = res.body.getReader();
-              let buf = new Uint8Array(0);
+              // A growable buffer: [head, tail) is unread. Copying the whole unread tail on every piece would be
+              // quadratic in a block's size, and a spam-era block is megabytes in thousands of pieces.
+              let buf = new Uint8Array(1 << 16), head = 0, tail = 0;
               for (;;) {
                 const { done, value } = await reader.read();
                 quiet();
-                if (value) { const b = new Uint8Array(buf.length + value.length); b.set(buf); b.set(value, buf.length); buf = b; }
-                while (buf.length >= 5) {
-                  const len = new DataView(buf.buffer, buf.byteOffset + 1, 4).getUint32(0, false);
-                  if (buf.length < 5 + len) break;
-                  const flag = buf[0], payload = buf.slice(5, 5 + len);
-                  buf = buf.slice(5 + len);
+                if (value) {
+                  if (tail + value.length > buf.length) {
+                    const need = tail - head + value.length;
+                    if (need > buf.length / 2) {
+                      const grown = new Uint8Array(Math.max(buf.length * 2, need));
+                      grown.set(buf.subarray(head, tail), 0);
+                      buf = grown;
+                    } else {
+                      buf.copyWithin(0, head, tail);
+                    }
+                    tail -= head;
+                    head = 0;
+                  }
+                  buf.set(value, tail);
+                  tail += value.length;
+                }
+                while (tail - head >= 5) {
+                  const len = new DataView(buf.buffer, buf.byteOffset + head + 1, 4).getUint32(0, false);
+                  if (tail - head < 5 + len) break;
+                  const flag = buf[head], payload = buf.slice(head + 5, head + 5 + len);
+                  head += 5 + len;
                   if (flag === 0) {
                     const height = Number(scanner.scan_block(payload));
                     next = height + 1;

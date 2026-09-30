@@ -1515,19 +1515,20 @@ async fn scan_wallet(
     client
         .for_each_block(from, to, |b| {
             blocks += 1;
-            for tx in &b.vtx {
-                let mut id = tx.txid.clone();
-                id.reverse();
-                let id = hex::encode(id);
-                let iw: Vec<_> = tx.ironwood_actions.iter().filter_map(conv).collect();
-                let or: Vec<_> = tx.actions.iter().filter_map(conv).collect();
-                if !iw.is_empty() {
-                    scanner.scan_tx(b.height, &id, &iw, true);
-                }
-                if !or.is_empty() {
-                    scanner.scan_tx(b.height, &id, &or, false);
-                }
-            }
+            let txs: Vec<_> = b
+                .vtx
+                .iter()
+                .map(|tx| {
+                    let mut id = tx.txid.clone();
+                    id.reverse();
+                    (
+                        hex::encode(id),
+                        tx.ironwood_actions.iter().filter_map(conv).collect(),
+                        tx.actions.iter().filter_map(conv).collect(),
+                    )
+                })
+                .collect();
+            scanner.scan_block_txs(b.height, &txs);
         })
         .await?;
     eprintln!(

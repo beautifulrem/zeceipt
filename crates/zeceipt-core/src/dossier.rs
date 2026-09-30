@@ -1503,51 +1503,94 @@ impl WalletScanner {
         })
     }
 
-    /// Scan one transaction's compact actions. `ironwood` selects the note encryption domain (Ironwood's note
-    /// plaintext version differs from Orchard's).
-    pub fn scan_tx(
+    /// Trial-decrypt compact actions with both scopes' incoming viewing keys, in one batch: the batch shares the
+    /// expensive part of key agreement across actions, which is most of a scan's time in 2022–23's spam blocks.
+    /// `ironwood` selects the note encryption domain (Ironwood's note plaintext version differs from Orchard's).
+    fn decrypt(
+        &self,
+        actions: &[&CompactActionData],
+        ironwood: bool,
+    ) -> Vec<Option<orchard::Note>> {
+        use orchard::note::{ExtractedNoteCommitment, Nullifier};
+        use orchard::note_encryption::{CompactAction, IronwoodVersion, OrchardVersion};
+        use zcash_note_encryption::{batch, EphemeralKeyBytes};
+        let ivks: Vec<orchard::keys::PreparedIncomingViewingKey> =
+            self.ivks.iter().map(|(k, _)| k.clone()).collect();
+        // Actions whose nullifier or commitment is not a valid encoding cannot be the holder's: they are skipped.
+        let parsed: Vec<(usize, CompactAction)> = actions
+            .iter()
+            .enumerate()
+            .filter_map(|(k, a)| {
+                let nf = Option::<Nullifier>::from(Nullifier::from_bytes(&a.nullifier))?;
+                let cmx = Option::<ExtractedNoteCommitment>::from(
+                    ExtractedNoteCommitment::from_bytes(&a.cmx),
+                )?;
+                Some((
+                    k,
+                    CompactAction::from_parts(
+                        nf,
+                        cmx,
+                        EphemeralKeyBytes(a.ephemeral_key),
+                        a.ciphertext,
+                    ),
+                ))
+            })
+            .collect();
+        let mut out = vec![None; actions.len()];
+        if ironwood {
+            let batch_in: Vec<_> = parsed
+                .iter()
+                .map(|(_, a)| {
+                    (
+                        NoteEncryptionDomain::<IronwoodVersion>::for_compact_action(a),
+                        a.clone(),
+                    )
+                })
+                .collect();
+            for ((k, _), r) in parsed
+                .iter()
+                .zip(batch::try_compact_note_decryption(&ivks, &batch_in))
+            {
+                out[*k] = r.map(|((n, _), _)| n);
+            }
+        } else {
+            let batch_in: Vec<_> = parsed
+                .iter()
+                .map(|(_, a)| {
+                    (
+                        NoteEncryptionDomain::<OrchardVersion>::for_compact_action(a),
+                        a.clone(),
+                    )
+                })
+                .collect();
+            for ((k, _), r) in parsed
+                .iter()
+                .zip(batch::try_compact_note_decryption(&ivks, &batch_in))
+            {
+                out[*k] = r.map(|((n, _), _)| n);
+            }
+        }
+        out
+    }
+
+    /// Count one transaction's spends of the holder's notes (before the notes it pays them, so a note received and
+    /// spent in one block is seen in order) and record the notes it pays them.
+    fn record(
         &mut self,
         height: u64,
         txid: &str,
-        actions: &[CompactActionData],
-        ironwood: bool,
+        actions: &[&CompactActionData],
+        notes: &[Option<orchard::Note>],
     ) {
-        use orchard::note::{ExtractedNoteCommitment, Nullifier};
-        use orchard::note_encryption::{CompactAction, IronwoodVersion, OrchardVersion};
-        use zcash_note_encryption::{try_compact_note_decryption, EphemeralKeyBytes};
-        let (mut received, mut spent) = (0, 0);
-        for a in actions {
-            if self.own.contains_key(&a.nullifier) {
-                spent += 1;
-            }
-            let (Some(nf), Some(cmx)) = (
-                Option::<Nullifier>::from(Nullifier::from_bytes(&a.nullifier)),
-                Option::<ExtractedNoteCommitment>::from(ExtractedNoteCommitment::from_bytes(
-                    &a.cmx,
-                )),
-            ) else {
-                continue;
-            };
-            let act = CompactAction::from_parts(
-                nf,
-                cmx,
-                EphemeralKeyBytes(a.ephemeral_key),
-                a.ciphertext,
-            );
-            let note = self.ivks.iter().find_map(|(ivk, _)| {
-                if ironwood {
-                    let d = NoteEncryptionDomain::<IronwoodVersion>::for_compact_action(&act);
-                    try_compact_note_decryption(&d, ivk, &act).map(|(n, _)| n)
-                } else {
-                    let d = NoteEncryptionDomain::<OrchardVersion>::for_compact_action(&act);
-                    try_compact_note_decryption(&d, ivk, &act).map(|(n, _)| n)
-                }
-            });
-            if let Some(n) = note {
-                received += 1;
-                self.own.insert(n.nullifier(&self.nk_key).to_bytes(), ());
-                debug_assert_eq!(n.nullifier(&self.nk_key), n.nullifier(&self.fvk));
-            }
+        let spent = actions
+            .iter()
+            .filter(|a| self.own.contains_key(&a.nullifier))
+            .count();
+        let mut received = 0;
+        for n in notes.iter().flatten() {
+            received += 1;
+            self.own.insert(n.nullifier(&self.nk_key).to_bytes(), ());
+            debug_assert_eq!(n.nullifier(&self.nk_key), n.nullifier(&self.fvk));
         }
         if received + spent > 0 {
             self.found.push(FoundTx {
@@ -1557,6 +1600,19 @@ impl WalletScanner {
                 spent,
             });
         }
+    }
+
+    /// Scan one transaction's compact actions of one pool (`ironwood`: the Ironwood pool, else Orchard).
+    pub fn scan_tx(
+        &mut self,
+        height: u64,
+        txid: &str,
+        actions: &[CompactActionData],
+        ironwood: bool,
+    ) {
+        let refs: Vec<&CompactActionData> = actions.iter().collect();
+        let notes = self.decrypt(&refs, ironwood);
+        self.record(height, txid, &refs, &notes);
     }
 
     /// The holder's transactions found so far, in chain order.
@@ -1579,6 +1635,7 @@ impl WalletScanner {
                 _ => {}
             }
         }
+        let mut parsed: Vec<(String, Vec<CompactActionData>, Vec<CompactActionData>)> = Vec::new();
         for tx in txs {
             let (mut txid, mut orchard, mut ironwood) = (String::new(), Vec::new(), Vec::new());
             for f in
@@ -1595,14 +1652,35 @@ impl WalletScanner {
                     _ => {}
                 }
             }
+            parsed.push((txid, ironwood, orchard));
+        }
+        self.scan_block_txs(height, &parsed);
+        Ok(height)
+    }
+
+    /// Scan one block's transactions, each `(txid, Ironwood actions, Orchard actions)`, in block order: one batch
+    /// decryption per pool for the whole block, then the transactions in order.
+    pub fn scan_block_txs(
+        &mut self,
+        height: u64,
+        parsed: &[(String, Vec<CompactActionData>, Vec<CompactActionData>)],
+    ) {
+        let iw: Vec<&CompactActionData> = parsed.iter().flat_map(|t| &t.1).collect();
+        let or: Vec<&CompactActionData> = parsed.iter().flat_map(|t| &t.2).collect();
+        let (iw_notes, or_notes) = (self.decrypt(&iw, true), self.decrypt(&or, false));
+        let (mut i, mut o) = (0, 0);
+        for (txid, ironwood, orchard) in parsed {
             if !ironwood.is_empty() {
-                self.scan_tx(height, &txid, &ironwood, true);
+                let refs: Vec<&CompactActionData> = ironwood.iter().collect();
+                self.record(height, txid, &refs, &iw_notes[i..i + ironwood.len()]);
+                i += ironwood.len();
             }
             if !orchard.is_empty() {
-                self.scan_tx(height, &txid, &orchard, false);
+                let refs: Vec<&CompactActionData> = orchard.iter().collect();
+                self.record(height, txid, &refs, &or_notes[o..o + orchard.len()]);
+                o += orchard.len();
             }
         }
-        Ok(height)
     }
 }
 

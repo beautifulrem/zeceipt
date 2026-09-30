@@ -1146,3 +1146,16 @@ The input's value is that of the whole spent output (0.3 TAZ): the rest went bac
 | `testnet-dossier-transparent-origin.json` | 1 | `not_verified` | true | none | 0 |
 
 The transparent-origin dossier is `not_verified` because its n10 origin is `unproven`, as recorded above.
+
+**Scan speed on mainnet** (appraisal round 2, E12; 2026-10-01, an M-series laptop, with a UFVK from `zcash-test-vectors`' `unified_full_viewing_keys.json`, which holds no funds, so nothing is found):
+- **Recent blocks:** 5,000 blocks from 3,050,000 took 2.4 s with the CLI (`dossier scan`, release build) and 5.0 s in the browser path (`scanWallet`, the WASM, through `zjs.zec.rocks`).
+- **The 2022–23 spam blocks:** 20,000 blocks from 2,000,000 took 263 s with the CLI, and 66.6 s from 2,100,000; the time is mostly the node streaming megabytes of compact blocks.
+- **The browser path in the spam blocks** had three problems, all fixed:
+  - Its timeout covered a whole 2,000-block request, so one slow range failed. It now times out on 60 s of silence only.
+  - A public node that closes a long stream part-way made it restart from the first block. It now resumes from the next block, with the same node while each attempt gets further, then the next node.
+  - It copied its whole receive buffer for every piece of the stream, which is quadratic in a multi-megabyte block. It now uses a growable buffer.
+
+  Trial decryption also runs as one batch per block and pool (`zcash_note_encryption::batch`, sharing the key agreement's inversion), in the CLI too.
+- **Recorded blocks:** on 100 recorded spam-era blocks (2,000,000–2,000,099), `scan_block` in the WASM took 6.11 s before the batching and 3.08 s after (about 30 blocks a second).
+
+  A holder should start the scan at the height the funds arrived, and use the CLI for ranges of years. Before the buffer fix, an earlier browser-path run over 5,000 spam blocks took 2,318 s.

@@ -243,7 +243,7 @@ node packages/verify/test/dossier-view.mjs                 # the case and build 
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `e7108d8322e445c5a3f7cccba9add72b50abb44808872a0384e34b987e7c4530`.
+- **Committed hash:** the committed `.wasm` has sha256 `f5234f8aa13d709e4571b37bffcae86d6a858469851137372694256f80733856`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 
