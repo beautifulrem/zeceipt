@@ -1,0 +1,29 @@
+/* The landing page (index.html), on top of r/page.css and case/case.css; tokens only. The icons are case.css's: an
+   icon's url() resolves against the stylesheet that draws it, never this page, so they need no override here. */
+
+.home-hero { margin: 1rem 0 2rem; }
+.home h1 { max-width: 40rem; font-size: clamp(2rem, 1.3rem + 2.6vw, 2.9rem); line-height: 1.12; }
+.home-lede { max-width: 44rem; margin-top: 1rem; font-size: 1.02rem; color: var(--muted); }
+.cta { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1.5rem 0 0.9rem; }
+.cta .btn { min-height: 2.75rem; padding: 0.6rem 1.2rem; font-size: 0.95rem; text-decoration: none; }
+.cta .btn-primary, .cta .btn-primary:hover { color: var(--primary-fg); }
+.cta .btn-secondary, .cta .btn-secondary:hover { color: var(--fg); }
+.try { font-size: 0.9rem; }
+.try a { font-weight: 600; }
+.how { list-style: none; counter-reset: how; margin: 0; padding: 0; display: grid; gap: 1rem; }
+@media (min-width: 760px) { .how { grid-template-columns: repeat(3, 1fr); gap: 1.5rem; } }
+.how li { counter-increment: how; }
+.how li::before {
+  content: counter(how); display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; margin-bottom: 0.5rem;
+  border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--accent-line); color: var(--accent-strong); font: 600 0.85rem var(--mono);
+}
+.how h3 { margin: 0 0 0.3rem; font: 600 0.95rem/1.35 var(--sans); letter-spacing: -0.01em; text-transform: none; color: var(--fg); }
+.how p { margin: 0; font-size: 0.875rem; color: var(--muted); }
+.kinds { margin: 0; display: grid; gap: 0.1rem; }
+.kinds > div { display: grid; grid-template-columns: 6rem 1fr; gap: 1rem; padding: 0.55rem 0; border-bottom: 1px dashed var(--line); }
+.kinds > div:last-child { border-bottom: 0; }
+.kinds dt { font-weight: 650; }
+.kinds dd { margin: 0; font-size: 0.9rem; }
+.more-list { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.4rem; font-size: 0.9rem; }
+.scope { margin: 1rem 0; }
+@media (max-width: 560px) { .kinds > div { grid-template-columns: 1fr; gap: 0.1rem; } }

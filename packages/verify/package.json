@@ -20,8 +20,9 @@
   "scripts": {
     "build:wasm": "../../scripts/build_wasm.sh",
     "demo": "python3 -m http.server 8787 --directory .",
-    "test": "node test/verify.mjs",
+    "test": "node test/verify.mjs && node test/dossier-view.mjs",
     "test:page": "ZECEIPT_BROWSER_E2E=1 node test/page.e2e.mjs",
+    "test:dossier-pages": "ZECEIPT_BROWSER_E2E=1 node --test test/dossier.e2e.mjs",
     "test:pack": "node test/pack.mjs",
     "test:timing": "node test/timing.mjs"
   },

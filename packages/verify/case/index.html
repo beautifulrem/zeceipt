@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<!--
+  A dossier opened by a link is in this page's URL fragment (#…), which the browser never sends to the host. This
+  policy keeps it in the page: scripts, styles, fonts and images only from this site, WebAssembly allowed, and network
+  access only to this site and to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS; test/dossier-view.mjs
+  fails if an endpoint's origin is missing here). The nodes are asked for transactions by id, nothing else.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://zcash-testnet.chainsafe.dev">
+<title>Zeceipt — case review: check a source-of-funds dossier</title>
+<link rel="icon" href="../r/icon.svg" type="image/svg+xml">
+<link rel="preload" href="../r/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../r/page.css">
+<link rel="stylesheet" href="case.css">
+<script type="module" src="page.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the case</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../"><img src="../r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></a>
+    <nav class="topnav" aria-label="Zeceipt tools">
+      <a href="./" aria-current="page">Case review</a>
+      <a href="../build/">Build a dossier</a>
+    </nav>
+    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
+  </div>
+</header>
+<main id="main">
+<div class="hero">
+  <p class="eyebrow">Zeceipt · case review</p>
+  <h1>Case review</h1>
+  <p class="muted lede">Check a holder's source-of-funds dossier for shielded ZEC: where the funds came from, how they moved, what was paid from them, and that the holder can spend them now. Every claim is checked against the chain in this browser. A dossier opened by a link stays in the part after “#”, which your browser does not send to this site.</p>
+  <p id="status" class="muted status" role="status" data-state="loading">Loading the verifier…</p>
+</div>
+<p id="verdict-live" class="sr-only" role="status"></p>
+<p id="copy-live" class="sr-only" role="status"></p>
+
+<details id="inputs" class="inputs" open>
+<summary class="card inputs-summary">Open another dossier</summary>
+<section id="input-card" class="card" aria-labelledby="input-title">
+  <div class="row-head">
+    <h2 id="input-title">Open a dossier</h2>
+    <button id="sample" type="button" class="btn btn-secondary">Load the sample dossier</button>
+  </div>
+  <div id="drop" class="dropzone">
+    <span class="i i-upload" aria-hidden="true"></span>
+    <label class="drop-label">Drop the dossier file here, or <span class="drop-choose">choose a file</span><input type="file" id="file" class="drop-input" accept=".json,application/json"></label>
+    <span class="muted drop-hint">A <code>zeceipt-dossier-v1</code> JSON file from the holder.</span>
+  </div>
+  <label class="field">Or paste the dossier (JSON), or a case link<textarea id="paste" spellcheck="false" autocomplete="off" rows="4"></textarea></label>
+  <div class="actions">
+    <p><button id="check" type="button" class="btn btn-primary">Check the dossier</button></p>
+    <p class="muted">The sample is a real testnet dossier: a faucet payment, three payments made from it, and a control answer.</p>
+  </div>
+  <p class="muted note">To check a claim, this page asks a public node for each transaction the dossier names, by its id: the node learns those ids, nothing else. The dossier itself is not sent anywhere.</p>
+</section>
+</details>
+
+<section id="banner" class="result" hidden tabindex="-1" aria-labelledby="headline">
+  <div class="verdict">
+    <span class="verdict-icon" aria-hidden="true"></span>
+    <div><h2 id="headline" class="verdict-word"></h2><p id="verdict-sub" class="verdict-sub"></p></div>
+  </div>
+  <p id="banner-error" class="verdict-detail" hidden></p>
+  <dl id="facts" class="facts"></dl>
+  <p id="nonce-line" class="nonce-line" hidden></p>
+  <div id="case-actions" class="actions case-actions" hidden>
+    <p><button id="download" type="button" class="btn btn-secondary"><span class="i i-download" aria-hidden="true"></span>Download report (JSON)</button></p>
+    <p><button id="print" type="button" class="btn btn-secondary"><span class="i i-printer" aria-hidden="true"></span>Print or save as PDF</button></p>
+    <p><button id="copy-summary" type="button" class="btn btn-secondary"><span class="i i-copy" aria-hidden="true"></span>Copy a case summary</button></p>
+  </div>
+  <p id="print-meta" class="print-only"></p>
+</section>
+
+<section id="flow-card" class="card" hidden aria-labelledby="flow-title">
+  <div class="card-head">
+    <h2 id="flow-title">Funds flow</h2>
+    <span class="muted">Oldest first · each line under a step is one claim</span>
+  </div>
+  <ol id="flow" class="timeline"></ol>
+</section>
+
+<section id="claims-card" class="card" hidden aria-labelledby="claims-title">
+  <h2 id="claims-title">Claims</h2>
+  <div class="table-wrap">
+    <table id="claims" class="claims-table">
+      <caption class="sr-only">Every claim of the dossier, with its status</caption>
+      <thead><tr><th scope="col">#</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">What the chain shows</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="funders-card" class="card" hidden aria-labelledby="funders-title">
+  <h2 id="funders-title">Where the origin funds came from</h2>
+  <div id="funders"></div>
+</section>
+
+<div id="scope" class="scope" hidden>
+<section class="card" aria-labelledby="disclosed-title">
+<h2 id="disclosed-title">What the holder disclosed</h2>
+<ul id="disclosed" class="discloses"></ul>
+</section>
+<section class="card" aria-labelledby="limits-title">
+<h2 id="limits-title">What this does not prove</h2>
+<ul id="limits" class="limits"></ul>
+</section>
+</div>
+
+<section id="challenge" class="card challenge" aria-labelledby="challenge-title">
+  <div class="row-head">
+    <h2 id="challenge-title">Challenge the holder</h2>
+    <button id="nonce-new" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span><span id="nonce-new-label">Generate a nonce</span></button>
+  </div>
+  <p>A dossier's origin, path and deposit claims show what the holder's funds did. To see that they can spend them now, send them a fresh nonce and ask for a control claim that answers it.</p>
+  <p id="nonce-row" class="nonce-row" hidden><span class="nonce-label">Your nonce</span> <code id="nonce-value"></code></p>
+  <ol class="steps">
+    <li>Send the holder this nonce.</li>
+    <li>From the wallet that holds the funds, they send any amount (the smallest will do) to their own address, with the nonce as the memo. The transaction must spend notes the dossier discloses.</li>
+    <li>They add that transaction to their dossier as the control claim (on the Build page: the nonce and the challenge transaction's id), and send you the new dossier.</li>
+    <li>Open it here: the control claim must verify and answer this nonce.</li>
+  </ol>
+  <p class="muted">While a nonce is in this page, a control claim that answers any other nonce fails. The nonce is kept in this page's memory only: reloading or closing the page forgets it, so note it in your case file.</p>
+  <p id="nonce-result" class="nonce-result" role="status"></p>
+</section>
+
+<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: this page asks a public node for each transaction the dossier names, only when you check one, and sends nothing else. The node learns which transactions you looked up. The page stores nothing.</span></p>
+</main>
+<footer class="foot">
+  <span><span id="version">zeceipt-dossier-v1</span> · open source (Apache-2.0)</span>
+  <span class="foot-links"><a href="../">Home</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a></span>
+</footer>
+</body>
+</html>

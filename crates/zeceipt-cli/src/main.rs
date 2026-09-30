@@ -84,7 +84,8 @@ enum DossierCmd {
         scan_from: Option<u64>,
     },
     /// Check every claim of a dossier against the chain; prints the report (JSON). Exit 0: all verified; 1: a claim
-    /// failed; 2: a claim could not be checked yet (a transaction not mined).
+    /// failed or cannot be shown with this data (unproven); 2: a claim could not be checked yet (a transaction in the
+    /// mempool or not found): check again later.
     Verify {
         #[command(flatten)]
         net: NetArgs,
@@ -1193,7 +1194,12 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             println!("{}", serde_json::to_string_pretty(&report)?);
             Ok(if report.all_verified {
                 ExitCode::SUCCESS
-            } else if report.claims.iter().any(|c| c.status == Status::Failed) {
+            } else if !report.problems.is_empty()
+                || report
+                    .claims
+                    .iter()
+                    .any(|c| matches!(c.status, Status::Failed | Status::Unproven))
+            {
                 ExitCode::from(1)
             } else {
                 ExitCode::from(2)

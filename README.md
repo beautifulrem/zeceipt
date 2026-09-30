@@ -5,17 +5,17 @@
 <h1 align="center">zeceipt</h1>
 
 <p align="center">
-  <strong>Verifiable receipts for shielded Zcash payments.</strong><br>
-  Show one payment (its recipient, amount and memo) to anyone. You don't hand over a viewing key, and no other payment is revealed.
+  <strong>Source-of-funds evidence for shielded Zcash.</strong><br>
+  Prove where your shielded ZEC came from, what you paid, and that you control it now, to an exchange, an OTC desk or a lender, without handing over your viewing key.
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick start</a> &middot;
+  <a href="https://beautifulremi.dpdns.org/zeceipt/case/">Review a dossier</a> &middot;
+  <a href="https://beautifulremi.dpdns.org/zeceipt/build/">Build a dossier</a> &middot;
   <a href="#how-it-works">How it works</a> &middot;
   <a href="#for-judges">For judges</a> &middot;
-  <a href="spec/receipt-v0.md">Spec</a> &middot;
-  <a href="docs/PROOF.md">Proof</a> &middot;
-  <a href="docs/THREAT_MODEL.md">Threat model</a>
+  <a href="spec/dossier-v1.md">Spec</a> &middot;
+  <a href="docs/PROOF.md">Proof</a>
 </p>
 
 <p align="center">
@@ -25,99 +25,121 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="549 tests" src="https://img.shields.io/badge/tests-549-2ea44f?style=flat-square">
+  <img alt="551 tests" src="https://img.shields.io/badge/tests-551-2ea44f?style=flat-square">
 </p>
 
 ---
 
 > [!NOTE]
-> Built for **Colosseum's Crypto World's Fair 2026** (Zcash track) by one developer, [@beautifulrem](https://github.com/beautifulrem). The repository started on 2026-09-21 PT, during the event. See [For judges](#for-judges) for a ten-minute run and where each claim's evidence is.
+> Built for **Colosseum's Crypto World's Fair 2026** (Zcash track) by one developer, [@beautifulrem](https://github.com/beautifulrem). The repository started on 2026-09-21 PT, during the event. See [For judges](#for-judges) for the live sample and where each claim's evidence is.
+
+<p align="center">
+  <strong>Try it live:</strong> <a href="https://beautifulremi.dpdns.org/zeceipt/case/#sample">a real testnet dossier, checked claim by claim in your browser</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/build/">build one from your own viewing key (it never leaves the page)</a>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/case-review-dark.png">
+    <img src="docs/assets/case-review.png" alt="The case review page after checking the testnet sample dossier: all 12 claims verified, the dossier's sha256, and the funds flow from the faucet origin through the hops, the three payments and the control challenge" width="820">
+  </picture><br>
+  <sub>The case review page on the real testnet sample: every claim checked in the browser (WebAssembly) against a public node. Shot by <code>packages/verify/test/shots/case-review.mjs</code>.</sub>
+</p>
+
+## The problem
+
+Shielded ZEC is private by design, and that is exactly what compliance desks cannot work with. When a holder deposits at an exchange, cashes out through a bridge, or sells to an OTC desk, the reviewer asks where the funds came from:
+- **Kraken** asked holders to confirm "the specific source of each recent Zcash deposit", its "economic purpose", and that every external wallet is "solely owned and controlled by you" ([Zcash forum, 2026-04-14](https://forum.zcashcommunity.com/t/55347)).
+- **Binance** refused deposits from shielded addresses because it could not "determine the origin of these funds", returned them after 32 working days, and now takes deposits only at TEX addresses, which accept transparent funds only ([forum, 2024-05](https://forum.zcashcommunity.com/t/47667/8); [ZIP 320](https://zips.z.cash/zip-0320)).
+- **NEAR Intents** has held one holder's $589k for more than 67 days. He answers with screenshots and hashes, because there is nothing better to send ([forum, 2026-09](https://forum.zcashcommunity.com/t/57497)).
+
+Today there are two answers, and both give up the privacy the holder chose Zcash for. One is to **deshield** before depositing, which makes everything after it public. The other is to **hand over the viewing key**, which opens every past and future payment of the wallet. Proving control of a shielded address is on the community's wishlist ([ZecDev](https://zecdev.github.io/community)), and Ironwood has no signing standard for it.
+
+## What zeceipt does
+
+The holder builds a **dossier**: claims about specific funds, each checkable against the chain. The reviewer opens it in a browser, and every claim is verified there against public nodes, or against the reviewer's own. There is no account, and nothing is uploaded. The dossier is the only thing shared, and each claim discloses only what it needs.
+
+| Claim | What the reviewer learns | Checked by |
+|---|---|---|
+| **Origin** | These funds reached the holder in this transaction, and how it was funded: the transparent addresses that signed its inputs (an exchange's hot wallet, say), or a shielded sender | Opening the note ([`zdp:1:`](spec/receipt-v0.md#11-delivery-proofs-zdp1-accepted-alongside-receipts)) and reading the transaction's inputs |
+| **Path** | The funds moved on: this note was spent in the transaction that created that one | The note's nullifier, derived from the holder's nullifier key, found among the transaction's spends |
+| **Deposit** | The holder made this payment (recipient, amount, memo) from these notes | A sender receipt (the output's OCK) plus the spent notes' nullifiers |
+| **Control** | The holder can **spend** these funds now, after the reviewer's challenge | A transaction that spends the disclosed notes and pays the holder a note whose memo carries the reviewer's nonce. A viewing key cannot make it |
+
+A dossier discloses note openings (transaction, amount, address, memo) and the **nullifier key `nk`**, which derives nullifiers and nothing else. It does not disclose the viewing key: the reviewer cannot decrypt any other payment, past or future. What it does not prove is listed in every report: who the counterparties are, the value of undisclosed inputs, balances beyond the notes shown, and it is not a legal attestation ([`spec/dossier-v1.md`](spec/dossier-v1.md)).
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant R as Reviewer (exchange, OTC desk)
+    participant H as Holder
+    participant W as Holder's wallet
+    participant Z as Zcash chain
+    R->>H: "Source of funds?" + a nonce (zeceipt-challenge-…)
+    H->>W: send any amount to self, memo = nonce
+    W->>Z: challenge transaction (spends the funds' notes)
+    H->>H: zeceipt dossier build (UFVK stays on the holder's machine)
+    H-->>R: dossier.json (note openings, nk, receipts, claims)
+    R->>Z: fetch each transaction (public node or own)
+    R->>R: verify every claim in the browser (WebAssembly)
+    R-->>R: case report: funds flow, verified / failed per claim, sha256 for the case file
+```
+
+**A real one:** the [testnet sample](https://beautifulremi.dpdns.org/zeceipt/case/#sample) explains 1 TAZ from a faucet ([`fixtures/dossier/testnet-dossier.json`](fixtures/dossier/testnet-dossier.json)):
+- the origin;
+- four hops;
+- three payments (0.01, 0.02 and 0.03 TAZ);
+- a control challenge answered on chain at height 4,421,345.
+
+All 12 claims verify live and offline ([`docs/PROOF.md`](docs/PROOF.md) §8), and the forgeries we tried fail at the claim they attack: a wrong `nk`, a wrong nonce, a foreign note, a deposit not funded by the listed notes ([`crates/zeceipt-core/tests/dossier.rs`](crates/zeceipt-core/tests/dossier.rs)).
+
+## Quick start
+
+You need Rust (`protoc` is optional), Node 24+ and Python 3.
+
+**As a reviewer.** Check the sample dossier offline, from the committed transactions, then live from a public node:
+
+```bash
+cargo build --release && Z=target/release/zeceipt
+$Z dossier verify fixtures/dossier/testnet-dossier.json --raw-tx-dir fixtures/testnet   # exit 0: all 12 claims verified
+$Z dossier verify fixtures/dossier/testnet-dossier.json                                  # the same, fetched from testnet.zec.rocks
+$Z dossier nonce                                                                          # a challenge to send a holder
+```
+
+**As a holder.** Find your transactions and build a dossier. The UFVK is read from a file and never leaves your machine:
+
+```bash
+$Z dossier scan  --ufvk-file my.ufvk --from <birthday height>                     # every transaction that paid or spent your notes
+$Z dossier build --ufvk-file my.ufvk --scan-from <height> \
+                 --control-txid <your challenge tx> --nonce <the reviewer's nonce> > dossier.json
+```
+
+In the browser, the same checks run in WebAssembly: [`https://beautifulremi.dpdns.org/zeceipt/case/`](https://beautifulremi.dpdns.org/zeceipt/case/) for reviewers, [`https://beautifulremi.dpdns.org/zeceipt/build/`](https://beautifulremi.dpdns.org/zeceipt/build/) for holders, or locally with `(cd packages/verify && npm run demo)`. From JavaScript: `checkDossier(text)` and `buildDossier({ ufvk, txids, control })` in [`@zeceipt/verify`](packages/verify).
+
+## Who pays
+
+- **Holders: free.** The builder is open source and runs locally; the wedge is the frozen or held deposit, when a holder needs an answer the reviewer can check.
+- **Reviewers: paid.** Exchanges, OTC desks, bridges, lenders. Checking in the web page is free. Paid tiers cover the verification API for compliance back offices, case exports and the reviewer's own node endpoint. The reason to pay is the cost of EDD: Binance called it "burdensome and costly", and a dossier replaces screenshots with evidence that checks itself.
+- **Why now:** the EU's AMLR applies from 2027-07-10, and its Article 79 takes anonymity-enhancing coins out of regulated venues. Zcash's case to stay reachable is selective disclosure, and the EDD workflow is where it has to work.
+
+## The building blocks
+
+The dossier is built from primitives that also stand alone:
+- **Sender receipts** (`zeceipt-v0`, [`spec/receipt-v0.md`](spec/receipt-v0.md)): one output disclosed by its OCK, optionally signed by an issuer key that its domain confirms.
+- **Delivery proofs** (`zdp:1:`, the format of [zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof)): one note opened by the recipient or the sender, made with `zeceipt prove-delivery` and checked by the same verifier.
+- **A payout console** (`apps/console`) for treasurers who pay in shielded ZEC and issue a receipt per payment.
+
+Their live pages:
 
 <p align="center">
   <strong>Try it live:</strong> <a href="https://beautifulremi.dpdns.org/zeceipt/r#eyJ2ZXJzaW9uIjoiemVjZWlwdC12MCIsIm5ldHdvcmsiOiJ0ZXN0IiwicG9vbCI6Imlyb253b29kIiwidHhpZCI6ImZjZmRlNjI1Njg1YjQzZDdhYjE3Njk3MDhmNWE2NmQ3YThmZTg4YWJiZmM2ZTE0OTk4NGYzYzBhZGE2ODdmMGIiLCJvdXRwdXRfaW5kZXgiOjIsIm9jayI6IlJQdWhlNjBCcm5IUnJSVFFlNGZkR2E1bzF6N0dhQzQ1ajA2RGVTdWhQM0EiLCJsYWJlbCI6IklOVi1ULTAwMSIsImlzc3Vlcl9rZXlfaWQiOiJ0ZXN0bmV0LTIwMjYtMDlAYmVhdXRpZnVscmVtaS5kcGRucy5vcmciLCJpc3N1ZXJfcHVia2V5IjoiY2QzNGY1NTM1YzEzOTg1ODA0MjlmODJiNGQyMzQ0ZTU1MzEzMjE0OGM4ZTY3Mzc2YjU2Nzg5MDFmODRhM2Y2ZSIsInNpZ25hdHVyZSI6ImUzMzJkN2ZhODYyMWMzODI0NmEzMzQ3ZWMwMjQ5ZTIyZjgzOWM2ZDcxMmVjYjg1MjYzYzlmOWUyYTI3MjYyYzM3NDYyOGY5YjgyMWZmZjA5ZWFjY2FiYzFjMDQyZjhmMjc3NjAwMTM1NDZhOWNhMTFjODYyZWI0OTMxZWIyYzAxIiwiemlwMzExX3Byb2ZpbGUiOiJvdXRwdXRzLW9ubHkifQ">a signed testnet receipt whose issuer your browser can confirm</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/r#zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAgDmVmwDIVqG3vVI37czhBnuIBkcKPKQ7Qvz6NpGILnkJpgEwGeJ8I0vrQgGQEIPAAAAAADJ4sdzUj767aI_QY3AtbzouOaN3oErCrD7_UVFnAZd1g">the recipient's own proof of that payment</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/r/#zdp:1:WXvYf_frFEgVwXWPSRVtapErcRDlljHTNvGK5H5d-W4CAADxmRh1VsecY8DmWr_q_tgANvb0jq3j1RgadHLEZyn5ZatN3aoO7fCrw0wdECcAAAAAAABCBHYMP_cPDLK8l-ADNQ-by718ii6Z5IwVxCO_g0Mgbg">a real mainnet payment (zcash-delivery-proof's test vector), checked in your browser</a> &middot; <a href="https://beautifulremi.dpdns.org/zeceipt/demo/">the verifier demo</a>
 </p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/receipt-page-dark.png">
-    <img src="docs/assets/receipt-page.png" alt="The live receipt page showing VALID for a testnet receipt: 0.01 TAZ with memo INV-T-001, mined at height 4420000, signed by the issuer key" width="720">
-  </picture><br>
-  <sub>The live receipt page verifying one of zeceipt's own signed receipts in the browser (WebAssembly): a real testnet payment, fetched from a public node (<code>fixtures/testnet/</code>, <code>docs/PROOF.md</code> §6; shot by <code>packages/verify/test/shots/receipt-page.mjs</code> with <code>ZECEIPT_SHOT_URL</code>).</sub>
-</p>
+<details>
+<summary><strong>Receipts: issue and verify one</strong></summary>
 
-## Why
-
-Shielded Zcash hides who paid whom and how much. That is the point, until someone needs proof:
-- a contractor needs proof they were paid;
-- an auditor needs this quarter's payouts;
-- a DAO's public ledger needs to show a grant went out.
-
-Today the answer is to share a **viewing key**, which exposes *every* payment the wallet has made or will make, or a spreadsheet the auditor has to trust. OpenZcash mirrors the Zcash Community Grants ledger: 1,016 disbursements, 825 marked paid, budgeted at $23.3M, and no row is checked against the chain (read 2026-09-26). Zeceipt gives a receipt for **one output**, which anyone can check against the chain. Nothing else is disclosed.
-
-## How it works
-
-Every shielded output on the chain carries an `out_ciphertext`. It is encrypted under a per-output **Outgoing Cipher Key (OCK)**, which is derived from the sender's outgoing viewing key. Disclosing that one key lets a verifier decrypt that one output and nothing else. This is the `outputs` half of [ZIP 311](https://zips.z.cash/zip-0311), implemented here for the v6 **Ironwood** pool, and for Orchard and Sapling.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant T as Treasurer (payer)
-    participant Z as Zcash chain
-    participant I as zeceipt issue
-    participant R as Recipient / auditor
-    participant V as Verifier (browser, WASM)
-    T->>Z: shielded payment (one tx, many outputs)
-    T->>I: txid + viewing key (never a spending key)
-    I->>I: derive the OCK of each chosen output, sign the envelope (ed25519)
-    I-->>R: receipt link (https://host/r#35;payload)
-    R->>V: open the link (the fragment never reaches the host)
-    V->>Z: fetch the transaction by txid from a public node
-    V->>V: decrypt out_ciphertext with the OCK → recipient, value, memo
-    V-->>R: VALID, with the height and confirmations, and the issuer's key
-```
-
-A receipt is a small signed JSON envelope, `zeceipt-v0` ([`spec/receipt-v0.md`](spec/receipt-v0.md), with committed test vectors). Verification returns one of three answers: `valid`, `invalid` or `pending`. The CLI exits with 0, 1 or 2 accordingly.
-
-### What a receipt proves, and what it does not
-
-| A valid receipt proves | It does not prove |
-|---|---|
-| The named transaction pays the shown value to the shown recipient, with the shown memo | Who is presenting it (for interactive proofs, ask for a receipt bound to your challenge and signed by a key you know, `--expect-issuer`, or that its domain confirms, `--check-issuer`) |
-| Whoever made it knew that output's OCK | That the output is still unspent, or that whoever presents the receipt can spend it (a receipt carries no spending ability) |
-| If signed: the holder of the issuer key made this envelope and wrote its label | Anything about other outputs, transactions or balances |
-| | Spend authority: it is not a full ZIP 311 disclosure (see below) |
-
-Verification also reports the transaction's depth in confirmations, as the node it asked sees it.
-
-> [!IMPORTANT]
-> Zeceipt is **not** a full ZIP 311 payment disclosure. ZIP 311 also requires a spend-authority signature, which needs the spending key, and zeceipt never touches spending keys. The issuer is attested by an application-layer ed25519 signature instead. It follows that anyone who holds the sender's viewing key, or an earlier receipt for the same output, can also produce a receipt for that output.
-
-### The recipient's side: `zdp:1:` delivery proofs
-
-A receipt comes from the sender, since an OCK derives from the outgoing viewing key. A recipient can prove a payment with a [zcash-delivery-proof](https://github.com/saplingcash/zcash-delivery-proof) `zdp:1:` proof instead: it opens one note by its receiver, value and rseed, and is made with an incoming viewing key. Zeceipt's CLI, WASM verifier, receipt page and demo check these proofs as that specification requires, and `zeceipt prove-delivery --ufvk-file …` makes them: from the recipient's key for what it received, from the sender's for what it sent, byte for byte as zcash-delivery-proof does. They rebuild the note, match its commitment, and decrypt the action with the note's own key. They also report the wtxid and the depth. A delivery proof is unsigned and takes no challenge, and the page says so. Try it on a real **mainnet** payment:
-
-```bash
-cargo build --release
-target/release/zeceipt verify "$(python3 -c 'import json; print(json.load(open("fixtures/zdp/mainnet.json"))["proof"])')"
-# fetches 6ef95d7e…7b59 from a public node: valid, 10000 zat, the memo, mined at 3499556, and its confirmations
-```
-
-## What's inside
-
-| Component | What it is |
-|---|---|
-| [`crates/zeceipt-core`](crates/zeceipt-core) | Parses v4, v5 and v6 transactions. Derives the OCK, recovers individual outputs for Ironwood, Orchard and Sapling, and issues and verifies receipts. Checks `zdp:1:` delivery proofs |
-| [`crates/zeceipt-types`](crates/zeceipt-types) | The `zeceipt-v0` envelope, canonical signing bytes, ed25519 and the URL form (no Zcash dependencies) |
-| [`crates/zeceipt-lwd`](crates/zeceipt-lwd) | A lightwalletd/Zaino gRPC client (`GetTransaction`, `GetLatestBlock`, block-range scan) |
-| [`crates/zeceipt-cli`](crates/zeceipt-cli) | The `zeceipt` binary: `inspect`, `find-ironwood`, `keygen`, `issue`, `prove-delivery`, `verify`, `pack`, `verify-pack`, `well-known` |
-| [`packages/verify`](packages/verify) | `@zeceipt/verify`: the WASM verifier for the browser and Node, the static receipt page (`r/`) and a paste-a-receipt demo |
-| [`apps/console`](apps/console) | A self-hosted payout console (Next.js, SQLite, loopback only). It pays a batch in one shielded transaction and issues a receipt for each line |
-
-All the cryptography comes from the Zcash crates (`orchard 0.15.5`, `sapling-crypto 0.7`, `zcash_note_encryption 0.4.2`, `zcash_primitives 0.30.1`, `zcash_keys 0.16.1`). Nothing is re-implemented.
-
-## Quick start
-
-You need Rust (`protoc` is optional), Node 24+ and Python 3. Issue and verify a receipt **offline**, from the committed synthetic fixture:
+Issue and verify a receipt **offline**, from the committed synthetic fixture:
 
 ```bash
 cargo build --release && Z=target/release/zeceipt && T=$(mktemp -d)
@@ -152,7 +174,10 @@ In the browser:
 
 </details>
 
-## Payout console
+
+</details>
+
+### Payout console
 
 `apps/console` is for a treasurer who pays contributors in shielded ZEC:
 
@@ -190,14 +215,14 @@ Every batch, recipient and payable keeps an append-only history. The console war
 ```mermaid
 flowchart LR
   subgraph Rust["Rust workspace"]
-    types[zeceipt-types<br/>envelope · ed25519]
-    core[zeceipt-core<br/>parse · OCK · recover]
+    types[zeceipt-types<br/>dossier · receipt · zdp]
+    core[zeceipt-core<br/>parse · recover · nullifiers · dossier check · scan]
     lwd[zeceipt-lwd<br/>gRPC client]
     cli[zeceipt CLI]
     wasm[zeceipt-wasm]
   end
   subgraph Web["TypeScript"]
-    verify["@zeceipt/verify<br/>+ receipt page"]
+    verify["@zeceipt/verify<br/>case review · dossier builder · receipt page"]
     console[Payout console<br/>Next.js · SQLite]
   end
   node[(lightwalletd / Zaino)]
@@ -213,6 +238,9 @@ flowchart LR
 
 ## Integrations
 
+- **Exchanges, OTC desks, bridges.** Ask for a dossier instead of a viewing key or a deshield: send a nonce, receive `dossier.json`, check it with `zeceipt dossier verify` in a back office, or in the case page. The report JSON (with the dossier's sha256) goes into the case file.
+- **Wallets (Zodl, Zingo, …).** An "Export source-of-funds dossier" button: the wallet already has the UFVK and the transaction list, and `buildDossier` in `@zeceipt/verify` (or `zeceipt_core::dossier::build`) does the rest locally. The control challenge is a send to self with the reviewer's nonce as the memo.
+
 - **Payout tools (Konclave, ZBooks, …).** After broadcast, call `zeceipt_core::issue` or the CLI, and attach the receipt URL to each payslip row.
 - **Public ledgers (OpenZcash).** Publish a receipt link per row. The console exports a batch in the CSV format of OpenZcash's own "Export CSV", with the txid, receipt link and rate added.
 - **Auditors.** Send an audit pack instead of a viewing key. `verify-pack` reports a lower-bound total, counting each output once.
@@ -220,10 +248,12 @@ flowchart LR
 
 ## For judges
 
+**Two minutes, no install.** Open the [testnet sample dossier](https://beautifulremi.dpdns.org/zeceipt/case/#sample): the page fetches its five transactions from a public testnet node and checks all 12 claims in your browser. Then change one character of its nonce in the JSON and check again: the control claim fails.
+
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 84 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 86 tests, including the official Orchard note-encryption vectors and the dossier forgeries
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```
@@ -238,6 +268,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 
 | Evidence | Chain | What it shows |
 |---|---|---|
+| A source-of-funds dossier: a faucet origin, four hops, three payments and a control challenge ([`fixtures/dossier/`](fixtures/dossier)) | **Testnet**, heights 4,419,987–4,421,345 | All 12 claims verified live and offline, the holder's scan finding exactly its five transactions, forgeries refused ([`docs/PROOF.md`](docs/PROOF.md) §8) |
 | A `zdp:1:` delivery proof of a real payment, made and proven by saplingcash (zcash-delivery-proof's own test vector, [`fixtures/zdp/mainnet.json`](fixtures/zdp)), not by zeceipt | **Mainnet**, height 3,499,556, fetched live | Zeceipt's verifier checking a third party's real shielded Ironwood payment from a public node ([`docs/PROOF.md`](docs/PROOF.md) §7) |
 | Zeceipt's own receipts on mainnet | **None yet** | Waits on mainnet funds; the runbook is in PROOF §4 |
 | The mainnet transaction parsed and its outputs listed | **Mainnet** | Real v6 Ironwood transactions read through zec.rocks (§1) |
@@ -249,6 +280,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 | Where to look | What it shows |
 |---|---|
 | [`docs/PROOF.md`](docs/PROOF.md) | Each claim with its transcript: mainnet parsing (§1), offline issue, verify and tamper (§2), the browser verifier (§2b–§2e), the console on a live regtest chain (§5–§5g), zeceipt's own signed receipts on testnet (§6), and a third party's mainnet delivery proof checked live (§7) |
+| [`spec/dossier-v1.md`](spec/dossier-v1.md) | The dossier format, the nullifier argument, each claim's check, and why there is no "unspent at height H" claim |
 | [`spec/receipt-v0.md`](spec/receipt-v0.md) | The receipt format, with test vectors |
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) | What is defended and what is not |
 | [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) | Other Zcash receipt and disclosure work, and how this differs |
@@ -264,7 +296,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 
 | | |
 |---|---|
-| ✅ Done | Signed receipts on testnet for three payments (PROOF §6). Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. `zdp:1:` delivery proofs checked, a real mainnet one included. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
+| ✅ Done | Source-of-funds dossiers: origin, path, deposit and control claims; the builder with a compact-block scan; the checks in Rust and WebAssembly; a real testnet dossier (PROOF §8). Signed receipts on testnet for three payments (PROOF §6). Envelope v0 with committed vectors. Ironwood, Orchard and Sapling recovery. `zdp:1:` delivery proofs checked, a real mainnet one included. CLI with exit codes. gRPC client checked live against zec.rocks. WASM verifier and receipt page, with confirmations and the issuer check. Payout console end to end on regtest. v6-under-wrong-branch and above-MAX_MONEY inputs refused |
 | 🟡 In progress | Receipts on mainnet (testnet is done, [`docs/PROOF.md`](docs/PROOF.md) §6). Publishing `@zeceipt/verify` to npm |
 | ⏳ Next | NU7 support once a `zcash_protocol` release carries it ([`docs/RELEASING.md`](docs/RELEASING.md)): until then a transaction made after NU7 activates (testnet 2026-10-06, mainnet 2026-11-05) is refused by name, while every receipt for an earlier transaction, including the testnet ones above, keeps verifying, since the branch is read from each transaction's own header. Sign-in for the console. A v1 aligned with ZIP 311's encoding |
 | ✖ Out of scope for v0 | The spend-authority proof (full ZIP 311) |
@@ -277,7 +309,7 @@ cargo build && cd apps/console && npm ci && npm run build && npm run try
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `01a9672d00c5754f2c55f8661fff922964e783e389053624e79350f63394fe7c`.
+- **Committed hash:** the committed `.wasm` has sha256 `1630ce973b0aa501e695b1045d7f1fdf5a4d6a5e7d1251fe9f1455a9ea4586a7`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 
@@ -285,7 +317,7 @@ On the same toolchain the build is byte-for-byte reproducible:
 
 ## Documentation
 
-[`spec/receipt-v0.md`](spec/receipt-v0.md) · [`docs/PROOF.md`](docs/PROOF.md) · [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) · [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) · [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) · [`docs/REGTEST_RUNBOOK.md`](docs/REGTEST_RUNBOOK.md) · [`docs/RELEASING.md`](docs/RELEASING.md) · [`CHANGELOG.md`](CHANGELOG.md)
+[`spec/dossier-v1.md`](spec/dossier-v1.md) · [`spec/receipt-v0.md`](spec/receipt-v0.md) · [`docs/PROOF.md`](docs/PROOF.md) · [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) · [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) · [`docs/PRIOR_ART.md`](docs/PRIOR_ART.md) · [`docs/REGTEST_RUNBOOK.md`](docs/REGTEST_RUNBOOK.md) · [`docs/RELEASING.md`](docs/RELEASING.md) · [`CHANGELOG.md`](CHANGELOG.md)
 
 ## License
 

@@ -992,3 +992,85 @@ Zeceipt checks `zdp:1:` delivery proofs, the format of [saplingcash/zcash-delive
 - a flipped ciphertext byte, which changes the txid.
 
 A flipped byte in the authorizing data (proofs and signatures) is outside a v5/v6 txid, so the proof still holds; the reported wtxid (ZIP 239) differs, which is why it is reported.
+
+
+## 8. testnet — a source-of-funds dossier with a control challenge answered on chain (2026-09-30 UTC)
+
+The pivot's core (`spec/dossier-v1.md`), on a public chain. The holder is §4's issuer account; the funds are §6's faucet drip and what it paid. The dossier was built at `04f32d1`, which committed it as `fixtures/dossier/testnet-dossier.json` and the challenge transaction as `fixtures/testnet/10e941e7….hex`. The checks below were re-run at 13:09 UTC on the working tree after `2b54a10`, with the fixes from the spec review (not yet committed), using `cargo build -p zeceipt-cli` and the rebuilt WASM. The dossier's `subject` says "(2026-10-01)", the pivot's planned date. It was built at `2026-09-30T12:37:53Z` (its `created`).
+
+- **The nonce.** `zeceipt dossier nonce` gave `zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8`: 16 bytes from the OS generator. The author played both reviewer and holder, so the nonce's freshness is asserted, not demonstrated to a third party.
+- **The challenge.** The §4 wallet (zcash-devtool) sent 0.001 TAZ from the issuer account to its own address, with the nonce as the memo. The transaction, `10e941e7fe2c77a97c05662dc8033f7e9ebfa76c66cb7ae28d662cbcacdf6e43`, has two Ironwood actions and was mined at 4,421,345. The wallet chose to spend one note, n4, which is one of the four change notes of INV-T-001's transaction (0.2474375 TAZ). At 12:52 UTC the reply note had 75 confirmations (`zeceipt verify --testnet "<n9's zdp:1: opening>"`: valid, height 4421345).
+- **The build.** `zeceipt dossier build --testnet --ufvk-file fixtures/testnet/issuer-ufvk.txt --txid 90f6… --txid fcfde625… --txid 1c49834b… --txid a2619e39… --control-txid 10e941e7… --nonce <nonce> --subject "Testnet holder, zeceipt demo (2026-10-01)"` printed `dossier: 9 notes, 3 receipts, 12 claims; it discloses nk and these notes' openings, not your viewing key`. The claims:
+  - origin n1 (the faucet's 1 TAZ);
+  - paths n1→n2, n3, n4, n5 (INV-T-001's change);
+  - deposits r1, r2, r3 (INV-T-001..003: 0.01, 0.02 and 0.03 TAZ), funded by n1, n2 and n3;
+  - paths n2→n6, n3→n7, n3→n8;
+  - control: spent n4, reply n9.
+
+  Of the challenge transaction's two notes, only the reply is disclosed. The change is not, so the reviewer cannot follow it with `nk`. `the_builder_reproduces_the_dossier_from_the_holders_ufvk` rebuilds the same notes, receipts and claims offline.
+- **Live verification**, `target/debug/zeceipt dossier verify fixtures/dossier/testnet-dossier.json --expect-nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8`, fetching from `testnet.zec.rocks` (the CLI's testnet default). It exited 0 in 6.7 s wall, with 12 of 12 claims verified:
+  - `all_verified: true`, `nk_proven: true`, `controlled: true`, no `problems`;
+  - `dossier_sha256` `7b8d7ecfa99676a660f27c0c5cbdce03ee130d138a48b51eeb7c0d9f167ea9c1`.
+
+  The claim summaries, verbatim:
+
+```
+0  origin   verified  1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b at height 4419987, funded from the shielded pool by an undisclosed sender.
+1  path     verified  1.00000000 TAZ in n1 was spent in fcfde625…7f0b at height 4420000, which created n2 (0.24743750 TAZ).
+2  path     verified  1.00000000 TAZ in n1 was spent in fcfde625…7f0b at height 4420000, which created n3 (0.24743750 TAZ).
+3  path     verified  1.00000000 TAZ in n1 was spent in fcfde625…7f0b at height 4420000, which created n4 (0.24743750 TAZ).
+4  path     verified  1.00000000 TAZ in n1 was spent in fcfde625…7f0b at height 4420000, which created n5 (0.24743750 TAZ).
+5  deposit  verified  The holder paid 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo "INV-T-001") in fcfde625…7f0b at height 4420000, from n1 (1.00000000 TAZ disclosed).
+6  path     verified  0.24743750 TAZ in n2 was spent in 1c49834b…e39d at height 4420003, which created n6 (0.22733750 TAZ).
+7  deposit  verified  The holder paid 0.02000000 TAZ to utest19qmzk8…rwd44u (memo "INV-T-002") in 1c49834b…e39d at height 4420003, from n2 (0.24743750 TAZ disclosed).
+8  path     verified  0.24743750 TAZ in n3 was spent in a2619e39…3df8 at height 4420005, which created n7 (0.10864375 TAZ).
+9  path     verified  0.24743750 TAZ in n3 was spent in a2619e39…3df8 at height 4420005, which created n8 (0.10864375 TAZ).
+10 deposit  verified  The holder paid 0.03000000 TAZ to utest19qmzk8…rwd44u (memo "INV-T-003") in a2619e39…3df8 at height 4420005, from n3 (0.24743750 TAZ disclosed).
+11 control  verified  Answering nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, the holder spent n4 (0.24743750 TAZ) in 10e941e7…6e43 at height 4421345: they could spend these funds after the nonce was issued.
+```
+
+  Claims 7 and 10's recipient is shortened here; the report prints it in full, the same address as claim 5. Other fields:
+  - The origin's `funding` is `{"transparent_inputs": [], "shielded_actions": 2, "sapling_spends": 0, "from_disclosed": []}`: the faucet paid from shielded funds, so there was no previous transaction to fetch. Its detail reads "n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account."
+  - Paths 4, 6, 8 and 9 add "n5 (n6, n7, n8) is not shown to be the holder's: that transaction may have paid it to someone else (a change note and a payment look alike here)."
+  - `spent_in` is set for n1 to n4 (`fcfde625…`, `1c49834b…`, `a2619e39…`, `10e941e7…`) and absent for n5 to n9. These nullifiers, derived from `nk` alone (spec §3), are the ones the spending transactions carry on chain, which is the evidence that the derivation is right for Ironwood notes.
+  - The control's `value_zat` is 24,743,750. `notes.n9` reads height 4421345, 100,000 zat, memo `zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8`.
+
+  The same command without `--expect-nonce` also exits 0 with 12 of 12. The control then carries the detail "Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce."
+- **Offline**, the same command with `--raw-tx-dir fixtures/testnet`: exit 0 in 1.7 s wall, 12 of 12 verified, the same `dossier_sha256`, `nk_proven` and `controlled` true. The summaries are the same without heights. Every claim adds "Loaded without a height (from a file): the inclusion of … in the chain was not checked here." `the_testnet_dossier_verifies_offline` runs this check in CI.
+- **In JavaScript**, `checkDossier(text, { expectNonce })` from `packages/verify/src/index.js` on the rebuilt WASM (Node 26, `initVerifier` with the `.wasm` bytes). Live, through its testnet gRPC-web nodes (`zjs.zec.rocks/testnet` first, then ChainSafe's; the report does not say which answered): `all_verified: true`, 12 of 12, the same `dossier_sha256`, and the same control summary. Offline, with `{ txs }` built from `fixtures/testnet/*.hex`: the same.
+- **Forgeries and edge cases.** `spec/test-vectors/dossier-v1.json` records 20 patched copies of this dossier and 17 that must not parse. Each was run through the CLI offline, or through `checkDossier` where the transactions supplied change. The results:
+  - **Wrong `nk`:** the 11 nullifier claims fail, and the origin is `not_checked`, since n1 is no longer shown to be the holder's.
+  - **Invalid `nk`** (`ff…ff`): one entry in `problems`, and the 11 nullifier claims fail with "nk is not a valid key".
+  - **Forged value in n1's opening:** everything naming n1 fails.
+  - **Replay:** an expected nonce other than the one answered fails the control ("not the one you issued"); a claim naming a nonce the memo lacks fails too.
+  - **Foreign notes:** a control or a path naming a note the holder sent to someone else (INV-T-001's recipient note) fails; an origin on that note is `not_checked` ("Nothing here shows n10 is the holder's…"), as is an origin on the holder's own n5, which nothing here spends.
+  - **Wrong links:** a path to a note of another transaction fails; a deposit funded by a note its transaction did not spend fails ("Receipt r1 opens a payment of … but not from n2").
+  - **Transactions:** a missing challenge transaction makes the control `not_checked` (CLI exit 2). A challenge in the mempool makes it `not_checked`, and with every transaction in the mempool all 12 claims are.
+  - **Parse errors:** one note twice in a claim, or under two ids.
+
+**What this run shows.** A reviewer who never saw a viewing key can check four things against a public testnet node:
+- 1 TAZ arrived in a note in the faucet's transaction, and that note is the holder account's (it was later spent with the disclosed `nk`);
+- that note's funds went, by nullifier, into three payments whose recipients, amounts and memos are shown;
+- the funds split into further notes;
+- after the reviewer's nonce, someone with spend authority over 0.2474375 TAZ of them spent it with the nonce in the memo.
+
+**What it does not show.**
+- That the notes after each hop (n5 to n9) are the holder's: no nullifier of theirs is on chain yet, and the report says so.
+- Who the faucet's sender was.
+- That anything was unspent after height 4,421,345.
+- That the presenter is the key holder (spec §7.2).
+- A transparent funder read from a previous transaction: this dossier's origin has none. That path is covered by a unit test only (`an_output_script_names_the_address_it_pays`).
+
+**Remaining gaps** (spec §5.3, §5.5):
+- An expected nonce with no control claim fails nothing: the dossier is `all_verified` with `controlled: false`.
+- An origin's ownership rests on its `spent_in` transaction, which its inclusion check does not list.
+- `not_checked` covers both "wait" and "cannot be shown with this data", and the CLI gives exit 2 for both.
+
+**A transparent origin, on chain (the same day).** 0.05 TAZ of change was sent to the account's own transparent address, `tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu` (`52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e`, height 4,421,678). It was then shielded back with `zcash-devtool wallet shield` (`c28b60004cd8d9fc08ab75ff44aa3062a4d79bdfc29653db8765991b5ae5cefe`, height 4,421,684). fauzec refuses transparent addresses (`unsupported_address_kind`), so this is how a transparent origin was made.
+
+`zeceipt dossier build --scan-from 4419900` found the account's six transactions in 1,813 blocks (13.0 s) and built `fixtures/dossier/testnet-dossier-transparent-origin.json`: 11 notes, 3 receipts, 14 claims. Checked with `--expect-nonce`:
+- The shielding transaction's origin reads "0.04985000 TAZ arrived in note n10, in c28b6000…cefe at height 4421684, funded by 1 transparent input worth 0.05000000 TAZ from tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu". The address and value come from output 0 of `52af3e0d…`, fetched in the second round.
+- Its status is `unproven`, because n10 is spent nowhere yet. The report says so, and a later challenge that spends n10 would prove it.
+- The other 13 claims verify, control included.
+
+The test `a_transparent_origin_names_its_funder_from_the_spent_output` checks this offline, and also checks that without the previous transaction no address is named.

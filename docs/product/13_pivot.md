@@ -1,8 +1,8 @@
-# The 2026-10-01 pivot: source-of-funds dossiers
+# The 2026-09-30 pivot: source-of-funds dossiers
 
 ## Decision
 
-On 2026-10-01 the product changes direction. It moves from **per-payment receipts** plus a payout console to **source-of-funds evidence for shielded ZEC**: a holder builds a dossier of claims about specific funds, and a reviewer checks every claim against the chain, with no viewing key and no deshield `[R137]`. The receipt, delivery-proof and console work stays as building blocks: a deposit claim carries a receipt, and every claim opens notes with `zdp:1:`.
+On 2026-09-30 the product changes direction. It moves from **per-payment receipts** plus a payout console to **source-of-funds evidence for shielded ZEC**: a holder builds a dossier of claims about specific funds, and a reviewer checks every claim against the chain, with no viewing key and no deshield `[R137]`. The receipt, delivery-proof and console work stays as building blocks: a deposit claim carries a receipt, and every claim opens notes with `zdp:1:`.
 
 ## Why
 

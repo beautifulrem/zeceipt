@@ -95,4 +95,6 @@ export interface DossierReport {
 }
 export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; expectNonce?: string; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number; round: number }) => void }): Promise<DossierReport>;
 export function dossierTxids(text: string): string[];
+/** The second round's txids: the transactions whose outputs the origin transactions in `txs` spend. */
+export function dossierPrevoutTxids(text: string, txs: Record<string, { hex: string; height: number | null; mempool?: boolean }>): string[];
 export function buildDossier(opts: { ufvk: string; network?: Network; txids?: string[]; hexes?: string[]; control?: { txid: string; nonce: string } | null; controlHex?: string | null; subject?: string | null; timeoutMs?: number }): Promise<string>;

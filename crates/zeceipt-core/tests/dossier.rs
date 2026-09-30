@@ -155,7 +155,7 @@ fn a_wrong_nk_fails_every_claim_that_tests_a_nullifier_and_only_those() {
     assert_eq!(failed, ["control", "deposit", "path"].into());
     // The origin still opens, but its note is no longer shown to be the holder's: no nullifier matches.
     let origin = r.claims.iter().find(|c| c.kind == "origin").unwrap();
-    assert_eq!(origin.status, Status::NotChecked, "{origin:?}");
+    assert_eq!(origin.status, Status::Unproven, "{origin:?}");
     assert!(!r.nk_proven && !r.controlled);
 }
 
@@ -349,16 +349,111 @@ fn the_fixes_of_the_spec_review_hold() {
     e.claims.push(Claim::Origin { note: "n5".into() });
     let r = check_dossier(&e, &raw, &chain(&e), None);
     let o = r.claims.last().unwrap();
-    assert_eq!(o.status, Status::NotChecked, "{o:?}");
+    assert_eq!(o.status, Status::Unproven, "{o:?}");
     assert!(o
         .details
         .iter()
         .any(|x| x.contains("Nothing here shows n5 is the holder's")));
     let r = check_dossier(&d, &raw, &chain(&d), None);
-    assert!(r.nk_proven && r.controlled);
+    assert!(
+        r.nk_proven && !r.controlled,
+        "without the reviewer's nonce, control is not counted"
+    );
+    assert!(check_dossier(&d, &raw, &chain(&d), Some(NONCE)).controlled);
+    // An expected nonce and no control claim: not all verified.
+    let mut e = d.clone();
+    e.claims.retain(|c| !matches!(c, Claim::Control { .. }));
+    let r2 = check_dossier(&e, &raw, &chain(&e), Some(NONCE));
+    assert!(
+        !r2.all_verified
+            && r2
+                .problems
+                .iter()
+                .any(|p| p.contains("no control claim answers it"))
+    );
+    // A transaction filed under another txid is set aside.
+    let mut txs = chain(&d);
+    let faucet = txs.remove(TXIDS[0]).unwrap();
+    txs.insert(TXIDS[1].to_string(), faucet);
+    let r3 = check_dossier(&d, &raw, &txs, None);
+    assert!(r3.problems.iter().any(|p| p.contains("set aside")) && !r3.all_verified);
     // 5. Amounts are named for their network: TAZ on testnet.
     assert!(
         r.claims.iter().all(|c| !c.summary.contains(" ZEC")),
         "testnet amounts read TAZ"
+    );
+}
+
+/// A second real dossier (PROOF §8): change of the INV-T payments sent to the account's own transparent address
+/// (`52af3e0d…`), then shielded back (`c28b6000…`). The shielding transaction's origin names its funder from the spent
+/// output itself, in the previous transaction (address and value, which the txid covers), and its note, spent nowhere
+/// yet, is honestly unproven as the holder's.
+#[test]
+fn a_transparent_origin_names_its_funder_from_the_spent_output() {
+    let raw = fx("dossier/testnet-dossier-transparent-origin.json");
+    let d = Dossier::parse(&raw).unwrap();
+    let mut txs = chain(&d);
+    for t in zeceipt_core::dossier::prevout_txids(&d, &txs) {
+        txs.insert(
+            t.clone(),
+            TxData {
+                bytes: tx(&t),
+                height: None,
+                mempool: false,
+            },
+        );
+    }
+    let r = check_dossier(&d, &raw, &txs, Some(NONCE));
+    let shielded = r
+        .claims
+        .iter()
+        .find(|c| {
+            c.kind == "origin"
+                && c.funding
+                    .as_ref()
+                    .is_some_and(|f| !f.transparent_inputs.is_empty())
+        })
+        .expect("the shielding transaction's origin");
+    let input = &shielded.funding.as_ref().unwrap().transparent_inputs[0];
+    assert_eq!(
+        input.address.as_deref(),
+        Some("tm9vhDB1ebnsMzVnttVBpHEE5BPpoygSFhu")
+    );
+    assert_eq!(input.value_zat, Some(5_000_000));
+    assert!(input.prevout.starts_with("52af3e0da4b11854"));
+    assert_eq!(shielded.status, Status::Unproven, "{shielded:?}");
+    // Without the previous transaction (52af3e0d…, which is also where the account's change went), the funder is not
+    // named: it is never guessed from the input's own scriptSig.
+    let mut without = txs.clone();
+    without.remove("52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e");
+    let r2 = check_dossier(&d, &raw, &without, Some(NONCE));
+    let s = r2
+        .claims
+        .iter()
+        .find(|c| {
+            c.funding
+                .as_ref()
+                .is_some_and(|f| !f.transparent_inputs.is_empty())
+        })
+        .unwrap();
+    assert!(s.funding.as_ref().unwrap().transparent_inputs[0]
+        .address
+        .is_none());
+    assert!(
+        s.summary
+            .contains("previous transactions were not supplied"),
+        "{}",
+        s.summary
+    );
+    let r = check_dossier(&d, &raw, &txs, Some(NONCE));
+    // Everything else in it verifies, control included.
+    assert!(r.controlled);
+    assert_eq!(
+        r.claims
+            .iter()
+            .filter(|c| c.status != Status::Verified)
+            .count(),
+        1,
+        "only the unspent origin"
     );
 }

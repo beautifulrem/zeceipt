@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Build the public static site from packages/verify (PM round 1, D08; judge round 1, D2): the receipt page (r/), the
-# paste demo (demo/), and the verifier they load (src/, pkg/), with a landing page that opens the demo. Nothing is
+# Build the public static site from packages/verify (PM round 1, D08; judge round 1, D2): the landing page
+# (index.html, home.css), the case review page for reviewers (case/, with its sample dossier), the dossier builder for
+# holders (build/), the receipt page (r/), the paste demo (demo/), and the verifier they load (src/, pkg/). Nothing is
 # compiled here: the committed WASM package is published as it is, so the site runs the bytes whose sha256 the README
 # states.
 #
@@ -16,29 +17,20 @@ src="$root/packages/verify"
 
 rm -rf "$out"
 mkdir -p "$out"
-for d in r demo src pkg; do cp -R "$src/$d" "$out/$d"; done
+for d in r demo case build src pkg; do cp -R "$src/$d" "$out/$d"; done
 cp "$src/LICENSE" "$src/NOTICE" "$out/"
 rm -f "$out/pkg/.gitignore"
 touch "$out/.nojekyll"  # serve every path as it is (no Jekyll processing)
-cat > "$out/index.html" <<'HTML'
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Zeceipt: verifiable receipts for shielded Zcash payments</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; img-src 'self'">
-<meta http-equiv="refresh" content="0; url=demo/">
-<link rel="icon" href="r/icon.svg" type="image/svg+xml">
-</head>
-<body>
-<p><a href="demo/">Open the verifier</a> · <a href="https://github.com/beautifulrem/zeceipt">Source and specification</a></p>
-</body>
-</html>
-HTML
+cp "$src/index.html" "$src/home.css" "$out/"
 # Every file the pages load must be in the site: a missing module would only fail in the browser.
-for f in r/index.html r/page.js r/view.js r/ui.js r/page.css demo/index.html demo/demo.css src/index.js pkg/zeceipt_wasm.js pkg/zeceipt_wasm_bg.wasm demo/fixtures/synthetic-receipt-bearer.json demo/fixtures/synthetic-ironwood.hex; do
+for f in index.html home.css \
+  case/index.html case/page.js case/view.js case/ui.js case/case.css case/fixtures/testnet-dossier.json \
+  build/index.html build/page.js build/view.js build/build.css \
+  r/index.html r/page.js r/view.js r/ui.js r/page.css r/icon.svg r/fonts/Geist-Variable.woff2 r/fonts/GeistMono-Variable.woff2 \
+  r/icons/download.svg r/icons/printer.svg r/icons/upload.svg r/icons/link.svg r/icons/arrow-right.svg r/icons/circle-alert.svg \
+  r/icons/trash.svg r/icons/key-round.svg r/icons/refresh-cw.svg \
+  demo/index.html demo/demo.css src/index.js pkg/zeceipt_wasm.js pkg/zeceipt_wasm_bg.wasm \
+  demo/fixtures/synthetic-receipt-bearer.json demo/fixtures/synthetic-ironwood.hex; do
   [[ -f "$out/$f" ]] || { echo "build_site: missing $f" >&2; exit 1; }
 done
 echo "site built in $out ($(find "$out" -type f | wc -l | tr -d ' ') files)"

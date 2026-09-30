@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Source guards run in CI (NFR-1 / REQ-CLI-6 and NFR-6).
 
-1. No key-material vocabulary in non-test library/binary code (crates, `apps/console/lib/**/*.ts`, `apps/console/db/**/*.ts` and the console app: `app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`; the browser verifier's `packages/verify/src/*.js` and the receipt page's `packages/verify/r/*.js`), nor in any `scripts/**/*.py|*.sh` code line unless the file carries the header marker
+1. No key-material vocabulary in non-test library/binary code (crates, `apps/console/lib/**/*.ts`, `apps/console/db/**/*.ts` and the console app: `app/**/*.ts(x)`, `instrumentation.ts`, `proxy.ts`, `next.config.ts`; the browser verifier's `packages/verify/src/*.js`, the receipt page's `packages/verify/r/*.js`, and the case review and dossier builder pages' `packages/verify/case/*.js` and `packages/verify/build/*.js`), nor in any `scripts/**/*.py|*.sh` code line unless the file carries the header marker
    `# key-material-allowed: regtest-only harness` in its first three lines AND that line is tagged
    `# key-material-allowed` (currently only the Zkool regtest tracer, two lines):
    whole words `seed`, `mnemonic`, `spending` (case-insensitive) in `crates/*/src/**/*.rs`,
@@ -93,7 +93,7 @@ ts_files = sorted([
 # The browser verifier's hand-written JavaScript ships too: the npm wrapper and the public receipt page.
 # Same rules as the console (the wasm-pack output in pkg/ is generated and not scanned).
 verify_pkg = repo / "packages" / "verify"
-web_files = sorted([*(verify_pkg / "src").glob("*.js"), *(verify_pkg / "r").glob("*.js")])
+web_files = sorted(f for d in ("src", "r", "case", "build") for f in (verify_pkg / d).glob("*.js"))
 for path in files:
     text = path.read_text(encoding="utf-8")
     non_test = text.split("#[cfg(test)]")[0]

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<!--
+  The holder's viewing key is typed into this page and used here, by the WebAssembly builder; it is never sent. This
+  policy keeps it that way: scripts, styles, fonts and images only from this site, WebAssembly allowed, and network
+  access only to this site and to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS), which are asked for
+  transactions by id and nothing else (test/dossier.e2e.mjs checks no request carries the key or the dossier).
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://zcash-testnet.chainsafe.dev">
+<title>Zeceipt — build a source-of-funds dossier</title>
+<link rel="icon" href="../r/icon.svg" type="image/svg+xml">
+<link rel="preload" href="../r/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../r/page.css">
+<link rel="stylesheet" href="../case/case.css">
+<link rel="stylesheet" href="build.css">
+<script type="module" src="page.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the form</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../"><img src="../r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></a>
+    <nav class="topnav" aria-label="Zeceipt tools">
+      <a href="../case/">Case review</a>
+      <a href="./" aria-current="page">Build a dossier</a>
+    </nav>
+    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
+  </div>
+</header>
+<main id="main">
+<div class="hero">
+  <p class="eyebrow">Zeceipt · for the holder</p>
+  <h1>Build a dossier</h1>
+  <p class="muted lede">Show a reviewer (an exchange, an OTC desk, a lender) where your shielded ZEC came from and that you can spend it, without handing over your viewing key. You list the transactions of the funds; this page builds a dossier of claims about them, which the reviewer checks against the chain.</p>
+  <p id="status" class="muted status" role="status" data-state="loading">Loading the builder…</p>
+</div>
+
+<section class="card promise" aria-labelledby="promise-title">
+  <h2 id="promise-title"><span class="i i-key" aria-hidden="true"></span>Your viewing key stays in this page</h2>
+  <ul class="checks">
+    <li><span>The key is used here, by the builder running in your browser (WebAssembly). It is never sent: not to this site, not to the node.</span></li>
+    <li><span>Nothing is stored. The key field is cleared once the dossier is built, and closing the page forgets everything.</span></li>
+    <li><span>The page asks a public node for each transaction you list, by its id. The node learns those ids, and so could link them to you.</span></li>
+    <li><span>The dossier discloses only what its claims need. Read the summary before you share it.</span></li>
+  </ul>
+</section>
+
+<section id="form" class="card" aria-labelledby="form-title">
+  <h2 id="form-title">The funds to explain</h2>
+  <label id="network-field" class="field">Network
+    <select id="network">
+      <option value="main">Zcash mainnet</option>
+      <option value="test">Zcash testnet</option>
+    </select>
+  </label>
+  <label id="ufvk-field" class="field">Unified full viewing key
+    <textarea id="ufvk" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-describedby="ufvk-hint"></textarea>
+    <span id="ufvk-hint" class="hint">Starts with <code>uview1</code> on mainnet, <code>uviewtest1</code> on testnet. Wallets export it as the “viewing key” (with <code>zcash-devtool</code>, <code>wallet list-accounts</code> prints it). It lets this page find your notes; it cannot move funds.</span>
+  </label>
+  <label id="txids-field" class="field">Transaction ids of the funds, oldest first, one per line
+    <textarea id="txids" rows="5" spellcheck="false" autocomplete="off" aria-describedby="txids-hint"></textarea>
+    <span id="txids-hint" class="hint">First the transaction that brought the funds into your wallet, then each one that moved or paid them.</span>
+  </label>
+  <details class="howto">
+    <summary>How to find your transaction ids</summary>
+    <p>Open your wallet's transaction history, open each transaction and copy its id (64 characters, also called the txid or transaction hash). Most wallets can also export the history as a CSV file, which lists the ids. With <code>zcash-devtool</code>, <code>wallet list-tx</code> prints them. Order them by date, oldest first.</p>
+  </details>
+  <fieldset class="control">
+    <legend>Control (optional): answer a reviewer's challenge</legend>
+    <p class="hint">If the reviewer sent you a nonce: from this wallet, send any small amount to your own address with the nonce as the memo, wait for it to be mined, then enter both here. It proves you can spend these funds now.</p>
+    <label id="nonce-field" class="field">The reviewer's nonce
+      <input id="nonce" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+    </label>
+    <label id="control-txid-field" class="field">The challenge transaction's id
+      <input id="control-txid" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+    </label>
+  </fieldset>
+  <label id="subject-field" class="field">Subject (optional)
+    <input id="subject" class="text" autocomplete="off" aria-describedby="subject-hint">
+    <span id="subject-hint" class="hint">A name or a case number. The reviewer sees it as your words, not as verified.</span>
+  </label>
+  <div class="actions">
+    <p><button id="build" type="button" class="btn btn-primary">Build the dossier</button></p>
+    <p><button id="forget" type="button" class="btn btn-secondary"><span class="i i-trash" aria-hidden="true"></span>Forget everything</button></p>
+  </div>
+  <p id="build-status" class="muted build-status" role="status"></p>
+</section>
+
+<section id="build-error" class="result bad" hidden tabindex="-1" aria-labelledby="error-title">
+  <div class="verdict">
+    <span class="verdict-icon" aria-hidden="true"></span>
+    <div><h2 id="error-title" class="verdict-word">Not built</h2><p id="error-text" class="verdict-sub"></p></div>
+  </div>
+</section>
+
+<section id="built" class="result" hidden tabindex="-1" aria-labelledby="built-title">
+  <div class="verdict">
+    <span class="verdict-icon" aria-hidden="true"></span>
+    <div><h2 id="built-title" class="verdict-word">Dossier built</h2><p id="built-sub" class="verdict-sub"></p></div>
+  </div>
+  <dl id="built-counts" class="facts"></dl>
+  <h3>What it discloses</h3>
+  <ul id="built-discloses" class="discloses"></ul>
+  <div class="actions case-actions">
+    <p><button id="download" type="button" class="btn btn-primary"><span class="i i-download" aria-hidden="true"></span>Download dossier.json</button></p>
+    <p><button id="copy-link" type="button" class="btn btn-secondary"><span class="i i-link" aria-hidden="true"></span>Copy a review link</button></p>
+    <p><a id="open-case" class="btn btn-secondary" href="../case/"><span class="i i-arrow" aria-hidden="true"></span>Open in Case review</a></p>
+  </div>
+  <p class="link-warning"><span class="i i-alert" aria-hidden="true"></span><span>A review link contains the whole dossier, after the “#” (browsers do not send that part to the site). Anyone with the link can read what the dossier discloses: send it only to your reviewer.</span></p>
+  <p id="link-status" class="muted" role="status"></p>
+</section>
+
+<section id="preview-card" class="card" hidden aria-labelledby="preview-title">
+  <h2 id="preview-title">The claims, as the reviewer will see them</h2>
+  <p class="muted">Checked here against the same transactions, before you share anything.</p>
+  <div class="table-wrap">
+    <table id="preview" class="claims-table">
+      <caption class="sr-only">The dossier's claims, checked in this page</caption>
+      <thead><tr><th scope="col">#</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">What the chain shows</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<div class="scope">
+<section class="card" aria-labelledby="discloses-title">
+<h2 id="discloses-title">What a dossier shows the reviewer</h2>
+<ul class="checks">
+  <li><span>Where the funds entered your wallet, and what funded that transaction (its transparent inputs are public).</span></li>
+  <li><span>Each move of the funds within your wallet, and each payment you made from them (with a sender receipt).</span></li>
+  <li><span>With a control answer: that you could spend the funds after the reviewer's nonce was issued.</span></li>
+</ul>
+</section>
+<section class="card" aria-labelledby="keeps-title">
+<h2 id="keeps-title">What it does not hand over</h2>
+<ul class="limits">
+  <li><span>Your viewing key: the reviewer cannot see your other payments, balance or history.</span></li>
+  <li><span>Any note or payment you do not list.</span></li>
+  <li><span>The ability to move funds: nothing here can spend.</span></li>
+</ul>
+</section>
+</div>
+<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: the only requests this page makes outside this site are the transaction lookups, one per id you list, when you build. They carry the id and nothing else. The page stores nothing.</span></p>
+</main>
+<footer class="foot">
+  <span><span id="version">zeceipt-dossier-v1</span> · open source (Apache-2.0)</span>
+  <span class="foot-links"><a href="../">Home</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a></span>
+</footer>
+</body>
+</html>

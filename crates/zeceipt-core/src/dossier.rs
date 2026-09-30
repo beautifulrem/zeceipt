@@ -40,8 +40,12 @@ pub struct TxData {
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     Verified,
+    /// The chain data contradicts the claim.
     Failed,
+    /// Not checkable yet: a transaction is in the mempool or was not found; check again later.
     NotChecked,
+    /// The data given cannot show it (an origin whose note is never spent here): waiting will not change that.
+    Unproven,
 }
 
 /// What the chain says about one disclosed note.
@@ -124,7 +128,8 @@ pub struct Report {
     /// Some disclosed note's nullifier, derived with the dossier's `nk`, is among a supplied transaction's spends: `nk`
     /// is that account's, and the notes it spent belonged to it.
     pub nk_proven: bool,
-    /// A control claim verified: whoever answered the reviewer's nonce could spend that account's notes.
+    /// A control claim verified against the nonce the reviewer says they issued: whoever answered it could spend that
+    /// account's notes. False without an expected nonce, since an old dossier answers an old nonce.
     pub controlled: bool,
     /// A dossier-level problem that fails the claims it concerns (an `nk` that is not a key, …).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -376,10 +381,28 @@ fn amount(zat: u64, network: Network) -> String {
 pub fn check_dossier(
     d: &Dossier,
     raw: &str,
-    txs: &HashMap<String, TxData>,
+    given: &HashMap<String, TxData>,
     expect_nonce: Option<&str>,
 ) -> Report {
     let mut problems = Vec::new();
+    // Every supplied transaction under its own txid, recomputed from its bytes: one filed under another txid is set
+    // aside (a mislabelled file must not stand in for the transaction a claim names). Bytes that do not parse keep
+    // their label, so the note that names them reports them as malformed.
+    let mut sane: HashMap<String, TxData> = HashMap::new();
+    for (label, t) in given {
+        let label = label.to_lowercase();
+        match parse_transaction(&t.bytes) {
+            Ok(tx) if txid_hex(&tx) != label => problems.push(format!(
+                "a transaction supplied as {} is {}: set aside",
+                short(&label),
+                short(&txid_hex(&tx))
+            )),
+            _ => {
+                sane.insert(label, t.clone());
+            }
+        }
+    }
+    let txs = &sane;
     let nk_key = match d.nk_bytes() {
         None => None,
         Some(nk) => match nullifier_key(nk) {
@@ -594,12 +617,14 @@ pub fn check_dossier(
                             r.details.push(format!("{note} was later spent with this dossier's nk (in {}), so it belonged to that account.", short(t)));
                         }
                         None => {
-                            r.status = Status::NotChecked;
+                            r.status = Status::Unproven;
                             r.details.push(format!("Nothing here shows {note} is the holder's: its nullifier is in no supplied transaction, and the sender of a note knows its opening too. A path, deposit or control claim that spends it would show it."));
                         }
                     }
                     r.funding = Some(funding);
-                    inclusion(std::slice::from_ref(&f.txid), &mut r);
+                    let mut on = vec![f.txid.clone()];
+                    on.extend(f.spent_in.clone());
+                    inclusion(&on, &mut r);
                 }
             }
             Claim::Path { from, to } => {
@@ -646,7 +671,7 @@ pub fn check_dossier(
                         }
                         inclusion(&[notes[from].txid.clone(), notes[to].txid.clone()], &mut r);
                     } else {
-                        r.summary = format!("{from}'s nullifier is not among {}'s spends: that transaction did not spend it (or nk is not the holder's).", short(&notes[to].txid));
+                        r.summary = format!("{from}'s nullifier, derived with this dossier's nk, is not among {}'s spends: that transaction did not spend {from} with this account's key.", short(&notes[to].txid));
                     }
                 }
             }
@@ -686,7 +711,7 @@ pub fn check_dossier(
                                 } else {
                                     r.status = Status::Verified;
                                     r.summary = if funded_by.is_empty() {
-                                        format!("The holder's receipt opens a payment of {paid}.")
+                                        format!("The receipt opens a payment of {paid}.")
                                     } else {
                                         format!(
                                             "The holder paid {paid}, from {} ({} disclosed).",
@@ -787,22 +812,29 @@ pub fn check_dossier(
             if d.receipts.len() == 1 { "" } else { "s" }
         ));
     }
-    Report {
+    let control_ok = claims
+        .iter()
+        .any(|c| c.kind == "control" && c.status == Status::Verified);
+    let all_ok = claims.iter().all(|c| c.status == Status::Verified);
+    if expect_nonce.is_some() && !d.claims.iter().any(|c| matches!(c, Claim::Control { .. })) {
+        problems.push("You issued a nonce, and no control claim answers it: this dossier does not show the holder can spend these funds now.".into());
+    }
+    let mut report = Report {
         version: REPORT_VERSION,
         network: d.network,
         nk_proven: notes.values().any(|n| n.spent_in.is_some()),
-        controlled: claims
-            .iter()
-            .any(|c| c.kind == "control" && c.status == Status::Verified),
+        controlled: control_ok && expect_nonce.is_some(),
         problems,
         subject: d.subject.clone(),
         dossier_sha256: hex::encode(sha2::Sha256::digest(raw.as_bytes())),
-        all_verified: claims.iter().all(|c| c.status == Status::Verified),
+        all_verified: false, // set below, once `problems` is final
         notes,
         claims,
         disclosed,
         does_not_prove: DOES_NOT_PROVE.to_vec(),
-    }
+    };
+    report.all_verified = all_ok && report.problems.is_empty();
+    report
 }
 
 fn short(txid: &str) -> String {

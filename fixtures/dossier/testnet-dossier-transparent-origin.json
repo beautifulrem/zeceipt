@@ -1,0 +1,131 @@
+{
+  "version": "zeceipt-dossier-v1",
+  "network": "test",
+  "created": "2026-09-30T13:19:39Z",
+  "subject": "Testnet holder, zeceipt demo (2026-09-30)",
+  "nk": "4a269d95563ab382bf2beac31322ec94ebabbe246560a7285a839db7963d4e37",
+  "notes": {
+    "n1": "zdp:1:SypW7NfyvzDfkYYXGEacO9vJv9Oa4kYvW89iSDWj9pACAAA8QBEegMsyaXMBJZFOX_WkxA1B0dBMw1V-A-k6cKg-cMcJ2WxFLEO-9e-YAOH1BQAAAABSPTO0k4hV8u4ulnbcY9E0X0wBajejyZloJ8ToYDgM8w",
+    "n10": "zdp:1:_s7lWhuZZYfbU5bC35vXpGIwqkT_dasI_NnYTABgi8ICAADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqqBBMAAAAAADZojLdV0TpqS3y0B4G7b8lrJOobrMEeDIreatdEHbJqw",
+    "n11": "zdp:1:Q27frLwsZo3iestmbKe_nn4_A8gtZgV8qXcs_udB6RACAQA8QBEegMsyaXMBJZFOX_WkxA1B0dBMw1V-A-k6cKg-cMcJ2WxFLEO-9e-YoIYBAAAAAAC-LTHKceI0qM43UzuJOH-MsfjGTve6M0MyE1fNSfpdXA",
+    "n2": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAACTbbT1oU7ebS6D_liHVR_S49eTN1FSOtQ_grZNiOUklA",
+    "n3": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAQDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAAClVrDOcnd4ChMR8z-hVNL6EmTbwvlK3CGEv21ChWA7ow",
+    "n4": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCAwDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAABAupo_u7yUt4QlM-6AySuTy3HL-TLbuhdasD31lOjyBA",
+    "n5": "zdp:1:C39o2go8T5hJ4ca_q4j-qNdmWo9waRer10NbaCXm_fwCBADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqRo95AQAAAADc2sVIeyrYVPfFVLrPXp-tDohMpGy8asMHxICJ4DbNcA",
+    "n6": "zdp:1:neOsa7FaYZzRGIQnvPzyPW4A2a7hgod9b0zbK0uDSRwCAQDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqtuNaAQAAAABcEdDDl4GAJ5zqR1JtMurrH_Xq7jRAhf4vCRwQp_nT2g",
+    "n7": "zdp:1:-D3QmDac2xl3wlLfb6xQr360BQvkZnkc3j0mYzmeYaICAADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8Cvdwjsq98alAAAAAAB7samI0Jc-jVwCb_ZFvgl9vFLEpfbKyWgITkU4JaKQhA",
+    "n8": "zdp:1:-D3QmDac2xl3wlLfb6xQr360BQvkZnkc3j0mYzmeYaICAQDRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8Cvdwjsq98alAAAAAABZgPlqheRR5hBWta_LspRQjbMVaKpJhkGdBSRboguO9Q",
+    "n9": "zdp:1:XhA0a4duc8CW0W4ZFlYUtio5rCUNWovkVBixpA0-r1ICAADRVH0UGzZesM-g0MTxAoAjXhBfoJkDbABvCERtNKJiJiwPs4ux8CvdwjsqbgktAQAAAAAGqmegpgmhrckp0vavrXdjdJNSwHhQJnsx84CwVoAMDQ"
+  },
+  "receipts": {
+    "r1": {
+      "version": "zeceipt-v0",
+      "network": "test",
+      "pool": "ironwood",
+      "txid": "fcfde625685b43d7ab1769708f5a66d7a8fe88abbfc6e149984f3c0ada687f0b",
+      "output_index": 2,
+      "ock": "RPuhe60BrnHRrRTQe4fdGa5o1z7GaC45j06DeSuhP3A",
+      "label": "",
+      "zip311_profile": "outputs-only"
+    },
+    "r2": {
+      "version": "zeceipt-v0",
+      "network": "test",
+      "pool": "ironwood",
+      "txid": "1c49834b2bdb4c6f7d8782e1aed9006e3df2fcbc278418d19c615ab16bace39d",
+      "output_index": 0,
+      "ock": "PqhwmRm4QxI03ege7mY-g7C_c_wz6RLhb1rxEDkzRsE",
+      "label": "",
+      "zip311_profile": "outputs-only"
+    },
+    "r3": {
+      "version": "zeceipt-v0",
+      "network": "test",
+      "pool": "ironwood",
+      "txid": "a2619e3963263dde1c7966e40b05b47eaf50ac6fdf52c27719db9c3698d03df8",
+      "output_index": 2,
+      "ock": "H2ZzrkX_1wDf3PeV_QqHAQbm8N9fhpJUdc2PGRzrzfM",
+      "label": "",
+      "zip311_profile": "outputs-only"
+    }
+  },
+  "claims": [
+    {
+      "type": "origin",
+      "note": "n1"
+    },
+    {
+      "type": "path",
+      "from": "n1",
+      "to": "n2"
+    },
+    {
+      "type": "path",
+      "from": "n1",
+      "to": "n3"
+    },
+    {
+      "type": "path",
+      "from": "n1",
+      "to": "n4"
+    },
+    {
+      "type": "path",
+      "from": "n1",
+      "to": "n5"
+    },
+    {
+      "type": "deposit",
+      "receipt": "r1",
+      "funded_by": [
+        "n1"
+      ]
+    },
+    {
+      "type": "path",
+      "from": "n2",
+      "to": "n6"
+    },
+    {
+      "type": "deposit",
+      "receipt": "r2",
+      "funded_by": [
+        "n2"
+      ]
+    },
+    {
+      "type": "path",
+      "from": "n3",
+      "to": "n7"
+    },
+    {
+      "type": "path",
+      "from": "n3",
+      "to": "n8"
+    },
+    {
+      "type": "deposit",
+      "receipt": "r3",
+      "funded_by": [
+        "n3"
+      ]
+    },
+    {
+      "type": "path",
+      "from": "n5",
+      "to": "n9"
+    },
+    {
+      "type": "origin",
+      "note": "n10"
+    },
+    {
+      "type": "control",
+      "nonce": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8",
+      "reply": "n11",
+      "spent": [
+        "n4"
+      ]
+    }
+  ]
+}

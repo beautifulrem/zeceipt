@@ -345,6 +345,15 @@ export function dossierTxids(text) {
 }
 
 /**
+ * The second round of a check: the transactions whose outputs the origin transactions in `txs` spend (a funder's
+ * address and value come from those outputs). For a caller that fetches the transactions itself, as the case review
+ * page does to show its progress. Throws on a dossier that does not parse.
+ */
+export function dossierPrevoutTxids(text, txs) {
+  return dossier_prevout_txids(text, txs);
+}
+
+/**
  * Build a dossier in this page from the holder's UFVK, which never leaves it. `txids` are the transactions of the funds
  * to explain, oldest first; `control` is `{ txid, nonce }` for a challenge answered on chain. Transactions are fetched
  * from public gRPC-web nodes (each learns which you look up), or passed as `{ hexes, controlHex }`.

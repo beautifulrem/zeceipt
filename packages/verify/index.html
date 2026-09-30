@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<!-- A static page: no script, and nothing loaded from another site. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; style-src 'self'; font-src 'self'; img-src 'self'">
+<title>Zeceipt — prove where your shielded ZEC came from</title>
+<meta name="description" content="Prove where your shielded ZEC came from, without handing over your viewing key. A holder builds a dossier of claims; a reviewer checks each one against the chain in the browser.">
+<link rel="icon" href="r/icon.svg" type="image/svg+xml">
+<link rel="preload" href="r/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="r/page.css">
+<link rel="stylesheet" href="case/case.css">
+<link rel="stylesheet" href="home.css">
+</head>
+<body class="home">
+<a class="skip" href="#main">Skip to the content</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./" aria-current="page"><img src="r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></a>
+    <nav class="topnav" aria-label="Zeceipt tools">
+      <a href="case/">Case review</a>
+      <a href="build/">Build a dossier</a>
+    </nav>
+    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
+  </div>
+</header>
+<main id="main">
+<div class="hero home-hero">
+  <p class="eyebrow">Zeceipt · source of funds for shielded Zcash</p>
+  <h1>Prove where your shielded ZEC came from, without handing over your viewing key.</h1>
+  <p class="lede home-lede">An exchange, an OTC desk or a lender asks where your funds came from. Today the answers are to deshield first, or to hand over a viewing key that shows every payment you ever made. Zeceipt gives a third: a dossier of claims about the funds in question, each checked against the chain in the reviewer's browser.</p>
+  <p class="cta">
+    <a class="btn btn-primary" href="case/">Review a dossier <span class="i i-arrow" aria-hidden="true"></span></a>
+    <a class="btn btn-secondary" href="build/">Build a dossier</a>
+  </p>
+  <p class="try"><a href="case/#sample">Try the real testnet sample</a><span class="muted"> · a faucet payment, three payments from it, and a control answer, all 12 claims checked live</span></p>
+</div>
+
+<section class="card" aria-labelledby="how-title">
+  <h2 id="how-title">How it works</h2>
+  <ol class="how">
+    <li><h3>The reviewer sends a challenge</h3><p>The Case review page makes a fresh nonce. The holder answers it from their wallet: a small payment to themselves, with the nonce as the memo.</p></li>
+    <li><h3>The holder builds a dossier</h3><p>On the Build page, from their viewing key and the transactions of the funds. The key stays in the page; the dossier discloses only what its claims need.</p></li>
+    <li><h3>The reviewer checks every claim</h3><p>In their browser, against public nodes: a verdict per claim, a funds-flow timeline, and a report to file (PDF or JSON) with the dossier's hash.</p></li>
+  </ol>
+</section>
+
+<section class="card" aria-labelledby="claims-title">
+  <h2 id="claims-title">Four kinds of claim</h2>
+  <dl class="kinds">
+    <div><dt>Origin</dt><dd>Where the funds entered the holder's wallet, and what funded that transaction.</dd></div>
+    <div><dt>Path</dt><dd>A disclosed note was spent in the transaction that created the next one.</dd></div>
+    <div><dt>Deposit</dt><dd>A payment the holder made, opened by a sender receipt, paid from disclosed notes.</dd></div>
+    <div><dt>Control</dt><dd>A challenge transaction spent disclosed notes and paid the holder a note whose memo carries the reviewer's nonce.</dd></div>
+  </dl>
+</section>
+
+<div class="scope">
+<section class="card" aria-labelledby="proves-title">
+<h2 id="proves-title">What a verified dossier shows</h2>
+<ul class="checks">
+  <li><span>Each claim, checked against the transactions on chain: values, heights, and how the funds moved.</span></li>
+  <li><span>The transparent addresses that funded an origin, when there are any (they are public).</span></li>
+  <li><span>With a control answer: that the holder could spend the funds after your nonce was issued.</span></li>
+</ul>
+</section>
+<section class="card" aria-labelledby="limits-title">
+<h2 id="limits-title">Honest limits</h2>
+<ul class="limits">
+  <li><span>Who the counterparties are: an address that funded an origin is not a name.</span></li>
+  <li><span>The value of undisclosed inputs of a transaction: they are counted, not valued.</span></li>
+  <li><span>That funds are unspent now: control shows the holder could spend them when the challenge was made.</span></li>
+  <li><span>The dossier's nullifier key lets the reviewer see when a disclosed note is later spent; the dossier says so.</span></li>
+  <li><span>It is not a legal attestation: it is evidence a reviewer weighs.</span></li>
+</ul>
+</section>
+</div>
+
+<section class="card more" aria-labelledby="more-title">
+  <h2 id="more-title">Also here</h2>
+  <ul class="more-list">
+    <li><a href="demo/">Check a payment receipt</a><span class="muted"> · the receipt verifier: paste a receipt and its transaction</span></li>
+    <li><a href="r/">Receipt page</a><span class="muted"> · opens a receipt link a payer sent you</span></li>
+    <li><a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source, specification and CLI on GitHub</a><span class="muted"> · Apache-2.0</span></li>
+  </ul>
+</section>
+<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>No accounts and no uploads: the dossier is the only thing a holder shares, and the pages check it in the browser. They store nothing.</span></p>
+</main>
+<footer class="foot">
+  <span>zeceipt · open source (Apache-2.0)</span>
+  <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a>
+</footer>
+</body>
+</html>

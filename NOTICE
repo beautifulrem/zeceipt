@@ -29,8 +29,8 @@ projects:
 3. Lucide icons
    Files: packages/verify/r/icons/*.svg (drawn from lucide-react's icon data; the console uses lucide-react)
    Source: https://github.com/lucide-icons/lucide
-   Licence: ISC, reproduced below. Of these files, check, clock, info and lock are derived from Feather, under the
-   MIT licence also reproduced below.
+   Licence: ISC, reproduced below. Lucide began as a fork of Feather, and some of these icons derive from Feather's,
+   under the MIT licence also reproduced below.
 
    ISC License
 

@@ -44,6 +44,8 @@ jobs:
         run: python3 scripts/check_release.py && python3 scripts/test_check_release.py
       - name: committed WASM package still agrees with the fixtures (staleness guard)
         run: node packages/verify/test/verify.mjs
+      - name: dossier pages' view logic on the real testnet dossier, their CSPs and the committed sample (case/, build/, landing)
+        run: node packages/verify/test/dossier-view.mjs
       - name: "@zeceipt/verify as published: the tarball's files, public access, and the README's Node example through the installed package (offline)"
         run: node packages/verify/test/pack.mjs
       - name: public receipt page (packages/verify/r) in Chrome — link to VALID with the three parts, every state, and no request, header or storage carrying the receipt (REQ-CON-12)
@@ -52,6 +54,9 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           ZECEIPT_BROWSER_E2E=1 node --test test/page.e2e.mjs
+      - name: dossier pages (packages/verify/case, build, landing) in Chrome — the sample verifies, a tampered one fails, the builder reproduces it from the published testnet UFVK, no request carries the dossier or the key, axe clean light and dark
+        working-directory: packages/verify
+        run: ZECEIPT_BROWSER_E2E=1 node --test test/dossier.e2e.mjs
       - name: console library — install dependencies (lockfile; better-sqlite3 prebuilt binary), type check (TypeScript 7), lint (ESLint, zero warnings), unit tests against the debug zeceipt binary
         working-directory: apps/console
         run: |
