@@ -1,6 +1,6 @@
 # Go-to-market and pricing
 
-Rewritten 2026-09-30 for source-of-funds dossiers (`13_pivot.md`; appraisal round 1, D21). The receipts-era plan (grant programs, payout pilots, a $79/month team tier) is in this file's history; the building blocks it priced are in `docs/building-blocks.md`. Every figure below is either a cited source or marked as an assumption. No reviewer has paid for, or signed a letter of intent for, a dossier check: that is the main risk `[R137]`, and the schedule in §2 exists to test it.
+Rewritten 2026-09-30 for source-of-funds dossiers (`13_pivot.md`; appraisal round 1, D21). The receipts-era plan (grant programs, payout pilots, a $79/month team tier) is in this file's history; the building blocks it priced are in `docs/building-blocks.md`. Every figure below is either a cited source or marked as an assumption. No reviewer has paid for, or signed a letter of intent for, a dossier check: that is the main risk `[R137]`, and the schedule in §2 exists to test it. Draft additions on 2026-10-01 (appraisal round 2, E09): the market's size (§7), how the work is funded, public-good funding first and revenue second (§8), and why a holder would not simply use a no-KYC exit instead (§9).
 
 ## 1. Segments and channel order
 
@@ -56,7 +56,7 @@ A pilot is a reviewer who checks one real dossier and tells us whether it would 
 |---|---|---|---|
 | **Holders** | Free | The builder page, the CLI, the crates and `@zeceipt/verify` (Apache-2.0) | Every dossier a holder sends is distribution. Charging the party already harmed by a hold would stop the dossier reaching the reviewer |
 | **Browser review** | Free | The case page: every claim checked in the reviewer's browser, a printable case report with the dossier's sha256, a nonce generator | It costs nothing to serve (static pages, public nodes), and a reviewer has to see one work before any budget conversation |
-| **Verification API**, hosted (planned; the self-hosted service exists, `dossier serve`) | **$5 per verified dossier**, first 20 a month free; or **$249 per reviewer seat a month** with 100 checks per seat | The HTTP API (`docs/api/dossier-service.md`), nonce issuance with the height it was issued at, JSON reports for the case system, a pinned node per network | $5 is 4% of the low end of the assumed analyst cost ($120), so one saved hour pays for 12 checks or more. A small exchange with 50 shielded cases a month pays $150 (after the free 20), $1,800 a year: under 5% of TRM's Vendr median |
+| **Verification API**, hosted (planned, not built; the self-hosted service exists, `dossier serve`). Secondary revenue, §8 | **$5 per verified dossier**, first 20 a month free; or **$249 per reviewer seat a month** with 100 checks per seat | The HTTP API (`docs/api/dossier-service.md`), nonce issuance with the height it was issued at, JSON reports for the case system, a pinned node per network | $5 is 4% of the low end of the assumed analyst cost ($120), so one saved hour pays for 12 checks or more. A small exchange with 50 shielded cases a month pays $150 (after the free 20), $1,800 a year: under 5% of TRM's Vendr median |
 | **Self-hosted with SLA** | **$12,000 a year** per legal entity, unlimited checks | The Docker image run on the reviewer's own node or air-gapped (`--raw-tx-dir`), next-business-day support, and upgrade releases for network upgrades within 5 business days of the Zcash crates releasing them | The code is open, so what is sold is timeliness and an answer when something breaks. NU7 shows why: from 11-05, every build refuses new mainnet transactions until someone ships the upgrade. $12,000 is under half of Chainalysis' Vendr low end and under a third of TRM's median |
 
 Numbers to test in the conversations of §2, not commitments: a reviewer's answer to "what does one of these cases cost you today?" replaces the assumption above, and the tiers move with it. No price is published on the site until one reviewer has confirmed the order of magnitude.
@@ -82,3 +82,32 @@ Reported as they stand on the day, with no rounding up (the solo plan's rule, `1
 | Real dossiers on mainnet | 0 (testnet: 2, PROOF §8) | 1, if the owner funds it | 10 verified by pilots (reported by them; the service keeps no count) |
 | ZIP 311 report | drafted | posted | a reply from a ZIP author or protocol engineer |
 | `@zeceipt/verify` downloads | not published | reported as they stand | reported as they stand |
+
+## 7. Market size (draft, 2026-10-01)
+
+Every number is either sourced (`[R141]`, read 2026-09-30) or marked **assumption**. No source publishes how many source-of-funds cases involve shielded ZEC, so the case count is the weakest line, and the conversations of §2 exist to replace it.
+
+| Layer | Figure | Basis |
+|---|---|---|
+| Shielded ZEC | 4,939,760 ZEC, 29.12% of the 16,961,068.92 ZEC supply, at height 3,501,719; 4,059,767.71 of it in Ironwood. At $1,432.62 a ZEC, about **$7.08 billion** | The chain's own `valuePools` and the day's price `[R141]` |
+| Where it would be reviewed | 46 venues trading ZEC on CoinGecko's list, 53 on CoinPaprika's, including Binance, Coinbase, Kraken, OKX, KuCoin and Gemini; $1.08 billion of ZEC traded in 24 hours | `[R141]`; the venues those sites track, not every OTC desk or bridge |
+| Cases a month | **Assumption:** 5 to 50 shielded-ZEC source-of-funds cases a month at each of about 46 venues, so about 230 to 2,300 a month, 2,760 to 27,600 a year | Nothing published; the public evidence is anecdotal (Kraken's EDD emails, "everybody is getting those", /t/55347/7; the NEAR Intents hold, /t/57497) `[R137]` |
+| Analyst time those cases cost | 2,760 to 27,600 cases a year × $120 to $960 (§4's **assumption**) = about **$0.33 million to $26.5 million a year**, before the cost of held funds | Arithmetic on the two assumptions above |
+| What zeceipt could charge for it | At §4's $5 a verified dossier: about **$14,000 to $138,000 a year** if every case went through the hosted API; a few self-hosted licences at $12,000 add to that | Arithmetic; the first free 20 a month per reviewer are ignored |
+
+**Reading.** The problem is large where it hurts (billions of shielded ZEC, a cost per case in analyst hours), but what a checker can charge per case is small: the §4 example of one exchange paying $1,800 a year is the typical customer, not the floor. A business built only on per-check fees would not cover one developer. That is why §8 puts public-good funding first.
+
+## 8. How it is funded: public good first, revenue second
+
+- **Primary: public-good funding.** A dossier format is shared infrastructure for everyone who holds shielded ZEC, as ZIP 311 is; its value grows with the number of wallets and reviewers that speak it, not with one company's sales. So the realistic primary funder is Zcash Community Grants or a foundation, for defined work: a ZIP (or a ZIP 311 profile) for dossiers with the protocol engineers, the NU7 upgrade of the crates, the wallet integrations, and a mainnet review path. ZCG's own advice on #437 was to bring ZIP 311 to Ironwood with the protocol engineers `[R138]`, and a nonstandard Ironwood profile of ZIP 311 already exists to coordinate with (zally's `ZallyIronwood`, `[R140]`). An application would follow the zips#387 report and at least one reviewer's written answer (§2); it has not been made.
+- **Secondary: services around the open code.** The self-hosted service with an SLA ($12,000 a year per legal entity, §4) sells timeliness, above all releases for network upgrades, and support; the hosted API ($5 a verified dossier) sells convenience to small reviewers. Both are priced in §4 and neither has a customer. The hosted API does not exist yet: it is listed so that a reviewer can react to the price, and it is built only if one asks.
+- **Holders stay free**, and the builder, the case page and the libraries stay Apache-2.0: the format only works if anyone can make and check a dossier without us.
+
+## 9. Why a holder would not just use a no-KYC exit
+
+A reply in the NEAR Intents thread suggested using a venue that asks nothing (/t/57497/57, since deleted by its author; appraisal round 2 §1.4). The pitch has to answer it honestly: some holders will. The reasons a dossier is still worth building:
+- **The funds are already held.** The holders in the public cases are inside a venue that has frozen or delayed a deposit (NEAR Intents, 67+ days; Kraken's EDD emails) `[R137]`. For them the question is how to get the funds released, and the reviewer decides that. A dossier is the answer that reviewer can check; a no-KYC exit is not available for funds that are already held.
+- **Exits narrow over time.** OKX delisted ZEC pairs in January 2024 and Binance put ZEC under its Monitoring Tag the same week; both later reversed course, and ZEC trades at both today. Kraken set ZEC withdrawal-only for its German clients in 2024 (with other, non-privacy assets) `[R141]`. A holder who depends on one venue's appetite for privacy coins can lose it with a notice period of days.
+- **The EU rule arrives in 2027.** AMLR Article 79(1) prohibits crypto-asset service providers from keeping accounts that allow anonymisation "including through anonymity-enhancing coins", from 10 July 2027; self-hosted wallets are outside it (recital 160) `[R141]`. For EU-regulated venues, being able to show the provenance of shielded funds without handing over a viewing key is the way shielded ZEC stays usable there.
+- **The cost of the exit.** A venue that asks nothing is a venue with no recourse when it freezes or disappears, and often a worse price; the same holder usually still needs a regulated off-ramp for fiat. This last point is argument, not a sourced figure.
+

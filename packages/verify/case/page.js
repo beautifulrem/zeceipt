@@ -12,6 +12,7 @@ import {
   SAMPLES, SAMPLE_FRAGMENT, EXCHANGE_SAMPLE, SAMPLE_CHALLENGE, NETWORK_NAME, readDossierInput, parseDossier, fetchProgress, caseVerdict, caseFacts, claimRows, flowSteps,
   nonceCheck, newNonce, caseSummaryText, reportForDownload, reportFileName, shortTxid, middle, noteLabel, KIND_LABEL, amountText,
   decisionSummary, claimNumbers, returnedText, heightInput, challengeRecordText, offlineText, txFile, utcText,
+  depositAddressInput, depositCheck, depositLineText, nonceMask, maskNonces, funderChange,
 } from "./view.js";
 
 // A self-hosted copy names its own nodes (`scripts/build_site.sh --node`), and its CSP allows only them; the public
@@ -31,6 +32,7 @@ let generation = 0; // bumps on every new dossier, so a late result for an earli
 let current = null; // { text, dossier, report, meta }
 let generatedAt = null; // when the nonce in the field was generated here (ISO), or null when it was typed
 let generatedNonce = null; // the nonce generated here, to tell whether the field still holds it
+let sampleNonce = null; // the sample's own nonce, when "Try it with the nonce the sample answered" filled it in
 let offlineTxs = null; // txid → { hex, height: null }, from the files the reviewer loaded; null: ask the nodes
 let verifierVersion = null;
 let wasmSha256 = null;
@@ -46,12 +48,24 @@ function clearResult() {
   $("verdict-live").textContent = "";
   $("nonce-result").textContent = "";
   $("print-meta").textContent = "";
+  show("deposit-line", false);
+  show("nonce-note", false);
   delete document.body.dataset.state;
   current = null;
 }
 
 /** The nonce the reviewer issued and its height, as the challenge card's fields hold them. */
 const issued = () => ({ nonce: $("nonce-input").value.trim(), height: heightInput($("h0-input").value) });
+
+/** The deposit address the reviewer assigned to this customer, as typed (depositAddressInput), or null. */
+const assigned = () => depositAddressInput($("deposit-input").value);
+
+/** Where the nonce in the field came from: generated here, the page's sample challenge, or typed (or pasted). */
+function nonceSource(nonce) {
+  if (nonce && nonce === generatedNonce) return "generated";
+  if (nonce && nonce === sampleNonce) return "sample";
+  return "typed";
+}
 
 /** The case fields a reviewer types in (they print, and go into the summary and the downloaded report). */
 const caseFields = () => ({ reviewer: $("case-reviewer").value, caseId: $("case-id").value, date: $("case-date").value });
@@ -161,15 +175,21 @@ function recheck() {
 }
 
 function render(text, dossier, report, meta, { focus = true } = {}) {
-  const v = caseVerdict(report, dossier);
+  const deposit = Array.isArray(report?.claims) ? depositCheck(report, assigned()) : null;
+  const v = caseVerdict(report, dossier, { deposit, sample: Object.hasOwn(SAMPLES, meta.source ?? "") });
   const readable = Boolean(v.counts);
   const mine = issued();
-  const nonce = readable ? nonceCheck(dossier, report, mine.nonce) : null;
-  current = { text, dossier, report, meta: { ...meta, nonce, issued: mine.nonce, verifier: verifierVersion, wasmSha256 } };
+  const nonce = readable ? nonceCheck(dossier, report, mine.nonce, { source: nonceSource(mine.nonce) }) : null;
+  // Until the reviewer's nonce matches, the dossier's own nonce is shortened everywhere on the page (E04).
+  const mask = readable ? nonceMask(dossier, nonce) : [];
+  current = { text, dossier, report, meta: { ...meta, nonce, issued: mine.nonce, deposit, mask, verifier: verifierVersion, wasmSha256 } };
 
   $("headline").textContent = v.headline;
-  $("verdict-sub").textContent = v.sub;
+  $("verdict-sub").textContent = maskNonces(v.sub, mask);
   $("banner").className = `result ${v.tone}`;
+  // The deposit address the reviewer assigned, when no verified payment pays it: amber, in the verdict.
+  $("deposit-line").textContent = deposit?.state === "unpaid" ? depositLineText(deposit) : "";
+  show("deposit-line", readable && deposit?.state === "unpaid");
   // Problems with the dossier as a whole (an nk that is not a key, say), which no single claim carries.
   $("banner-error").textContent = (report.problems ?? []).join(" ");
   show("banner-error", Boolean(report.problems?.length));
@@ -193,12 +213,14 @@ function render(text, dossier, report, meta, { focus = true } = {}) {
       div.append(el("dt", "", d.key), dd);
       return div;
     }));
-    $("facts").replaceChildren(...factItems(caseFacts(dossier, report, meta), { live: live(), wide: { "Dossier sha256": "Copy the dossier sha256" } }));
+    $("facts").replaceChildren(...factItems(caseFacts(dossier, report, { ...meta, deposit }), { live: live(), wide: { "Dossier sha256": "Copy the dossier sha256" } }));
     $("nonce-line").textContent = nonce.text;
     $("nonce-line").dataset.state = nonce.state;
     show("nonce-line", true);
-    renderFlow(flowSteps(dossier, report, meta));
-    renderClaims(report);
+    $("nonce-note").textContent = nonce.note ?? "";
+    show("nonce-note", Boolean(nonce.note));
+    renderFlow(flowSteps(dossier, report, { ...meta, deposit, mask }));
+    $("claims").tBodies[0].replaceChildren(...claimTableRows(claimRows(report, dossier, { deposit, mask })));
     renderFunders(dossier, report);
     renderScope(report);
     $("nonce-result").textContent = nonce.text;
@@ -212,7 +234,7 @@ function render(text, dossier, report, meta, { focus = true } = {}) {
   $("inputs").open = false;
   document.body.dataset.state = "checked";
   setStatus(readable ? "Checked in this page." : "The dossier could not be read.", readable ? "checked" : "error");
-  $("verdict-live").textContent = `${v.headline}. ${v.sub}`;
+  $("verdict-live").textContent = `${v.headline}. ${maskNonces(v.sub, mask)}`;
   if (!focus) return;
   $("banner").focus({ preventScroll: true });
   $("banner").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -224,7 +246,7 @@ function printFooter() {
   const { report, meta } = current;
   // The page footer's text, for the @page margin box (CSSOM, which the style-src policy does not restrict).
   document.documentElement.style.setProperty("--print-dossier", JSON.stringify(`Zeceipt case report · dossier sha256 ${report.dossier_sha256} · ${utcText(new Date().toISOString())}`));
-  $("print-meta").textContent = `Checked ${meta.checkedAt ? utcText(meta.checkedAt) : ""} in the browser with ${verifierVersion ?? "the zeceipt verifier"} on ${location.host || "this page"}${meta.offline != null ? `, ${offlineText(meta.offline)}` : ""}. Report made ${utcText(new Date().toISOString())}. Verifier zeceipt_wasm_bg.wasm sha256 ${wasmSha256 ?? "not computed"}. Dossier sha256 ${report.dossier_sha256}.`;
+  $("print-meta").textContent = `Checked ${meta.checkedAt ? utcText(meta.checkedAt) : ""} in the browser with ${verifierVersion ?? "the zeceipt verifier"} on ${location.host || "this page"}${meta.offline != null ? `, ${offlineText(meta.offline)}` : ""}. Report made ${utcText(new Date().toISOString())}. Verifier zeceipt_wasm_bg.wasm sha256 ${wasmSha256 ?? "not computed"}. Dossier sha256 ${report.dossier_sha256}. The notes' nullifiers are not printed.`;
 }
 
 /** A full identifier on paper, a short one with its full value in a tooltip on screen. */
@@ -244,11 +266,12 @@ function txLine(txid, height) {
 }
 
 function noteChip(n) {
-  const li = el("li", `chip-note${n.error ? " chip-bad" : ""}${n.reply ? " chip-reply" : ""}`);
+  const li = el("li", `chip-note${n.error ? " chip-bad" : ""}${n.reply ? " chip-reply" : ""}${n.untraced ? " chip-untraced" : ""}`);
   li.append(el("span", "chip-id", n.id), el("span", "chip-value", n.error ? "does not open" : n.value));
   if (n.reply && n.memo) li.append(el("span", "chip-memo", `memo “${n.memo}”`));
+  if (n.untraced) li.append(el("span", "chip-flag", "not traced to an origin"));
   if (n.next) li.append(el("span", "chip-next", `spent in step ${n.next}`));
-  li.setAttribute("aria-label", `${noteLabel(n)}${n.reply && n.memo ? `, memo ${n.memo}` : ""}${n.next ? `, spent in step ${n.next}` : ""}`);
+  li.setAttribute("aria-label", `${noteLabel(n)}${n.reply && n.memo ? `, memo ${n.memo}` : ""}${n.untraced ? ", not traced to an origin" : ""}${n.next ? `, spent in step ${n.next}` : ""}`);
   return li;
 }
 
@@ -262,7 +285,7 @@ function group(label, items) {
 }
 
 function paymentChip(p) {
-  const c = el("li", `chip-note chip-pay${p.transparent ? " chip-transparent" : ""}`);
+  const c = el("li", `chip-note chip-pay${p.transparent ? " chip-transparent" : ""}${p.assigned ? " chip-assigned" : ""}`);
   c.append(el("span", "chip-id", p.id), el("span", "chip-value", p.value));
   if (p.recipient) {
     const to = el("span", "chip-memo");
@@ -271,8 +294,9 @@ function paymentChip(p) {
     c.append(to);
   }
   if (p.memo) c.append(el("span", "chip-memo", `memo “${p.memo}”`));
+  if (p.assigned) c.append(el("span", "chip-assigned-note", "pays the deposit address you assigned"));
   const what = p.transparent ? `Transparent payment, claim ${p.id}` : `Payment ${p.id}`;
-  c.setAttribute("aria-label", `${what}: ${p.value}${p.recipient ? ` to ${p.recipient}` : ""}${p.memo ? `, memo ${p.memo}` : ""}`);
+  c.setAttribute("aria-label", `${what}: ${p.value}${p.recipient ? ` to ${p.recipient}` : ""}${p.memo ? `, memo ${p.memo}` : ""}${p.assigned ? ", pays the deposit address you assigned" : ""}`);
   return c;
 }
 
@@ -298,22 +322,21 @@ function renderFlow(steps) {
     const transparent = s.payments.filter((p) => p.transparent);
     if (shielded.length) body.append(group("Paid out", shielded.map(paymentChip)));
     if (transparent.length) body.append(group("Paid out (transparent)", transparent.map(paymentChip)));
+    // What this transaction paid that the disclosed notes do not explain (spec §5.6).
+    if (s.undisclosed_zat > 0) body.append(el("p", "step-flag", `Not fully explained: this transaction also spent at least ${amountText(s.undisclosed_zat, current?.report?.network)} from notes the dossier does not disclose.`));
     li.append(body);
     const edges = el("ul", "edges");
     edges.setAttribute("aria-label", `Claims in step ${s.number}`);
     for (const e of s.edges) {
       const row = el("li", `edge tone-${e.status}`);
       row.append(el("span", "edge-kind", `${claimNumbers(e.indices)} ${KIND_LABEL[e.kind]}`), el("span", "edge-label", e.label), badge(e.status));
+      if (e.untraced?.length) row.append(el("span", "edge-flag", `${e.untraced.join(", ")} not traced to an origin`));
       edges.append(row);
     }
     li.append(edges);
     return li;
   });
   $("flow").replaceChildren(...items);
-}
-
-function renderClaims(report) {
-  $("claims").tBodies[0].replaceChildren(...claimTableRows(claimRows(report)));
 }
 
 function renderFunders(dossier, report) {
@@ -345,6 +368,10 @@ function renderFunders(dossier, report) {
         return tr;
       }));
       div.append(table);
+      // Part of the inputs that went back to the funder: the holder received the rest (less the fee).
+      for (const ch of funderChange(c.details ?? [])) {
+        div.append(el("p", "funder-change", `Change: ${amountText(ch.value_zat, report.network)} of the inputs went back to ${ch.address} (output ${ch.output}), the funder's own address${n?.value_zat != null ? `; the holder received ${amountText(n.value_zat, report.network)} in ${noteId}` : ""}.`));
+      }
     } else if (f.from_disclosed?.length) {
       div.append(el("p", "", `From disclosed notes of this dossier: ${f.from_disclosed.join(", ")}.`));
     } else {
@@ -447,8 +474,9 @@ $("retry-online").addEventListener("click", goOnline);
 $("download").addEventListener("click", () => {
   if (!current?.report) return;
   const name = reportFileName(current.report);
-  download(JSON.stringify(reportForDownload(current.report, { ...current.meta, caseFields: caseFields() }), null, 2) + "\n", name);
-  live().textContent = `Report downloaded as ${name}`;
+  const hideNullifiers = $("hide-nullifiers").checked;
+  download(JSON.stringify(reportForDownload(current.report, { ...current.meta, caseFields: caseFields(), hideNullifiers }), null, 2) + "\n", name);
+  live().textContent = `Report downloaded as ${name}${hideNullifiers ? ", without the notes' nullifiers" : ""}`;
 });
 $("print").addEventListener("click", () => { printFooter(); window.print(); });
 window.addEventListener("beforeprint", printFooter);
@@ -489,17 +517,28 @@ $("nonce-new").addEventListener("click", async () => {
 let typing = null;
 for (const id of ["nonce-input", "h0-input"]) $(id).addEventListener("input", () => {
   if ($("nonce-input").value.trim() !== generatedNonce) { generatedAt = null; generatedNonce = null; }
+  if ($("nonce-input").value.trim() !== sampleNonce) sampleNonce = null;
   const h = $("h0-input").value.trim();
   $("h0-status").textContent = h && heightInput(h) === null ? "The height is not a whole number: it is ignored." : "";
   clearTimeout(typing);
   typing = setTimeout(recheck, 350);
 });
 
+// The deposit address the reviewer assigned: checked against the case on screen as it is typed (no new lookup; the
+// verifier's report already names each transparent payment's address).
+let typingDeposit = null;
+$("deposit-input").addEventListener("input", () => {
+  const a = assigned();
+  $("deposit-status").textContent = a?.error ?? (a ? `A ${a.kind === "tex" ? "TEX (ZIP 320)" : "transparent"} address on ${NETWORK_NAME[a.network] ?? a.network}.` : "");
+  clearTimeout(typingDeposit);
+  typingDeposit = setTimeout(() => { if (current?.report) render(current.text, current.dossier, current.report, current.meta, { focus: false }); }, 250);
+});
+
 $("copy-challenge").addEventListener("click", async () => {
   const { nonce, height } = issued();
   let said = "Challenge copied for the case file";
   try {
-    await navigator.clipboard.writeText(challengeRecordText({ nonce, height, network: $("challenge-network").value, issuedAt: generatedAt, now: new Date().toISOString() }));
+    await navigator.clipboard.writeText(challengeRecordText({ nonce, height, network: $("challenge-network").value, issuedAt: generatedAt, now: new Date().toISOString(), depositAddress: assigned()?.error ? "" : $("deposit-input").value }));
   } catch { said = "Copy failed: the browser refused the clipboard"; }
   live().textContent = said;
 });
@@ -512,6 +551,7 @@ async function sampleChallenge(name) {
   $("challenge-network").value = c.network;
   generatedAt = null;
   generatedNonce = null;
+  sampleNonce = c.nonce;
   $("h0-status").textContent = `The sample's challenge: nonce ${c.nonce}, issued at height ${c.height} on ${NETWORK_NAME[c.network]}.`;
   if (current?.meta?.txs && current.meta.source === name) recheck();
   else { dropFragment(); await loadSample(name); }

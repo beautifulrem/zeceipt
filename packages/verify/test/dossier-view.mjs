@@ -27,6 +27,7 @@ const report = await checkDossier(SAMPLE, { txs: chain(SAMPLE) });
 const dossier = JSON.parse(SAMPLE);
 const withNonceReport = await checkDossier(SAMPLE, { txs: chain(SAMPLE), expectNonce: "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8", issuedAtHeight: 4421300 });
 const tamper = (mut) => { const d = JSON.parse(SAMPLE); mut(d); return JSON.stringify(d, null, 2); };
+const TAMPERED_OFF = () => tamper((d) => { d.claims[11].nonce = "zeceipt-challenge-00000000000000000000000000000000"; });
 
 // ---- the fragment and the input ----
 {
@@ -136,7 +137,7 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   check("newNonce wants 16 bytes", threw);
   const own = dossier.claims[11].nonce;
   check("nonceCheck: the nonce generated here, verified", cv.nonceCheck(dossier, report, own).state === "match");
-  check("nonceCheck: another nonce is a mismatch, named", (() => { const r = cv.nonceCheck(dossier, report, n); return r.state === "mismatch" && r.text.includes(own) && r.text.includes(n); })());
+  check("nonceCheck: another nonce is a mismatch; the reviewer's is named, the dossier's only by its beginning", (() => { const r = cv.nonceCheck(dossier, report, n); return r.state === "mismatch" && !r.text.includes(own) && r.text.includes("a nonce beginning zeceipt-challenge-eadb…") && r.text.includes(n); })());
   check("nonceCheck: none generated here says compare it", cv.nonceCheck(dossier, report, null).state === "not-generated");
   const failedReport = { ...report, claims: report.claims.map((c) => (c.kind === "control" ? { ...c, status: "failed" } : c)) };
   check("nonceCheck: the right nonce on a failed claim is not a match", cv.nonceCheck(dossier, failedReport, own).state === "match-unverified");
@@ -164,7 +165,8 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   check("validateBuild: a repeated id", /repeats/.test(err({ txids: `${TX[0]}\n${TX[0]}` }).error));
   check("validateBuild: a nonce without its transaction, and the reverse", err({ controlTxid: "" }).field === "control-txid" && err({ nonce: "" }).field === "nonce");
   check("validateBuild: a short nonce", err({ nonce: "short" }).field === "nonce");
-  check("validateBuild: the challenge also listed as funds", /only under Control/.test(err({ txids: `${TX.join("\n")}\n${CTL}` }).error));
+  check("validateBuild: the challenge also listed as funds is taken out of the list and kept under Control, with a note", (() => { const r = err({ txids: `${TX.join("\n")}\n${CTL}` }); return r.ok && r.input.txids.join() === TX.join() && r.input.control.txid === CTL && r.removed === CTL && /was also in the list: it was taken out, and is used only under Control/.test(r.note); })());
+  check("validateBuild: the challenge alone, listed and under Control, is not a dossier", err({ txids: CTL }).field === "txids");
   check("ufvkNetwork", bv.ufvkNetwork(UFVK) === "test" && bv.ufvkNetwork("uview1x") === "main" && bv.ufvkNetwork("uviewregtest1x") === "regtest" && bv.ufvkNetwork("x") === null);
   check("networkForKey: the prefix picks the network as the key is typed", bv.networkForKey(` ${UFVK}`).network === "test" && bv.networkForKey("uview1abc").network === "main" && bv.networkForKey("uviewtest1").network === "test" && bv.networkForKey("").network === null && bv.networkForKey("zxviews1").note === null);
   check("networkForKey: a regtest key is recognised, and not selected where the page offers no regtest", (() => { const r = bv.networkForKey("uviewregtest1abc"); return r.network === null && /command line/.test(r.note) && bv.networkForKey("uviewregtest1abc", ["main", "test", "regtest"]).network === "regtest"; })());
@@ -175,7 +177,7 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   const s = bv.dossierSummary(b, await checkDossier(built, { txs: chain(built) }));
   check("dossierSummary: 9 notes, 3 receipts, 12 claims, all verified", s.notes === 9 && s.receipts === 3 && s.claims === 12 && s.allVerified && s.counts[2][1] === "12 (1 origin, 7 path hops, 3 deposits and 1 control answer)", JSON.stringify(s.counts));
   check("dossierSummary: discloses nk, the openings and the receipts", s.discloses.length === 3 && /^nk, the nullifier key/.test(s.discloses[0]) && /^9 note openings/.test(s.discloses[1]) && /^3 sender receipts/.test(s.discloses[2]));
-  check("dossierSummary: nk lets the reviewer watch future spends, and the advice after the case", /see when any of these notes is spent, now and after the case/.test(s.discloses[0]) && /move the remaining funds to a fresh account/.test(s.discloses[0]));
+  check("dossierSummary: nk lets the reviewer watch these notes' spends, and anyone who ever paid the holder theirs; the advice after the case", /see when any of these notes is spent, past and future/.test(s.discloses[0]) && /anyone who ever paid you and obtains this nk \(an exchange that sent withdrawals to you, for example\), can see when every note they paid you is spent, past and future, not only the notes in this dossier/.test(s.discloses[0]) && /move the remaining funds to a fresh account/.test(s.discloses[0]));
 
   const fail = async (o) => { try { await buildDossier(o); return null; } catch (e) { return e; } };
   const zdp = JSON.parse(read(path.join(repo, "fixtures/zdp/testnet.json")));
@@ -205,16 +207,16 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   const landing = read(path.join(root, "index.html"));
   const lcsp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(landing)?.[1] ?? "";
   check("landing page: no script at all, and a CSP that allows none and connects nowhere", !/<script/i.test(landing) && /default-src 'none'/.test(lcsp) && !/script-src|connect-src/.test(lcsp) && !/<style|\sstyle=/i.test(landing) && (landing.match(/<h1[\s>]/g) ?? []).length === 1);
-  check("landing page: the hero, both calls to action, the exchange sample, the receipt tools and GitHub", landing.includes("Prove where your shielded ZEC came from, without handing over your viewing key.") && landing.includes('href="case/">Review a dossier') && landing.includes('href="build/">Build a dossier') && landing.includes('href="case/#sample-exchange">Try a real exchange deposit review') && landing.includes('href="r/"') && landing.includes('href="demo/"') && landing.includes("https://github.com/beautifulrem/zeceipt"));
+  check("landing page: the hero, both calls to action, the exchange sample, the receipt tools and GitHub", landing.includes("Prove where your shielded ZEC came from, without handing over your viewing key.") && landing.includes('href="case/">Review a dossier') && landing.includes('href="build/">Build a dossier') && landing.includes('href="case/#sample-exchange">Try an exchange deposit review') && landing.includes("a simulated exchange-deposit review on testnet (we ran the exchange's wallet)") && !/real exchange/i.test(landing) && landing.includes('href="r/"') && landing.includes('href="demo/"') && landing.includes("https://github.com/beautifulrem/zeceipt"));
   check("landing page: the four claim lines are the case page's", Object.values(cv.KIND_BLURB).every((l) => landing.includes(l.replace("your nonce", "the reviewer's nonce"))));
   check("build page: the privacy promise, and the key field is never filled in by the browser", /Your viewing key stays in this page/.test(read(path.join(root, "build/index.html"))) && /<textarea id="ufvk"[^>]*spellcheck="false"[^>]*autocomplete="off"/.test(read(path.join(root, "build/index.html"))));
   check("the case page's sample is the fixture, byte for byte", read(path.join(root, "case", cv.SAMPLE_PATH)) === SAMPLE);
   check("the case page's exchange sample is the fixture, byte for byte", read(path.join(root, "case", cv.SAMPLES["sample-exchange"])) === read(path.join(repo, "fixtures/dossier/testnet-dossier-exchange.json")));
   check("the case page's transparent sample is the fixture, byte for byte", read(path.join(root, "case", cv.SAMPLES["sample-transparent"])) === read(path.join(repo, "fixtures/dossier/testnet-dossier-transparent-origin.json")));
   const buildHtml = read(path.join(root, "build/index.html"));
-  check("build page: no 'oldest first' ordering asked of the holder; the verifier's sha256 and the after-the-case advice shown", !/oldest first|Order them by date/i.test(buildHtml) && /in any order/.test(buildHtml) && buildHtml.includes('id="wasm-sha"') && /After the case:/.test(buildHtml) && /see when any disclosed note is spent, now and later|When any disclosed note is spent, now and later/.test(buildHtml));
+  check("build page: no 'oldest first' ordering asked of the holder; the verifier's sha256 and the after-the-case advice shown", !/oldest first|Order them by date/i.test(buildHtml) && /in any order/.test(buildHtml) && buildHtml.includes('id="wasm-sha"') && /After the case:/.test(buildHtml) && /When any disclosed note is spent, past and future/.test(buildHtml) && /anyone who ever paid you \(an exchange that sent withdrawals to you, for example\), can use it to see when every note they paid you is spent, past and future, not only the disclosed ones/.test(buildHtml) && /move the remaining funds to a fresh account/.test(buildHtml));
   const caseHtml = read(path.join(root, "case/index.html"));
-  check("case page: the exchange review is the first sample offered", caseHtml.indexOf('id="sample-exchange"') < caseHtml.indexOf('id="sample"') && caseHtml.includes("Try a real exchange deposit review"));
+  check("case page: the exchange review is the first sample offered, and called simulated", caseHtml.indexOf('id="sample-exchange"') < caseHtml.indexOf('id="sample"') && caseHtml.includes("Try an exchange deposit review (testnet)") && caseHtml.includes("A simulated exchange-deposit review on testnet (we ran the exchange's wallet)") && !/real exchange/i.test(caseHtml));
   check("case page: nonce and H0 inputs, offline files, glossary, after the case, case fields, the verifier's sha256", ["nonce-input", "h0-input", "copy-challenge", "tx-files", "glossary", "after-card", "case-reviewer", "case-id", "case-date", "wasm-sha", "sample-nonce", "print-meta"].every((id) => caseHtml.includes(`id="${id}"`)) && ["Nullifier", "nk (nullifier key)", "Note", "Origin", "Path", "Control", "Not proven (unproven)", "Not checked yet (not_checked)"].every((t) => caseHtml.includes(`<dt>${t}</dt>`)), "");
   const site = read(path.join(repo, "scripts/build_site.sh"));
   check("build_site.sh publishes and checks the dossier pages", ["case/index.html", "case/page.js", "case/view.js", "case/ui.js", "case/case.css", "case/fixtures/testnet-dossier.json", "case/fixtures/testnet-dossier-transparent-origin.json", "case/fixtures/testnet-dossier-exchange.json", "build/index.html", "build/page.js", "build/view.js", "build/build.css", "home.css"].every((f) => site.includes(f)) && /cp "\$src\/index.html"/.test(site));
@@ -272,9 +274,9 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   const xv = cv.caseVerdict(xr, xd);
   check("exchange sample with the exchange's challenge: all 4 verified, Verified, with control", xr.assurance === "verified_with_control" && xv.tone === "ok" && xv.headline === "Verified, with control" && xr.claims.every((x) => x.status === "verified"), JSON.stringify(xv));
   const steps = cv.flowSteps(xd, xr, { heights: XH });
-  check("exchange sample: the origin from the hot wallet, then the deposit to the exchange, then the control", steps.map((s) => s.stage).join(" ") === "origin hop control" && steps[0].funding[0].text === "From 1 transparent input (0.3 TAZ), paid from tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv." && steps[1].title === "Moved within the wallet, and paid out (transparent)" && steps[1].payments[0].recipient === "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR" && steps[1].payments[0].value === "0.05 TAZ", JSON.stringify(steps.map((s) => [s.title, s.funding.map((f) => f.text)])));
+  check("exchange sample: the origin from the hot wallet, then the deposit to the exchange, then the control", steps.map((s) => s.stage).join(" ") === "origin hop control" && steps[0].funding[0].text === "From 1 transparent input (0.3 TAZ), paid from tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv, of which 0.09985 TAZ went back to tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv (output 0) as change to the funder." && steps[1].title === "Moved within the wallet, and paid out (transparent)" && steps[1].payments[0].recipient === "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR" && steps[1].payments[0].value === "0.05 TAZ", JSON.stringify(steps.map((s) => [s.title, s.funding.map((f) => f.text)])));
   const d = Object.fromEntries(cv.decisionSummary(xd, xr).map((x) => [x.key, x]));
-  check("exchange sample: the decision summary", d["Arrived at origins"].value === "0.2 TAZ in 1 note" && d["Arrived at origins"].detail === "0.2 TAZ from transparent inputs." && d["Paid out"].value === "0.05 TAZ in 1 payment" && d["Under control"].value === "0.14985 TAZ" && d["Under control"].detail === "n2, spent in answer to your nonce at height 4422305 (issued at height 4422294)." && d.Claims.value === "4 verified", JSON.stringify(d));
+  check("exchange sample: the decision summary", d["Arrived at origins"].value === "0.2 TAZ in 1 note" && d["Arrived at origins"].detail === "0.2 TAZ from transparent inputs; of the inputs, 0.09985 TAZ went back to tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv as change to the funder." && d.Explained.value === "Yes" && d["Paid out"].value === "0.05 TAZ in 1 payment" && d["Under control"].value === "0.14985 TAZ" && d["Under control"].detail === "n2, spent in answer to your nonce at height 4422305 (issued at height 4422294)." && d.Claims.value === "4 verified", JSON.stringify(d));
 }
 
 // ---- parse errors in plain words ----
@@ -306,6 +308,133 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
   check("offline: the timeline keeps the dossier's order without heights", cv.flowSteps(dossier, off, {}).map((s) => s.stage).join(" ") === "origin hop hop hop control");
 }
 
+// ---- appraisal round 2: claims that add up, offline wording, the nonce kept back, the assigned deposit address ----
+{
+  const VEC = JSON.parse(read(path.join(repo, "spec/test-vectors/dossier-v1.json")));
+  // RFC 6902 add, replace and remove, as test/dossier-vectors.mjs applies the vectors' patches.
+  const apply = (doc, patch) => {
+    for (const op of patch) {
+      const keys = op.path.slice(1).split("/");
+      const last = keys.pop();
+      let at = doc;
+      for (const k of keys) at = at[Array.isArray(at) ? Number(k) : k];
+      if (op.op === "remove") Array.isArray(at) ? at.splice(Number(last), 1) : delete at[last];
+      else if (op.op === "add" && Array.isArray(at)) last === "-" ? at.push(op.value) : at.splice(Number(last), 0, op.value);
+      else at[Array.isArray(at) ? Number(last) : last] = op.value;
+    }
+    return doc;
+  };
+  const vectorCase = async (name) => {
+    const c = VEC.cases.find((x) => x.name === name);
+    const d = apply(JSON.parse(SAMPLE), c.patch);
+    const text = JSON.stringify(d, null, 2);
+    const r = await checkDossier(text, { txs: chain(text), expectNonce: c.expect_nonce ?? "", issuedAtHeight: c.issued_at_height ?? null });
+    return { d, r };
+  };
+  const PARTLY = "Claims verified — funds not fully explained";
+
+  // Trace closure and value coverage (spec §5.6): amber, naming what is missing, per claim and in the timeline.
+  const co = await vectorCase("control_only");
+  const vco = cv.caseVerdict(co.r, co.d);
+  check("verdict: a control alone (vector control_only) is amber, funds not fully explained, naming the untraced note", co.r.assurance === "verified_partly_explained" && vco.tone === "partial" && vco.headline === PARTLY && vco.reason === "partly-explained" && /but they do not explain all of the funds: note n4 is not traced back to an origin/.test(vco.sub) && /The control claim answers the nonce you issued, after height 4421300\./.test(vco.sub), vco.sub);
+  const un = await vectorCase("unlinked_payment");
+  const vun = cv.caseVerdict(un.r, un.d);
+  const unRows = cv.claimRows(un.r, un.d);
+  const untracedRows = unRows.filter((r) => r.flags.some((f) => /^Not traced to an origin: n3/.test(f.text))).map((r) => r.number);
+  check("unlinked_payment: amber; the claims spending n3 carry an untraced flag in their rows", vun.headline === PARTLY && /note n3 is not traced back to an origin/.test(vun.sub) && untracedRows.length >= 1 && unRows.every((r) => r.flags.every((f) => f.tone === "warn")), JSON.stringify(untracedRows));
+  check("claimUntraced: per claim, the funding notes the report lists as untraced", JSON.stringify(cv.claimUntraced(co.d, co.r)) === JSON.stringify({ 0: ["n4"] }));
+  const unSteps = cv.flowSteps(un.d, un.r, { heights: HEIGHTS });
+  check("unlinked_payment: the timeline marks n3 where it is spent, and the edge says so", unSteps.some((s) => s.spent.some((n) => n.id === "n3" && n.untraced)) && unSteps.some((s) => s.edges.some((e) => e.untraced?.includes("n3"))));
+  const hw = await vectorCase("history_without_its_origin");
+  const vhw = cv.caseVerdict(hw.r, hw.d);
+  check("history_without_its_origin: amber, with the least undisclosed value named in the verdict", vhw.headline === PARTLY && /at least 1\.0 TAZ came from notes the dossier does not disclose/.test(vhw.sub) && /notes n2, n3 and n4 are not traced back to an origin/.test(vhw.sub), vhw.sub);
+  const hwRow = cv.claimRows(hw.r, hw.d)[0];
+  check("history_without_its_origin: the deposit's row shows its undisclosed_input_min_zat", hwRow.flags.some((f) => f.tone === "warn" && f.text === "Not fully explained: at least 1.0 TAZ of what this transaction paid came from notes the dossier does not disclose."), JSON.stringify(hwRow.flags));
+  const hwSteps = cv.flowSteps(hw.d, hw.r, { heights: HEIGHTS });
+  check("history_without_its_origin: the step of that transaction carries the undisclosed amount", hwSteps.some((s) => s.undisclosed_zat === 100000000 && s.edges.some((e) => e.undisclosed_zat === 100000000)));
+  const dhw = Object.fromEntries(cv.decisionSummary(hw.d, hw.r).map((x) => [x.key, x]));
+  const dco = Object.fromEntries(cv.decisionSummary(dossier, withNonceReport).map((x) => [x.key, x]));
+  check("decision summary: Explained no, with the gaps; yes for the whole sample", dhw.Explained.value === "No" && /^Notes n2, n3 and n4 are not traced back to an origin .* and at least 1\.0 TAZ came from notes the dossier does not disclose\.$/.test(dhw.Explained.detail) && dco.Explained.value === "Yes" && Object.keys(dco).join() === "Arrived at origins,Paid out,Under control,Explained,Claims", JSON.stringify(dhw.Explained));
+  check("decision summary: Explained is not established when a claim does not verify", Object.fromEntries(cv.decisionSummary(dossier, { ...report, all_verified: false }).map((x) => [x.key, x])).Explained.value === "Not established");
+  check("the green verdict is unchanged for the whole sample with its nonce", cv.caseVerdict(withNonceReport, dossier).tone === "ok");
+
+  // Offline: consistent with the files, never "against the chain".
+  const files = Object.fromEntries(dossierTxids(SAMPLE).map((t) => [t, { hex: hex(t), height: null, mempool: false }]));
+  const off = await checkDossier(SAMPLE, { txs: files, expectNonce: cv.SAMPLE_CHALLENGE.sample.nonce, issuedAtHeight: cv.SAMPLE_CHALLENGE.sample.height });
+  const voff = cv.caseVerdict(off, dossier);
+  check("offline: amber, consistent with the files you loaded, not checked against the chain, and never 'hold against the chain'", off.assurance === "consistent_offline" && off.anchored === false && voff.tone === "partial" && voff.reason === "offline" && voff.headline === "Consistent with the files you loaded — not checked against the chain" && /Load only files you fetched from a node yourself/.test(voff.sub) && !/hold against the chain/.test(voff.sub) && /nothing shows when it was mined/.test(voff.sub), voff.sub);
+  const offBad = await checkDossier(TAMPERED_OFF(), { txs: files });
+  check("offline: a failed claim is not supported by the transactions you loaded, not 'the chain'", /not supported by the transactions you loaded/.test(cv.caseVerdict(offBad).sub), cv.caseVerdict(offBad).sub);
+
+  // The nonce: never the dossier's in full before the reviewer's matches.
+  const own = dossier.claims[11].nonce;
+  check("maskNonce: the prefix and four characters", cv.maskNonce(own) === "zeceipt-challenge-eadb…" && cv.maskNonce("abcdefghijklmnop") === "abcd…" && cv.maskNonces(`x ${own} y`, [own]) === "x zeceipt-challenge-eadb… y");
+  const pre = cv.nonceCheck(dossier, report, "");
+  check("nonceCheck before a nonce is entered: a nonce beginning …, paste it from your case record, never the whole nonce", pre.state === "not-generated" && pre.text.includes("a nonce beginning zeceipt-challenge-eadb…") && /paste it from your case record, not from this page/.test(pre.text) && !pre.text.includes(own), pre.text);
+  check("the page's texts mask the dossier's nonce until it matches: rows, flow, summary", (() => {
+    const mask = cv.nonceMask(dossier, pre);
+    const rows = cv.claimRows(report, dossier, { mask });
+    const steps = cv.flowSteps(dossier, report, { mask });
+    const text = cv.caseSummaryText(dossier, report, { nonce: pre, mask });
+    return mask.join() === own && !JSON.stringify(rows).includes(own) && !steps.some((s) => s.created.some((n) => n.memo === own)) && !text.includes(own) && rows[11].summary.includes("zeceipt-challenge-eadb…");
+  })());
+  const typed = cv.nonceCheck(dossier, withNonceReport, own);
+  const generated = cv.nonceCheck(dossier, withNonceReport, own, { source: "generated" });
+  const sample = cv.nonceCheck(dossier, withNonceReport, own, { source: "sample" });
+  check("nonceCheck: a typed nonce equal to the dossier's gets a neutral note; generated here or the page's sample, none", typed.state === "match" && /make sure this is the one you sent to the holder/.test(typed.note) && generated.note === null && sample.note === null && cv.nonceMask(dossier, typed).length === 0);
+
+  // Unknown amounts: "—", not 0.
+  check("totalText: — when nothing is known, 'at least' when some is", cv.totalText([null, undefined], "main") === "—" && cv.totalText([100000000, null], "test") === "at least 1.0 TAZ" && cv.totalText([1, 2], "main") === "0.00000003 ZEC");
+  const unknownOrigin = { network: "main", notes: {}, all_verified: false, claims: [{ index: 0, kind: "origin", status: "not_checked", summary: "s" }] };
+  const du = Object.fromEntries(cv.decisionSummary({ network: "main", claims: [{ type: "origin", note: "n1" }] }, unknownOrigin).map((x) => [x.key, x]));
+  check("decision summary: an origin whose value is unknown reads —, not 0.0 ZEC", du["Arrived at origins"].value === "— in 1 note" && !/0\.0 ZEC/.test(JSON.stringify(du)), JSON.stringify(du["Arrived at origins"]));
+  check("funderChange reads the core's change detail", JSON.stringify(cv.funderChange(["n1 was later spent.", "0.09985000 TAZ of the inputs went back to tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv (output 0): change to the funder."])) === JSON.stringify([{ value_zat: 9985000, address: "tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv", output: 0 }]) && cv.zatFromDecimal("1.5") === 150000000);
+
+  // The deposit address the reviewer assigned (E22).
+  const X = read(path.join(repo, "fixtures/dossier/testnet-dossier-exchange.json"));
+  const xd = JSON.parse(X);
+  const txs = {};
+  for (const round of [0, 1]) for (const t of round === 0 ? dossierTxids(X) : dossierPrevoutTxids(X, txs)) txs[t] = { hex: hex(t), height: VEC.heights[t] ?? 4422279 };
+  const xc = cv.SAMPLE_CHALLENGE["sample-exchange"];
+  const xr = await checkDossier(X, { txs, expectNonce: xc.nonce, issuedAtHeight: xc.height });
+  const addr = cv.depositAddressInput(" tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR ");
+  check("depositAddressInput: a testnet P2PKH address; blank is null; anything else is refused", addr.kind === "p2pkh" && addr.network === "test" && addr.address === "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR" && cv.depositAddressInput(" ") === null && Boolean(cv.depositAddressInput("utest1abc").error) && Boolean(cv.depositAddressInput("tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPA").error));
+  // ZIP 320's example: this TEX address and this P2PKH address carry the same key hash.
+  const tex = cv.depositAddressInput("tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte");
+  check("depositAddressInput: a TEX address (ZIP 320) pays as its P2PKH address; a changed checksum is refused", tex.kind === "tex" && tex.network === "main" && cv.paysAddress("t1VmmGiyjVNeCjxDZzg7vZmd99WyzVby9yC", tex) && !cv.paysAddress("t1VmmGiyjVNeCjxDZzg7vZmd99WyzVby9yC", addr) && Boolean(cv.depositAddressInput("tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgtf").error));
+  const paid = cv.depositCheck(xr, addr);
+  const xv = cv.caseVerdict(xr, xd, { deposit: paid });
+  check("deposit address paid: named in the verdict, flagged green in its row and chip, and in the facts", paid.state === "paid" && paid.claims.join() === "2" && xv.tone === "ok" && /Claim #3 \(transparent payment\) pays the deposit address you assigned \(tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR\)/.test(xv.sub) && cv.claimRows(xr, xd, { deposit: paid })[2].flags.some((f) => f.tone === "ok" && f.text === "Pays the deposit address you assigned.") && cv.flowSteps(xd, xr, { deposit: paid }).some((s) => s.payments.some((p) => p.assigned)) && Object.fromEntries(cv.caseFacts(xd, xr, { deposit: paid }))["Deposit address you assigned"] === "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR (paid in claim #3)", xv.sub);
+  const other = cv.depositCheck(xr, cv.depositAddressInput("tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv"));
+  check("deposit address unpaid: an amber line that names the relay (spec §7.2); the verdict does not claim it", other.state === "unpaid" && /^No verified payment in this dossier pays the deposit address you assigned \(tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv\)/.test(cv.depositLineText(other)) && /relayed/.test(cv.depositLineText(other)) && /spec §7\.2/.test(cv.depositLineText(other)) && !/pays the deposit address/.test(cv.caseVerdict(xr, xd, { deposit: other }).sub) && cv.depositCheck(xr, null) === null);
+  const rec = cv.challengeRecordText({ nonce: "n", height: 1, network: "test", now: "2026-10-01T00:00:00.000Z", depositAddress: "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR" });
+  check("Copy for case file carries the deposit address; the case summary and the download too", rec.endsWith("\nDeposit address assigned: tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR") && cv.caseSummaryText(xd, xr, { deposit: other }).includes("No verified payment in this dossier pays the deposit address you assigned") && cv.caseSummaryText(xd, xr, { deposit: paid }).includes("   Pays the deposit address you assigned.") && JSON.stringify(cv.reportForDownload(xr, { deposit: paid }).case.expected_deposit_address) === JSON.stringify({ address: "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR", paid_in_claims: [2] }));
+
+  // Hiding the nullifiers (E16, D26).
+  const hidden = cv.reportForDownload(report, { hideNullifiers: true });
+  const shown = cv.reportForDownload(report, {});
+  check("hide nullifiers: none in the download, it says so, and the dossier's sha256 stays; the report itself keeps them", !JSON.stringify(hidden).includes('"nullifier"') && Object.values(hidden.notes).every((n) => n.txid && n.value_zat != null) && hidden.case.nullifiers === cv.NULLIFIERS_HIDDEN && hidden.dossier_sha256 === report.dossier_sha256 && Object.values(shown.notes).every((n) => /^[0-9a-f]{64}$/.test(n.nullifier)) && /^included/.test(shown.case.nullifiers) && Object.values(report.notes).every((n) => n.nullifier));
+
+  // A verifier older than the page's samples (E13).
+  const stale = { all_verified: false, stage: "parse", error: "json: unknown variant `transparent_payment`, expected one of `origin`, `path`, `deposit`, `control` at line 20 column 34" };
+  const vs = cv.caseVerdict(stale, null, { sample: true });
+  check("a sample the verifier cannot read: reload the page; any other dossier: the parse error, with a reload hint", vs.headline === "Reload the page" && /Reload the page\.$/.test(vs.sub) && vs.reason === "stale" && cv.caseVerdict(stale).headline === "Not a readable dossier" && /reload it first/.test(cv.caseVerdict(stale).sub));
+
+  // The build page (E11, E20).
+  check("build: the sample customer's key is the published holder-2 UFVK, scanned from 4422270", bv.SAMPLE_UFVK === read(path.join(repo, "fixtures/testnet/holder2-ufvk.txt")).trim() && bv.SAMPLE_SCAN_FROM === 4422270 && bv.ufvkNetwork(bv.SAMPLE_UFVK) === "test");
+  const XT = ["5146f38c0a782f0d76858e575c46c3b0908865987416095e4180a2c6273436e6", "a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf", "14a9551d4b85b05ce48dc6e83784bdb8bad0a68b6ec2a5e2298b2f77bb79cce6"];
+  let refused = null;
+  try { await buildDossier({ ufvk: bv.SAMPLE_UFVK, network: "test", hexes: XT.map(hex) }); } catch (e) { refused = e; }
+  const answer = bv.challengeAnswer(refused);
+  check("build: a listed challenge answer is refused by the core; the page reads its txid and nonce, and says what to do", answer?.txid === XT[2] && answer.nonce === xc.nonce && /^Transaction 14a9551d…cce6 answers a reviewer's challenge .* goes under Control, with its nonce/.test(bv.buildError(refused, "test")) && bv.challengeAnswer(new Error("other")) === null, String(refused));
+  const rebuilt = JSON.parse(await buildDossier({ ufvk: bv.SAMPLE_UFVK, network: "test", hexes: XT.slice(0, 2).map(hex), controlHex: hex(XT[2]), control: { txid: answer.txid, nonce: answer.nonce } }));
+  check("build: moved under Control with the memo's nonce, it rebuilds the exchange sample's claims", JSON.stringify([rebuilt.nk, rebuilt.notes, rebuilt.claims]) === JSON.stringify([xd.nk, xd.notes, xd.claims]));
+  const buildHtml = read(path.join(root, "build/index.html"));
+  check("build page: the NU7 notice, the sample key button, the one-click fix", /NU7 activates on Zcash testnet on 2026-10-06/.test(buildHtml) && /refuses a transaction mined after activation/.test(buildHtml) && buildHtml.includes('id="sample-key"') && buildHtml.includes("Try with the sample customer's viewing key") && buildHtml.includes('id="error-fix-btn"'));
+  const caseHtml = read(path.join(root, "case/index.html"));
+  check("case page: the deposit address input, the hide-nullifiers toggle, the nonce hint, and the E23 after-the-case words", caseHtml.includes('id="deposit-input"') && caseHtml.includes('id="deposit-line"') && caseHtml.includes('id="hide-nullifiers"') && caseHtml.includes("Paste it from your case record, not from this page.") && /anyone who ever paid you \(an exchange that sent withdrawals to you, for example\) and obtains the nk can see when every note they paid you is spent, past and future, not only the disclosed ones/.test(caseHtml));
+}
+
 // ---- a self-hosted copy with the reviewer's own node (scripts/build_site.sh --node) ----
 {
   const { execFileSync } = await import("node:child_process");
@@ -321,6 +450,26 @@ check("shortTxid is the core's (8…4)", cv.shortTxid("90f6a3354862cf5b2f46e29ad
     const pub = read(path.join(root, page, "index.html"));
     check(`public ${page}/ names no own node`, pub.includes('<meta name="zeceipt-nodes" content="">'));
   }
+  // Cache-busting (E13): every module, stylesheet and WebAssembly URL carries ?v=<sha256 of the file, 8 hex>, so no
+  // browser pairs a new page or sample with an old verifier.
+  const { createHash } = await import("node:crypto");
+  const sha8 = (p) => createHash("sha256").update(fs.readFileSync(p)).digest("hex").slice(0, 8);
+  const refs = [];
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  for (const f of walk(out).filter((f) => /\.(js|html)$/.test(f))) {
+    const t = read(f);
+    for (const m of t.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|<script type="module" src=|<link rel="stylesheet" href=)["'](\.\.?\/[^"']+|[\w-]+\.(?:js|css)[^"']*)["']/g)) refs.push([f, m[1]]);
+    for (const m of t.matchAll(/["']((?:\.\.?\/)?(?:[\w-]+\/)*zeceipt_wasm_bg\.wasm[^"']*)["']/g)) refs.push([f, m[1]]);
+  }
+  const wrong = [];
+  for (const [f, ref] of refs) {
+    const [p, v] = ref.split("?v=");
+    const target = path.join(path.dirname(f), p);
+    if (!v || !fs.existsSync(target) || v !== sha8(target)) wrong.push(`${path.relative(out, f)}: ${ref}`);
+  }
+  check(`cache-busting: all ${refs.length} module, stylesheet and wasm references in the site carry ?v= and the file's own sha256`, refs.length > 30 && wrong.length === 0, wrong.join("; "));
+  check("cache-busting: the site's .wasm is the committed one, byte for byte, and the pages load it by its version", Buffer.compare(fs.readFileSync(path.join(out, "pkg/zeceipt_wasm_bg.wasm")), fs.readFileSync(path.join(root, "pkg/zeceipt_wasm_bg.wasm"))) === 0 && read(path.join(out, "pkg/zeceipt_wasm.js")).includes(`'zeceipt_wasm_bg.wasm?v=${sha8(path.join(root, "pkg/zeceipt_wasm_bg.wasm"))}'`) && /src="page\.js\?v=[0-9a-f]{8}"/.test(read(path.join(out, "case/index.html"))));
+  check("cache-busting: the repository's own pages are left as they are (no query strings)", !/\?v=/.test(read(path.join(root, "case/page.js"))) && !/\?v=/.test(read(path.join(root, "case/index.html"))));
   fs.rmSync(out, { recursive: true, force: true });
   let refused = 0;
   for (const bad of ["http://node.example.org", "ftp://x", "not a url"]) {

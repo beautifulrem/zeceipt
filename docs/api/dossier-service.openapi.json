@@ -4,7 +4,7 @@
     "title": "zeceipt dossier service",
     "version": "0.1.0",
     "summary": "`zeceipt dossier serve`: check source-of-funds dossiers (zeceipt-dossier-v1) against the Zcash chain, for a compliance back office.",
-    "description": "A self-hosted HTTP/1.1 service. No authentication, no TLS, no state: put it behind your own reverse proxy with TLS, authentication, a rate limit and a timeout. It listens on loopback unless started with `--allow-remote`. Request bodies are capped at 1 MiB. Transactions are fetched from zec.rocks, from `--endpoint`, or from `--raw-tx-dir` (offline). Every answer is JSON with `Cache-Control: no-store`; any other method or path is a 404. No CORS headers are sent. Human documentation: docs/api/dossier-service.md. Written 2026-09-30 from the working tree after 44b8877 (which adds issued_at_height, assurance and the transparent_payment claim, not yet committed that day), and checked against a running build of it: crates/zeceipt-cli/src/main.rs (`serve_dossiers`) and crates/zeceipt-core/src/dossier.rs (`Report`). `security` is empty on purpose: the service itself authenticates no one; the proxy in front of it does.",
+    "description": "A self-hosted HTTP/1.1 service. No authentication, no TLS, no state: put it behind your own reverse proxy with TLS, authentication, a rate limit and a timeout. It listens on loopback unless started with `--allow-remote`. Request bodies are capped at 1 MiB. Transactions are fetched from zec.rocks, from `--endpoint`, or from `--raw-tx-dir` (offline). Every answer is JSON with `Cache-Control: no-store`; any other method or path is a 404. No CORS headers are sent, and a request whose `Origin` header is not allowed with `--allow-origin` is refused with 403 on every path, so a web page in an analyst's browser cannot drive the service with a simple cross-origin POST. Human documentation: docs/api/dossier-service.md. Written 2026-09-30 and checked against a running build that day, updated 2026-10-01 for abb0ef7 (anchored, untraced, undisclosed_input_min_zat, the consistent_offline and verified_partly_explained assurances, the 403, 415 and network 422 responses): crates/zeceipt-cli/src/main.rs (`serve_dossiers`) and crates/zeceipt-core/src/dossier.rs (`Report`). `security` is empty on purpose: the service itself authenticates no one; the proxy in front of it does.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -60,6 +60,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -97,6 +100,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -107,7 +113,7 @@
       "post": {
         "operationId": "verifyDossier",
         "summary": "Check every claim of a dossier against the chain",
-        "description": "The body is the dossier file exactly as received (UTF-8 JSON, at most 1 MiB; the content type is not checked); `dossier_sha256` is the sha256 of these bytes. The dossier's own `network` selects the network (unless the service was started with --testnet or --regtest, which force it). A checked dossier is always a 200, whatever the outcome: read `all_verified`, `controlled`, `assurance` and each claim's `status`. A transaction the node does not have or has only in its mempool makes the claims that rest on it `not_checked`; it is not an error.",
+        "description": "The body is the dossier file exactly as received (UTF-8 JSON, at most 1 MiB), sent as `Content-Type: application/json` (anything else is a 415); `dossier_sha256` is the sha256 of these bytes. The service checks one network, mainnet unless started with --testnet or --regtest; a dossier whose `network` names another is refused with a 422 at stage `network`. A checked dossier is always a 200, whatever the outcome: read `assurance` (and `all_verified`, `controlled`, `untraced`, `undisclosed_input_min_zat`) and each claim's `status`. A transaction the node does not have or has only in its mempool makes the claims that rest on it `not_checked`; it is not an error.",
         "parameters": [
           {
             "name": "expect_nonce",
@@ -359,6 +365,8 @@
                   ],
                   "all_verified": true,
                   "assurance": "verified_with_control",
+                  "anchored": true,
+                  "undisclosed_input_min_zat": 0,
                   "disclosed": [
                     "9 note openings (each: its transaction, amount, recipient address and memo)",
                     "nk, the nullifier key: the reviewer can tell when any disclosed note is spent, and so can anyone who learns nk and another of the account's note openings (its sender knows them)",
@@ -388,6 +396,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -404,8 +415,30 @@
               }
             }
           },
+          "415": {
+            "description": "The `Content-Type` is not `application/json` (parameters such as `; charset=utf-8` allowed) or is missing",
+            "headers": {
+              "Cache-Control": {
+                "description": "Always `no-store`.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "send the dossier as application/json"
+                }
+              }
+            }
+          },
           "422": {
-            "description": "The dossier does not parse",
+            "description": "The dossier does not parse (stage `parse`), or its `network` is not the service's (stage `network`)",
             "headers": {
               "Cache-Control": {
                 "description": "Always `no-store`.",
@@ -420,10 +453,23 @@
                 "schema": {
                   "$ref": "#/components/schemas/ParseError"
                 },
-                "example": {
-                  "all_verified": false,
-                  "error": "json: unknown field `extra`, expected one of `version`, `network`, `created`, `subject`, `nk`, `notes`, `receipts`, `claims` at line 1 column 79",
-                  "stage": "parse"
+                "examples": {
+                  "parse": {
+                    "summary": "A field the format does not have",
+                    "value": {
+                      "all_verified": false,
+                      "error": "json: unknown field `extra`, expected one of `version`, `network`, `created`, `subject`, `nk`, `notes`, `receipts`, `claims` at line 1 column 79",
+                      "stage": "parse"
+                    }
+                  },
+                  "network": {
+                    "summary": "A mainnet dossier sent to a service started with --testnet",
+                    "value": {
+                      "all_verified": false,
+                      "stage": "network",
+                      "error": "the dossier is for mainnet, and this checks testnet: check it without --testnet/--regtest, or against a node of its network"
+                    }
+                  }
                 }
               }
             }
@@ -468,6 +514,28 @@
             }
           }
         }
+      },
+      "Forbidden": {
+        "description": "The request carries an `Origin` header that `--allow-origin` does not name (checked first, on every path)",
+        "headers": {
+          "Cache-Control": {
+            "description": "Always `no-store`.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "cross-origin requests are refused (start the service with --allow-origin to allow one)"
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -496,7 +564,11 @@
           },
           "stage": {
             "type": "string",
-            "const": "parse"
+            "enum": [
+              "parse",
+              "network"
+            ],
+            "description": "`parse`: the dossier does not parse; `network`: its `network` is not the service's"
           },
           "error": {
             "type": "string"
@@ -699,7 +771,7 @@
           {
             "type": "object",
             "title": "transparent_payment",
-            "description": "Being added on 2026-09-30 (working tree after 44b8877): a payment from disclosed notes to transparent output `output` of transaction `tx`.",
+            "description": "A payment from disclosed notes to transparent output `output` of transaction `tx`.",
             "required": [
               "type",
               "tx",
@@ -796,7 +868,7 @@
           },
           "paid_in_claim": {
             "type": "integer",
-            "description": "Working tree, 2026-09-30: the index of this dossier's transparent_payment claim for the output this input spends"
+            "description": "The index of this dossier's transparent_payment claim for the output this input spends"
           }
         }
       },
@@ -875,7 +947,12 @@
           },
           "paid_to": {
             "type": "string",
-            "description": "transparent_payment (working tree, 2026-09-30): the address the output pays, read from its script"
+            "description": "transparent_payment: the address the output pays, read from its script"
+          },
+          "undisclosed_input_min_zat": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Omitted when 0: at least this much of what the claim's transaction paid came from notes the dossier does not disclose (spec §5.6)"
           }
         },
         "examples": [
@@ -927,6 +1004,9 @@
           "notes",
           "claims",
           "all_verified",
+          "assurance",
+          "anchored",
+          "undisclosed_input_min_zat",
           "disclosed",
           "does_not_prove"
         ],
@@ -974,18 +1054,36 @@
           "all_verified": {
             "type": "boolean"
           },
+          "anchored": {
+            "type": "boolean",
+            "description": "Every transaction the claims name came from a node, with a height. False offline (--raw-tx-dir): files carry no heights, and their inclusion in the chain is not checked"
+          },
+          "untraced": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Funding notes of a deposit, transparent payment or control (funded_by, spent) that no chain of verified path claims leads back to an origin claim (spec §5.6); omitted when empty"
+          },
+          "undisclosed_input_min_zat": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A lower bound, summed once per transaction, on what the claims' transactions paid from notes the dossier does not disclose (spec §5.6): a small disclosed note \"funding\" a large payment shows here"
+          },
           "assurance": {
             "type": "string",
             "enum": [
               "verified_with_control",
               "verified_history_only",
+              "verified_partly_explained",
+              "consistent_offline",
               "not_verified"
             ],
-            "description": "Working tree, 2026-09-30: every claim verified and control answered your nonce; every claim verified but nothing shows the holder can spend the funds now; or not verified"
+            "description": "The first that applies: not_verified (not all_verified); consistent_offline (every claim holds against the transactions supplied, but anchored is false: consistency with files, not verification against the chain); verified_partly_explained (some funds are untraced, or undisclosed_input_min_zat is above 0); verified_history_only (explained, but no control claim answers your nonce); verified_with_control. The CLI exits 4 for consistent_offline and verified_partly_explained"
           },
           "issued_at_height": {
             "type": "integer",
-            "description": "Working tree, 2026-09-30: the issued_at_height given"
+            "description": "The issued_at_height given"
           },
           "disclosed": {
             "type": "array",

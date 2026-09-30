@@ -68,4 +68,61 @@ for page in ("case/index.html", "build/index.html"):
 print("self-hosted: " + ", ".join(f"{k}: {' '.join(v)}" for k, v in nodes.items()))
 PY
 fi
+# Cache-busting (appraisal round 2, E13): a static host lets browsers keep each file for a while (GitHub Pages: 10
+# minutes), so a page open across a deploy, or a revisit, could pair a new sample with an old verifier. Every module
+# import, module script, stylesheet and WebAssembly URL in the site gets `?v=<the first 8 hex of the file's sha256>`,
+# the file's content after its own references are versioned, so a change anywhere below a page changes that page's
+# URLs. The .wasm bytes are untouched (their sha256 is still the README's); only the JavaScript and HTML that name
+# them change. A reference to a file that is not in the site fails the build.
+python3 - "$out" <<'PY'
+import hashlib, os, re, sys
+out = os.path.realpath(sys.argv[1])
+JS_REF = re.compile(r"""(\bfrom\s*|\bimport\s*\(?\s*)(["'])(\.\.?/[^"'?#]+\.js)\2""")
+WASM_REF = re.compile(r"""(["'])((?:\.\.?/)?(?:[\w-]+/)*zeceipt_wasm_bg\.wasm)\1""")
+HTML_REF = re.compile(r"""(<script type="module" src="|<link rel="stylesheet" href=")([^"?#:]+\.(?:js|css))(")""")
+INLINE = re.compile(r"(<script type=\"module\">)(.*?)(</script>)", re.S)
+done, busy = {}, set()
+
+def resolve(src, ref):
+    path = os.path.realpath(os.path.join(os.path.dirname(src), ref))
+    if not path.startswith(out + os.sep) or not os.path.isfile(path):
+        sys.exit(f"build_site: {os.path.relpath(src, out)} names {ref}, which is not in the site")
+    return path
+
+def rewrite_js(src, text):
+    text = JS_REF.sub(lambda m: f"{m[1]}{m[2]}{m[3]}?v={version(resolve(src, m[3]))}{m[2]}", text)
+    return WASM_REF.sub(lambda m: f"{m[1]}{m[2]}?v={version(resolve(src, m[2]))}{m[1]}", text)
+
+def version(path):
+    """The file's version: its content, with its own references versioned first, hashed."""
+    if path in done:
+        return done[path]
+    if path in busy:
+        sys.exit(f"build_site: an import cycle through {os.path.relpath(path, out)}")
+    busy.add(path)
+    if path.endswith(".js"):
+        text = rewrite_js(path, open(path, encoding="utf-8").read())
+        open(path, "w", encoding="utf-8").write(text)
+        data = text.encode()
+    else:
+        data = open(path, "rb").read()
+    busy.discard(path)
+    done[path] = hashlib.sha256(data).hexdigest()[:8]
+    return done[path]
+
+pages = 0
+for d, _, files in os.walk(out):
+    for f in files:
+        p = os.path.join(d, f)
+        if f.endswith(".js"):
+            version(p)
+        elif f.endswith(".html"):
+            html = open(p, encoding="utf-8").read()
+            new = HTML_REF.sub(lambda m: f"{m[1]}{m[2]}?v={version(resolve(p, m[2]))}{m[3]}", html)
+            new = INLINE.sub(lambda m: m[1] + rewrite_js(p, m[2]) + m[3], new)
+            if new != html:
+                open(p, "w", encoding="utf-8").write(new)
+                pages += 1
+print(f"versioned: {len(done)} files, referenced from {pages} pages")
+PY
 echo "site built in $out ($(find "$out" -type f | wc -l | tr -d ' ') files)"

@@ -1,6 +1,6 @@
 # The dossier service (`zeceipt dossier serve`)
 
-A small HTTP/1.1 service that runs `zeceipt dossier verify` for a compliance back office: post a dossier, get the report JSON. Written 2026-09-30 from `crates/zeceipt-cli/src/main.rs` (`serve_dossiers`, `check_dossier_text`) and `crates/zeceipt-core/src/dossier.rs` (`Report`) in the working tree after `44b8877`, which adds the nonce's issue height, `assurance` and the `transparent_payment` claim (not yet committed that day), and checked against a running build of that tree the same day (the examples below are its answers). If those changes are committed differently, re-check the parts marked "(new)". The machine-readable description is [`dossier-service.openapi.json`](dossier-service.openapi.json) (OpenAPI 3.1). The test is `dossier_serve_answers_over_http` in `crates/zeceipt-cli/tests/cli.rs`.
+A small HTTP/1.1 service that runs `zeceipt dossier verify` for a compliance back office: post a dossier, get the report JSON. Written 2026-09-30 from `crates/zeceipt-cli/src/main.rs` (`serve_dossiers`, `check_dossier_text`, `network_conflict`) and `crates/zeceipt-core/src/dossier.rs` (`Report`), and checked against a running build that day (the examples below are its answers). Updated 2026-10-01 for `abb0ef7`: trace closure and value coverage (`untraced`, `undisclosed_input_min_zat`), the `anchored` flag and the `consistent_offline` and `verified_partly_explained` assurances, the refusal of a network flag that disagrees with the dossier, and the refusal of cross-origin and non-JSON requests. The machine-readable description is [`dossier-service.openapi.json`](dossier-service.openapi.json) (OpenAPI 3.1). The test is `dossier_serve_answers_over_http` in `crates/zeceipt-cli/tests/cli.rs`.
 
 The service holds no state, no accounts and no keys. It keeps no copy of a dossier or a report, and it logs one line at startup and nothing per request.
 
@@ -19,7 +19,8 @@ target/release/zeceipt dossier serve --raw-tx-dir /case/txs            # air-gap
 | `--allow-remote` | off | Allow a non-loopback `--listen`. The service has no TLS and no authentication: put it behind your own |
 | `--endpoint <url>` | zec.rocks (`zec.rocks` for mainnet, `testnet.zec.rocks` for testnet) | The node(s) to fetch transactions from; repeat for fallbacks. Required for a `regtest` dossier |
 | `--raw-tx-dir <dir>` | none | Read `<txid>.hex` files instead of a node. A missing file leaves the claims that need it `not_checked`; heights are unknown, so every claim adds "Loaded without a height (from a file): the inclusion of … in the chain was not checked here" |
-| `--testnet`, `--regtest` | off | For checking, not needed: each dossier's own `network` field selects the network, and `--testnet` forces testnet for every dossier, so a service started with it cannot check a mainnet dossier. They do select the network whose chain height `POST /v1/nonces` reports |
+| `--testnet`, `--regtest` | off (mainnet) | The service's network: the chain its node is asked for transactions and for the height `POST /v1/nonces` reports. A dossier whose `network` field names another network is refused with `422` and `"stage": "network"` ("the dossier is for mainnet, and this checks testnet: …"), since its txids would be looked up on the wrong chain and a testnet dossier relabelled `main` would read as mainnet ZEC. Run one service per network |
+| `--allow-origin <origin>` | none | A browser origin allowed to call the service (repeat), e.g. `https://kyc.example.com`. A request with any other `Origin` header is refused with `403`. Callers that send no `Origin` (servers, `curl`) are not affected |
 
 **Docker.** The repository's [`Dockerfile`](../../Dockerfile) builds the CLI and runs `zeceipt dossier serve --allow-remote --listen 0.0.0.0:8787` as an unprivileged user; extra arguments (`--endpoint …`, `--raw-tx-dir …`) are appended.
 
@@ -31,11 +32,11 @@ docker run --rm -p 127.0.0.1:8787:8787 -v "$PWD/fixtures/testnet:/txs:ro" zeceip
 
 Built and run on 2026-09-30 (Docker 29.5.2 on colima, `rust:1.96-bookworm` builder, a 64 MB `distroless/cc-debian12:nonroot` image): `/healthz` answered, and the testnet sample verified 12 of 12 with `controlled` true, offline from a mounted directory and live from `testnet.zec.rocks` (17.7 s). With colima or Docker Desktop, mount a directory the VM shares (under your home directory by default); an unshared path mounts as an empty directory, and every claim is then `not_checked`.
 
-**Before exposing it.** Front it with a reverse proxy that terminates TLS, authenticates callers, limits the request rate and sets a timeout. The service has none of these. A verification can take seconds (the testnet sample took 7–11 s against `testnet.zec.rocks` on 2026-09-30), and each connection is served in its own task with no limit. The service sends no CORS headers, so a page on another origin cannot read its answers: it is meant to be called from a server.
+**Before exposing it.** Front it with a reverse proxy that terminates TLS, authenticates callers, limits the request rate and sets a timeout. The service has none of these. A verification can take seconds (the testnet sample took 7–11 s against `testnet.zec.rocks` on 2026-09-30), and each connection is served in its own task with no limit. The service sends no CORS headers, so a page on another origin cannot read its answers; and since a browser can still send a "simple" cross-origin POST (no preflight, `text/plain`), the service refuses any request whose `Origin` header is not allowed with `--allow-origin` (`403`), and takes a dossier only as `application/json` (`415`). So a web page open in an analyst's browser cannot make the service fetch transactions or issue nonces. It is meant to be called from a server.
 
 ## Endpoints
 
-Every answer is JSON (`content-type: application/json`, `cache-control: no-store`). Any other method or path gets `404` with `{"error": "POST /v1/dossiers/verify, POST /v1/nonces or GET /healthz"}`; there is no `405`, so `GET /v1/dossiers/verify` is a 404.
+Every answer is JSON (`content-type: application/json`, `cache-control: no-store`). Any other method or path gets `404` with `{"error": "POST /v1/dossiers/verify, POST /v1/nonces or GET /healthz"}`; there is no `405`, so `GET /v1/dossiers/verify` is a 404. On every path, a request with an `Origin` header that `--allow-origin` does not name gets `403` with `{"error": "cross-origin requests are refused (start the service with --allow-origin to allow one)"}`, before anything else is done.
 
 ### `GET /healthz`
 
@@ -49,7 +50,7 @@ Every answer is JSON (`content-type: application/json`, `cache-control: no-store
 
 ### `POST /v1/nonces`
 
-A fresh challenge for a holder: `zeceipt-challenge-` and 16 random bytes from the operating system's generator, in hex, with the chain height and time it was issued at (new). No request body is needed. `201`, from a service started with `--testnet`:
+A fresh challenge for a holder: `zeceipt-challenge-` and 16 random bytes from the operating system's generator, in hex, with the chain height and time it was issued at. No request body is needed. `201`, from a service started with `--testnet`:
 
 ```json
 {"issued_at":"2026-09-30T15:58:33Z","issued_at_height":4422278,"network":"test","nonce":"zeceipt-challenge-3b8f8c3d38f309ee7e8649c9a628066a"}
@@ -60,17 +61,17 @@ A fresh challenge for a holder: `zeceipt-challenge-` and 16 random bytes from th
 
 ### `POST /v1/dossiers/verify`
 
-The request body is the dossier file exactly as the holder sent it (UTF-8 JSON, at most 1 MiB; the content type is not checked). `dossier_sha256` in the report is the sha256 of these bytes, for the case file.
+The request body is the dossier file exactly as the holder sent it (UTF-8 JSON, at most 1 MiB), sent as `Content-Type: application/json` (parameters such as `; charset=utf-8` are allowed; anything else is a `415`). `dossier_sha256` in the report is the sha256 of these bytes, for the case file.
 
 | Query parameter | Meaning |
 |---|---|
 | `expect_nonce` (optional) | The nonce you issued. Every control claim must answer it, or it fails ("not the one you issued"). Without it, `controlled` is always `false`, because an old dossier answers an old nonce. With it and no control claim in the dossier, `problems` says so and `all_verified` is false. The value is taken literally: `+` becomes a space and there is no percent-decoding, which zeceipt's nonces (`[a-z0-9-]`) never need |
-| `issued_at_height` (optional, new) | The chain height when you issued the nonce. A control transaction mined below it fails ("mined at height H, before you issued the nonce at height H₀"). If the challenge's height is unknown (`--raw-tx-dir`), the claim can still verify, and a detail says the height was not checked. Not a non-negative integer: `400` |
+| `issued_at_height` (optional) | The chain height when you issued the nonce. A control transaction mined below it fails ("mined at height H, before you issued the nonce at height H₀"). If the challenge's height is unknown (`--raw-tx-dir`), the claim can still verify, and a detail says the height was not checked. Not a non-negative integer: `400` |
 
 The service fetches every transaction the dossier's claims name, then the previous transactions of its origins' transparent inputs (to read the funders' addresses from the outputs they spend), from `--raw-tx-dir` or the node, and checks every claim (`spec/dossier-v1.md` §5).
 
 ```bash
-curl -s -X POST --data-binary @fixtures/dossier/testnet-dossier.json \
+curl -s -X POST -H 'content-type: application/json' --data-binary @fixtures/dossier/testnet-dossier.json \
   "http://127.0.0.1:8787/v1/dossiers/verify?expect_nonce=zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8"
 ```
 
@@ -78,8 +79,11 @@ curl -s -X POST --data-binary @fixtures/dossier/testnet-dossier.json \
 |---|---|---|
 | `200` | The dossier parsed and was checked, whatever the outcome | The report (below). A failed claim is still a `200` |
 | `400` | The body is not UTF-8, or `issued_at_height` is not a height | `{"error": "the body is not UTF-8"}`, `{"error": "issued_at_height is a block height"}` |
+| `403` | The request carries an `Origin` header that `--allow-origin` does not name | `{"error": "cross-origin requests are refused (start the service with --allow-origin to allow one)"}` |
 | `413` | The body is over 1 MiB (1,048,576 bytes), or the upload broke off | `{"error": "the body is over 1 MiB, or broken"}` |
+| `415` | The `Content-Type` is not `application/json` (or is missing) | `{"error": "send the dossier as application/json"}` |
 | `422` | The dossier does not parse: bad JSON, an unknown field or claim type, another version, a malformed note opening or `nk`, a note disclosed twice | `{"all_verified": false, "stage": "parse", "error": "…"}` |
+| `422` | The dossier's `network` is not the service's (`--testnet`, `--regtest`, or mainnet without either) | `{"all_verified": false, "stage": "network", "error": "the dossier is for mainnet, and this checks testnet: check it without --testnet/--regtest, or against a node of its network"}` |
 | `502` | Fetching transactions failed with an error other than "not found" or "not mined yet" (every node unreachable, for example) | `{"error": "fetching transactions: …"}` |
 
 A `422`, from a dossier with a field added:
@@ -110,18 +114,21 @@ The same JSON `zeceipt dossier verify` prints, and `checkDossier` returns in the
 | `subject` | string, optional | Copied from the dossier; unauthenticated |
 | `dossier_sha256` | hex | sha256 of the request body |
 | `notes` | object: id → note fact | Per disclosed note: `txid`, `pool`, `action`, and when known `height`, `recipient`, `value_zat`, `memo`, `nullifier`, `spent_in` (the fetched transaction that spends it: only then is the note shown to be the holder's), or `error` |
-| `claims` | [claim result] | In the dossier's order: `index`, `kind` (`origin`, `path`, `deposit`, `control`, and new: `transparent_payment`), `status`, `summary` (one sentence), `details` (omitted if empty), `funding` (origin: `transparent_inputs` of `{prevout, address?, value_zat?, paid_in_claim?}`, `shielded_actions`, `sapling_spends`, `from_disclosed`), `value_zat` (deposit and transparent payment: the amount paid; control: the spent notes), `paid_to` (new, transparent payment: the address, read from the output's script) |
+| `claims` | [claim result] | In the dossier's order: `index`, `kind` (`origin`, `path`, `deposit`, `control`, `transparent_payment`), `status`, `summary` (one sentence), `details` (omitted if empty), `funding` (origin: `transparent_inputs` of `{prevout, address?, value_zat?, paid_in_claim?}`, `shielded_actions`, `sapling_spends`, `from_disclosed`), `value_zat` (deposit and transparent payment: the amount paid; control: the spent notes), `paid_to` (transparent payment: the address, read from the output's script), `undisclosed_input_min_zat` (omitted when 0: at least this much of what the claim's transaction paid came from notes the dossier does not disclose; spec §5.6) |
 | `all_verified` | bool | Every claim `verified` and no `problems` |
-| `assurance` (new) | string | `verified_with_control` (every claim verified, and a control claim answers your nonce), `verified_history_only` (every claim verified, but nothing shows the holder can spend the funds now), or `not_verified` |
-| `issued_at_height` (new) | integer, optional | The `issued_at_height` you passed |
+| `anchored` | bool | Every transaction the claims name came from a node, with a height. `false` offline (`--raw-tx-dir`): files carry no heights, and nothing checks their inclusion in the chain |
+| `untraced` | [note id], omitted if empty | Funding notes of a deposit, transparent payment or control (`funded_by`, `spent`) that no chain of verified path claims leads back to an origin claim (spec §5.6) |
+| `undisclosed_input_min_zat` | integer | A lower bound, summed once per transaction, on what the claims' transactions paid from notes the dossier does not disclose: the mixing case, a small disclosed note "funding" a large payment (spec §5.6) |
+| `assurance` | string | The first that applies: `not_verified` (not `all_verified`); `consistent_offline` (every claim holds against the transactions supplied, but `anchored` is false: consistency with files, not verification against the chain); `verified_partly_explained` (some funds are `untraced`, or `undisclosed_input_min_zat` is above 0); `verified_history_only` (explained, but no control claim answers your nonce); `verified_with_control` |
+| `issued_at_height` | integer, optional | The `issued_at_height` you passed |
 | `disclosed` | [string] | What the holder gave up by handing the dossier over |
 | `does_not_prove` | [string] | What no claim proves (counterparties, undisclosed inputs, undisclosed funds, funds after the challenge, a legal attestation) |
 
 **Statuses.** `verified`; `failed` (the chain data contradicts the claim); `not_checked` (a transaction is in the mempool or was not found: check again later); `unproven` (the data given cannot show it, and waiting will not change that: an origin whose note nothing in the dossier spends, so it is not shown to be the holder's).
 
-**Reading it as the CLI does.** `zeceipt dossier verify` exits 0 when `all_verified`; 1 when a claim is `failed` or `unproven` or there is a problem; 2 otherwise (something is `not_checked`). A reviewer who sent a nonce reads `assurance` (or `controlled`), not only `all_verified`: without `expect_nonce`, a dossier with no control claim is `all_verified` and shows no control.
+**Reading it as the CLI does.** `zeceipt dossier verify` exits 0 when `all_verified` and `assurance` is `verified_with_control` or `verified_history_only`; 4 when `all_verified` but `assurance` is `consistent_offline` or `verified_partly_explained` (read the report before relying on it); 1 when a claim is `failed` or `unproven`, there is a problem, the dossier does not parse, or a network flag disagrees with it (`"stage": "network"`); 2 otherwise (something is `not_checked`); 3 on an I/O or node error with no report. A reviewer reads `assurance`, not only `all_verified`: without `expect_nonce`, a dossier with no control claim is `all_verified` and shows no control, and a dossier of a control claim alone is `all_verified` but explains nothing (`untraced`).
 
-**Transparent payments (new).** A dossier claim `{"type": "transparent_payment", "tx": "<txid>", "output": <n>, "funded_by": ["<note id>", …]}` says the holder paid transparent output `n` of `tx` (an exchange deposit or a TEX address) from the listed notes. The check reads the address and amount from the output's script, and requires each funding note's nullifier among the transaction's spends. When an origin's transparent input spends such an output (funds that left the pool and came back), its `paid_in_claim` names that claim. An example from a run follows the main example below.
+**Transparent payments.** A dossier claim `{"type": "transparent_payment", "tx": "<txid>", "output": <n>, "funded_by": ["<note id>", …]}` says the holder paid transparent output `n` of `tx` (an exchange deposit or a TEX address) from the listed notes. The check reads the address and amount from the output's script, and requires each funding note's nullifier among the transaction's spends. When an origin's transparent input spends such an output (funds that left the pool and came back), its `paid_in_claim` names that claim. An example from a run follows the main example below.
 
 ### Example
 
@@ -181,6 +188,9 @@ The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its n
     }
   ],
   "all_verified": true,
+  "assurance": "verified_with_control",
+  "anchored": true,
+  "undisclosed_input_min_zat": 0,
   "disclosed": [
     "9 note openings (each: its transaction, amount, recipient address and memo)",
     "nk, the nullifier key: the reviewer can tell when any disclosed note is spent, and so can anyone who learns nk and another of the account's note openings (its sender knows them)",
@@ -196,9 +206,9 @@ The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its n
 }
 ```
 
-The report of the working tree also carries `"assurance": "verified_with_control"` (new). The same request with `expect_nonce=zeceipt-challenge-00000000000000000000000000000000` is also a `200`, with `all_verified` and `controlled` false, and claim 11 `failed`: "This control claim answers nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, not the one you issued: it was made for another challenge, or an earlier one." With the right nonce and `issued_at_height=4421400`, above the challenge's height 4,421,345, claim 11 fails: "The challenge transaction 10e941e7…6e43 was mined at height 4421345, before you issued the nonce at height 4421400: it was not made in answer to your challenge." Without `expect_nonce`, `all_verified` is true, `controlled` false and `assurance` `verified_history_only`.
+The same request with `expect_nonce=zeceipt-challenge-00000000000000000000000000000000` is also a `200`, with `all_verified` and `controlled` false, and claim 11 `failed`: "This control claim answers nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, not the one you issued: it was made for another challenge, or an earlier one." With the right nonce and `issued_at_height=4421400`, above the challenge's height 4,421,345, claim 11 fails: "The challenge transaction 10e941e7…6e43 was mined at height 4421345, before you issued the nonce at height 4421400: it was not made in answer to your challenge." Without `expect_nonce`, `all_verified` is true, `controlled` false and `assurance` `verified_history_only`.
 
-A transparent payment and an `unproven` origin (new), from `fixtures/dossier/testnet-dossier-transparent-origin.json` as regenerated in the working tree on 2026-09-30, checked offline (`--raw-tx-dir fixtures/testnet`). The holder paid 0.05 TAZ from n5 to a transparent address, then shielded it back; the origin of the shielded note names that payment. The address is the holder's own, not an exchange's:
+A transparent payment and an `unproven` origin, from `fixtures/dossier/testnet-dossier-transparent-origin.json`, checked offline (`--raw-tx-dir fixtures/testnet`). The holder paid 0.05 TAZ from n5 to a transparent address, then shielded it back; the origin of the shielded note names that payment. The address is the holder's own, not an exchange's:
 
 ```json
 {
@@ -246,5 +256,5 @@ Summary and detail sentences are for people, and their wording may change betwee
 ## Privacy and trust
 
 - **The node** learns which transactions were asked for together, which links them (spec §8.4). Use `--endpoint` with your own node, or `--raw-tx-dir`.
-- **The node is trusted** for inclusion and heights: a txid binds a transaction's contents, not that it was mined. In `--raw-tx-dir` mode nothing is checked about inclusion, and every claim says so.
+- **The node is trusted** for inclusion and heights: a txid binds a transaction's contents, not that it was mined. In `--raw-tx-dir` mode nothing is checked about inclusion, every claim says so, and the report is `consistent_offline` (never `verified_*`).
 - **The request and the report are case material.** A dossier discloses note openings and the holder's `nk`, and the report lists the disclosed notes' nullifiers: anyone holding either can recognise those notes' later spends (spec §8.1). Keep them to the case, and do not log request bodies in the proxy in front of the service.

@@ -1,7 +1,7 @@
 // Pure logic for the dossier builder (build/index.html): the holder's inputs checked before anything is fetched, the
 // builder's errors in words a holder can act on, and the summary of what a dossier discloses. No DOM here; build/page.js
 // renders these with textContent only. Tested by test/dossier-view.mjs.
-import { NETWORK_NAME, kindBreakdown } from "../case/view.js";
+import { NETWORK_NAME, NONCE_PREFIX, kindBreakdown } from "../case/view.js";
 
 const TXID = /^[0-9a-f]{64}$/;
 const UFVK_NETWORK = [[/^uviewtest1/, "test"], [/^uviewregtest1/, "regtest"], [/^uview1/, "main"]];
@@ -24,12 +24,22 @@ export function networkForKey(ufvk, offered = ["main", "test"]) {
   return { network: null, note: `This is a key for the ${NETWORK_NAME[net]}: this page reads only mainnet and testnet from public nodes. Build a regtest dossier with the command line (zeceipt dossier build).` };
 }
 
+/**
+ * The sample customer of the exchange-deposit review (docs/PROOF.md §9): a public testnet viewing key, published as
+ * fixtures/testnet/holder2-ufvk.txt (test/dossier-view.mjs checks they agree), and the height to scan from. Its
+ * transactions were mined before NU7 reached testnet, so the builder keeps working on them after 2026-10-06.
+ */
+export const SAMPLE_UFVK = "uviewtest14me90fl05mxtzmt0qydd5l3g3x5lakypxkm6uz6rhxvquzl4620ac7xd32dyls945y3l2kts0cefeep8esng05tfhn9e2287duz7ap9qmz8gvlaftakcrtpeefr9nad85t7yk9gehl2p4sneah88trjfw43455px0ry27ddkw27cmsaf45zzlfcn2ucm5f442kww5qvx0g96ca43yehv80ch52vwjsh5tl589cyxmyffq0jmyyrp4zuwu6c6uxus6fwepp5lwjzguec870ujgefm6a75uvw79xvxe5gg2s7g9s36qxkdce5a58dclsysat6y50q0hm0cafdmke6qar424xmquyzxusyakyyu7s3fqy4p4y4m887wgdcl06gxr6uqrkvrwexhuz7mrqpt2yewjec7kyfuy3tezsnyh6rkjg7qzlg2mljty2wlka9h80zqxr97ktzw68a6w4mvhcsu0wv90la7078dlnuxu8ga8zk6q5ln7scq";
+export const SAMPLE_SCAN_FROM = 4422270;
+
 /** Transaction ids, one per line (blank lines, surrounding spaces and a trailing comma ignored). */
 export const txidLines = (text) => String(text ?? "").split(/\r?\n/).map((l) => l.trim().replace(/,$/, "").trim()).filter(Boolean);
 
 /**
  * Check the form before anything is fetched. Returns `{ ok: true, input }` (`input`: network, ufvk, txids, control,
- * subject, for buildDossier) or `{ ok: false, field, error }`; `field` is the id of the input to fix.
+ * subject, for buildDossier) or `{ ok: false, field, error }`; `field` is the id of the input to fix. A challenge
+ * transaction also in the list (as a scan puts it there) is kept only under Control: `txids` lists the rest, and `note`
+ * says so.
  */
 export function validateBuild({ network, ufvk, txids, nonce, controlTxid, subject }) {
   const key = String(ufvk ?? "").trim();
@@ -51,12 +61,29 @@ export function validateBuild({ network, ufvk, txids, nonce, controlTxid, subjec
     if (n.length < 8) return { ok: false, field: "nonce", error: "A reviewer's nonce has at least 8 characters: paste it exactly as they sent it." };
     if (!c) return { ok: false, field: "control-txid", error: "Enter the id of the challenge transaction (the one whose memo carries the nonce), or leave both control fields empty." };
     if (!TXID.test(c)) return { ok: false, field: "control-txid", error: "The challenge transaction id is not a transaction id (64 hexadecimal characters)." };
-    if (lines.includes(c)) return { ok: false, field: "txids", error: "The challenge transaction is also in the list of transactions: list it only under Control." };
   }
+  const moved = n && lines.includes(c);
+  const rest = moved ? lines.filter((l) => l !== c) : lines;
+  if (!rest.length) return { ok: false, field: "txids", error: "List the transactions of the funds as well: the challenge transaction alone explains nothing (it goes under Control)." };
   return {
     ok: true,
-    input: { network, ufvk: key, txids: lines, control: n ? { txid: c, nonce: n } : null, subject: String(subject ?? "").trim() || null },
+    input: { network, ufvk: key, txids: rest, control: n ? { txid: c, nonce: n } : null, subject: String(subject ?? "").trim() || null },
+    ...(moved ? { note: `The challenge transaction ${c.slice(0, 8)}…${c.slice(-4)} was also in the list: it was taken out, and is used only under Control.`, removed: c } : {}),
   };
+}
+
+/**
+ * A listed transaction that answers a challenge, from the builder's refusal ("transaction <txid> answers a challenge
+ * (a memo reads "zeceipt-challenge-…"): give it as the control transaction…"): `{ txid, memo, nonce }`, the nonce being
+ * the memo's first word; null for any other error. The page offers to move it under Control, with that nonce.
+ */
+export function challengeAnswer(e) {
+  const msg = String(e?.message ?? e);
+  const m = /transaction ([0-9a-f]{64}) answers a challenge \(a memo reads "((?:[^"\\]|\\.)*)"\)/.exec(msg);
+  if (!m) return null;
+  const memo = m[2].replace(/\\[nrt]/g, " ").replace(/\\(.)/g, "$1");
+  const nonce = memo.startsWith(NONCE_PREFIX) ? /^\S+/.exec(memo)[0] : null;
+  return { txid: m[1], memo, nonce };
 }
 
 /** The builder's and the fetch's failures, in words a holder can act on. `network` is the one chosen. */
@@ -82,6 +109,10 @@ export function buildError(e, network) {
   if (/spends none of the disclosed notes/.test(msg)) {
     return "The challenge transaction spends none of the notes this dossier discloses: list, above it, the transactions that created the notes it spent.";
   }
+  const answer = challengeAnswer(msg);
+  if (answer) {
+    return `Transaction ${answer.txid.slice(0, 8)}…${answer.txid.slice(-4)} answers a reviewer's challenge (its memo reads “${answer.memo}”). A challenge answer goes under Control, with its nonce, so that the dossier discloses only its reply note and not its change.`;
+  }
   if (/no answer within|Failed to fetch|NetworkError|HTTP \d/.test(msg)) return `The public node could not be reached (${msg}). Check your connection and try again.`;
   return `The dossier could not be built: ${msg}`;
 }
@@ -97,7 +128,7 @@ export function dossierSummary(dossier, report) {
     ["Claims", `${claims.length} (${kindBreakdown(claims.map((c) => ({ kind: c.type })))})`],
   ];
   const discloses = [];
-  if (dossier?.nk) discloses.push("nk, the nullifier key: with it the reviewer computes each disclosed note's nullifier, so they can watch the chain and see when any of these notes is spent, now and after the case, for as long as they keep the dossier. It does not let them see your other payments, but someone who also knows another of your notes (its sender does) could tell when that note is spent. After the case, you may move the remaining funds to a fresh account: its notes are not covered by this nk.");
+  if (dossier?.nk) discloses.push("nk, the nullifier key: with it the reviewer computes each disclosed note's nullifier, so they can watch the chain and see when any of these notes is spent, past and future, for as long as they keep the dossier. More: the reviewer, and anyone who ever paid you and obtains this nk (an exchange that sent withdrawals to you, for example), can see when every note they paid you is spent, past and future, not only the notes in this dossier. It does not show your balance or your other payments' contents, and it cannot spend. After the case, move the remaining funds to a fresh account: its notes are not covered by this nk.");
   if (notes) discloses.push(`${notes} note opening${notes === 1 ? "" : "s"}: for each note, its transaction, amount, receiving address and memo.`);
   if (receipts) discloses.push(`${receipts} sender receipt${receipts === 1 ? "" : "s"}: each opens one payment you made (its recipient, amount and memo).`);
   if (dossier?.subject) discloses.push(`The subject you wrote: “${dossier.subject}”.`);

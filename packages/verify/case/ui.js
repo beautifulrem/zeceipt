@@ -24,6 +24,8 @@ export function claimTableRows(rows) {
     st.append(badge(r.status));
     const what = el("td", "what");
     what.append(el("p", "", r.summary));
+    // Flags beyond the status: funds not traced or not fully explained (amber), the assigned deposit address (green).
+    for (const f of r.flags ?? []) what.append(el("p", `row-flag flag-${f.tone}`, f.text));
     if (r.details.length) {
       const ul = el("ul", "details");
       ul.append(...r.details.map((d) => el("li", "", d)));

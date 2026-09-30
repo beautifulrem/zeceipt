@@ -40,6 +40,8 @@ const TIPS = { test: 4421700, main: 3100000 };
 const TRANSPARENT = read(path.join(repo, "fixtures/dossier/testnet-dossier-transparent-origin.json"));
 const WASM_SHA = crypto.createHash("sha256").update(fs.readFileSync(path.join(root, "pkg/zeceipt_wasm_bg.wasm"))).digest("hex");
 const PARTIAL = "Claims verified — control not shown";
+const OFFLINE = "Consistent with the files you loaded — not checked against the chain";
+const PARTLY = "Claims verified — funds not fully explained";
 const ZDP_TEST = JSON.parse(read(path.join(repo, "fixtures/zdp/testnet.json"))); // a testnet payment the issuer's key does not see
 const CHAIN = Object.fromEntries([...FUNDS, CONTROL, ...OUT_AND_BACK, ...Object.keys(EXCHANGE)].map((t) => [t, read(path.join(repo, "fixtures/testnet", `${t}.hex`)).trim()]));
 CHAIN[ZDP_TEST.txid] = ZDP_TEST.txHex;
@@ -182,7 +184,8 @@ test("case review: the sample button fetches its five transactions with progress
   assert.match(await text(s.page, "#verdict-live"), new RegExp(`^${PARTIAL}\\. `));
   // The decision summary, above the facts.
   const decision = await dl(s.page, "#decision");
-  assert.deepEqual(Object.keys(decision), ["Arrived at origins", "Paid out", "Under control", "Claims"]);
+  assert.deepEqual(Object.keys(decision), ["Arrived at origins", "Paid out", "Under control", "Explained", "Claims"]);
+  assert.match(decision.Explained, /^YesEvery payment's and the control's funds trace back to an origin/);
   assert.match(decision["Arrived at origins"], /^1\.0 TAZ in 1 note1\.0 TAZ from an undisclosed shielded sender\.$/);
   assert.match(decision["Paid out"], /^0\.06 TAZ in 3 payments/);
   assert.match(decision["Under control"], /^Not shown.*enter the nonce you issued/);
@@ -205,7 +208,8 @@ test("case review: the sample button fetches its five transactions with progress
   assert.match(steps[0], /Step 1Origin: funds enter the holder's wallet.*Height 4419987 · tx 90f6a335…2a4b.*From shielded funds of an undisclosed sender.*n11\.0 TAZ.*spent in step 2/);
   assert.match(steps[1], /Height 4420000.*n2.*n3.*n4.*n5.*r10\.01 TAZ.*to utest19qmz.*INV-T-001/);
   assert.match(steps[1], /#2–#5 Pathn1 → n2, n3, n4, n5 in fcfde625…7f0bVerified/, "the four path claims from n1 share one line");
-  assert.match(steps[4], /Step 5Control: the holder answered the challenge.*Height 4421345.*n40\.2474375 TAZ.*n90\.001 TAZ.*memo “zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8”/);
+  // Before the reviewer's nonce is entered, the dossier's own shows by its beginning only (E04).
+  assert.match(steps[4], /Step 5Control: the holder answered the challenge.*Height 4421345.*n40\.2474375 TAZ.*n90\.001 TAZ.*memo “zeceipt-challenge-eadb…”/);
   assert.equal(await s.page.locator("#flow .edge").count(), 8, "12 claims on 8 lines: paths from one note in one transaction merged");
   assert.equal(await s.page.locator("#flow .edge .badge-verified").count(), 8);
   assert.deepEqual(await s.page.locator("#flow .edge .badge").evaluateAll((els) => [...new Set(els.map((e) => e.textContent))]), ["Verified"], "the status is a word, not only a colour");
@@ -218,6 +222,8 @@ test("case review: the sample button fetches its five transactions with progress
   assert.match(await text(s.page, "#disclosed"), /9 note openings.*nk, the nullifier key.*3 sender receipts/);
   assert.match(await text(s.page, "#limits"), /who the counterparties are.*a legal attestation/);
   assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "not-generated");
+  assert.equal(await text(s.page, "#nonce-line"), "The control claim answers a nonce beginning zeceipt-challenge-eadb…. Enter the nonce you issued under “Challenge the holder” (paste it from your case record, not from this page), and the page checks the claim against it.");
+  assert.ok(!(await s.page.evaluate(() => document.body.innerText)).includes(NONCE), "the dossier's nonce is nowhere on the page to copy");
   // Exactly the five lookups, one per transaction, to the testnet node.
   assert.deepEqual(outside(s).map((r) => r.url.replace(/\/cash\.z.*$/, "")), Array(5).fill("https://zjs.zec.rocks/testnet"));
   assert.equal(await s.page.getAttribute("#claims tbody tr:first-child td.state .badge", "title"), "Verified: the chain supports this claim.", "a status explains itself");
@@ -302,10 +308,11 @@ test("case review: a nonce generated here, with its height H₀, is the one the 
   assert.equal(await text(s.page, "#headline"), "1 claim failed");
   const row = await cells(s.page, "#claims tbody tr:last-child");
   assert.deepEqual(row.slice(0, 3), ["12", "Control", "Failed"]);
-  assert.match(row[3], new RegExp(`answers nonce ${NONCE}, not the one you issued`));
+  assert.match(row[3], /answers nonce zeceipt-challenge-eadb…, not the one you issued/);
   assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "mismatch");
   const line = await text(s.page, "#nonce-line");
-  assert.ok(line.includes(NONCE) && line.includes(nonce) && /ask the holder to answer yours/.test(line), line);
+  assert.ok(!line.includes(NONCE) && line.includes("a nonce beginning zeceipt-challenge-eadb…") && line.includes(nonce) && /ask the holder to answer yours/.test(line), line);
+  assert.ok(!(await s.page.evaluate(() => document.body.innerText)).includes(NONCE), "a mismatch does not give the dossier's nonce away either");
   assert.equal(await text(s.page, "#nonce-result"), line, "the challenge card says the same");
   // A new nonce re-checks the case on screen, offline: no new transaction lookup (only the tip is asked).
   const before = lookups(s).length;
@@ -338,7 +345,7 @@ test("case review: the summary copies, and the print layout keeps the case and d
   // Whole transaction ids on paper.
   const printed = await s.page.locator("#flow .step-tx").first().innerText();
   assert.ok(printed.includes(FUNDS[0]) && !printed.includes("90f6a335…2a4b"), printed);
-  assert.match(await text(s.page, "#print-meta"), new RegExp(`^Checked .* UTC in the browser with zeceipt-wasm .*\\. Report made \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d UTC\\. Verifier zeceipt_wasm_bg\\.wasm sha256 ${WASM_SHA}\\. Dossier sha256 [0-9a-f]{64}\\.$`));
+  assert.match(await text(s.page, "#print-meta"), new RegExp(`^Checked .* UTC in the browser with zeceipt-wasm .*\\. Report made \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d UTC\\. Verifier zeceipt_wasm_bg\\.wasm sha256 ${WASM_SHA}\\. Dossier sha256 [0-9a-f]{64}\\. The notes' nullifiers are not printed\\.$`));
   await s.page.emulateMedia({ media: "screen" });
   await s.page.click("#copy-summary");
   await s.page.waitForFunction(() => /copied/.test(document.getElementById("copy-live").textContent));
@@ -391,7 +398,12 @@ test("case review: transactions loaded from files check the sample offline, with
   assert.match(await text(s.page, "#tx-files-status"), /inclusion in the chain is not checked\. Skipped: notes\.txt: not named <txid>\.hex\.$/);
   await s.page.click("#sample");
   await caseShown(s.page);
-  assert.equal(await text(s.page, "#headline"), PARTIAL, "every claim verifies against the files");
+  // Consistent with the files, not verified against the chain (E03): amber, and it never says "against the chain".
+  assert.equal(await text(s.page, "#headline"), OFFLINE, "every claim is consistent with the files");
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result partial");
+  const sub = await text(s.page, "#verdict-sub");
+  assert.match(sub, /^All 12 claims are consistent with the transaction files you loaded .* a holder can send fabricated files\. Load only files you fetched from a node yourself, or check online\./);
+  assert.ok(!/hold against the chain/.test(sub), sub);
   assert.equal(outside(s).length, 0, "no node was asked");
   assert.equal(await s.page.locator("#offline-line").isVisible(), true);
   assert.match(await text(s.page, "#offline-text"), /^Checked offline, from 5 transaction files: no node was asked, so inclusion in the chain \(and each height\) was not checked\.$/);
@@ -404,6 +416,7 @@ test("case review: transactions loaded from files check the sample offline, with
   assert.equal(await s.page.locator("#offline-line").isVisible(), false);
   assert.equal(lookups(s).length, 5);
   assert.match(await text(s.page, "#flow > li.step:first-child"), /Height 4419987/);
+  assert.equal(await text(s.page, "#headline"), PARTIAL, "online, the same claims hold against the chain");
   await assertPrivate(s);
   await s.context.close();
 });
@@ -445,10 +458,10 @@ test("case review: the exchange deposit review (#sample-exchange), with the exch
   assert.equal(await s.page.locator("#claims .badge-verified").count(), 4);
   const steps = await s.page.locator("#flow > li.step").allTextContents();
   assert.equal(steps.length, 3);
-  assert.match(steps[0], /Origin: funds enter the holder's wallet.*Height 4422279.*From 1 transparent input \(0\.3 TAZ\), paid from tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv\..*n10\.2 TAZ/);
+  assert.match(steps[0], /Origin: funds enter the holder's wallet.*Height 4422279.*From 1 transparent input \(0\.3 TAZ\), paid from tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv, of which 0\.09985 TAZ went back to tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv \(output 0\) as change to the funder\..*n10\.2 TAZ/);
   assert.match(steps[1], /Moved within the wallet, and paid out \(transparent\).*Height 4422295 · tx a51d1271…85cf.*Paid out \(transparent\)#30\.05 TAZto tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR/);
   assert.match(steps[2], /Control: the holder answered the challenge.*Height 4422305/);
-  assert.match(await text(s.page, "#funders"), /Origin of n1.*tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv.*0\.3 TAZ, spends 773da014…4b0d:0/);
+  assert.match(await text(s.page, "#funders"), /Origin of n1.*tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv.*0\.3 TAZ, spends 773da014…4b0d:0.*Change: 0\.09985 TAZ of the inputs went back to tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv \(output 0\), the funder's own address; the holder received 0\.2 TAZ in n1\./);
   const decision = await dl(s.page, "#decision");
   assert.equal(decision["Paid out"], "0.05 TAZ in 1 payment1 transparent payment (0.05 TAZ).");
   assert.equal(decision["Under control"], "0.14985 TAZn2, spent in answer to your nonce at height 4422305 (issued at height 4422294).");
@@ -488,8 +501,8 @@ test("build: the published testnet UFVK and the txids rebuild the sample's claim
   assert.equal(await s.page.getAttribute("#built", "class"), "result ok");
   assert.equal(await s.page.evaluate(() => document.activeElement?.id), "built");
   assert.deepEqual(await dl(s.page, "#built-counts"), { Notes: "9", Receipts: "3", Claims: "12 (1 origin, 7 path hops, 3 deposits and 1 control answer)" });
-  assert.match(await text(s.page, "#built-discloses"), /^nk, the nullifier key.*see when any of these notes is spent, now and after the case.*9 note openings.*3 sender receipts/);
-  assert.match(await text(s.page, "#built"), /After the case: the nk in this dossier lets the reviewer see when any of its notes is spent/);
+  assert.match(await text(s.page, "#built-discloses"), /^nk, the nullifier key.*see when any of these notes is spent, past and future.*anyone who ever paid you and obtains this nk.*9 note openings.*3 sender receipts/);
+  assert.match(await text(s.page, "#built"), /After the case: the nk in this dossier stays with the reviewer.*anyone who ever paid you \(an exchange that sent withdrawals to you, for example\), can use it to see when every note they paid you is spent, past and future, not only the disclosed ones\. Once the case is closed, move the remaining funds to a fresh account/);
   assert.equal(await s.page.locator("#preview tbody tr").count(), 12);
   assert.equal(await s.page.locator("#preview .badge-verified").count(), 12);
   const statuses = await s.page.evaluate(() => window.__status);
@@ -548,7 +561,7 @@ test("build: Find my transactions scans compact blocks in the page and lists the
   await s.page.fill("#scan-from", "4419900");
   await s.page.click("#scan");
   await s.page.waitForFunction(() => /^Found \d+ transactions? of yours/.test(document.getElementById("scan-status").textContent), null, { timeout: 30_000 });
-  assert.match(await text(s.page, "#scan-status"), /^Found 7 transactions of yours in [\d.]+ s; 7 listed above\.$/);
+  assert.match(await text(s.page, "#scan-status"), /^Found 7 transactions of yours in [\d.]+ s; 7 listed above\. If one of them answers a reviewer's challenge, Build says so and moves it under Control in one click\.$/);
   const listed = (await s.page.inputValue("#txids")).split("\n");
   assert.deepEqual(listed, [...FUNDS, CONTROL, "52af3e0da4b11854e48b5a0d25ac392ab6145616196ed196c0736e876b34105e", "c28b60004cd8d9fc08ab75ff44aa3062a4d79bdfc29653db8765991b5ae5cefe"]);
   assert.deepEqual(asked, [[4419900, 4421700]], "one request of at most 2,000 blocks, up to the tip");
@@ -601,6 +614,210 @@ test("build: a network mismatch, bad hex and a key that sees nothing are each ex
   await s.context.close();
 });
 
+// RFC 6902 add, replace and remove, as test/dossier-vectors.mjs applies the vectors' patches.
+function applyPatch(doc, patch) {
+  for (const op of patch) {
+    const keys = op.path.slice(1).split("/");
+    const last = keys.pop();
+    let at = doc;
+    for (const k of keys) at = at[Array.isArray(at) ? Number(k) : k];
+    if (op.op === "remove") Array.isArray(at) ? at.splice(Number(last), 1) : delete at[last];
+    else if (op.op === "add" && Array.isArray(at)) last === "-" ? at.push(op.value) : at.splice(Number(last), 0, op.value);
+    else at[Array.isArray(at) ? Number(last) : last] = op.value;
+  }
+  return doc;
+}
+const vectorDossier = (name) => JSON.stringify(applyPatch(JSON.parse(SAMPLE), VECTORS.cases.find((c) => c.name === name).patch), null, 2);
+
+test("case review: claims that do not add up are amber, funds not fully explained: the untraced note and the undisclosed value in the verdict, the rows and the timeline", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/case/`);
+  await ready(s.page);
+  // Vector unlinked_payment: the path n1→n3 removed, so n3's payments no longer trace back to the origin.
+  const unlinked = vectorDossier("unlinked_payment");
+  await s.page.fill("#paste", unlinked);
+  await s.page.click("#check");
+  await caseShown(s.page);
+  assert.equal(await text(s.page, "#headline"), PARTLY);
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result partial");
+  assert.match(await text(s.page, "#verdict-sub"), /^All 11 claims hold against the chain .*, but they do not explain all of the funds: note n3 is not traced back to an origin/);
+  assert.match((await dl(s.page, "#decision")).Explained, /^NoNote n3 is not traced back to an origin/);
+  assert.ok((await s.page.locator("#claims .row-flag.flag-warn").allTextContents()).some((t) => /^Not traced to an origin: n3/.test(t)));
+  assert.ok(await s.page.locator("#flow .chip-untraced").count() >= 1);
+  assert.match(await text(s.page, "#flow"), /n3 not traced to an origin/);
+  // Vector history_without_its_origin: a deposit whose transaction spent 1 TAZ of notes the dossier does not disclose.
+  const hidden = vectorDossier("history_without_its_origin");
+  await s.page.click("#inputs > summary");
+  await s.page.fill("#paste", hidden);
+  await s.page.click("#check");
+  await s.page.waitForFunction(() => /at least 1\.0 TAZ came from notes/.test(document.getElementById("verdict-sub").textContent));
+  assert.equal(await text(s.page, "#headline"), PARTLY);
+  assert.equal(await text(s.page, "#claims tbody tr:first-child .row-flag"), "Not fully explained: at least 1.0 TAZ of what this transaction paid came from notes the dossier does not disclose.");
+  assert.match(await text(s.page, "#flow"), /Not fully explained: this transaction also spent at least 1\.0 TAZ from notes the dossier does not disclose\./);
+  await axe(s.page, "case, funds not fully explained");
+  await assertPrivate(s, { extraSecrets: [b64(unlinked), b64(hidden)] });
+  await s.context.close();
+});
+
+test("case review: the dossier's nonce is kept back until the reviewer's matches; a typed match gets a neutral note, a generated or sample one none", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/case/#sample-exchange`);
+  await caseShown(s.page);
+  const own = "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1";
+  assert.match(await text(s.page, "#nonce-line"), /answers a nonce beginning zeceipt-challenge-322b…\. Enter the nonce you issued .*paste it from your case record, not from this page/);
+  assert.match(await text(s.page, "#nonce-hint"), /^Paste it from your case record, not from this page\./);
+  assert.ok(!(await s.page.evaluate(() => document.body.innerText)).includes(own), "the whole nonce is nowhere to copy");
+  // Typed (or pasted) and equal to the dossier's: green, with a neutral reminder.
+  await s.page.fill("#nonce-input", own);
+  await s.page.fill("#h0-input", "4422294");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
+  assert.equal(await s.page.locator("#nonce-note").isVisible(), true);
+  assert.equal(await text(s.page, "#nonce-note"), "You entered this nonce, rather than generating it here: make sure this is the one you sent to the holder, from your case record.");
+  assert.match(await text(s.page, "#claims tbody tr:last-child"), new RegExp(own), "once it matches, the claim reads in full");
+  // The page's sample challenge is ours: no reminder.
+  await s.page.click("#nonce-input", { clickCount: 3 });
+  await s.page.keyboard.press("Backspace");
+  await s.page.waitForFunction(() => document.getElementById("nonce-line").dataset.state === "not-generated");
+  assert.equal(await s.page.locator("#nonce-note").isVisible(), false);
+  await s.page.click("#sample-nonce");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
+  assert.equal(await s.page.locator("#nonce-note").isVisible(), false);
+  await assertPrivate(s, { extraSecrets: [b64(EXCHANGE_DOSSIER), own] });
+  await s.context.close();
+});
+
+test("case review: the deposit address the reviewer assigned is named when a payment pays it, amber when none does, in the challenge record and in print", { skip: !RUN }, async () => {
+  const s = await openPage({ permissions: ["clipboard-read", "clipboard-write"] });
+  await s.page.goto(`${base}/case/#sample-exchange`);
+  await caseShown(s.page);
+  await s.page.click("#sample-nonce");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
+  await s.page.fill("#deposit-input", "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR");
+  await s.page.waitForFunction(() => /pays the deposit address you assigned/.test(document.getElementById("verdict-sub").textContent));
+  assert.equal(await text(s.page, "#deposit-status"), "A transparent address on Zcash testnet.");
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result ok");
+  assert.match(await text(s.page, "#verdict-sub"), /Claim #3 \(transparent payment\) pays the deposit address you assigned \(tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR\)/);
+  assert.equal(await s.page.locator("#deposit-line").isVisible(), false);
+  assert.equal(await text(s.page, "#claims tbody tr:nth-child(3) .row-flag.flag-ok"), "Pays the deposit address you assigned.");
+  assert.match(await text(s.page, "#flow .chip-assigned"), /pays the deposit address you assigned/);
+  assert.equal((await dl(s.page, "#facts"))["Deposit address you assigned"], "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR (paid in claim #3)");
+  // An address no payment pays (here the hot wallet's): amber, naming the relay the check guards against.
+  await s.page.fill("#deposit-input", "tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv");
+  await s.page.waitForSelector("#deposit-line:not([hidden])");
+  assert.match(await text(s.page, "#deposit-line"), /^No verified payment in this dossier pays the deposit address you assigned \(tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv\).*relayed.*spec §7\.2/);
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result ok", "the verdict keeps its tone; the amber line sits in it");
+  await s.page.click("#copy-challenge");
+  await s.page.waitForFunction(() => /Challenge copied/.test(document.getElementById("copy-live").textContent));
+  assert.match(await s.page.evaluate(() => navigator.clipboard.readText()), /\nDeposit address assigned: tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv$/);
+  await s.page.emulateMedia({ media: "print" });
+  assert.equal(await s.page.locator("#deposit-line").isVisible(), true, "the amber line prints");
+  assert.equal(await s.page.locator('#facts .fact[data-key="Deposit address you assigned"]').isVisible(), true, "the address prints with the facts");
+  await s.page.emulateMedia({ media: "screen" });
+  await axe(s.page, "case, the assigned deposit address not paid");
+  // Not an address: said, and left out.
+  await s.page.fill("#deposit-input", "utest1notanaddress");
+  await s.page.waitForFunction(() => /not a transparent address/.test(document.getElementById("deposit-status").textContent));
+  await s.page.waitForSelector("#deposit-line", { state: "hidden" });
+  await assertPrivate(s, { extraSecrets: [b64(EXCHANGE_DOSSIER)] });
+  await s.context.close();
+});
+
+test("case review: Hide nullifiers leaves them out of the downloaded report and says so; a printout never shows them", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/case/#sample`);
+  await caseShown(s.page);
+  const [full] = await Promise.all([s.page.waitForEvent("download"), s.page.click("#download")]);
+  const withNf = JSON.parse(fs.readFileSync(await full.path(), "utf8"));
+  assert.ok(Object.values(withNf.notes).every((n) => /^[0-9a-f]{64}$/.test(n.nullifier)), "by default the report is the verifier's, nullifiers included");
+  await s.page.check("#hide-nullifiers");
+  const [redacted] = await Promise.all([s.page.waitForEvent("download"), s.page.click("#download")]);
+  const raw = fs.readFileSync(await redacted.path(), "utf8");
+  const without = JSON.parse(raw);
+  assert.ok(!raw.includes('"nullifier"') && Object.values(withNf.notes).every((n) => !raw.includes(n.nullifier)));
+  assert.match(without.case.nullifiers, /^left out of this file \(notes\.\*\.nullifier\)/);
+  assert.equal(without.dossier_sha256, withNf.dossier_sha256);
+  assert.match(await text(s.page, "#copy-live"), /without the notes' nullifiers$/);
+  await s.page.emulateMedia({ media: "print" });
+  const printed = await s.page.evaluate(() => document.body.innerText);
+  assert.ok(Object.values(withNf.notes).every((n) => !printed.includes(n.nullifier)));
+  assert.match(await text(s.page, "#print-meta"), /The notes' nullifiers are not printed\.$/);
+  await assertPrivate(s);
+  await s.context.close();
+});
+
+test("build: the sample customer's key fills the form; a listed challenge answer is refused, and one click moves it under Control and builds the exchange sample", { skip: !RUN }, async () => {
+  const HOLDER2 = read(path.join(repo, "fixtures/testnet/holder2-ufvk.txt")).trim();
+  const [origin, deposit, challenge] = ["5146f38c0a782f0d76858e575c46c3b0908865987416095e4180a2c6273436e6", "a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf", "14a9551d4b85b05ce48dc6e83784bdb8bad0a68b6ec2a5e2298b2f77bb79cce6"];
+  const s = await openPage();
+  await s.page.goto(`${base}/build/`);
+  await ready(s.page);
+  assert.match(await text(s.page, ".nu7"), /NU7 activates on Zcash testnet on 2026-10-06 .* refuses a transaction mined after activation/);
+  await s.page.click("#sample-key");
+  assert.equal(await s.page.inputValue("#ufvk"), HOLDER2);
+  assert.equal(await s.page.inputValue("#network"), "test", "the network follows the sample key");
+  assert.equal(await s.page.inputValue("#scan-from"), "4422270");
+  assert.match(await text(s.page, "#sample-key-status"), /sample customer's testnet viewing key \(public, fixtures\/testnet\/holder2-ufvk\.txt\).*4,422,270/);
+  // As the scan lists them: the challenge answer among the funds, and nothing under Control.
+  await s.page.fill("#txids", [origin, deposit, challenge].join("\n"));
+  await s.page.click("#build");
+  await s.page.waitForSelector("#build-error:not([hidden])");
+  assert.match(await text(s.page, "#error-text"), /^Transaction 14a9551d…cce6 answers a reviewer's challenge \(its memo reads “zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1”\)\. A challenge answer goes under Control/);
+  assert.equal(await text(s.page, "#error-fix-btn"), "Move it to Control and build again");
+  await axe(s.page, "build, a listed challenge answer");
+  await s.page.click("#error-fix-btn");
+  await s.page.waitForSelector("#built:not([hidden])");
+  assert.equal(await s.page.inputValue("#control-txid"), challenge);
+  assert.equal(await s.page.inputValue("#nonce"), "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1");
+  assert.equal(await s.page.inputValue("#txids"), [origin, deposit].join("\n"));
+  assert.match(await text(s.page, "#control-note"), /^14a9551d…cce6 was moved from the list to Control, with the nonce its memo carries \(zeceipt-challenge-322b…\)/);
+  assert.equal(await s.page.getAttribute("#built", "class"), "result ok");
+  const [saved] = await Promise.all([s.page.waitForEvent("download"), s.page.click("#download")]);
+  const built = JSON.parse(fs.readFileSync(await saved.path(), "utf8"));
+  const x = JSON.parse(EXCHANGE_DOSSIER);
+  assert.deepEqual([built.nk, built.notes, built.claims], [x.nk, x.notes, x.claims], "the exchange sample's claims: the change of the challenge is not disclosed");
+  // Listing the challenge and entering it under Control too: it is taken out of the list, with a note.
+  await s.page.click("#sample-key");
+  await s.page.fill("#txids", [origin, deposit, challenge].join("\n"));
+  await s.page.click("#build");
+  await s.page.waitForSelector("#built:not([hidden])");
+  assert.match(await text(s.page, "#control-note"), /^The challenge transaction 14a9551d…cce6 was also in the list: it was taken out, and is used only under Control\.$/);
+  assert.equal(await s.page.inputValue("#txids"), [origin, deposit].join("\n"));
+  await assertPrivate(s, { extraSecrets: [HOLDER2, HOLDER2.slice(30, 90)] });
+  await s.context.close();
+});
+
+test("the built site (scripts/build_site.sh): every module and the wasm load by versioned URLs, and the flagship sample checks", { skip: !RUN }, async () => {
+  const { execFileSync } = await import("node:child_process");
+  const os = await import("node:os");
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "zeceipt-e2e-site-"));
+  execFileSync(path.join(repo, "scripts/build_site.sh"), [out], { stdio: "pipe" });
+  const site = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://x");
+    let file = path.join(out, path.normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, ""));
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
+    if (!file.startsWith(out) || !fs.existsSync(file)) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" });
+    fs.createReadStream(file).pipe(res);
+  });
+  await new Promise((r) => site.listen(0, "127.0.0.1", r));
+  const siteBase = `http://127.0.0.1:${site.address().port}`;
+  try {
+    const s = await openPage();
+    await s.page.goto(`${siteBase}/case/#sample-exchange`);
+    await caseShown(s.page);
+    assert.equal(await text(s.page, "#headline"), PARTIAL);
+    const assets = s.requests.filter((r) => r.url.startsWith(siteBase) && /\.(js|wasm|css)(\?|$)/.test(r.url));
+    assert.ok(assets.some((r) => /\/pkg\/zeceipt_wasm_bg\.wasm\?v=[0-9a-f]{8}$/.test(r.url)), "the wasm by its version");
+    assert.deepEqual(assets.filter((r) => !/\?v=[0-9a-f]{8}$/.test(r.url)).map((r) => r.url), [], "no asset without its version");
+    await s.page.waitForSelector("#wasm-sha:not([hidden])");
+    assert.equal(await text(s.page, "#wasm-sha"), `Verifier: zeceipt_wasm_bg.wasm sha256 ${WASM_SHA}`, "the same bytes as the committed wasm");
+    await s.context.close();
+  } finally {
+    await new Promise((r) => site.close(r));
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+});
+
 test("landing page: no script, the calls to action and the tools resolve, and the sample link checks the sample", { skip: !RUN }, async () => {
   const s = await openPage();
   await s.page.goto(`${base}/`);
@@ -612,7 +829,8 @@ test("landing page: no script, the calls to action and the tools resolve, and th
     assert.equal(res.status(), 200, h);
   }
   assert.ok(hrefs.includes(`${base}/case/`) && hrefs.includes(`${base}/build/`) && hrefs.includes(`${base}/case/#sample-exchange`) && hrefs.includes(`${base}/r/`) && hrefs.includes(`${base}/demo/`));
-  await s.page.click("text=Try a real exchange deposit review");
+  assert.match(await text(s.page, ".try"), /a simulated exchange-deposit review on testnet \(we ran the exchange's wallet\)/);
+  await s.page.click("text=Try an exchange deposit review");
   await caseShown(s.page);
   assert.equal(await text(s.page, "#headline"), PARTIAL);
   assert.equal(await s.page.locator("#claims tbody tr").count(), 4, "the exchange review's four claims");

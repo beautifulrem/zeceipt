@@ -36,7 +36,7 @@
     <a class="btn btn-primary" href="case/">Review a dossier <span class="i i-arrow" aria-hidden="true"></span></a>
     <a class="btn btn-secondary" href="build/">Build a dossier</a>
   </p>
-  <p class="try"><a href="case/#sample-exchange">Try a real exchange deposit review</a><span class="muted"> · on testnet: an exchange's withdrawal to a customer, their deposit back to the exchange, and their answer to its challenge, checked live</span></p>
+  <p class="try"><a href="case/#sample-exchange">Try an exchange deposit review</a><span class="muted"> · a simulated exchange-deposit review on testnet (we ran the exchange's wallet): its withdrawal to a customer, their deposit back to the exchange, and their answer to its challenge, checked live</span></p>
 </div>
 
 <section class="card" aria-labelledby="how-title">
@@ -71,9 +71,9 @@
 <h2 id="limits-title">Honest limits</h2>
 <ul class="limits">
   <li><span>Who the counterparties are: an address that funded an origin is not a name.</span></li>
-  <li><span>The value of undisclosed inputs of a transaction: they are counted, not valued.</span></li>
+  <li><span>The exact value of undisclosed inputs: the report gives a lower bound, and a case whose claims do not add up is amber, “funds not fully explained”.</span></li>
   <li><span>That funds are unspent now: control shows the holder could spend them when the challenge was made.</span></li>
-  <li><span>The dossier's nullifier key lets the reviewer see when a disclosed note is later spent; the dossier says so.</span></li>
+  <li><span>The dossier's nullifier key lets the reviewer see when a disclosed note is later spent, and anyone who ever paid the holder see when the notes they paid are spent; the dossier says so.</span></li>
   <li><span>It is not a legal attestation: it is evidence a reviewer weighs.</span></li>
 </ul>
 </section>

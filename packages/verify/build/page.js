@@ -4,9 +4,9 @@
 // only requests outside this site are the transaction lookups (fetchRawTx: the txid and nothing else). The DOM is
 // written with textContent only.
 import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, scanWallet, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
-import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown } from "../case/view.js";
+import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown, explanationGaps, maskNonce } from "../case/view.js";
 import { claimTableRows, factItems, listItem, download, showVerifierDigest } from "../case/ui.js";
-import { validateBuild, buildError, dossierSummary, networkForKey, DOSSIER_FILE } from "./view.js";
+import { validateBuild, buildError, challengeAnswer, dossierSummary, networkForKey, DOSSIER_FILE, SAMPLE_UFVK, SAMPLE_SCAN_FROM, txidLines } from "./view.js";
 
 // A self-hosted copy names its own nodes (`scripts/build_site.sh --node`), and its CSP allows only them; the public
 // site leaves this empty and uses the public nodes.
@@ -20,6 +20,7 @@ const FIELDS = ["network", "ufvk", "txids", "nonce", "control-txid", "subject", 
 
 let generation = 0;
 let built = null; // { text, dossier }: the last dossier built, in memory only
+let fix = null; // the one-click fix the last build error offers: a listed challenge answer, { txid, nonce }
 
 function setStatus(text, state) {
   $("status").textContent = text;
@@ -34,8 +35,15 @@ function clearMarks() {
   }
 }
 
-function showError(text, field) {
+function showError(text, field, answer = null) {
   $("error-text").textContent = text;
+  // A listed transaction that answers a challenge: one click moves it under Control (or out of the list) and builds.
+  fix = answer;
+  if (answer) {
+    const control = $("control-txid").value.trim().toLowerCase();
+    $("error-fix-btn").textContent = control && control !== answer.txid ? "Take it out of the list and build again" : "Move it to Control and build again";
+  }
+  show("error-fix", Boolean(answer));
   show("build-error", true);
   if (field) {
     $(`${field}-field`).dataset.invalid = "";
@@ -89,6 +97,11 @@ $("build").addEventListener("click", async () => {
   });
   if (!v.ok) { showError(v.error, v.field); return; }
   const { input } = v;
+  if (v.note) {
+    // The challenge transaction was also listed (a scan lists it): it stays only under Control.
+    $("txids").value = txidLines($("txids").value).filter((l) => l.toLowerCase() !== v.removed).join("\n");
+    $("control-note").textContent = v.note;
+  }
   $("build").disabled = true;
   try {
     const ids = [...input.txids, ...(input.control ? [input.control.txid] : [])];
@@ -116,7 +129,8 @@ $("build").addEventListener("click", async () => {
     renderBuilt(text, report);
   } catch (e) {
     if (mine !== generation) return;
-    showError(buildError(e, input.network), /network/.test(String(e)) ? "network" : null);
+    const answer = challengeAnswer(e);
+    showError(buildError(e, input.network), answer ? "txids" : /network/.test(String(e)) ? "network" : null, answer);
   } finally {
     if (mine === generation) $("build").disabled = false;
   }
@@ -126,13 +140,15 @@ function renderBuilt(text, report) {
   const dossier = parseDossier(text);
   built = { text, dossier };
   const s = dossierSummary(dossier, report);
-  $("built").className = `result ${s.allVerified ? "ok" : "pending"}`;
+  // Claims that verify but do not add up (spec §5.6) read amber to the reviewer, "funds not fully explained": say so now.
+  const gaps = s.allVerified ? explanationGaps(report) : [];
+  $("built").className = `result ${s.allVerified && !gaps.length ? "ok" : "pending"}`;
   $("built-sub").textContent = s.allVerified
-    ? `${s.claims} claims, all verified in this page against the chain: ${kindBreakdown(report.claims)}. The viewing key field was cleared.`
+    ? `${s.claims} claims, all verified in this page against the chain: ${kindBreakdown(report.claims)}.${gaps.length ? ` But they do not explain all of the funds (${gaps.join("; ")}): the reviewer will see “funds not fully explained”. List the transactions that lead those funds back to where they entered your wallet.` : ""} The viewing key field was cleared.`
     : `${s.verified} of ${s.claims} claims verified in this page; see the claims below before you share it. The viewing key field was cleared.`;
   $("built-counts").replaceChildren(...factItems(s.counts));
   $("built-discloses").replaceChildren(...s.discloses.map(listItem));
-  $("preview").tBodies[0].replaceChildren(...claimTableRows(claimRows(report)));
+  $("preview").tBodies[0].replaceChildren(...claimTableRows(claimRows(report, dossier)));
   $("open-case").href = caseLink(new URL("../case/", location.href).href, text);
   $("build-status").textContent = "";
   show("built", true);
@@ -196,8 +212,10 @@ $("scan").addEventListener("click", async () => {
     const control = $("control-txid").value.trim().toLowerCase();
     const ids = found.map((f) => f.txid).filter((t) => t !== control);
     $("txids").value = ids.join("\n");
+    // A scan cannot read memos (compact blocks carry none), so a challenge answer is listed like any transaction; Build
+    // recognises it and offers to move it under Control.
     $("scan-status").textContent = found.length
-      ? `Found ${found.length} transaction${found.length === 1 ? "" : "s"} of yours in ${((Date.now() - started) / 1000).toFixed(1)} s; ${ids.length} listed above${control && ids.length < found.length ? " (the challenge transaction is entered below)" : ""}.`
+      ? `Found ${found.length} transaction${found.length === 1 ? "" : "s"} of yours in ${((Date.now() - started) / 1000).toFixed(1)} s; ${ids.length} listed above${control && ids.length < found.length ? " (the challenge transaction is entered below)" : ""}. If one of them answers a reviewer's challenge, Build says so and moves it under Control in one click.`
       : "No transaction of yours from that height: check the network and the height.";
   } catch (e) {
     $("scan-status").textContent = scanAbort.signal.aborted ? "The scan was stopped." : `The scan failed: ${e.message ?? e}`;
@@ -209,13 +227,43 @@ $("scan").addEventListener("click", async () => {
 });
 $("scan-stop").addEventListener("click", () => scanAbort?.abort());
 
+// The one-click fix for a listed challenge answer: under Control with the nonce its memo carries (when Control is
+// empty or names it), or out of the list (when Control already holds another challenge); then build again.
+$("error-fix-btn").addEventListener("click", () => {
+  if (!fix) return;
+  const { txid, nonce } = fix;
+  const control = $("control-txid").value.trim().toLowerCase();
+  $("txids").value = txidLines($("txids").value).filter((l) => l.toLowerCase() !== txid).join("\n");
+  const short = `${txid.slice(0, 8)}…${txid.slice(-4)}`;
+  if (!control || control === txid) {
+    $("control-txid").value = txid;
+    if (nonce) $("nonce").value = nonce;
+    $("control-note").textContent = `${short} was moved from the list to Control, with the nonce its memo carries (${nonce ? maskNonce(nonce) : "enter it"}): the dossier discloses only its reply note.`;
+  } else {
+    $("control-note").textContent = `${short} was taken out of the list: it answers a challenge, and Control already names another.`;
+  }
+  show("error-fix", false);
+  fix = null;
+  $("build").click();
+});
+
+// The sample customer's public testnet viewing key (fixtures/testnet/holder2-ufvk.txt), to try the builder: it fills
+// the key and the height to scan from; the holder presses Find my transactions.
+$("sample-key").addEventListener("click", () => {
+  $("ufvk").value = SAMPLE_UFVK;
+  $("ufvk").dispatchEvent(new Event("input"));
+  $("scan-from").value = String(SAMPLE_SCAN_FROM);
+  $("sample-key-status").textContent = `Filled in the sample customer's testnet viewing key (public, fixtures/testnet/holder2-ufvk.txt) and the height to scan from, ${SAMPLE_SCAN_FROM.toLocaleString("en-US")}. Press Find my transactions, then Build.`;
+});
+
 $("forget").addEventListener("click", () => {
   generation++;
   scanAbort?.abort();
   $("scan-status").textContent = "";
   for (const id of ["ufvk", "txids", "nonce", "control-txid", "subject", "scan-from"]) $(id).value = "";
   $("network").value = "main";
-  $("ufvk-network").textContent = "";
+  for (const id of ["ufvk-network", "control-note", "sample-key-status"]) $(id).textContent = "";
+  fix = null;
   clearMarks();
   hideResult();
   $("open-case").href = "../case/";

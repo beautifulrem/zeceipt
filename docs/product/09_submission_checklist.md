@@ -78,13 +78,16 @@ Sources, not part of the submitted text: demand `[R3]` (forum #56300, re-read 20
 
 ## 3. Videos
 
-- **Pitch (≤ 3:00):** script and shot list in `docs/outreach/pitch-video.md` (slices V2b, V2c1, V2c2), about 2:44 with the team lines.
-  - Every shot is recorded on the local regtest chain by `apps/console/test/shots/demo-video.ts`, and each row names its take and its cue times, checked on frames. Re-recorded 2026-09-30, take `20260930083345` (`docs/outreach/footage-20260930.md`), after slice F's UI (09-29) and the 09-30 page changes, and every row re-cued on its frames (PM round 3, P01); the UI freeze from 10-01 keeps it valid, and only a blocking fix that changes a segment re-records it (`11_plan.md` §8, RSK-27).
-  - The user's part: the team lines, narration, editing, and uploading (WBS 5.1.1.1, 5.1.1.4).
-- **Technical demo (≤ 3:00):** script and shot list in `docs/outreach/tech-demo-video.md` (slices V2d, V2e), about 2:52.
-  - The terminal (`inspect`, `issue`, `verify` against the node, with no key on screen), the custody panels, the proof document's sections and the receipt page are recorded, re-recorded 2026-09-30 in take `20260930083345`. The 1:30 row, zeceipt's testnet receipts (PROOF §6), was added on 2026-09-30; its shot is the separate public-chain recording `../raw/demo/public-20260930/` (the live page on INV-T-001), due by 10-03 (PM round 3, P07).
-  - The user's part: narration, editing, and uploading (WBS 5.1.1.2).
-- **Both scripts** carry a do-not-say list. The public repository and the testnet run are applied (2026-09-30); the claims that still depend on the user's own steps (the forum post, a mainnet receipt) are marked conditional.
+- **Pitch (≤ 3:00):** script and shot list in `docs/outreach/pitch-video.md` (rewritten 2026-09-30 for the dossier pivot; appraisal round 2, E14), about 2:40 of voice-over and 20 s of the owner's ask and team line.
+  - Footage: screen recordings of the live pages only (`case/#sample`, `build/`), in a clean browser profile at 1440×900, light theme. No console or regtest footage: the take `20260930083345` (`docs/outreach/footage-20260930.md`) belongs to the building blocks and is not used.
+  - The case page is recorded as a reviewer meets it: amber, "Claims verified — control not shown", then green, "Verified, with control", after "Try it with the nonce the sample answered"; then the tampered copies, a changed nonce (red) and a removed path claim (amber, "Claims verified — funds not fully explained", the check against mixing).
+  - The user's part: the on-camera rows, the team line, narration, editing and uploading (WBS 5.1.1.1, 5.1.1.4). Recording window 10-08 → 10-09.
+- **Technical demo (≤ 3:00):** script and shot list in `docs/outreach/tech-demo-video.md` (rewritten 2026-09-30; appraisal round 2, E14), about 2:40: one real control challenge on testnet, from the reviewer's nonce to a green case page.
+  - Footage: the live case and build pages and a terminal (`zeceipt dossier nonce`, `dossier verify`, `dossier serve` with `curl`), screen-recorded directly; no console or regtest footage. The wallet send is the owner's, on testnet, with no identity file, mnemonic or path on screen.
+  - NU7 activates on testnet on 10-06: the challenge transaction must be mined before then. If it is not, the script's fallback uses PROOF §8's recorded challenge (`10e941e7…6e43`).
+  - The case page goes amber (no nonce; the dossier's own nonce shown only by its beginning), green once the reviewer's nonce is pasted, then red (a changed nonce) and amber, "funds not fully explained" (a removed path claim).
+  - The user's part: the wallet send, narration, editing and uploading (WBS 5.1.1.2).
+- **Both scripts** carry a do-not-say list: the exchange sample is "a simulated exchange-deposit review on testnet (we ran the exchange's wallet)", never "a real exchange"; no "mainnet", "users", "audited" or "works after NU7". The claims that depend on the user's own steps (the forum post, a reviewer's statement, a mainnet dossier) are marked conditional.
 - **Weekly updates:** 2026-09-28, 2026-10-05 (60 s each). The first (`docs/outreach/weekly-update-1.md`) was recorded as skipped on 2026-09-30, its fallback date (PM round 3, P09); the second is `docs/outreach/weekly-update-2.md`, due 10-05.
 
 ## 4. Repository readiness

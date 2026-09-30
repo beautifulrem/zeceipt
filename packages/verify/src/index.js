@@ -411,44 +411,70 @@ export async function scanWallet({ ufvk, network = "main", from, to = null, endp
     const tip = to ?? (await fetchChainTip(network, endpoints)).height;
     if (!(from >= 1) || from > tip) throw new Error(`the first height (${from}) must be between 1 and the tip (${tip})`);
     let lastErr = null;
+    // Where the scan has got to: a node that fails mid-way hands over to the next at the next block, so no block is
+    // scanned twice and none is skipped.
+    let next = from;
     for (const ep of endpoints) {
-      try {
-        for (let start = from; start <= tip; start += chunk) {
-          const end = Math.min(tip, start + chunk - 1);
-          const res = await fetch(`${ep}/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlockRange`, {
-            method: "POST",
-            headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
-            body: encodeBlockRange(start, end),
-            signal: signal ?? AbortSignal.timeout(timeoutMs),
-          });
-          if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-          // Frames arrive in pieces: [flag][u32 BE length][payload]; flag 0 = a CompactBlock, 0x80 = trailers.
-          const reader = res.body.getReader();
-          let buf = new Uint8Array(0);
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (value) { const b = new Uint8Array(buf.length + value.length); b.set(buf); b.set(value, buf.length); buf = b; }
-            while (buf.length >= 5) {
-              const len = new DataView(buf.buffer, buf.byteOffset + 1, 4).getUint32(0, false);
-              if (buf.length < 5 + len) break;
-              const flag = buf[0], payload = buf.slice(5, 5 + len);
-              buf = buf.slice(5 + len);
-              if (flag === 0) {
-                const height = Number(scanner.scan_block(payload));
-                onProgress({ height, from, to: tip, found: scanner.found().length });
-              } else if (flag & 0x80) {
-                const t = new TextDecoder().decode(payload);
-                const m = /grpc-status:\s*(\d+)/i.exec(t);
-                if (m && m[1] !== "0") throw new Error(`grpc-status ${m[1]}: ${t.trim()}`);
+      // A node may close a long stream part-way (public nodes cap a stream's length): while each attempt gets further,
+      // ask the same node again from where it stopped.
+      for (let tries = 0; ; tries++) {
+        const before = next;
+        try {
+          while (next <= tip) {
+            const end = Math.min(tip, next + chunk - 1);
+            // The timeout is for silence, not for the whole range: in 2022–23's spam blocks a range of 2,000 can take
+            // minutes to stream, while a node that stops sending is given up on after `timeoutMs`.
+            const idle = new AbortController();
+            let timer;
+            const quiet = () => {
+              clearTimeout(timer);
+              timer = setTimeout(() => idle.abort(new DOMException(`no data for ${timeoutMs} ms`, "TimeoutError")), timeoutMs);
+            };
+            quiet();
+            try {
+              const res = await fetch(`${ep}/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlockRange`, {
+                method: "POST",
+                headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
+                body: encodeBlockRange(next, end),
+                signal: signal ? AbortSignal.any([signal, idle.signal]) : idle.signal,
+              });
+              if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+              // Frames arrive in pieces: [flag][u32 BE length][payload]; flag 0 = a CompactBlock, 0x80 = trailers.
+              const reader = res.body.getReader();
+              let buf = new Uint8Array(0);
+              for (;;) {
+                const { done, value } = await reader.read();
+                quiet();
+                if (value) { const b = new Uint8Array(buf.length + value.length); b.set(buf); b.set(value, buf.length); buf = b; }
+                while (buf.length >= 5) {
+                  const len = new DataView(buf.buffer, buf.byteOffset + 1, 4).getUint32(0, false);
+                  if (buf.length < 5 + len) break;
+                  const flag = buf[0], payload = buf.slice(5, 5 + len);
+                  buf = buf.slice(5 + len);
+                  if (flag === 0) {
+                    const height = Number(scanner.scan_block(payload));
+                    next = height + 1;
+                    onProgress({ height, from, to: tip, found: scanner.found().length });
+                  } else if (flag & 0x80) {
+                    const t = new TextDecoder().decode(payload);
+                    const m = /grpc-status:\s*(\d+)/i.exec(t);
+                    if (m && m[1] !== "0") throw new Error(`grpc-status ${m[1]}: ${t.trim()}`);
+                  }
+                }
+                if (done) break;
               }
+            } finally {
+              clearTimeout(timer);
             }
-            if (done) break;
+            next = Math.max(next, end + 1);
           }
+          return scanner.found();
+        } catch (e) {
+          if (signal?.aborted) throw e;
+          lastErr = e?.name === "TimeoutError" ? new Error(`${ep}: no data for ${timeoutMs / 1000} s`) : e;
+          if (next > before && tries < 20) continue;
+          break;
         }
-        return scanner.found();
-      } catch (e) {
-        if (signal?.aborted) throw e;
-        lastErr = timedOut(e, ep, timeoutMs);
       }
     }
     throw lastErr;

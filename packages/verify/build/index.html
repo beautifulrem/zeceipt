@@ -41,6 +41,11 @@
   <p id="status" class="muted status" role="status" data-state="loading">Loading the builder…</p>
 </div>
 
+<section class="card nu7" aria-labelledby="nu7-title">
+  <h2 id="nu7-title"><span class="i i-alert" aria-hidden="true"></span>Network upgrade NU7</h2>
+  <p>NU7 activates on Zcash testnet on 2026-10-06 and on mainnet on 2026-11-05. This build refuses a transaction mined after activation, and says so by name, until the Zcash crates it uses support NU7; dossiers of transactions mined before then keep building and verifying. To try the builder after 10-06, use the sample customer's viewing key below: its transactions were mined before activation.</p>
+</section>
+
 <section class="card promise" aria-labelledby="promise-title">
   <h2 id="promise-title"><span class="i i-key" aria-hidden="true"></span>Your viewing key stays in this page</h2>
   <ul class="checks">
@@ -64,6 +69,7 @@
     <span id="ufvk-hint" class="hint">Starts with <code>uview1</code> on mainnet, <code>uviewtest1</code> on testnet; the network above follows the key you paste. Wallets export it as the “viewing key” (with <code>zcash-devtool</code>, <code>wallet list-accounts</code> prints it). It lets this page find your notes; it cannot move funds.</span>
     <span id="ufvk-network" class="hint" role="status"></span>
   </label>
+  <p class="sample-key"><button id="sample-key" type="button" class="btn btn-secondary"><span class="i i-key" aria-hidden="true"></span>Try with the sample customer's viewing key</button> <span id="sample-key-status" class="muted" role="status">A public testnet key: the customer of the exchange-deposit sample.</span></p>
   <label id="txids-field" class="field">Transaction ids of the funds, one per line
     <textarea id="txids" rows="5" spellcheck="false" autocomplete="off" aria-describedby="txids-hint"></textarea>
     <span id="txids-hint" class="hint">The transaction that brought the funds into your wallet, and each one that moved or paid them, in any order: the builder puts each after the ones whose notes it spends.</span>
@@ -91,6 +97,7 @@
     <label id="control-txid-field" class="field">The challenge transaction's id
       <input id="control-txid" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
     </label>
+    <p id="control-note" class="muted control-note" role="status"></p>
   </fieldset>
   <label id="subject-field" class="field">Subject (optional)
     <input id="subject" class="text" autocomplete="off" aria-describedby="subject-hint">
@@ -108,6 +115,7 @@
     <span class="verdict-icon" aria-hidden="true"></span>
     <div><h2 id="error-title" class="verdict-word">Not built</h2><p id="error-text" class="verdict-sub"></p></div>
   </div>
+  <p id="error-fix" class="error-fix" hidden><button id="error-fix-btn" type="button" class="btn btn-secondary">Move it to Control and build again</button></p>
 </section>
 
 <section id="built" class="result" hidden tabindex="-1" aria-labelledby="built-title">
@@ -118,7 +126,7 @@
   <dl id="built-counts" class="facts"></dl>
   <h3>What it discloses</h3>
   <ul id="built-discloses" class="discloses"></ul>
-  <p class="after-note"><strong>After the case:</strong> the nk in this dossier lets the reviewer see when any of its notes is spent, for as long as they keep it. Once the case is closed you may move the remaining funds to a fresh account in your wallet (with its own keys), whose notes this nk does not cover.</p>
+  <p class="after-note"><strong>After the case:</strong> the nk in this dossier stays with the reviewer, and with anyone the dossier reaches. With it they see when each disclosed note is spent, past and future. More: the reviewer, and anyone who ever paid you (an exchange that sent withdrawals to you, for example), can use it to see when every note they paid you is spent, past and future, not only the disclosed ones. Once the case is closed, move the remaining funds to a fresh account in your wallet (with its own keys): its notes are not covered by this nk.</p>
   <div class="actions case-actions">
     <p><button id="download" type="button" class="btn btn-primary"><span class="i i-download" aria-hidden="true"></span>Download dossier.json</button></p>
     <p><button id="copy-link" type="button" class="btn btn-secondary"><span class="i i-link" aria-hidden="true"></span>Copy a review link</button></p>
@@ -147,7 +155,7 @@
   <li><span>Where the funds entered your wallet, and what funded that transaction (its transparent inputs are public).</span></li>
   <li><span>Each move of the funds within your wallet, and each payment you made from them (with a sender receipt).</span></li>
   <li><span>With a control answer: that you could spend the funds after the reviewer's nonce was issued.</span></li>
-  <li><span>When any disclosed note is spent, now and later: the dossier's nk lets the reviewer compute these notes' nullifiers and watch for them on chain.</span></li>
+  <li><span>When any disclosed note is spent, past and future: the dossier's nk lets the reviewer compute these notes' nullifiers and watch for them on chain. With the same nk, anyone who ever paid you (an exchange that sent withdrawals to you) can see when every note they paid you is spent, not only the disclosed ones.</span></li>
 </ul>
 </section>
 <section class="card" aria-labelledby="keeps-title">
