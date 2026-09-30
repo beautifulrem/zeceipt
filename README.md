@@ -25,7 +25,7 @@
   <img alt="Node 24+" src="https://img.shields.io/badge/node-24%2B-3c873a?style=flat-square&logo=nodedotjs&logoColor=white">
   <img alt="WebAssembly verifier" src="https://img.shields.io/badge/verifier-WebAssembly-654ff0?style=flat-square&logo=webassembly&logoColor=white">
   <img alt="Pools: Ironwood, Orchard, Sapling" src="https://img.shields.io/badge/pools-Ironwood%20%C2%B7%20Orchard%20%C2%B7%20Sapling-e9a21b?style=flat-square">
-  <img alt="548 tests" src="https://img.shields.io/badge/tests-548-2ea44f?style=flat-square">
+  <img alt="549 tests" src="https://img.shields.io/badge/tests-549-2ea44f?style=flat-square">
 </p>
 
 ---
@@ -223,7 +223,7 @@ flowchart LR
 **About ten minutes on a recent laptop.** The first run downloads crates and npm packages. After that, nothing needs the network, and no wallet keys are involved.
 
 ```bash
-cargo test --workspace --features zeceipt-core/synthetic   # 83 tests, including the official Orchard note-encryption vectors
+cargo test --workspace --features zeceipt-core/synthetic   # 84 tests, including the official Orchard note-encryption vectors
 node packages/verify/test/verify.mjs                       # the committed WASM verifier against the committed vectors
 (cd apps/console && npm ci && npm test)                    # 495 console tests: 465 run by default, 30 opt-in (build-and-serve, regtest)
 ```

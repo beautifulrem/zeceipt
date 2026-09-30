@@ -78,6 +78,10 @@ enum DossierCmd {
         /// A label for the reviewer (unauthenticated).
         #[arg(long)]
         subject: Option<String>,
+        /// Instead of listing txids: scan from this height to the tip for every transaction of yours (`dossier scan`),
+        /// and explain them all.
+        #[arg(long, conflicts_with_all = ["txids", "raw_tx_files"])]
+        scan_from: Option<u64>,
     },
     /// Check every claim of a dossier against the chain; prints the report (JSON). Exit 0: all verified; 1: a claim
     /// failed; 2: a claim could not be checked yet (a transaction not mined).
@@ -92,6 +96,20 @@ enum DossierCmd {
     },
     /// Print a fresh random nonce for a control challenge (for the reviewer to send the holder).
     Nonce,
+    /// Find your transactions in a height range: every one that paid you or spent your notes (trial decryption of
+    /// compact blocks with your UFVK, on this machine). Prints them as JSON, oldest first.
+    Scan {
+        #[command(flatten)]
+        net: NetArgs,
+        #[arg(long)]
+        ufvk_file: PathBuf,
+        /// First height to scan (your wallet's birthday, or where the funds to explain arrived).
+        #[arg(long)]
+        from: u64,
+        /// Last height (default: the chain tip).
+        #[arg(long)]
+        to: Option<u64>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1013,19 +1031,45 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             println!("zeceipt-challenge-{}", hex::encode(b));
             Ok(ExitCode::SUCCESS)
         }
+        DossierCmd::Scan {
+            net,
+            ufvk_file,
+            from,
+            to,
+        } => {
+            let ufvk = std::fs::read_to_string(&ufvk_file)
+                .with_context(|| format!("reading {}", ufvk_file.display()))?;
+            let keys = OutgoingKeys::from_ufvk(network_of(&net), ufvk.trim())?;
+            let found = scan_wallet(&net, &keys, from, to).await?;
+            println!("{}", serde_json::to_string_pretty(&found)?);
+            Ok(ExitCode::SUCCESS)
+        }
         DossierCmd::Build {
             net,
             ufvk_file,
-            txids,
+            mut txids,
             raw_tx_files,
             control_txid,
             nonce,
             subject,
+            scan_from,
         } => {
             let network = network_of(&net);
             let ufvk = std::fs::read_to_string(&ufvk_file)
                 .with_context(|| format!("reading {}", ufvk_file.display()))?;
             let keys = OutgoingKeys::from_ufvk(network, ufvk.trim())?;
+            if let Some(from) = scan_from {
+                let found = scan_wallet(&net, &keys, from, None).await?;
+                txids = found
+                    .into_iter()
+                    .map(|f| f.txid)
+                    .filter(|t| Some(t) != control_txid.as_ref())
+                    .collect();
+                eprintln!(
+                    "scan: {} transactions of yours since height {from}",
+                    txids.len()
+                );
+            }
             let mut txs = Vec::new();
             for p in &raw_tx_files {
                 let s =
@@ -1137,6 +1181,67 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             })
         }
     }
+}
+
+/// `dossier scan`: stream compact blocks from the endpoint and trial-decrypt them with the UFVK on this machine.
+async fn scan_wallet(
+    net: &NetArgs,
+    keys: &OutgoingKeys,
+    from: u64,
+    to: Option<u64>,
+) -> anyhow::Result<Vec<zeceipt_core::dossier::FoundTx>> {
+    use zeceipt_core::dossier::{CompactActionData, WalletScanner};
+    let mut client = connect(net).await?;
+    let tip = client.latest_height().await?;
+    let to = to.unwrap_or(tip).min(tip);
+    if from > to {
+        return Err(anyhow!("--from {from} is above the last height {to}"));
+    }
+    let mut scanner = WalletScanner::new(keys)?;
+    let conv =
+        |a: &zeceipt_lwd::compact_formats::CompactOrchardAction| -> Option<CompactActionData> {
+            Some(CompactActionData {
+                nullifier: a.nullifier.as_slice().try_into().ok()?,
+                cmx: a.cmx.as_slice().try_into().ok()?,
+                ephemeral_key: a.ephemeral_key.as_slice().try_into().ok()?,
+                ciphertext: a.ciphertext.as_slice().try_into().ok()?,
+            })
+        };
+    let (mut blocks, started) = (0u64, std::time::Instant::now());
+    client
+        .for_each_block(from, to, |b| {
+            blocks += 1;
+            for tx in &b.vtx {
+                let mut id = tx.txid.clone();
+                id.reverse();
+                let id = hex::encode(id);
+                let iw: Vec<_> = tx.ironwood_actions.iter().filter_map(conv).collect();
+                let or: Vec<_> = tx.actions.iter().filter_map(conv).collect();
+                if !iw.is_empty() {
+                    scanner.scan_tx(b.height, &id, &iw, true);
+                }
+                if !or.is_empty() {
+                    scanner.scan_tx(b.height, &id, &or, false);
+                }
+            }
+        })
+        .await?;
+    eprintln!(
+        "scanned {blocks} blocks ({from}..={to}) in {:.1} s",
+        started.elapsed().as_secs_f64()
+    );
+    // A transaction with both pools appears once per pool: merge by txid, keeping chain order.
+    let mut merged: Vec<zeceipt_core::dossier::FoundTx> = Vec::new();
+    for f in scanner.found() {
+        match merged.iter_mut().find(|m| m.txid == f.txid) {
+            Some(m) => {
+                m.received += f.received;
+                m.spent += f.spent;
+            }
+            None => merged.push(f.clone()),
+        }
+    }
+    Ok(merged)
 }
 
 /// The current time as RFC 3339 UTC, to the second (no date crate: days since the epoch, civil-from-days).

@@ -7,6 +7,8 @@
 #![forbid(unsafe_code)]
 
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+/// The compact block types `Client::for_each_block` yields.
+pub use zcash_client_backend::proto::compact_formats;
 use zcash_client_backend::proto::service::compact_tx_streamer_client::CompactTxStreamerClient;
 use zcash_client_backend::proto::service::{BlockId, BlockRange, ChainSpec, TxFilter};
 
@@ -188,6 +190,48 @@ impl Client {
             }
         }
         Ok(out)
+    }
+}
+
+impl Client {
+    /// Stream the compact blocks of `[start, end]` to `f`, in order (a wallet scan: `zeceipt dossier scan`).
+    pub async fn for_each_block(
+        &mut self,
+        start: u64,
+        end: u64,
+        mut f: impl FnMut(zcash_client_backend::proto::compact_formats::CompactBlock),
+    ) -> Result<(), LwdError> {
+        let range = BlockRange {
+            start: Some(BlockId {
+                height: start,
+                hash: vec![],
+            }),
+            end: Some(BlockId {
+                height: end,
+                hash: vec![],
+            }),
+            pool_types: vec![],
+        };
+        let rpc = |s: tonic::Status| LwdError::Rpc {
+            endpoint: self.endpoint.clone(),
+            rpc: "GetBlockRange",
+            status: s.to_string(),
+        };
+        let mut stream = self
+            .inner
+            .get_block_range(range)
+            .await
+            .map_err(rpc)?
+            .into_inner();
+        let rpc = |s: tonic::Status| LwdError::Rpc {
+            endpoint: self.endpoint.clone(),
+            rpc: "GetBlockRange",
+            status: s.to_string(),
+        };
+        while let Some(block) = stream.message().await.map_err(rpc)? {
+            f(block);
+        }
+        Ok(())
     }
 }
 

@@ -806,3 +806,126 @@ mod tests {
         }
     }
 }
+
+/// One Orchard-family action of a compact block (lightwalletd `CompactOrchardAction`, for the Ironwood or the Orchard
+/// pool): enough to trial-decrypt it and to see which note it spends.
+#[derive(Debug, Clone)]
+pub struct CompactActionData {
+    pub nullifier: [u8; 32],
+    pub cmx: [u8; 32],
+    pub ephemeral_key: [u8; 32],
+    pub ciphertext: [u8; 52],
+}
+
+/// A transaction of the holder's, found by `WalletScanner`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FoundTx {
+    pub height: u64,
+    pub txid: String,
+    /// Notes this transaction paid the holder (received or change).
+    pub received: usize,
+    /// The holder's notes it spent.
+    pub spent: usize,
+}
+
+/// Finds the holder's transactions in compact blocks (spec/dossier-v1.md §6, "finding the transactions"): it
+/// trial-decrypts every Orchard-family action with the account's incoming viewing keys (both scopes), and derives each
+/// found note's nullifier with `nk` to see where it is spent. Compact decryption opens the note plaintext's first 52
+/// bytes, which carry the value and rseed, so the note, and so its nullifier, is known without the full transaction.
+pub struct WalletScanner {
+    ivks: Vec<(
+        orchard::keys::PreparedIncomingViewingKey,
+        orchard::keys::Scope,
+    )>,
+    nk_key: FullViewingKey,
+    fvk: FullViewingKey,
+    own: HashMap<[u8; 32], ()>,
+    found: Vec<FoundTx>,
+}
+
+impl WalletScanner {
+    pub fn new(keys: &crate::OutgoingKeys) -> Result<Self, crate::CoreError> {
+        use orchard::keys::{PreparedIncomingViewingKey, Scope};
+        let fvk = keys
+            .orchard_fvk
+            .clone()
+            .ok_or(crate::CoreError::MissingKey("Orchard full viewing"))?;
+        let nk: [u8; 32] = fvk.to_bytes()[32..64].try_into().expect("32 bytes");
+        let nk_key = nullifier_key(nk)
+            .ok_or_else(|| crate::CoreError::KeyDecode("no nullifier key for this nk".into()))?;
+        let ivks = [Scope::External, Scope::Internal]
+            .into_iter()
+            .map(|s| (PreparedIncomingViewingKey::new(&fvk.to_ivk(s)), s))
+            .collect();
+        Ok(WalletScanner {
+            ivks,
+            nk_key,
+            fvk,
+            own: HashMap::new(),
+            found: Vec::new(),
+        })
+    }
+
+    /// Scan one transaction's compact actions. `ironwood` selects the note encryption domain (Ironwood's note
+    /// plaintext version differs from Orchard's).
+    pub fn scan_tx(
+        &mut self,
+        height: u64,
+        txid: &str,
+        actions: &[CompactActionData],
+        ironwood: bool,
+    ) {
+        use orchard::note::{ExtractedNoteCommitment, Nullifier};
+        use orchard::note_encryption::{CompactAction, IronwoodVersion, OrchardVersion};
+        use zcash_note_encryption::{try_compact_note_decryption, EphemeralKeyBytes};
+        let (mut received, mut spent) = (0, 0);
+        for a in actions {
+            if self.own.contains_key(&a.nullifier) {
+                spent += 1;
+            }
+            let (Some(nf), Some(cmx)) = (
+                Option::<Nullifier>::from(Nullifier::from_bytes(&a.nullifier)),
+                Option::<ExtractedNoteCommitment>::from(ExtractedNoteCommitment::from_bytes(
+                    &a.cmx,
+                )),
+            ) else {
+                continue;
+            };
+            let act = CompactAction::from_parts(
+                nf,
+                cmx,
+                EphemeralKeyBytes(a.ephemeral_key),
+                a.ciphertext,
+            );
+            let note = self.ivks.iter().find_map(|(ivk, _)| {
+                if ironwood {
+                    let d = NoteEncryptionDomain::<IronwoodVersion>::for_compact_action(&act);
+                    try_compact_note_decryption(&d, ivk, &act).map(|(n, _)| n)
+                } else {
+                    let d = NoteEncryptionDomain::<OrchardVersion>::for_compact_action(&act);
+                    try_compact_note_decryption(&d, ivk, &act).map(|(n, _)| n)
+                }
+            });
+            if let Some(n) = note {
+                received += 1;
+                self.own.insert(n.nullifier(&self.nk_key).to_bytes(), ());
+                debug_assert_eq!(n.nullifier(&self.nk_key), n.nullifier(&self.fvk));
+            }
+        }
+        if received + spent > 0 {
+            self.found.push(FoundTx {
+                height,
+                txid: txid.to_string(),
+                received,
+                spent,
+            });
+        }
+    }
+
+    /// The holder's transactions found so far, in chain order.
+    pub fn found(&self) -> &[FoundTx] {
+        &self.found
+    }
+}
+
+use orchard::note_encryption::NoteEncryptionDomain;

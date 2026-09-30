@@ -236,3 +236,45 @@ fn another_holders_key_cannot_build_a_dossier_for_these_funds() {
     });
     assert!(r.is_err(), "a key that sees no note builds nothing");
 }
+
+#[test]
+fn the_scanner_finds_exactly_the_holders_transactions() {
+    use zeceipt_core::dossier::{CompactActionData, WalletScanner};
+    use zeceipt_core::parse_transaction;
+    let keys =
+        OutgoingKeys::from_ufvk(Network::Test, fx("testnet/issuer-ufvk.txt").trim()).unwrap();
+    let mut s = WalletScanner::new(&keys).unwrap();
+    // The five transactions, then the recipient's view is irrelevant: compact actions built from the full ones (the
+    // first 52 bytes of each enc_ciphertext, as lightwalletd serves them).
+    for (h, t) in TXIDS.iter().chain(std::iter::once(&CONTROL)).enumerate() {
+        let tx = parse_transaction(&tx(t)).unwrap();
+        let acts: Vec<CompactActionData> = tx
+            .ironwood_bundle()
+            .unwrap()
+            .actions()
+            .iter()
+            .map(|a| CompactActionData {
+                nullifier: a.nullifier().to_bytes(),
+                cmx: a.cmx().to_bytes(),
+                ephemeral_key: a.encrypted_note().epk_bytes,
+                ciphertext: a.encrypted_note().enc_ciphertext[..52].try_into().unwrap(),
+            })
+            .collect();
+        s.scan_tx(h as u64, t, &acts, true);
+    }
+    let got: Vec<(&str, usize, usize)> = s
+        .found()
+        .iter()
+        .map(|f| (f.txid.as_str(), f.received, f.spent))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            (TXIDS[0], 1, 0),
+            (TXIDS[1], 4, 1),
+            (TXIDS[2], 1, 1),
+            (TXIDS[3], 2, 1),
+            (CONTROL, 2, 1)
+        ]
+    );
+}
