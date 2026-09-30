@@ -96,7 +96,10 @@ Each item is re-read at every run; the evidence is where it is proven.
 | Untrusted transaction and receipt bytes are mutation-tested against crashes | No crash found in seeded, sampled mutation (not coverage-guided) through parse, issue, verify, packs and the binding: 55,000 transactions and 250,000 receipt-side inputs in the release run (slices U3, C0); nothing re-serializes a parsed transaction; a transaction under a branch its version is not valid in is refused (slice U2). Residual: a malicious issuer's crafted plaintext is covered only for its value, since no mutation gets past the AEAD (`docs/THREAT_MODEL.md`) |
 | Totals and values stay within what the chain allows | Each output counted once in an audit pack (slice U4); a recovered value above MAX_MONEY refused in every pool (slices U5, U5b) |
 
+## In CI (2026-09-30)
+
+The `security` job in `.github/workflows/ci.yml` runs `scripts/security_review.sh` on every push and weekly (Monday 06:17 UTC), so a new advisory against a locked dependency shows without a push: cargo-audit from `taiki-e/install-action`, gitleaks 8.30.1 checked against its release checksum, over the whole history (`fetch-depth: 0`). The same run passed locally on 2026-09-30 at `10dfeef` (every check PASS). Every action in the workflows is pinned to a commit.
+
 ## Not done (recorded)
-- **CI integration.** The repository has no remote yet, so a CI step cannot be verified here; add the runner to CI when it is pushed.
 - **`cargo deny`** (licences, bans, sources) and SAST (e.g. semgrep): alternatives not adopted for the hackathon.
 - **The pre-submission rerun** (10-08 → 10-09) closes WBS 3.4.2.3; its result is added here as a second dated section.

@@ -2,13 +2,20 @@ name: ci
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, so a new advisory against a locked dependency shows even without a push
+# Every action is pinned to a commit (PM round 1, D31); the comment names the ref it was resolved from on 2026-09-30.
+permissions:
+  contents: read
 jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --features zeceipt-core/synthetic -- -D warnings
@@ -30,7 +37,7 @@ jobs:
         run: python3 scripts/check_design_tokens.py
       - name: product docs consistent (WBS/requirements/plan invariants, NFR-1 evidence pinned to the guard output)
         run: python3 scripts/check_product_docs.py
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: one version in every source, and the changelog's shape (release check, and its tests)
@@ -51,14 +58,56 @@ jobs:
           npm ci --no-audit --no-fund
           npx tsc --noEmit -p .
           npm run lint
-          ZECEIPT_BIN="$GITHUB_WORKSPACE/target/debug/zeceipt" node --test test/*.test.ts  # absolute, as the config requires (REQ-CON-17)
+          set -o pipefail
+          ZECEIPT_BIN="$GITHUB_WORKSPACE/target/debug/zeceipt" node --test test/*.test.ts | tee "$RUNNER_TEMP/console-tests.log"  # absolute, as the config requires (REQ-CON-17)
       - name: console app — next build without ZECEIPT_* variables; next start boots, serves the API and pages (forms posted without JavaScript, and in Chrome with it); bad configuration exits 1 before answering (REQ-CON-17)
         working-directory: apps/console
         # ZECEIPT_BROWSER_E2E: the JavaScript-path test drives the runner's Google Chrome through playwright-core.
-        run: ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 node --test test/app.e2e.test.ts
+        run: |
+          set -o pipefail
+          ZECEIPT_APP_E2E=1 ZECEIPT_BROWSER_E2E=1 node --test test/app.e2e.test.ts | tee "$RUNNER_TEMP/app-e2e.log"
+      - name: the test counts the README, the submission checklist and the WBS state are the counts these runs had (PM round 1, D15)
+        run: python3 scripts/check_test_counts.py --console-log "$RUNNER_TEMP/console-tests.log" --app-e2e-log "$RUNNER_TEMP/app-e2e.log"
       - name: "design gallery: every console page, light and dark, desktop and phone: no overflow, no table scrolling inside its card on a desktop, no axe WCAG A/AA violation (slice F4)"
         working-directory: apps/console
         run: CHROME_PATH="$(command -v google-chrome)" node test/shots/gallery.ts "$RUNNER_TEMP/gallery"
+  msrv:
+    # The workspace's rust-version (1.88, the highest any dependency declares) is built, not only stated (PM round 1, D30).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          toolchain: 1.88.0
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo check --workspace --all-targets --features zeceipt-core/synthetic --locked
+  security:
+    # scripts/security_review.sh, as run by hand for docs/SECURITY_REVIEW.md: cargo audit, npm audit of both lockfiles,
+    # gitleaks over every commit and the tree, and the source guards (PM round 1, D29).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # gitleaks reads the whole history
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
+        with:
+          tool: cargo-audit
+      - name: gitleaks 8.30.1 (the version the recorded reviews used), checked against its release checksum
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  /tmp/gitleaks.tgz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: scripts/security_review.sh
+  site:
+    # The public static site (scripts/build_site.sh) builds and its every page loads its verifier: pages.yml publishes
+    # the same build (PM round 1, D08).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: scripts/build_site.sh "$RUNNER_TEMP/site"
   wasm:
     # Rebuilds the committed WASM on Linux with the same Rust, wasm-pack and wasm-bindgen it was measured with, and the
     # runner's clang 18 (Homebrew clang 23 on the Mac) (README, "Building the WASM package"; slices X3b, X3c): the
@@ -67,19 +116,19 @@ jobs:
     # whose apt provides clang-18 and llvm-18, so the comparison is repeatable.
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
           toolchain: 1.96.0
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: sudo apt-get update && sudo apt-get install -y clang-18 llvm-18
       - run: cargo install wasm-pack --version 0.15.0 --locked
       - name: build the WASM package with the reproducible script, outside the committed pkg/
         run: ZECEIPT_WASM_CLANG=clang-18 ZECEIPT_WASM_AR=llvm-ar-18 scripts/build_wasm.sh --out-dir "$RUNNER_TEMP/pkg"
       - name: compare with the committed package (wasm-bindgen outputs must match; the .wasm is reported)
         run: scripts/build_wasm.sh --compare "$RUNNER_TEMP/pkg"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: the Linux-built package passes the committed package's checks
