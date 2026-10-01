@@ -1,7 +1,7 @@
 // Pure display logic for the case review page (case/index.html) and the dossier builder (build/index.html): a dossier
 // (zeceipt-dossier-v1, spec/dossier-v1.md) and its report (zeceipt-dossier-report-v1) in, plain strings and plain data
 // out. No DOM here; case/page.js and build/page.js render these with textContent only. Tested by test/dossier-view.mjs.
-import { valueParts, nodeHost } from "../r/view.js";
+import { valueParts, nodeHost, heightText } from "../r/view.js";
 
 export const NETWORK_NAME = { main: "Zcash mainnet", test: "Zcash testnet", regtest: "local regtest chain (development only)" };
 export const KIND_LABEL = { origin: "Origin", path: "Path", deposit: "Deposit", control: "Control", transparent_payment: "Transparent payment" };
@@ -57,7 +57,7 @@ export const SAMPLE_CHALLENGE = {
  * sample's origin is the testnet faucet, an undisclosed shielded sender, so its funds are not fully explained.
  */
 export const SAMPLE_EXPECTED = {
-  [SAMPLE_FRAGMENT]: { reason: "partly-explained", text: "That is the right result for this sample: its funds came from the testnet faucet, which pays from the shielded pool, so the chain cannot show where they came from (spec §5.6)." },
+  [SAMPLE_FRAGMENT]: { reason: "partly-explained", text: "That is the expected result for this sample: its funds came from the testnet faucet, which pays from the shielded pool, so the chain cannot show their source." },
 };
 export const NONCE_PREFIX = "zeceipt-challenge-";
 export const BEACON_PREFIX = "zeceipt-beacon-";
@@ -385,9 +385,10 @@ export function caseVerdict(report, dossier = null, opts = {}) {
   if (!report || report.error || !Array.isArray(report.claims)) {
     const p = report?.error ? parseErrorText(report.error) : null;
     if (opts.sample && p && STALE_VERIFIER.test(p.raw)) {
-      return { tone: "pending", headline: "Reload the page", sub: "This page's verifier is older than its sample dossier: the site was updated while the page was open, or the browser kept an old copy of the verifier. Reload the page.", raw: p.raw, counts: null, reason: "stale" };
+      return { tone: "pending", headline: "Reload the page", count: null, line: "This page's verifier is older than its sample dossier.", sub: "This page's verifier is older than its sample dossier: the site was updated while the page was open, or the browser kept an old copy of the verifier. Reload the page.", raw: p.raw, counts: null, reason: "stale" };
     }
-    return { tone: "bad", headline: "Not a readable dossier", sub: p ? p.text : "The verifier could not read it.", raw: p?.raw ?? null, counts: null };
+    const sub = p ? p.text : "The verifier could not read it.";
+    return { tone: "bad", headline: "Not a readable dossier", count: null, line: sub, sub, raw: p?.raw ?? null, counts: null };
   }
   const v = gradedVerdict(report, dossier);
   // A sample that is amber on purpose says so (the faucet sample: its origin is an undisclosed shielded sender).
@@ -402,9 +403,18 @@ export function caseVerdict(report, dossier = null, opts = {}) {
   return v;
 }
 
+/** "4 of 4 claims verified": the count beside the verdict (offline, "consistent with your files"). */
+export function verdictCount(counts, n, offline = false) {
+  return `${counts.verified} of ${plural(n, "claim")} ${offline ? "consistent with your files" : "verified"}`;
+}
+
+/** A sentence's first clause, for a one-line summary: up to its first full stop. */
+const firstSentence = (t) => { const m = /^(.*?[.!?])(\s|$)/.exec(String(t ?? "")); return m ? m[1] : String(t ?? ""); };
+
 function gradedVerdict(report, dossier) {
   const counts = statusCounts(report.claims);
   const n = report.claims.length;
+  const count = verdictCount(counts, n, report.anchored === false && report.all_verified);
   // Offline (transactions from files, no heights), nothing was checked against the chain, so no sentence says it was.
   const against = report.anchored === false ? "the transactions you loaded" : "the chain";
   if (counts.failed > 0) {
@@ -412,6 +422,8 @@ function gradedVerdict(report, dossier) {
     return {
       tone: "bad",
       headline: `${plural(counts.failed, "claim")} failed`,
+      count,
+      line: one ? `${cap(claimRef(one.index, one.kind))}: ${firstSentence(one.summary)}` : `${plural(counts.failed, "claim")} do not hold against ${against}: their rows say why.`,
       sub: `${counts.verified} of ${n} verified${counts.not_checked ? `, ${counts.not_checked} not checked` : ""}. A failed claim is not supported by ${against}: ${one ? `${claimRef(one.index, one.kind)}: ${one.summary}` : "its row below says why."}`,
       counts,
     };
@@ -420,6 +432,8 @@ function gradedVerdict(report, dossier) {
     return {
       tone: "pending",
       headline: "Not all checked",
+      count,
+      line: `${plural(counts.not_checked, "claim")} not checked yet: a transaction was not found, or is not mined. Check again later.`,
       sub: `${counts.verified} of ${n} verified; ${plural(counts.not_checked, "claim")} could not be checked yet (a transaction was not found, or is not mined). Check again later.`,
       counts,
     };
@@ -428,6 +442,8 @@ function gradedVerdict(report, dossier) {
     return {
       tone: "pending",
       headline: `${plural(counts.unproven, "claim")} not proven`,
+      count,
+      line: "This dossier cannot show it, and waiting will not change that; the row says what would.",
       sub: `${counts.verified} of ${n} verified; ${plural(counts.unproven, "claim")} cannot be shown with this dossier (its row says what would show it). Waiting will not change that.`,
       counts,
     };
@@ -440,16 +456,21 @@ function gradedVerdict(report, dossier) {
     return {
       tone: "bad",
       headline: other ? "Deposit address for another network" : "Deposit address not paid",
+      count,
+      line: other ? "The deposit address you entered is for another network than this dossier." : "No verified payment in this dossier pays the deposit address you assigned.",
       sub: `${said.join(" ") || "No verified payment in this dossier pays the deposit address you assigned."} ${counts.verified === n ? `${n === 1 ? "The claim verifies" : `All ${n} claims verify`}` : `${counts.verified} of ${n} claims verify`} against ${against}, but nothing ties these funds to the customer you assigned that address to.`,
       reason: "deposit-unpaid",
       counts,
     };
   }
   if (!report.all_verified) {
+    const problems = report.problems ?? [];
     return {
       tone: "pending",
       headline: "Not all verified",
-      sub: (report.problems ?? []).join(" ") || `${counts.verified} of ${n} verified.`,
+      count,
+      line: firstSentence(problems[0] ?? `${counts.verified} of ${n} verified.`),
+      sub: problems.join(" ") || `${counts.verified} of ${n} verified.`,
       counts,
     };
   }
@@ -465,6 +486,10 @@ function gradedVerdict(report, dossier) {
     return {
       tone: "ok",
       headline: "Verified, with control",
+      count,
+      line: beacon
+        ? `The control answers the hash of block ${heightText(beacon.height)}${Number.isFinite(beacon.time) ? `, mined ${blockTimeText(beacon.time)}` : ""}: judge whether that is recent enough.`
+        : `The control claim answers the nonce you issued${h0 != null ? `, after height ${heightText(h0)}` : ""}.`,
       sub: beacon
         ? `${all} against the chain (${breakdown}), and the control claim answers the hash of ${beaconBlockText(beacon)}, a beacon no one could know before that block: the holder could spend these funds after it was mined. No one issued this nonce: judge whether block ${beacon.height} is recent enough for this case.`
         : `${all} against the chain (${breakdown}), and the control claim answers the nonce you issued${h0 != null ? `, after height ${h0}` : ""}: the holder could spend these funds after your challenge.`,
@@ -478,7 +503,9 @@ function gradedVerdict(report, dossier) {
         : hasControl ? " The control claim is not matched to your nonce." : " The dossier has no control claim.";
     return {
       tone: "partial",
-      headline: "Consistent with the files you loaded — not checked against the chain",
+      headline: "Not checked against the chain",
+      count,
+      line: "No node was asked: whether these transactions are in the chain, and at which heights, is not checked.",
       sub: `${n === 1 ? "The claim is consistent" : `All ${n} claims are consistent`} with the transaction files you loaded (${breakdown}), but no node was asked, so whether these transactions are in the chain, and at which heights, was not checked: a holder can send fabricated files. Load only files you fetched from a node yourself, or check online.${gaps.length ? ` Also, the claims do not explain all of the funds: ${listJoin(gaps)}.` : ""}${control}`,
       reason: "offline",
       counts,
@@ -497,7 +524,11 @@ function gradedVerdict(report, dossier) {
     ];
     return {
       tone: "partial",
-      headline: "Claims verified — funds not fully explained",
+      headline: "Funds not fully explained",
+      count,
+      line: historyGap
+        ? `${cap(plural(gaps.length, "gap"))} in the funds' history. Ask the holder for the missing transactions.`
+        : `The chain shows no source for ${listJoin(sourceless)}. Ask the holder who sent ${sourceless.length === 1 ? "it" : "them"}, with evidence.`,
       sub: `${all} against the chain (${breakdown}), but they do not explain all of the funds: ${listJoin(gaps) || "the report says so"}. ${asks.join(" ")}${control}`,
       reason: "partly-explained",
       counts,
@@ -505,13 +536,30 @@ function gradedVerdict(report, dossier) {
   }
   return {
     tone: "partial",
-    headline: "Claims verified — control not shown",
+    headline: hasControl ? "Control not matched" : "No control claim",
+    count,
+    line: hasControl ? "The control claim is not matched yet: enter the nonce you issued." : "Nothing shows the holder can spend these funds now: send them a challenge.",
     sub: hasControl
       ? `${all} against the chain (${breakdown}), but the control claim is not matched to your nonce: no expected nonce was given. Enter the nonce you issued under “Challenge the holder”.`
-      : `${all} against the chain (${breakdown}), but the dossier has no control claim: nothing shows the holder can spend these funds now. Send them a challenge (below).`,
+      : `${all} against the chain (${breakdown}), but the dossier has no control claim: nothing shows the holder can spend these funds now. Send them a challenge.`,
     reason: hasControl ? "no-nonce" : "no-control",
     counts,
   };
+}
+
+/**
+ * The exceptions under a verdict: each claim that did not verify, or that verified with a flag (funds not traced or
+ * not fully explained), as `{ index, number, kind, status, text }`, for the "Why" list, each linking to its row.
+ */
+export function exceptionItems(report, dossier = null, opts = {}) {
+  const rows = claimRows(report, dossier, opts);
+  const out = [];
+  for (const r of rows) {
+    const warn = r.flags.filter((f) => f.tone === "warn");
+    if (r.status !== "verified") out.push({ index: r.index, number: r.number, kind: r.kindLabel, status: r.status, text: firstSentence(r.summary) });
+    else if (warn.length) out.push({ index: r.index, number: r.number, kind: r.kindLabel, status: "warn", text: firstSentence(warn[0].text) });
+  }
+  return out;
 }
 
 /**
@@ -547,7 +595,27 @@ export function claimRows(report, dossier = null, opts = {}) {
     summary: mask(c.summary),
     details: (c.details ?? []).map(mask),
     flags: claimFlags(c, untraced[c.index] ?? [], opts.deposit ?? null, report?.network, unexplained.find((o) => o.index === c.index) ?? null),
+    ...claimWhere(dossier?.claims?.[c.index], c, report, dossier, opts.heights),
   }));
+}
+
+/**
+ * Where a claim sits, for its row: its transaction and height, the notes it moves from and to (or the payment it
+ * makes), and its amount in zatoshi (`zat`, null when not known). Empty without the dossier's claim.
+ */
+export function claimWhere(c, r, report, dossier, heights = {}) {
+  if (!c) return {};
+  const notes = report?.notes ?? {};
+  const h = (t) => (t ? heights?.[String(t).toLowerCase()] ?? null : null);
+  const fromNote = (id) => notes[id] ?? {};
+  switch (c.type) {
+    case "origin": { const n = fromNote(c.note); return { txid: n.txid ?? null, height: n.height ?? h(n.txid), from: [], to: [c.note], toNotes: true, zat: n.value_zat ?? null }; }
+    case "path": { const n = fromNote(c.to); return { txid: n.txid ?? null, height: n.height ?? h(n.txid), from: [c.from], to: [c.to], toNotes: true, zat: n.value_zat ?? null }; }
+    case "deposit": { const t = String(dossier?.receipts?.[c.receipt]?.txid ?? "").toLowerCase() || null; return { txid: t, height: h(t), from: c.funded_by ?? [], to: [`payment ${c.receipt}`], toNotes: false, zat: r?.value_zat ?? null }; }
+    case "transparent_payment": return { txid: c.tx ?? null, height: h(c.tx), from: c.funded_by ?? [], to: [r?.paid_to ? middle(r.paid_to, 6, 4) : `output ${c.output}`], toNotes: false, zat: r?.value_zat ?? null };
+    case "control": { const n = fromNote(c.reply); return { txid: n.txid ?? null, height: n.height ?? h(n.txid), from: c.spent ?? [], to: [c.reply], toNotes: true, zat: r?.value_zat ?? null }; }
+    default: return {};
+  }
 }
 
 const RANK = { verified: 0, not_checked: 1, unproven: 2, failed: 3 };
@@ -746,7 +814,7 @@ export function nonceCheck(dossier, report, issued, { source = "typed" } = {}) {
     return { state: "beacon-unchecked", text: `This control answers the hash of block ${b.height}: no nonce needs to be entered, but it is not checked here: ${r?.summary ?? "it was not checked."}` };
   }
   if (!mine) {
-    return { state: "not-generated", text: `The control claim answers ${masked}. Enter the nonce you issued under “Challenge the holder” (paste it from your case record, not from this page), and the page checks the claim against it.` };
+    return { state: "not-generated", text: `The control claim answers ${masked}. Enter the nonce you issued, from your case record, to check it.` };
   }
   const hit = controls.find(({ c }) => String(c.nonce).trim() === mine);
   if (hit) {
@@ -928,7 +996,7 @@ export function depositLineText(check) {
   const first = check.otherNetwork
     ? `The deposit address you entered (${check.address}) is for another network than this dossier: check that it is the address you gave this customer.`
     : `No verified payment in this dossier pays the deposit address you assigned (${check.address}); check that it is the address you gave this customer.`;
-  return `${first} A control answer can be relayed: someone who does not hold these funds can pass your nonce to whoever does and show you that party's dossier (spec §7.2). A payment to the deposit address you assigned to this customer is what ties the funds to this customer.`;
+  return `${first} A control answer can be relayed: someone who does not hold these funds can pass your nonce to whoever does and show you that party's dossier. A payment to the deposit address you assigned to this customer is what ties the funds to this customer.`;
 }
 
 /** Where the offline check came from: "offline, from 5 transaction files". */
@@ -950,9 +1018,11 @@ export function txFile(name, text) {
 const sum = (xs) => xs.reduce((a, x) => a + x, 0);
 
 /**
- * The decision summary above the case: what arrived at the origins (by where it came from), what was paid out
- * (deposits and transparent payments), what the holder showed they control, and the claims by status. Each item is
- * `{ key, value, detail }`.
+ * The figures under the verdict (the stat row): what arrived at the origins (by where it came from), what was paid
+ * out (deposits and transparent payments), whether the claims explain the funds, what the holder showed they control,
+ * and the claims by status. Each item is `{ key, value, detail }` (the words, as the case summary writes them), with
+ * `zat` (an amount to set as a figure, null when none is known), `atLeast`, `sub` (a short line under the figure) and
+ * `tone` (ok or warn, for the figure's mark) where they apply.
  */
 export function decisionSummary(dossier, report) {
   const net = report?.network ?? dossier?.network;
@@ -973,8 +1043,12 @@ export function decisionSummary(dossier, report) {
       .map(([k, os]) => `${k === "unknown" ? "" : `${totalText(os.map((o) => o.zat), net)} `}${words[k]}`);
     const change = origins.flatMap((o) => o.change);
     const weak = origins.filter((o) => o.status !== "verified");
+    const known = origins.map((o) => o.zat).filter((z) => z != null);
     items.push({
-      key: "Arrived at origins",
+      key: "Arrived",
+      zat: known.length ? sum(known) : null,
+      atLeast: known.length > 0 && known.length < origins.length,
+      sub: `in ${plural(origins.length, "note")}`,
       value: `${totalText(origins.map((o) => o.zat), net)} in ${plural(origins.length, "note")}`,
       detail: `${listJoin(parts)}${change.length ? `; of the inputs, ${listJoin(change.map((x) => `${amountText(x.value_zat, net)} went back to ${x.address}`))} as change to the funder` : ""}${weak.length ? `; not verified: ${weak.map((o) => `${o.id} (${(STATUS_LABEL[o.status] ?? o.status).toLowerCase()})`).join(", ")}` : ""}.`,
     });
@@ -984,8 +1058,12 @@ export function decisionSummary(dossier, report) {
   const valued = (k) => pays.filter((c) => c.kind === k && c.value_zat != null);
   const dep = valued("deposit"), tp = valued("transparent_payment");
   const unvalued = pays.length - dep.length - tp.length;
+  const paidZat = [...dep, ...tp].map((c) => c.value_zat);
   items.push({
     key: "Paid out",
+    zat: pays.length ? (paidZat.length ? sum(paidZat) : null) : 0,
+    atLeast: paidZat.length > 0 && paidZat.length < pays.length,
+    sub: pays.length ? `in ${plural(pays.length, "payment")}` : "none claimed",
     value: pays.length ? `${totalText([...dep, ...tp].map((c) => c.value_zat), net)} in ${plural(pays.length, "payment")}` : "None claimed",
     detail: pays.length
       ? `${listJoin([
@@ -1003,6 +1081,9 @@ export function decisionSummary(dossier, report) {
     const heights = shown.map((c) => notes[dossier?.claims?.[c.index]?.reply]?.height).filter((h) => h != null);
     const beacon = reportBeacon(report);
     control = {
+      zat: sum(shown.map((c) => c.value_zat ?? 0)),
+      sub: beacon ? `answers block ${heightText(beacon.height)}` : "answers your nonce",
+      tone: "ok",
       value: amountText(sum(shown.map((c) => c.value_zat ?? 0)), net),
       detail: beacon
         ? `${spent.join(", ")}, spent in answer to the beacon of ${beaconBlockText(beacon)}${heights.length ? ` at height ${heights.join(", ")}` : ""}: no one issued the nonce; judge whether that block is recent enough.`
@@ -1010,29 +1091,34 @@ export function decisionSummary(dossier, report) {
     };
   } else {
     control = {
-      value: "Not shown",
+      value: !controls.length ? "None" : !shown.length ? "Failed" : "Not matched",
+      tone: "warn",
       detail: !controls.length ? "The dossier has no control claim."
         : !shown.length ? "The control claim did not verify."
           : "A control claim verified, but not against your nonce: enter the nonce you issued.",
     };
   }
-  items.push({ key: "Under control", ...control });
-
   // Whether the claims add up (spec §5.6): every payment's and the control's funds traced to an origin that names its
   // source, and nothing paid from money the dossier does not disclose.
   const gaps = explanationGaps(report, dossier);
   items.push({
     key: "Explained",
+    tone: report?.all_verified && !gaps.length ? "ok" : "warn",
+    sub: !report?.all_verified ? "" : gaps.length ? plural(gaps.length, "gap") : "every payment traced",
     value: !report?.all_verified ? "Not established" : gaps.length ? "No" : "Yes",
     detail: !report?.all_verified ? "Not every claim verified."
       : gaps.length ? `${cap(listJoin(gaps))}.`
         : "Every payment's and the control's funds trace back to an origin that names its source, and no transaction paid from notes the dossier does not disclose.",
   });
 
+  items.push({ key: "Control", ...control });
+
   const counts = statusCounts(claims);
   const order = ["verified", "failed", "not_checked", "unproven"];
   items.push({
     key: "Claims",
+    tone: counts.verified === claims.length ? "ok" : "warn",
+    sub: `of ${plural(claims.length, "claim")}`,
     value: order.filter((k) => counts[k]).map((k) => `${counts[k]} ${STATUS_LABEL[k].toLowerCase()}`).join(" · ") || "none",
     detail: `${plural(claims.length, "claim")}: ${kindBreakdown(claims)}.`,
   });

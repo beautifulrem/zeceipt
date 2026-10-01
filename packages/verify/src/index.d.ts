@@ -114,3 +114,6 @@ export function scanWallet(opts: { ufvk: string; network?: Network; from: number
 
 /** A block's height, hash (display hex) and time over gRPC-web: what a beacon nonce names. */
 export function fetchBlockId(network: Network, height: number, endpoints?: string[], opts?: { timeoutMs?: number }): Promise<{ height: number; hash: string; time: number }>;
+
+/** `fn(item, index)` for each item, at most `limit` at a time, started in order. */
+export function mapLimit<T>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<void>): Promise<void>;

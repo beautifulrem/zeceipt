@@ -1,43 +1,78 @@
-/* The dossier builder (build/), on top of ../r/page.css and ../case/case.css; tokens only. */
-.promise { border-color: var(--success-line); background: color-mix(in srgb, var(--success-soft) 45%, var(--surface)); }
-.promise h2 { display: flex; align-items: center; gap: 0.55rem; }
-.promise h2 .i { width: 1.15rem; height: 1.15rem; color: var(--success); }
-.promise .checks li::before { color: var(--success); }
-fieldset.control { margin: 0.4rem 0 0.8rem; padding: 0.75rem 1rem 0.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); }
-fieldset.control legend { padding: 0 0.35rem; font-size: 0.8125rem; font-weight: 600; }
-fieldset.control .hint { margin: 0 0 0.4rem; }
-.howto { margin: -0.3rem 0 0.9rem; font-size: 0.85rem; }
-.howto > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 0.8125rem; }
-.howto p { color: var(--fg); }
-.build-status:empty { display: none; }
-#built h3 { margin-top: 1.1rem; }
-.link-warning { display: flex; gap: 0.55rem; align-items: flex-start; margin: 0.75rem 0 0; padding: 0.55rem 0.75rem; font-size: 0.8125rem; color: var(--warning); background: var(--warning-soft); border: 1px solid var(--warning-line); border-radius: var(--radius-md); }
-.link-warning .i { flex: none; width: 1rem; height: 1rem; margin-top: 0.2rem; }
-#link-status:empty { display: none; }
-a.btn { text-decoration: none; color: var(--fg); }
-a.btn:hover { color: var(--fg); }
-#preview-card { margin-top: 1rem; }
+/*
+ * The dossier builder (build/), in the `page` layer on top of ../r/page.css and ../case/case.css (the layout, the
+ * verdict band, the claims table). Tokens only. A four-step wizard (Safe's transaction builder): one step on screen at
+ * a time, the stepper above it, and a rail with what leaves the page.
+ */
+@layer page {
+  /* NU7: one line, the details on demand (Blockscout's notice strip): not a tinted card. */
+  .notice { margin: calc(-1 * var(--sp-3)) 0 var(--sp-5); border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--fs-sm); }
+  .notice > summary { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); cursor: pointer; list-style: none; }
+  .notice > summary::-webkit-details-marker { display: none; }
+  .notice > summary .i { color: var(--muted); }
+  .notice-more { margin-left: auto; color: var(--muted); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; }
+  .notice p { margin: 0; padding: 0 var(--sp-3) var(--sp-3) calc(var(--sp-3) + 24px); color: var(--muted); }
 
-@media print {
-  .skip, .topbar, .promise, #form, .case-actions, .link-warning, .privacy, .foot, .scope { display: none !important; }
+  .stepper { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); counter-reset: none; }
+  .step-tab {
+    display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: 40px; padding: 0 var(--sp-2) 0 0;
+    border: 0; border-top: 2px solid var(--line); background: none; color: var(--muted); font-weight: 500; text-align: left; cursor: pointer;
+  }
+  .step-tab:hover { color: var(--fg); }
+  .step-n { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-top: var(--sp-2); border-radius: var(--radius-xs); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+  .step-name { margin-top: var(--sp-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .step-tab[aria-current="step"] { border-top-color: var(--fg); color: var(--fg); }
+  .step-tab[aria-current="step"] .step-n { background: var(--fg); color: var(--surface); }
+  .step-tab[data-done] .step-n { background: var(--success-soft); color: var(--success); }
+  .step-tab[data-done]:not([aria-current="step"]) { border-top-color: var(--success-line); }
+
+  @media screen { .wiz-step.is-inactive { display: none; } }
+  .wiz-step { max-width: 760px; }
+  .wiz-step .opt, .field .opt { color: var(--muted); font-weight: 400; }
+  .wiz-nav { display: flex; justify-content: space-between; gap: var(--sp-2); margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+  .field-narrow { max-width: 260px; }
+  .sample-key { font-size: var(--fs-sm); }
+  .sample-key-status:empty, #ufvk-network:empty, .scan-status:empty, .control-note:empty, .build-status:empty, .link-status:empty, #beacon-status:empty { display: none; }
+  .sample-key-status { margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); }
+  fieldset.scan { margin: 0 0 var(--sp-4); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  fieldset.scan legend { padding: 0 var(--sp-1); font-weight: 500; font-size: var(--fs-sm); }
+  fieldset.scan > .hint:first-of-type { margin: 0 0 var(--sp-3); }
+  .scan-row .field { margin-bottom: 0; }
+  .scan-actions { margin: var(--sp-3) 0 0; }
+  .scan-status { color: var(--fg); }
+  .howto { font-size: var(--fs-sm); }
+  .howto > summary { cursor: pointer; width: fit-content; color: var(--muted); }
+  .control-hint { margin: 0 0 var(--sp-4); }
+  .beacon-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-3); margin: calc(-1 * var(--sp-2)) 0 var(--sp-4); font-size: var(--fs-sm); }
+  .control-note { color: var(--fg); }
+  .review-list { margin-bottom: var(--sp-4); }
+  .review-list dt, .review-list dd { border-bottom: 1px solid var(--line); }
+  .review-list .missing { color: var(--muted); }
+  .build-actions { margin-top: var(--sp-2); }
+  .build-status { color: var(--fg); }
+  .error-fix { margin: var(--sp-3) 0 0 32px; }
+
+  #built .kpis-3 { --kpi-cols: 3; }
+  .built-actions { margin-top: var(--sp-4); }
+  .built-discloses .discloses { margin-top: var(--sp-2); }
+  .link-confirm { margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--warning-line); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+  .link-confirm p { margin: 0 0 var(--sp-2); }
+  .link-confirm .actions { margin-top: var(--sp-3); }
+  .link-status { margin-top: var(--sp-2); }
+
+  .ledger h2 { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
+  .ledger-list dd { font-size: var(--fs-xs); }
+  .ok-word { color: var(--success); font-weight: 500; }
+  .ledger-nk { display: flex; gap: var(--sp-2); margin: var(--sp-3) 0 0; padding-top: var(--sp-3); border-top: 1px solid var(--line); color: var(--warning); font-size: var(--fs-xs); line-height: 16px; }
+  .ledger-nk .i { margin-top: 1px; flex: none; }
 }
 
-fieldset.scan { border: 1px dashed var(--line); border-radius: var(--radius-md); padding: 0.4rem 1rem 0.6rem; margin: 0.4rem 0 1rem; }
-fieldset.scan legend { font-weight: 600; font-size: 0.9rem; padding: 0 0.35rem; }
-fieldset.scan .hint { margin: 0 0 0.4rem; }
-fieldset.scan .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.4rem 0; }
-#ufvk-network:empty { display: none; }
-.after-note { margin: 0.85rem 0 0; font-size: 0.85rem; }
-/* The NU7 notice, the sample key, the note on a moved challenge answer, and the one-click fix under a build error */
-.nu7 { border-color: var(--warning-line); background: color-mix(in srgb, var(--warning-soft) 45%, var(--surface)); }
-.nu7 h2 { display: flex; align-items: center; gap: 0.55rem; }
-.nu7 h2 .i { width: 1.1rem; height: 1.1rem; color: var(--warning); }
-.nu7 p { margin: 0.4rem 0 0; font-size: 0.875rem; }
-.sample-key { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem; margin: -0.35rem 0 0.9rem; font-size: 0.8125rem; }
-.sample-key .btn { min-height: 2.25rem; padding: 0.35rem 0.85rem; font-size: 0.8125rem; }
-.control-note { margin: 0 0 0.6rem; font-size: 0.8125rem; color: var(--fg); }
-.control-note:empty { display: none; }
-.beacon-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; margin: -0.45rem 0 0.8rem; font-size: 0.8125rem; }
-.beacon-row button.linkish { font-size: 0.8125rem; }
-#beacon-status:empty { display: none; }
-.error-fix { margin: 0.75rem 0 0; }
+@media (max-width: 640px) {
+  .stepper { grid-template-columns: repeat(4, auto); }
+  .step-name { display: none; }
+  .step-tab[aria-current="step"] .step-name { display: inline; }
+  .notice > summary { align-items: flex-start; }
+}
+
+@media print {
+  .skip, .topbar, .notice, .stepper, #form, .built-actions, .link-confirm, .foot, .case-rail { display: none !important; }
+}

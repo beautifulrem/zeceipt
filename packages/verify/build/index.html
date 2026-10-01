@@ -9,172 +9,199 @@
   The holder's viewing key is typed into this page and used here, by the WebAssembly builder; it is never sent. This
   policy keeps it that way: scripts, styles, fonts and images only from this site, WebAssembly allowed, and network
   access only to this site and to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS), which are asked for
-  transactions by id, and for the chain's latest block when the holder asks for a beacon; nothing else
-  (test/dossier.e2e.mjs checks no request carries the key or the dossier).
+  transactions by id, for compact blocks by height (a scan), for a beacon's block, and for the chain's latest block;
+  nothing else (test/dossier.e2e.mjs checks no request carries the key or the dossier).
 -->
 <meta name="zeceipt-nodes" content="">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://zcash-testnet.chainsafe.dev">
-<title>Zeceipt — build a source-of-funds dossier</title>
+<title>Build a dossier · Zeceipt</title>
 <link rel="icon" href="../r/icon.svg" type="image/svg+xml">
 <link rel="preload" href="../r/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../r/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="../src/index.js">
+<link rel="modulepreload" href="../pkg/zeceipt_wasm.js">
+<link rel="modulepreload" href="../case/view.js">
+<link rel="preload" href="../pkg/zeceipt_wasm_bg.wasm" as="fetch" type="application/wasm" crossorigin>
 <link rel="stylesheet" href="../r/page.css">
 <link rel="stylesheet" href="../case/case.css">
 <link rel="stylesheet" href="build.css">
 <script type="module" src="page.js"></script>
 </head>
-<body>
+<body class="build">
 <a class="skip" href="#main">Skip to the form</a>
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="../"><img src="../r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></a>
+    <a class="brand" href="../"><img src="../r/icon.svg" alt="" width="24" height="24"><span>zeceipt</span></a>
     <nav class="topnav" aria-label="Zeceipt tools">
       <a href="../case/">Case review</a>
       <a href="./" aria-current="page">Build a dossier</a>
     </nav>
-    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
+    <nav class="topnav topnav-ext" aria-label="Project">
+      <a class="ext" href="https://github.com/beautifulrem/zeceipt/blob/main/spec/dossier-v1.md" rel="noreferrer">Specification</a>
+      <a class="ext" href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">GitHub</a>
+    </nav>
   </div>
 </header>
 <main id="main">
-<div class="hero">
-  <p class="eyebrow">Zeceipt · for the holder</p>
+<details class="nu7 notice">
+  <summary><span class="i i-info" aria-hidden="true"></span><span>NU7 reaches testnet on 2026-10-06 and mainnet on 2026-11-05: this build refuses transactions mined after it.</span><span class="notice-more">Details</span></summary>
+  <p>NU7 activates on Zcash testnet on 2026-10-06 and on mainnet on 2026-11-05. This build refuses a transaction mined after activation, and says so by name, until the Zcash crates it uses support NU7; dossiers of transactions mined before then keep building and verifying. The sample customer's transactions were mined before activation, so the sample keeps working.</p>
+</details>
+<div class="page-head">
   <h1>Build a dossier</h1>
-  <p class="muted lede">Show a reviewer (an exchange, an OTC desk, a lender) where your shielded ZEC came from and that you can spend it, without handing over your viewing key. You list the transactions of the funds; this page builds a dossier of claims about them, which the reviewer checks against the chain.</p>
-  <p id="status" class="muted status" role="status" data-state="loading">Loading the builder…</p>
+  <p id="status" class="status" data-state="loading">Loading the builder…</p>
 </div>
+<p id="build-live" class="sr-only" role="status"></p>
 
-<section class="card nu7" aria-labelledby="nu7-title">
-  <h2 id="nu7-title"><span class="i i-alert" aria-hidden="true"></span>Network upgrade NU7</h2>
-  <p>NU7 activates on Zcash testnet on 2026-10-06 and on mainnet on 2026-11-05. This build refuses a transaction mined after activation, and says so by name, until the Zcash crates it uses support NU7; dossiers of transactions mined before then keep building and verifying. To try the builder after 10-06, use the sample customer's viewing key below: its transactions were mined before activation.</p>
+<div class="case-layout build-layout">
+<div class="case-main">
+<ol class="stepper" aria-label="Steps">
+  <li><button id="step-tab-1" type="button" class="step-tab" aria-current="step" aria-controls="step-1"><span class="step-n">1</span><span class="step-name">Key</span></button></li>
+  <li><button id="step-tab-2" type="button" class="step-tab" aria-controls="step-2"><span class="step-n">2</span><span class="step-name">Transactions</span></button></li>
+  <li><button id="step-tab-3" type="button" class="step-tab" aria-controls="step-3"><span class="step-n">3</span><span class="step-name">Control</span></button></li>
+  <li><button id="step-tab-4" type="button" class="step-tab" aria-controls="step-4"><span class="step-n">4</span><span class="step-name">Review and share</span></button></li>
+</ol>
+
+<section id="build-error" class="result bad" hidden tabindex="-1" aria-labelledby="error-title">
+  <div class="verdict">
+    <span class="verdict-icon" aria-hidden="true"></span>
+    <div class="verdict-text"><h2 id="error-title" class="verdict-word">Not built</h2><p id="error-text" class="verdict-sub"></p></div>
+  </div>
+  <p id="error-fix" class="error-fix" hidden><button id="error-fix-btn" type="button" class="btn btn-secondary btn-sm">Move it to Control and build again</button></p>
 </section>
 
-<section class="card promise" aria-labelledby="promise-title">
-  <h2 id="promise-title"><span class="i i-key" aria-hidden="true"></span>Your viewing key stays in this page</h2>
-  <ul class="checks">
-    <li><span>The key is used here, by the builder running in your browser (WebAssembly). It is never sent: not to this site, not to the node.</span></li>
-    <li><span>Nothing is stored. The key field is cleared once the dossier is built, and closing the page forgets everything.</span></li>
-    <li><span>The page asks a public node for each transaction you list, by its id. The node learns those ids, and so could link them to you.</span></li>
-    <li><span>The dossier discloses only what its claims need. Read the summary before you share it.</span></li>
-  </ul>
-</section>
-
-<section id="form" class="card" aria-labelledby="form-title">
-  <h2 id="form-title">The funds to explain</h2>
-  <label id="network-field" class="field">Network
+<div id="form" class="wizard">
+<section id="step-1" class="panel wiz-step" aria-labelledby="step-1-title">
+  <div class="panel-head"><h2 id="step-1-title">Network and viewing key</h2><button id="sample-key" type="button" class="linkish sample-key">Try with the sample customer's viewing key</button></div>
+  <p id="sample-key-status" class="hint sample-key-status"></p>
+  <label id="ufvk-field" class="field">Unified full viewing key
+    <textarea id="ufvk" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-describedby="ufvk-hint"></textarea>
+    <span id="ufvk-hint" class="hint">Starts with <code>uview1</code> on mainnet, <code>uviewtest1</code> on testnet. Your viewing key stays in this page: the builder uses it here, and it cannot move funds.</span>
+    <span id="ufvk-network" class="hint"></span>
+  </label>
+  <label id="network-field" class="field field-narrow">Network
     <select id="network">
       <option value="main">Zcash mainnet</option>
       <option value="test">Zcash testnet</option>
     </select>
   </label>
-  <label id="ufvk-field" class="field">Unified full viewing key
-    <textarea id="ufvk" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-describedby="ufvk-hint"></textarea>
-    <span id="ufvk-hint" class="hint">Starts with <code>uview1</code> on mainnet, <code>uviewtest1</code> on testnet; the network above follows the key you paste. Wallets export it as the “viewing key” (with <code>zcash-devtool</code>, <code>wallet list-accounts</code> prints it). It lets this page find your notes; it cannot move funds.</span>
-    <span id="ufvk-network" class="hint" role="status"></span>
-  </label>
-  <p class="sample-key"><button id="sample-key" type="button" class="btn btn-secondary"><span class="i i-key" aria-hidden="true"></span>Try with the sample customer's viewing key</button> <span id="sample-key-status" class="muted" role="status">A public testnet key: the customer of the exchange-deposit sample.</span></p>
-  <label id="txids-field" class="field">Transaction ids of the funds, one per line
-    <textarea id="txids" rows="5" spellcheck="false" autocomplete="off" aria-describedby="txids-hint"></textarea>
-    <span id="txids-hint" class="hint">The transaction that brought the funds into your wallet, and each one that moved or paid them, in any order: the builder puts each after the ones whose notes it spends.</span>
-  </label>
+  <div class="wiz-nav"><span></span><button type="button" class="btn btn-primary step-next" data-to="2">Next: transactions</button></div>
+</section>
+
+<section id="step-2" class="panel wiz-step" aria-labelledby="step-2-title">
+  <div class="panel-head"><h2 id="step-2-title">The funds' transactions</h2></div>
   <fieldset class="scan">
-    <legend>Or find them for me</legend>
-    <p class="hint">This page reads the chain from a height you choose and tries your viewing key on every shielded output, here, to list the transactions that paid you or spent your notes. The node learns which heights you read, not your key or your transactions.</p>
-    <label id="scan-from-field" class="field">First height to scan (your wallet's birthday, or just before the funds arrived)
-      <input id="scan-from" class="text" inputmode="numeric" autocomplete="off" aria-describedby="scan-hint">
-    </label>
-    <span id="scan-hint" class="hint">Recent blocks scan at about 1,000 a second; the 2022–23 spam blocks at about 30, so start from the height the funds arrived, and use <code>zeceipt dossier scan</code> for long ranges. The found ids replace the list above; you can remove any you do not want to explain.</span>
-    <p class="actions"><button id="scan" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span>Find my transactions</button> <button id="scan-stop" type="button" class="btn btn-secondary" hidden>Stop</button></p>
-    <p id="scan-status" class="muted" role="status"></p>
+    <legend>Find them with the key</legend>
+    <p class="hint">The page reads compact blocks from a node and tries your key on each shielded output, here. The node learns which heights you read, not your key.</p>
+    <div class="field-row scan-row">
+      <label id="scan-from-field" class="field">From height
+        <input id="scan-from" class="text" inputmode="numeric" autocomplete="off" aria-describedby="scan-hint">
+      </label>
+      <label id="scan-to-field" class="field">To height <span class="opt">(optional)</span>
+        <input id="scan-to" class="text" inputmode="numeric" autocomplete="off" placeholder="the tip">
+      </label>
+    </div>
+    <span id="scan-hint" class="hint">Recent blocks scan at about 1,000 a second, the 2022–23 spam blocks at about 30: start where the funds arrived, and use <code>zeceipt dossier scan</code> for long ranges.</span>
+    <p class="actions scan-actions"><button id="scan" type="button" class="btn btn-secondary btn-sm"><span class="i i-search" aria-hidden="true"></span>Find my transactions</button> <button id="scan-stop" type="button" class="btn btn-secondary btn-sm" hidden>Stop</button></p>
+    <p id="scan-status" class="hint scan-status"></p>
   </fieldset>
+  <label id="txids-field" class="field">Transaction ids, one per line
+    <textarea id="txids" rows="5" spellcheck="false" autocomplete="off" aria-describedby="txids-hint"></textarea>
+    <span id="txids-hint" class="hint">The transaction that brought the funds in, and each that moved or paid them, in any order. A scan fills this; remove any you do not want to explain.</span>
+  </label>
   <details class="howto">
-    <summary>How to find your transaction ids</summary>
-    <p>Open your wallet's transaction history, open each transaction and copy its id (64 characters, also called the txid or transaction hash). Most wallets can also export the history as a CSV file, which lists the ids. With <code>zcash-devtool</code>, <code>wallet list-tx</code> prints them. Any order will do.</p>
+    <summary>Finding ids by hand</summary>
+    <p>Open each transaction in your wallet's history and copy its id (64 characters, also called the txid). Most wallets export the history as a CSV file with the ids; <code>zcash-devtool wallet list-tx</code> prints them.</p>
   </details>
-  <fieldset class="control">
-    <legend>Control (optional): answer a reviewer's challenge</legend>
-    <p class="hint">If the reviewer sent you a nonce: from this wallet, send any small amount to your own address with the nonce as the memo, wait for it to be mined, then enter both here. It proves you can spend these funds now. With no reviewer's nonce, use a beacon: the latest block's hash, which no one could know before that block, so the reviewer can tell your answer came after it.</p>
-    <label id="nonce-field" class="field">The reviewer's nonce
-      <input id="nonce" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
-    </label>
-    <p class="beacon-row"><button id="beacon" type="button" class="linkish">or use a beacon (the latest block's hash)</button> <span id="beacon-status" class="muted" role="status"></span></p>
-    <label id="control-txid-field" class="field">The challenge transaction's id
-      <input id="control-txid" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
-    </label>
-    <p id="control-note" class="muted control-note" role="status"></p>
-  </fieldset>
-  <label id="subject-field" class="field">Subject (optional)
+  <div class="wiz-nav"><button type="button" class="btn btn-secondary step-next" data-to="1">Back</button><button type="button" class="btn btn-primary step-next" data-to="3">Next: control</button></div>
+</section>
+
+<section id="step-3" class="panel wiz-step" aria-labelledby="step-3-title">
+  <div class="panel-head"><h2 id="step-3-title">Control <span class="opt">(optional)</span></h2></div>
+  <p class="hint control-hint">Shows you can spend the funds now. From this wallet, send any small amount to your own address with the reviewer's nonce as the memo, wait for it to be mined, then enter both. With no reviewer's nonce, answer a beacon: the latest block's hash.</p>
+  <label id="nonce-field" class="field">The reviewer's nonce
+    <input id="nonce" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+  </label>
+  <p class="beacon-row"><button id="beacon" type="button" class="linkish">or use a beacon (the latest block's hash)</button> <span id="beacon-status" class="hint"></span></p>
+  <label id="control-txid-field" class="field">The challenge transaction's id
+    <input id="control-txid" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+  </label>
+  <p id="control-note" class="hint control-note"></p>
+  <div class="wiz-nav"><button type="button" class="btn btn-secondary step-next" data-to="2">Back</button><button type="button" class="btn btn-primary step-next" data-to="4">Next: review</button></div>
+</section>
+
+<section id="step-4" class="panel wiz-step" aria-labelledby="step-4-title">
+  <div class="panel-head"><h2 id="step-4-title">Review and build</h2></div>
+  <dl id="review-list" class="kv-list review-list"></dl>
+  <label id="subject-field" class="field">Subject <span class="opt">(optional)</span>
     <input id="subject" class="text" autocomplete="off" aria-describedby="subject-hint">
     <span id="subject-hint" class="hint">A name or a case number. The reviewer sees it as your words, not as verified.</span>
   </label>
-  <div class="actions">
-    <p><button id="build" type="button" class="btn btn-primary">Build the dossier</button></p>
-    <p><button id="forget" type="button" class="btn btn-secondary"><span class="i i-trash" aria-hidden="true"></span>Forget everything</button></p>
+  <div class="actions build-actions">
+    <button id="build" type="button" class="btn btn-primary">Build the dossier</button>
+    <button id="forget" type="button" class="btn btn-secondary"><span class="i i-trash" aria-hidden="true"></span>Forget everything</button>
   </div>
-  <p id="build-status" class="muted build-status" role="status"></p>
+  <p id="build-status" class="hint build-status"></p>
 </section>
-
-<section id="build-error" class="result bad" hidden tabindex="-1" aria-labelledby="error-title">
-  <div class="verdict">
-    <span class="verdict-icon" aria-hidden="true"></span>
-    <div><h2 id="error-title" class="verdict-word">Not built</h2><p id="error-text" class="verdict-sub"></p></div>
-  </div>
-  <p id="error-fix" class="error-fix" hidden><button id="error-fix-btn" type="button" class="btn btn-secondary">Move it to Control and build again</button></p>
-</section>
+</div>
 
 <section id="built" class="result" hidden tabindex="-1" aria-labelledby="built-title">
   <div class="verdict">
     <span class="verdict-icon" aria-hidden="true"></span>
-    <div><h2 id="built-title" class="verdict-word">Dossier built</h2><p id="built-sub" class="verdict-sub"></p></div>
+    <div class="verdict-text">
+      <div class="verdict-title"><h2 id="built-title" class="verdict-word">Dossier built</h2><span id="built-count" class="verdict-count"></span></div>
+      <p id="built-sub" class="verdict-line"></p>
+    </div>
   </div>
-  <dl id="built-counts" class="facts"></dl>
-  <h3>What it discloses</h3>
-  <ul id="built-discloses" class="discloses"></ul>
-  <p class="after-note"><strong>After the case:</strong> the nk in this dossier stays with the reviewer, and with anyone the dossier reaches. With it they see when each disclosed note is spent, past and future. More: the reviewer, and anyone who ever paid you (an exchange that sent withdrawals to you, for example), can use it to see when every note they paid you is spent, past and future, not only the disclosed ones. Once the case is closed, move the remaining funds to a fresh account in your wallet (with its own keys): its notes are not covered by this nk.</p>
-  <div class="actions case-actions">
-    <p><button id="download" type="button" class="btn btn-primary"><span class="i i-download" aria-hidden="true"></span>Download dossier.json</button></p>
-    <p><button id="copy-link" type="button" class="btn btn-secondary"><span class="i i-link" aria-hidden="true"></span>Copy a review link</button></p>
-    <p><a id="open-case" class="btn btn-secondary" href="../case/"><span class="i i-arrow" aria-hidden="true"></span>Open in Case review</a></p>
+  <dl id="built-counts" class="kpis kpis-3"></dl>
+  <details class="why built-discloses">
+    <summary>What it discloses</summary>
+    <ul id="built-discloses" class="discloses"></ul>
+  </details>
+  <div class="actions built-actions">
+    <button id="download" type="button" class="btn btn-primary"><span class="i i-download" aria-hidden="true"></span>Download dossier.json</button>
+    <a id="open-case" class="btn btn-secondary" href="../case/"><span class="i i-arrow" aria-hidden="true"></span>Open in Case review</a>
+    <button id="copy-link" type="button" class="btn btn-secondary" aria-expanded="false" aria-controls="link-confirm"><span class="i i-link" aria-hidden="true"></span>Copy a review link</button>
   </div>
-  <p class="link-warning"><span class="i i-alert" aria-hidden="true"></span><span>A review link contains the whole dossier, after the “#” (browsers do not send that part to the site). Anyone with the link can read what the dossier discloses: send it only to your reviewer.</span></p>
-  <p id="link-status" class="muted" role="status"></p>
+  <div id="link-confirm" class="link-confirm" hidden>
+    <p><strong>Anyone with this link can read what the dossier discloses</strong>: its notes' amounts, addresses and memos, and the nk. The link carries the whole dossier after the “#”, which browsers do not send to the site.</p>
+    <label class="check"><input type="checkbox" id="link-ack"> I will send it only to my reviewer</label>
+    <div class="actions"><button id="copy-link-confirm" type="button" class="btn btn-primary btn-sm" disabled>Copy the link</button><button id="copy-link-cancel" type="button" class="btn btn-secondary btn-sm">Cancel</button></div>
+  </div>
+  <p id="link-status" class="hint link-status"></p>
 </section>
 
-<section id="preview-card" class="card" hidden aria-labelledby="preview-title">
-  <h2 id="preview-title">The claims, as the reviewer will see them</h2>
-  <p class="muted">Checked here against the same transactions, before you share anything.</p>
+<section id="preview-card" class="section" hidden aria-labelledby="preview-title">
+  <div class="section-head"><h2 id="preview-title">The claims, as the reviewer will see them</h2><span class="muted panel-note">Checked here, against the same transactions</span></div>
   <div class="table-wrap">
-    <table id="preview" class="claims-table">
+    <table id="preview" class="data-table claims-table">
       <caption class="sr-only">The dossier's claims, checked in this page</caption>
-      <thead><tr><th scope="col">#</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">What the chain shows</th></tr></thead>
+      <thead><tr><th scope="col" class="c-num">#</th><th scope="col">Claim</th><th scope="col">Status</th><th scope="col">Transaction and notes</th><th scope="col" class="r">Amount</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
 </section>
-
-<div class="scope">
-<section class="card" aria-labelledby="discloses-title">
-<h2 id="discloses-title">What a dossier shows the reviewer</h2>
-<ul class="checks">
-  <li><span>Where the funds entered your wallet, and what funded that transaction (its transparent inputs are public).</span></li>
-  <li><span>Each move of the funds within your wallet, and each payment you made from them (with a sender receipt).</span></li>
-  <li><span>With a control answer: that you could spend the funds after the reviewer's nonce was issued.</span></li>
-  <li><span>When any disclosed note is spent, past and future: the dossier's nk lets the reviewer compute these notes' nullifiers and watch for them on chain. With the same nk, anyone who ever paid you (an exchange that sent withdrawals to you) can see when every note they paid you is spent, not only the disclosed ones.</span></li>
-</ul>
-</section>
-<section class="card" aria-labelledby="keeps-title">
-<h2 id="keeps-title">What it does not hand over</h2>
-<ul class="limits">
-  <li><span>Your viewing key: the reviewer cannot see your other payments, balance or history.</span></li>
-  <li><span>Any note or payment you do not list.</span></li>
-  <li><span>The ability to move funds: nothing here can spend.</span></li>
-</ul>
-</section>
 </div>
-<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: the only requests this page makes outside this site are the transaction lookups, one per id you list, when you build, and the chain's latest block when you ask for a beacon. They carry the id (or the height) and nothing else. The page stores nothing.</span></p>
+
+<aside class="case-rail" aria-label="What leaves this page">
+<section class="panel ledger" aria-labelledby="ledger-title">
+  <h2 id="ledger-title">What leaves this page</h2>
+  <dl class="kv-list ledger-list">
+    <div><dt>Viewing key</dt><dd><span class="ok-word">Stays here</span>, never sent; cleared once the dossier is built</dd></div>
+    <div><dt>Node lookups</dt><dd id="ledger-lookups">None yet</dd></div>
+    <div><dt>Sent with them</dt><dd>Transaction ids, block heights; never the key</dd></div>
+    <div><dt>The dossier</dt><dd id="ledger-dossier">Not built yet</dd></div>
+    <div><dt>Stored</dt><dd>Nothing: closing the page forgets everything</dd></div>
+  </dl>
+  <p id="ledger-nk" class="ledger-nk" hidden><span class="i i-alert" aria-hidden="true"></span><span>The dossier's nk lets whoever holds it see when these notes are spent, later too: send it only to your reviewer.</span></p>
+</section>
+</aside>
+</div>
 </main>
 <footer class="foot">
   <span><span id="version">zeceipt-dossier-v1</span> · open source (Apache-2.0)</span>
   <span id="wasm-sha" class="wasm-sha" hidden></span>
-  <span class="foot-links"><a href="../">Home</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a></span>
+  <span class="foot-links"><a href="../">Home</a> <a href="../case/">Case review</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source</a></span>
 </footer>
 </body>
 </html>

@@ -1,10 +1,18 @@
 /*
- * The public receipt page and the paste demo (slice F2). Same design tokens as the payout console
- * (apps/console/app/globals.css; scripts/check_design_tokens.py keeps them and the shared component rules in step).
- * Everything is same-origin, as the page's CSP requires: the fonts (Geist, SIL OFL, fonts/OFL.txt) and the icons
- * (Lucide, ISC, drawn with CSS masks). The verdict's colour follows its words: #outcome carries ok, pending or bad
- * (page.js), and the demo's .result the same classes.
+ * Zeceipt's static pages: the shared design tokens, base styles and components. Every page loads this file first
+ * (the landing page, the case review, the dossier builder, the receipt page and the paste demo); page files add a
+ * layout on top, in the `page` layer. The tokens are the payout console's (apps/console/app/globals.css):
+ * scripts/check_design_tokens.py keeps them, the radii and the shared rules (.btn, .btn-primary, .btn-secondary,
+ * .amount-zeros) in step. Everything is same-origin, as the pages' CSP requires: the fonts (Geist, SIL OFL,
+ * fonts/OFL.txt) and the icons (Lucide, ISC, drawn with CSS masks).
+ *
+ * The neutrals are Radix Colors' sand scale (MIT): 1–2 backgrounds, 3–5 fills, 6–8 borders, 11–12 text. The status
+ * hues are the contrast-tested ones (apps/console/test/contrast.test.ts). Brand amber (--accent) marks the logo, the
+ * focus ring and link underlines only; amber callouts are warnings (--warning), and samples, the demo and offline
+ * mode use --info.
  */
+@layer base, components, page;
+
 @font-face {
   font-family: "Geist";
   src: url("fonts/Geist-Variable.woff2") format("woff2");
@@ -20,23 +28,23 @@
 
 :root {
   color-scheme: light;
-  --canvas: #f6f6f3;
+  --canvas: #f9f9f8;
   --surface: #ffffff;
-  --surface-2: #f2f2ee;
-  --line: #e6e5df;
-  --line-strong: #d3d2ca;
-  --input-line: #83868f;
-  --fg: #14161c;
-  --muted: #565c69;
+  --surface-2: #f1f0ef;
+  --line: #e2e1de;
+  --line-strong: #cfceca;
+  --input-line: #868680;
+  --fg: #21201c;
+  --muted: #63635e;
   --subtle: #6e7380;
-  --primary: #16181f;
+  --primary: #21201c;
   --primary-fg: #ffffff;
-  --primary-hover: #2c2f3a;
+  --primary-hover: #3b3a36;
   --accent: #f4b728;
   --accent-fg: #17130a;
   --accent-hover: #f7c948;
   --accent-strong: #8a5a00;
-  --accent-soft: #fdf4dc;
+  --accent-soft: #fbf7ec;
   --accent-line: #f0d48a;
   --ring: #8a5a00;
   --success: #11703a;
@@ -53,10 +61,9 @@
   --info: #1b58c4;
   --info-soft: #ebf1fd;
   --info-line: #bdd0f5;
-  --shadow-card: 0 1px 2px rgb(20 22 28 / 0.04), 0 2px 8px rgb(20 22 28 / 0.04);
+  --shadow-card: 0 1px 2px rgb(33 32 28 / 0.04), 0 2px 8px rgb(33 32 28 / 0.04);
   --scroll-shade: rgb(0 0 0 / 0.42);
-  --shadow-raised: 0 1px 2px rgb(20 22 28 / 0.06), 0 8px 24px rgb(20 22 28 / 0.08);
-  --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.1), transparent 60%);
+  --shadow-raised: 0 1px 2px rgb(33 32 28 / 0.06), 0 8px 24px rgb(33 32 28 / 0.1);
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -68,23 +75,23 @@
 @media screen and (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --canvas: #090a0f;
-    --surface: #10121a;
-    --surface-2: #171a24;
-    --line: #242837;
-    --line-strong: #323849;
-    --input-line: #646b7e;
-    --fg: #eceef3;
-    --muted: #a4aab8;
+    --canvas: #111110;
+    --surface: #191918;
+    --surface-2: #222221;
+    --line: #31312e;
+    --line-strong: #494844;
+    --input-line: #6f6d66;
+    --fg: #eeeeec;
+    --muted: #b5b3ad;
     --subtle: #7b8294;
-    --primary: #eceef3;
-    --primary-fg: #10121a;
+    --primary: #eeeeec;
+    --primary-fg: #191918;
     --primary-hover: #ffffff;
     --accent: #f4b728;
     --accent-fg: #17130a;
     --accent-hover: #f7c948;
     --accent-strong: #f7c948;
-    --accent-soft: #231c0b;
+    --accent-soft: #1d1a12;
     --accent-line: #5c4715;
     --ring: #f4b728;
     --success: #5ad38a;
@@ -103,326 +110,524 @@
     --info-line: #243d69;
     --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
     --scroll-shade: rgb(255 255 255 / 0.34);
-    --shadow-raised: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px rgb(0 0 0 / 0.45);
-    --glow: radial-gradient(60rem 28rem at 12% -8%, rgb(244 183 40 / 0.08), transparent 60%);
+    --shadow-raised: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px rgb(0 0 0 / 0.5);
   }
 }
 
-*, *::before, *::after { box-sizing: border-box; }
-/* The page shows and hides its parts with the hidden attribute; no display rule below may override it. */
-[hidden] { display: none !important; }
-html { background: var(--canvas); }
-body {
-  margin: 0;
-  min-height: 100dvh;
-  background: var(--glow), var(--canvas);
-  background-repeat: no-repeat;
-  color: var(--fg);
-  font: 15px/1.6 var(--sans);
-  -webkit-font-smoothing: antialiased;
-  font-feature-settings: "ss01", "cv11";
-}
-::selection { background: rgb(244 183 40 / 0.35); }
-a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
-a:hover { color: var(--accent-strong); }
-:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
-h1, h2, h3 { letter-spacing: -0.015em; line-height: 1.25; }
-h2 { font-size: 1.05rem; margin: 0 0 0.9rem; }
-h3 { font-size: 0.72rem; font-family: var(--mono); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 1.4rem 0 0.5rem; }
-p { margin: 0.5rem 0; }
-code { font-family: var(--mono); font-size: 0.92em; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.print-only { display: none; }
-.nowrap { white-space: nowrap; }
-
-/* Icons: Lucide outlines, same-origin files, tinted with the current colour */
-.i, .checks li::before, .limits li::before, .copy::before {
-  display: inline-block;
-  flex: none;
-  background: currentColor;
-  -webkit-mask: var(--icon) center / contain no-repeat;
-  mask: var(--icon) center / contain no-repeat;
-}
-.i { width: 1em; height: 1em; }
-.i-lock { --icon: url("icons/lock.svg"); }
-.i-shield { --icon: url("icons/shield-check.svg"); }
-
-/* Top bar */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: blur(10px);
-}
-.topbar-inner { max-width: 880px; margin: 0 auto; padding: 0.7rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.brand { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 600; font-size: 1.05rem; letter-spacing: -0.02em; }
-.brand img { border-radius: 7px; }
-.chip {
-  display: inline-flex; align-items: center; gap: 0.45rem;
-  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface);
-  padding: 0.25rem 0.7rem; font-size: 0.78rem; font-weight: 500; color: var(--muted); white-space: nowrap;
-}
-.chip .i { color: var(--success); }
-
-main { max-width: 880px; margin: 0 auto; padding: 2.25rem 1.25rem 1rem; }
-
-/* Hero */
-.hero { margin-bottom: 1.5rem; }
-.eyebrow { margin: 0 0 0.4rem; font-family: var(--mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.4rem); font-weight: 650; letter-spacing: -0.03em; }
-.lede { max-width: 42rem; font-size: 0.95rem; }
-.muted { color: var(--muted); font-size: 0.875rem; }
-.status { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 0.9rem; font-family: var(--mono); font-size: 0.78rem; }
-.status::before { content: ""; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--subtle); }
-.status[data-state="ready"]::before { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
-.status[data-state="checked"]::before { background: var(--success); }
-.status[data-state="error"]::before { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
-
-/* Cards */
-.card {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-card);
-  padding: 1.35rem 1.5rem;
-  margin: 0 0 1rem;
-}
-.card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
-.card-head h2 { margin: 0; }
-.pill { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
-.pill.tone-success { color: var(--success); background: var(--success-soft); border-color: var(--success-line); }
-.pill.tone-danger { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-line); }
-/* A link with no receipt, or not a receipt at all: what a valid result proves is beside the point (review F round 3). */
-body[data-state="empty"] .scope, body[data-state="unreadable"] .scope { display: none; }
-/* Once a result is shown, the intro has done its job: the verdict moves up (review F round 5). */
-body[data-state="checked"] .lede { display: none; }
-.verdict-detail { margin-top: 0.75rem; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
-/* What the receipt claims: not a verdict, so a quieter, dashed frame */
-.claims { border-style: dashed; border-color: var(--line-strong); box-shadow: none; background: color-mix(in srgb, var(--surface) 70%, transparent); }
-/* Once checked, the claims fold away (page.js): the verdict above already says them. */
-details.claims > summary { cursor: pointer; list-style: none; margin-bottom: 0; }
-details.claims > summary::-webkit-details-marker { display: none; }
-details.claims[open] > summary { margin-bottom: 0.6rem; }
-table.kv tr[data-failed] td { color: var(--danger); font-weight: 550; }
-table.kv tr[data-failed] td:first-child::after { content: " · did not match"; font-weight: 500; }
-
-/* Key–value tables (rows written by page.js with data-key) */
-table.kv { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-table.kv td { padding: 0.55rem 0; border-bottom: 1px dashed var(--line); vertical-align: top; overflow-wrap: anywhere; }
-table.kv tr:last-child td { border-bottom: 0; }
-table.kv td:first-child { width: 9.5rem; padding-right: 1rem; color: var(--muted); white-space: nowrap; font-size: 0.8125rem; }
-table.kv tr[data-key="Transaction"] td:last-child,
-table.kv tr[data-key="Recipient"] td:last-child,
-table.kv tr[data-key="Output"] td:last-child { font-family: var(--mono); font-size: 0.82rem; }
-table.kv tr[data-key="Memo"] td:last-child { font-weight: 550; }
-.amount { font-weight: 650; letter-spacing: -0.02em; }
-td:has(> .amount) { font-size: 1.75rem; line-height: 1.2; }
-/* The digits after an amount's significant ones, lighter: the console's rule (globals.css), checked by
-   scripts/check_design_tokens.py. Scaled with the amount, never below 11px. */
-.amount-zeros {
-  font-size: max(0.6em, 11px);
-  font-weight: 500;
-  color: var(--muted);
-}
-table.kv tr[data-key="Value"] td:last-child { font-variant-numeric: tabular-nums; }
-.amount-unit { font-size: 0.6em; font-weight: 600; }
-.amount-zat { display: block; font-size: 0.8rem; font-weight: 400; letter-spacing: 0; color: var(--muted); }
-.copy {
-  display: inline-grid; place-items: center; vertical-align: -0.2rem;
-  width: 1.6rem; height: 1.6rem; margin-left: 0.35rem; padding: 0;
-  border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer;
-}
-.copy::before { content: ""; width: 0.9rem; height: 0.9rem; --icon: url("icons/copy.svg"); }
-.copy:hover { background: var(--surface-2); color: var(--fg); border-color: var(--line); }
-.copy[data-copied] { color: var(--success); }
-.copy[data-copied]::before { --icon: url("icons/check.svg"); }
-#inclusion { font-size: 0.9rem; overflow-wrap: anywhere; }
-
-/* Controls (the .btn rules are the console's, checked by scripts/check_design_tokens.py) */
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; }
-.actions p { margin: 0.25rem 0; }
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 2.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
-  font: 600 0.875rem/1.25 var(--sans);
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 100ms ease;
-}
-.btn:active:not(:disabled) { transform: translateY(1px); }
-.btn:disabled { opacity: 0.6; cursor: progress; }
-.btn-primary { background: var(--primary); color: var(--primary-fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
-.btn-secondary { background: var(--surface); color: var(--fg); border-color: var(--input-line); }
-.btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
-input[type="file"] { font: 0.8rem var(--sans); color: var(--muted); }
-input[type="file"]::file-selector-button {
-  margin-right: 0.6rem; min-height: 2.25rem; padding: 0.35rem 0.85rem;
-  border: 1px solid var(--input-line); border-radius: var(--radius-md);
-  background: var(--surface); color: var(--fg); font: 600 0.8125rem/1.25 var(--sans); cursor: pointer;
-}
-input[type="file"]::file-selector-button:hover { background: var(--surface-2); }
-.file label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-size: 0.875rem; color: var(--muted); }
-.text-input {
-  width: 20rem; max-width: 100%; margin: 0 0.5rem;
-  min-height: 2.5rem; padding: 0.45rem 0.7rem;
-  border: 1px solid var(--input-line); border-radius: var(--radius-md);
-  background: var(--surface); color: var(--fg); font: 0.85rem var(--mono);
-}
-.text-input:focus { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
-.note { padding-left: 0.9rem; border-left: 2px solid var(--line-strong); font-size: 0.8125rem; }
-.source-more > summary { cursor: pointer; width: fit-content; font-size: 0.8125rem; color: var(--muted); list-style: none; }
-.source-more > summary::-webkit-details-marker { display: none; }
-.source-more > summary::after, details.claims > summary h2::after {
-  content: ""; display: inline-block; width: 0.45rem; height: 0.45rem; margin: 0 0 0.2rem 0.6rem;
-  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms ease;
-}
-.source-more > summary::after { width: 0.4rem; height: 0.4rem; margin-bottom: 0.1rem; }
-.source-more[open] > summary::after, details.claims[open] > summary h2::after { transform: rotate(45deg); }
-/* Once checked, the transaction's source is a detail: a compact card (page.js sets data-checked). */
-.source[data-checked] { padding-top: 0.9rem; padding-bottom: 0.9rem; }
-.source[data-checked] h2 { font-size: 0.9rem; margin-bottom: 0.4rem; }
-.source[data-checked] .btn, .source[data-checked] input[type="file"]::file-selector-button { min-height: 2rem; padding: 0.3rem 0.75rem; font-size: 0.8125rem; }
-.source[data-checked] #source-status { margin: 0.25rem 0 0; font-size: 0.8125rem; }
-
-/* The verdict: the page's #outcome and #unreadable, and the demo's .result. Colour and icon follow the words. */
-#outcome, #unreadable, .result {
-  --tone: var(--muted); --tone-soft: var(--surface-2); --tone-line: var(--line-strong); --icon: url("icons/info.svg");
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--tone-line);
-  border-radius: var(--radius-xl);
-  padding: 1.5rem 1.5rem 1.35rem;
-  margin: 0 0 1rem;
-  box-shadow: var(--shadow-raised);
-}
-#outcome.ok, .result.ok { --tone: var(--success); --tone-soft: var(--success-soft); --tone-line: var(--success-line); --icon: url("icons/shield-check.svg"); }
-#outcome.pending, .result.pending { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-line: var(--warning-line); --icon: url("icons/clock.svg"); }
-#outcome.bad, #unreadable, .result.bad { --tone: var(--danger); --tone-soft: var(--danger-soft); --tone-line: var(--danger-line); --icon: url("icons/shield-x.svg"); }
-#outcome::before, #unreadable::before, .result::before {
-  content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0; background: var(--tone);
-}
-/* Scrolled to on arrival (page.js, the demo): clear of the sticky top bar. */
-#outcome, .result { scroll-margin-top: 5rem; }
-/* Focus is moved to the verdict by the page, not tabbed to (it is not in the Tab order): no ring, which the torn
-   edge would cut and which read as a second border (review F round 3). The heading and the live line carry it. */
-#outcome:focus, .result:focus { outline: none; }
-/* The verified result is the receipt: a slip with a torn bottom edge, like the mark (a mask, so it prints and sits on
-   any background); the wrapper keeps its shadow, which the mask would clip. */
-.slip-wrap { filter: drop-shadow(0 8px 18px rgb(20 22 28 / 0.08)); }
-/* Only a result that holds is a receipt; INVALID keeps a plain card (review F round 2). */
-.slip-wrap :is(#outcome, .result):is(.ok, .pending) {
-  box-shadow: none;
-  padding-bottom: 2rem;
-  --z: 11px;
-  -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - var(--z)) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) var(--z) repeat-x;
-  mask: linear-gradient(#000 0 0) top / 100% calc(100% - var(--z)) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) var(--z) repeat-x;
-}
-.verdict { display: flex; align-items: center; gap: 1rem; margin: 0.1rem 0 0.4rem; }
-.verdict-icon {
-  position: relative; flex: none; width: 3.25rem; height: 3.25rem;
-  border-radius: 999px; background: var(--tone-soft); box-shadow: inset 0 0 0 1px var(--tone-line);
-}
-.verdict-icon::after {
-  content: ""; position: absolute; inset: 0.75rem; background: var(--tone);
-  -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat;
-}
-.verdict-word { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; color: var(--tone); }
-.verdict-sub { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--fg); }
-.verdict-sub code { font-size: 0.82rem; }
-#parts h3:first-child { margin-top: 1rem; }
-#issuer { margin: 0.25rem 0; padding-left: 1.1rem; font-size: 0.9rem; overflow-wrap: anywhere; }
-#issuer li { margin: 0.25rem 0; }
-#issuer code { font-size: 0.8rem; }
-#binding-row, #challenge-line { font-size: 0.875rem; }
-#binding.ok { color: var(--success); font-weight: 550; }
-#binding.pending { color: var(--warning); font-weight: 550; }
-#challenge-line { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed var(--line); color: var(--muted); }
-
-/* What it proves / does not prove */
-/* What a result proves and what it does not: one card, two columns (review F round 6: two cards of 2 and 5 items
-   left one mostly empty), as print lays them out. */
-.scope {
-  display: grid; gap: 1.25rem 2rem; margin-top: 1.5rem; align-items: start;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); box-shadow: var(--shadow-card);
-  padding: 1.35rem 1.5rem;
-}
-@media (min-width: 760px) { .scope { grid-template-columns: 1fr 1fr; } }
-.scope .card { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
-.checks, .limits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.65rem; font-size: 0.875rem; }
-.checks li, .limits li { display: grid; grid-template-columns: 1.1rem 1fr; gap: 0.6rem; align-items: start; }
-.checks li::before, .limits li::before { content: ""; width: 1.1rem; height: 1.1rem; margin-top: 0.15rem; }
-.checks li::before { --icon: url("icons/circle-check.svg"); color: var(--success); }
-.limits li::before { --icon: url("icons/circle-x.svg"); color: var(--subtle); }
-
-.privacy { display: flex; gap: 0.6rem; align-items: flex-start; margin: 1.5rem 0 0; }
-.privacy .i { margin-top: 0.2rem; color: var(--success); }
-.foot {
-  max-width: 880px; margin: 1.5rem auto 0; padding: 1.25rem 1.25rem 2.5rem;
-  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1rem;
-  border-top: 1px solid var(--line); font-size: 0.78rem; color: var(--muted); font-family: var(--mono);
+/* The pages' own scales (not the console's): six type sizes, a 4px spacing step, the badge radius. Every font size in
+   the pages' stylesheets is one of these (scripts/check_design_tokens.py), the shared .btn rule aside. */
+:root {
+  --fs-xs: 12px;   /* labels, table headers, hints, badges */
+  --fs-sm: 13px;   /* identifiers, secondary text */
+  --fs-md: 14px;   /* body */
+  --fs-lg: 16px;   /* section titles, figures */
+  --fs-xl: 24px;   /* page titles, the verdict */
+  --fs-2xl: 36px;  /* the landing page's title */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --radius-xs: 4px;
+  --page-max: 1280px;
+  --gutter: 24px;
+  --topbar-h: 56px;
 }
 
-/* Motion: the verdict arrives, once; nothing moves for readers who ask for less */
-@keyframes arrive { from { opacity: 0; transform: translateY(8px) scale(0.99); } }
-@keyframes stamp { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
-@keyframes ring { from { box-shadow: inset 0 0 0 1px var(--tone-line), 0 0 0 0 color-mix(in srgb, var(--tone) 35%, transparent); } to { box-shadow: inset 0 0 0 1px var(--tone-line), 0 0 0 14px transparent; } }
-@media (prefers-reduced-motion: no-preference) {
-  #outcome:not([hidden]), #receipt:not([hidden]), #unreadable:not([hidden]), .result { animation: arrive 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  #outcome:not([hidden]) .verdict-icon, .result .verdict-icon { animation: stamp 420ms 80ms cubic-bezier(0.2, 0.7, 0.2, 1) both, ring 900ms 300ms ease-out both; }
+/* ---------- base ---------- */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  /* The pages show and hide their parts with the hidden attribute; no display rule may override it. */
+  [hidden] { display: none !important; }
+  html { background: var(--canvas); -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--canvas);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: var(--fs-md);
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection { background: rgb(244 183 40 / 0.35); }
+  a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+  a:hover { color: var(--accent-strong); }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
+  h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
+  h1 { font-size: var(--fs-xl); line-height: 32px; }
+  h2 { font-size: var(--fs-lg); line-height: 24px; }
+  h3 { font-size: var(--fs-md); line-height: 20px; }
+  p { margin: var(--sp-2) 0; }
+  ul, ol { margin: 0; }
+  code { font-family: var(--mono); font-size: 0.93em; }
+  small { font-size: var(--fs-xs); }
+  table { border-collapse: collapse; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .print-only { display: none; }
+  .nowrap { white-space: nowrap; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
 }
+
+/* ---------- components ---------- */
+@layer components {
+  /* Icons: Lucide outlines, same-origin files, tinted with the current colour. A url() in --icon resolves against the
+     stylesheet whose rule draws it (this one, or a page's one level below the site root), so every icon is named
+     ../r/icons/…, which names the same file from both. */
+  .i, .copy::before, .badge-icon, .tip > summary::before, .ext::after, .checks li::before, .limits li::before {
+    display: inline-block;
+    flex: none;
+    background: currentColor;
+    -webkit-mask: var(--icon) center / contain no-repeat;
+    mask: var(--icon) center / contain no-repeat;
+  }
+  .i { width: 16px; height: 16px; vertical-align: -3px; }
+  .i-lock { --icon: url("../r/icons/lock.svg"); }
+  .i-shield { --icon: url("../r/icons/shield-check.svg"); }
+  .i-upload { --icon: url("../r/icons/upload.svg"); }
+  .i-download { --icon: url("../r/icons/download.svg"); }
+  .i-printer { --icon: url("../r/icons/printer.svg"); }
+  .i-copy { --icon: url("../r/icons/copy.svg"); }
+  .i-refresh { --icon: url("../r/icons/refresh-cw.svg"); }
+  .i-key { --icon: url("../r/icons/key-round.svg"); }
+  .i-link { --icon: url("../r/icons/link.svg"); }
+  .i-trash { --icon: url("../r/icons/trash.svg"); }
+  .i-arrow { --icon: url("../r/icons/arrow-right.svg"); }
+  .i-alert { --icon: url("../r/icons/circle-alert.svg"); }
+  .i-info { --icon: url("../r/icons/info.svg"); }
+  .i-check { --icon: url("../r/icons/check.svg"); }
+  .i-clock { --icon: url("../r/icons/clock.svg"); }
+  .i-x { --icon: url("../r/icons/circle-x.svg"); }
+  .i-in { --icon: url("../r/icons/arrow-down-left.svg"); }
+  .i-out { --icon: url("../r/icons/arrow-up-right.svg"); }
+  .i-self { --icon: url("../r/icons/repeat.svg"); }
+  .i-hash { --icon: url("../r/icons/hash.svg"); }
+  .i-plus { --icon: url("../r/icons/plus.svg"); }
+  .i-pen { --icon: url("../r/icons/pen-line.svg"); }
+  .i-search { --icon: url("../r/icons/search.svg"); }
+  .i-file { --icon: url("../r/icons/file-json.svg"); }
+  .i-wallet { --icon: url("../r/icons/wallet.svg"); }
+  .i-report { --icon: url("../r/icons/clipboard-check.svg"); }
+  .i-globe { --icon: url("../r/icons/globe.svg"); }
+  .i-eye { --icon: url("../r/icons/eye.svg"); }
+  .i-database { --icon: url("../r/icons/database.svg"); }
+  .i-send { --icon: url("../r/icons/send.svg"); }
+  .i-external { --icon: url("../r/icons/external-link.svg"); }
+  .i-minus { --icon: url("../r/icons/circle-minus.svg"); }
+
+  /* The top bar: the full width, the brand, the tools and the outside links. */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    height: var(--topbar-h);
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .topbar-inner { max-width: var(--page-max); height: 100%; margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; gap: var(--sp-5); }
+  .brand { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: 600; font-size: var(--fs-lg); letter-spacing: -0.02em; color: var(--fg); text-decoration: none; }
+  .brand:hover { color: var(--fg); }
+  .brand img { width: 24px; height: 24px; border-radius: 6px; }
+  .topnav { display: flex; align-items: center; gap: var(--sp-1); }
+  .topnav a { display: inline-flex; align-items: center; min-height: 32px; padding: 0 var(--sp-3); border-radius: var(--radius-sm); color: var(--muted); font-weight: 500; text-decoration: none; }
+  .topnav a:hover { color: var(--fg); background: var(--surface-2); }
+  .topnav a[aria-current="page"] { color: var(--fg); background: var(--surface-2); }
+  .topnav-ext { margin-left: auto; }
+  .ext::after { content: ""; width: 12px; height: 12px; margin-left: var(--sp-1); --icon: url("../r/icons/arrow-up-right.svg"); opacity: 0.7; }
+  .skip { position: absolute; left: -999px; top: var(--sp-2); z-index: 30; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); border: 1px solid var(--line-strong); }
+  .skip:focus { left: var(--sp-4); }
+
+  /* The page frame */
+  main { display: block; max-width: var(--page-max); margin: 0 auto; padding: var(--sp-6) var(--gutter) var(--sp-7); }
+  .page-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-4); margin-bottom: var(--sp-5); }
+  .page-head h1 { margin-right: auto; }
+  .lede { max-width: 44rem; color: var(--muted); font-size: var(--fs-md); }
+  /* The verifier's state: a quiet line, no coloured dot while idle. */
+  .status { margin: 0; color: var(--muted); font-size: var(--fs-xs); line-height: 16px; }
+  .status[data-state="error"] { color: var(--danger); }
+  .status[data-state="loading"]::before {
+    content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--sp-2); vertical-align: -1px;
+    border: 1.5px solid var(--line-strong); border-top-color: var(--muted); border-radius: 50%;
+    animation: spin 900ms linear infinite;
+  }
+  .foot {
+    max-width: var(--page-max); margin: 0 auto; padding: var(--sp-5) var(--gutter) var(--sp-7);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2) var(--sp-5);
+    border-top: 1px solid var(--line); font-size: var(--fs-xs); line-height: 16px; color: var(--muted);
+  }
+  .foot a { color: var(--muted); }
+  .foot-links { display: inline-flex; gap: var(--sp-4); }
+  .wasm-sha { overflow-wrap: anywhere; }
+  .wasm-sha code { font-size: var(--fs-xs); }
+
+  /* Panels: a bordered surface for an interactive object (an input, a rail block, a diagram), not for every section. */
+  .panel, .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--sp-4) var(--sp-5); }
+  .panel + .panel, .card + .card { margin-top: var(--sp-4); }
+  .panel-head, .card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2) var(--sp-4); margin-bottom: var(--sp-3); }
+  .panel-head h2, .card-head h2 { font-size: var(--fs-md); line-height: 20px; }
+  .section { margin-top: var(--sp-6); }
+  .section > h2, .section-head { margin-bottom: var(--sp-3); }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-2) var(--sp-4); }
+  .hint, .field .hint { display: block; margin-top: var(--sp-1); font-weight: 400; font-size: var(--fs-xs); line-height: 16px; color: var(--muted); }
+  .hint code { font-size: var(--fs-xs); }
+
+  /* Buttons (the .btn rules are the console's, checked by scripts/check_design_tokens.py) */
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+  .actions p { margin: 0; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font: 600 0.875rem/1.25 var(--sans);
+    cursor: pointer;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 100ms ease;
+  }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.6; cursor: progress; }
+  .btn-primary { background: var(--primary); color: var(--primary-fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+  .btn-secondary { background: var(--surface); color: var(--fg); border-color: var(--input-line); }
+  .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+  .btn .i { width: 16px; height: 16px; }
+  .btn-sm { min-height: 32px; padding: var(--sp-1) var(--sp-3); font-size: var(--fs-sm); border-radius: var(--radius-sm); }
+  .btn[aria-busy="true"]::before {
+    content: ""; width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    animation: spin 800ms linear infinite;
+  }
+  a.btn { text-decoration: none; }
+  a.btn-primary, a.btn-primary:hover { color: var(--primary-fg); }
+  a.btn-secondary, a.btn-secondary:hover { color: var(--fg); }
+  /* A button that reads as a link: left-aligned, wrapping like text (review FE16). */
+  button.linkish {
+    display: inline; padding: 0; border: 0; background: none; text-align: start; font: inherit; color: var(--fg); cursor: pointer;
+    text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px;
+  }
+  button.linkish:hover { color: var(--accent-strong); }
+  button.linkish:disabled { cursor: progress; color: var(--muted); }
+
+  /* Form fields */
+  .field { display: block; margin: 0 0 var(--sp-4); font-size: var(--fs-sm); font-weight: 500; color: var(--fg); }
+  .field textarea, .field input.text, .field select, .text-input {
+    display: block; width: 100%; margin-top: 6px;
+    padding: var(--sp-2) var(--sp-3); border: 1px solid var(--input-line); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--fg); font-family: var(--mono); font-size: var(--fs-sm); line-height: 20px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .field select { font-family: var(--sans); min-height: 36px; }
+  .field textarea { min-height: 88px; resize: vertical; }
+  .field :is(textarea, input.text, select):focus, .text-input:focus { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
+  .field[data-invalid] :is(textarea, input.text, select) { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+  .check { display: inline-flex; align-items: center; gap: var(--sp-2); cursor: pointer; font-size: var(--fs-sm); }
+  .check input { width: 16px; height: 16px; margin: 0; accent-color: var(--fg); }
+  /* A file input under a button-like label: no native control, whose words follow the system's locale (FE21). */
+  .file-btn { position: relative; display: inline-flex; }
+  .file-btn input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: var(--fs-xs); }
+  .file-btn:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-md); }
+
+  /* Status badges (Blockscout's StatusTag): 20px, a 4px radius, no border, an icon and a word. A compact badge shows
+     the icon alone; its word stays in the text for readers and tests, and in the tooltip. */
+  .badge {
+    --tone: var(--muted); --tone-soft: var(--surface-2);
+    display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; white-space: nowrap;
+    height: 20px; padding: 0 6px 0 5px; border-radius: var(--radius-xs);
+    background: var(--tone-soft); color: var(--tone);
+    font-size: var(--fs-xs); font-weight: 500; line-height: 20px;
+  }
+  .badge-icon { width: 12px; height: 12px; --icon: url("../r/icons/info.svg"); }
+  .badge-verified, .badge-ok { --tone: var(--success); --tone-soft: var(--success-soft); }
+  .badge-verified .badge-icon, .badge-ok .badge-icon { --icon: url("../r/icons/circle-check.svg"); }
+  .badge-failed, .badge-bad { --tone: var(--danger); --tone-soft: var(--danger-soft); }
+  .badge-failed .badge-icon, .badge-bad .badge-icon { --icon: url("../r/icons/circle-x.svg"); }
+  /* Not checked yet: a transaction was not found or not mined; waiting may change it (amber, a clock). */
+  .badge-not_checked, .badge-warn { --tone: var(--warning); --tone-soft: var(--warning-soft); }
+  .badge-not_checked .badge-icon { --icon: url("../r/icons/clock.svg"); }
+  .badge-warn .badge-icon { --icon: url("../r/icons/circle-alert.svg"); }
+  /* Not proven: nothing in the dossier can show it, and waiting will not (neutral, a minus): FE12. */
+  .badge-unproven, .badge-neutral { --tone: var(--muted); --tone-soft: var(--surface-2); }
+  .badge-unproven .badge-icon { --icon: url("../r/icons/circle-minus.svg"); }
+  .badge-info { --tone: var(--info); --tone-soft: var(--info-soft); }
+  .badge.is-compact { width: 20px; padding: 0; justify-content: center; }
+  .badge.is-compact .badge-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  /* The network: the only uppercase text on the pages, inside a tag. */
+  .net-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 500; letter-spacing: 0.02em; }
+
+  /* A claim's direction (Otterscan's TransactionDirection): in, out or within the wallet. */
+  .kind-tag { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: var(--radius-xs); background: var(--surface-2); color: var(--muted); }
+  .kind-tag .i { width: 12px; height: 12px; vertical-align: 0; }
+
+  /* Identifiers (mempool's truncate, Safe's highlight4bytes): the head ellipsizes, the tail never shrinks, and the
+     whole value stays in the text, so find-in-page, selection and screen readers get all of it. A copy button of at
+     least 24px, and a link to an explorer where one shows the value. */
+  .id { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; vertical-align: bottom; gap: 2px; }
+  .id-text { display: inline-flex; min-width: 0; max-width: var(--id-max, 17ch); font-family: var(--mono); font-size: var(--fs-sm); line-height: 20px; color: inherit; }
+  a.id-text { text-decoration: none; }
+  a.id-text:hover .id-head, a.id-text:hover .id-tail { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+  .id-head { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .id-tail { flex: none; white-space: nowrap; }
+  .id-wide { --id-max: 100%; }
+  .id-full .id-text { max-width: none; flex-wrap: wrap; }
+  .id-full .id-head { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+  .id-ext { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-xs); color: var(--muted); }
+  .id-ext:hover { color: var(--fg); background: var(--surface-2); }
+  .id-ext .i { width: 14px; height: 14px; vertical-align: 0; }
+  .copy {
+    display: inline-grid; place-items: center; flex: none; vertical-align: middle;
+    width: 24px; height: 24px; margin: 0; padding: 0;
+    border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .copy::before { content: ""; width: 14px; height: 14px; --icon: url("../r/icons/copy.svg"); }
+  .copy:hover { background: var(--surface-2); color: var(--fg); }
+  .copy[data-copied] { color: var(--success); }
+  .copy[data-copied]::before { --icon: url("../r/icons/check.svg"); }
+  /* Otterscan's selection highlight: the same note, address or transaction lights up everywhere on the page. */
+  .is-selected { outline: 1px dashed var(--accent-strong); outline-offset: 1px; background: var(--accent-soft); border-radius: var(--radius-xs); }
+
+  /* Amounts: tabular figures, eight decimals with the trailing zeros lighter, the unit small and muted. */
+  .amt { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 500; }
+  .amt-unit { font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+  .amt-none { color: var(--muted); letter-spacing: 0.1em; }
+  /* The digits after an amount's significant ones, lighter: the console's rule (globals.css), checked by
+     scripts/check_design_tokens.py. Scaled with the amount, never below 11px. */
+  .amount-zeros {
+    font-size: max(0.6em, 11px);
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .amt .amount-zeros { font-size: inherit; font-weight: inherit; }
+
+  /* A hint (Blockscout's DetailedInfo): a (?) that opens one sentence, without a script. */
+  .tip { position: relative; display: inline-block; vertical-align: middle; }
+  .tip > summary { list-style: none; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-xs); color: var(--muted); cursor: pointer; }
+  .tip > summary::-webkit-details-marker { display: none; }
+  .tip > summary::before { content: ""; width: 14px; height: 14px; --icon: url("../r/icons/circle-help.svg"); }
+  .tip > summary:hover, .tip[open] > summary { color: var(--fg); background: var(--surface-2); }
+  .tip-body {
+    position: absolute; z-index: 15; top: calc(100% + 4px); left: -8px; width: min(320px, 80vw);
+    margin: 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+    background: var(--surface); box-shadow: var(--shadow-raised); color: var(--fg);
+    font-size: var(--fs-xs); line-height: 16px; font-weight: 400; white-space: normal; text-align: left;
+  }
+  .tip-end .tip-body { left: auto; right: -8px; }
+
+  /* Callouts: one tinted line per screen at most; every other state is a badge or plain text. */
+  .callout { display: flex; align-items: flex-start; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm); font-size: var(--fs-sm); line-height: 20px; background: var(--surface-2); color: var(--fg); overflow-wrap: anywhere; }
+  .callout > .i { margin-top: 2px; }
+  .callout-warn { background: var(--warning-soft); color: var(--warning); }
+  .callout-info { background: var(--info-soft); color: var(--fg); }
+  .callout-info > .i { color: var(--info); }
+  .callout-ok { background: var(--success-soft); color: var(--success); }
+  .callout-bad { background: var(--danger-soft); color: var(--danger); }
+
+  /* The verdict band: the case page's, the builder's and the demo's (.result), the receipt page's (#outcome). A 3px rule
+     in the tone, a title in the text colour with a small tone icon, no card shadow. */
+  .result, #outcome, #unreadable {
+    --tone: var(--muted); --tone-soft: var(--surface-2); --tone-line: var(--line-strong); --icon: url("../r/icons/info.svg");
+    position: relative; margin: 0;
+    padding: var(--sp-4) var(--sp-5) var(--sp-4) calc(var(--sp-5) + 3px);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md);
+    scroll-margin-top: calc(var(--topbar-h) + var(--sp-4));
+  }
+  .result::before, #outcome::before, #unreadable::before {
+    content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 3px;
+    border-radius: var(--radius-md) 0 0 var(--radius-md); background: var(--tone);
+  }
+  .result.ok, #outcome.ok { --tone: var(--success); --tone-soft: var(--success-soft); --tone-line: var(--success-line); --icon: url("../r/icons/circle-check.svg"); }
+  .result.pending, #outcome.pending, .result.partial { --tone: var(--warning); --tone-soft: var(--warning-soft); --tone-line: var(--warning-line); --icon: url("../r/icons/circle-alert.svg"); }
+  .result.pending, #outcome.pending { --icon: url("../r/icons/clock.svg"); }
+  .result.neutral { --tone: var(--muted); --icon: url("../r/icons/circle-minus.svg"); }
+  .result.bad, #outcome.bad, #unreadable { --tone: var(--danger); --tone-soft: var(--danger-soft); --tone-line: var(--danger-line); --icon: url("../r/icons/circle-x.svg"); }
+  .result:focus, #outcome:focus { outline: none; }
+  .verdict { display: flex; align-items: flex-start; gap: var(--sp-3); }
+  .verdict-icon { position: relative; flex: none; width: 20px; height: 20px; margin-top: 6px; }
+  .verdict-icon::after { content: ""; position: absolute; inset: 0; background: var(--tone); -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+  .verdict-word { margin: 0; font-size: var(--fs-xl); line-height: 32px; font-weight: 600; letter-spacing: -0.015em; color: var(--fg); }
+  .verdict-sub { margin: var(--sp-1) 0 0; font-size: var(--fs-md); color: var(--fg); max-width: 72ch; }
+  .verdict-sub code { font-size: var(--fs-sm); }
+  .verdict-detail { margin-top: var(--sp-3); font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted); overflow-wrap: anywhere; }
+
+  /* Figures (the stat row): a label, a value with tabular figures, a hint. */
+  .kpis { display: grid; grid-template-columns: repeat(var(--kpi-cols, 5), minmax(0, 1fr)); margin: var(--sp-4) 0 0; border-top: 1px solid var(--line); }
+  .kpi { min-width: 0; padding: var(--sp-3) var(--sp-4) 0 0; }
+  .kpi + .kpi { padding-left: var(--sp-4); border-left: 1px solid var(--line); }
+  .kpi dt { display: flex; align-items: center; gap: 2px; font-size: var(--fs-xs); line-height: 24px; color: var(--muted); font-weight: 500; }
+  .kpi dd { margin: 0; }
+  .kpi-value { display: block; font-size: var(--fs-lg); line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi-value .amt { font-weight: 600; }
+  .kpi-value .amt-unit { font-weight: 500; }
+  .kpi-sub { display: block; font-size: var(--fs-xs); line-height: 16px; color: var(--muted); }
+  .kpi-detail { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+  /* Key–value lists (Blockscout's detail grid): the label in its own column, hairlines between groups. */
+  .kv-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 var(--sp-4); margin: 0; }
+  .kv-list > div { display: contents; }
+  .kv-list dt { padding: 6px 0; color: var(--muted); font-size: var(--fs-xs); line-height: 20px; }
+  .kv-list dd { margin: 0; padding: 6px 0; min-width: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+
+  /* Data tables (Blockscout's table recipe): sentence-case 12px headers on the second surface, hairline rows. */
+  .table-wrap { overflow-x: auto; }
+  .data-table { width: 100%; font-size: var(--fs-sm); }
+  .data-table th { padding: 6px var(--sp-3); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: 500; text-align: left; white-space: nowrap; }
+  .data-table th:first-child { border-radius: var(--radius-xs) 0 0 var(--radius-xs); }
+  .data-table th:last-child { border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
+  .data-table td { padding: 10px var(--sp-3); border-bottom: 1px solid var(--line); vertical-align: top; }
+  .data-table tr:last-child > td { border-bottom: 0; }
+  .data-table .r { text-align: right; }
+
+  /* A vertical log (Safe's audit log): a 28px disc, a label, its detail, a value on the right. */
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log-row { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 0 var(--sp-3); padding-bottom: var(--sp-4); }
+  .log-row:last-child { padding-bottom: 0; }
+  .log-row:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 2px; background: var(--line); }
+  .log-disc { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-2); color: var(--muted); }
+  .log-disc .i { width: 14px; height: 14px; vertical-align: 0; }
+  .log-row[data-tone="ok"] .log-disc { background: var(--success-soft); color: var(--success); }
+  .log-row[data-tone="warn"] .log-disc { background: var(--warning-soft); color: var(--warning); }
+  .log-row[data-tone="bad"] .log-disc { background: var(--danger-soft); color: var(--danger); }
+  .log-row[data-tone="idle"] .log-disc { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .log-main { min-width: 0; padding-top: 4px; }
+  .log-label { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--sp-2); font-weight: 500; }
+  .log-value { font-size: var(--fs-xs); color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+  .log-detail { margin: 2px 0 0; font-size: var(--fs-xs); line-height: 16px; color: var(--muted); overflow-wrap: anywhere; }
+  .log-row[data-tone="warn"] .log-detail { color: var(--warning); }
+  .log-row[data-tone="bad"] .log-detail { color: var(--danger); }
+
+  /* Loading placeholders */
+  .skel { display: block; height: 12px; border-radius: var(--radius-xs); background: var(--surface-2); }
+  .skel-lg { height: 24px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .skel { background: linear-gradient(90deg, var(--surface-2) 0%, var(--line) 50%, var(--surface-2) 100%) 0 0 / 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+  }
+
+  /* What a result proves and what it does not (the receipt page and the demo): one table, two columns. */
+  .scope { display: grid; gap: var(--sp-5) var(--sp-6); margin-top: var(--sp-6); padding-top: var(--sp-5); border-top: 1px solid var(--line); align-items: start; }
+  @media (min-width: 760px) { .scope { grid-template-columns: 1fr 1fr; } }
+  .scope .card { margin: 0; padding: 0; border: 0; background: none; }
+  .scope h2 { font-size: var(--fs-md); margin-bottom: var(--sp-2); }
+  .checks, .limits { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); font-size: var(--fs-sm); }
+  .checks li, .limits li { display: grid; grid-template-columns: 14px 1fr; gap: var(--sp-2); align-items: start; }
+  .checks li::before, .limits li::before { content: ""; width: 14px; height: 14px; margin-top: 3px; }
+  .checks li::before { --icon: url("../r/icons/check.svg"); color: var(--success); }
+  .limits li::before { --icon: url("../r/icons/circle-minus.svg"); color: var(--muted); }
+}
+
+/* ---------- the receipt page (r/) and the paste demo (demo/) ---------- */
+@layer page {
+  body:is(.receipt, .demo) main { max-width: 880px; }
+  /* What the receipt claims: not a verdict, so a quieter frame */
+  .claims { margin-top: var(--sp-4); }
+  details.claims > summary { cursor: pointer; list-style: none; margin-bottom: 0; }
+  details.claims > summary::-webkit-details-marker { display: none; }
+  details.claims[open] > summary { margin-bottom: var(--sp-3); }
+  details.claims > summary h2::after, .source-more > summary::after {
+    content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 0 3px 10px;
+    border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms ease;
+  }
+  details.claims[open] > summary h2::after, .source-more[open] > summary::after { transform: rotate(45deg); }
+  .pill { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--surface-2); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+  .pill.tone-success { color: var(--success); background: var(--success-soft); }
+  .pill.tone-danger { color: var(--danger); background: var(--danger-soft); }
+  /* A link with no receipt, or not a receipt at all: what a valid result proves is beside the point (review F round 3). */
+  body[data-state="empty"] .scope, body[data-state="unreadable"] .scope { display: none; }
+  /* Once a result is shown, the intro has done its job: the verdict moves up (review F round 5). */
+  body[data-state="checked"] .lede { display: none; }
+
+  /* Key–value tables (rows written by page.js with data-key) */
+  table.kv { width: 100%; font-size: var(--fs-md); }
+  table.kv td { padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  table.kv tr:last-child td { border-bottom: 0; }
+  table.kv td:first-child { width: 152px; padding-right: var(--sp-4); color: var(--muted); white-space: nowrap; font-size: var(--fs-xs); }
+  table.kv tr[data-key="Transaction"] td:last-child,
+  table.kv tr[data-key="Recipient"] td:last-child,
+  table.kv tr[data-key="Output"] td:last-child { font-family: var(--mono); font-size: var(--fs-sm); }
+  table.kv tr[data-key="Memo"] td:last-child { font-weight: 550; }
+  table.kv tr[data-failed] td { color: var(--danger); font-weight: 550; }
+  table.kv tr[data-failed] td:first-child::after { content: " · did not match"; font-weight: 500; }
+  table.kv tr[data-key="Value"] td:last-child { font-variant-numeric: tabular-nums; }
+  .amount { font-weight: 600; letter-spacing: -0.02em; }
+  td:has(> .amount) { font-size: var(--fs-xl); line-height: 32px; }
+  .amount-unit { font-size: 0.6em; font-weight: 600; }
+  .amount-zat { display: block; font-size: var(--fs-xs); line-height: 16px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+  #inclusion { overflow-wrap: anywhere; }
+  .note { padding-left: var(--sp-3); border-left: 2px solid var(--line-strong); font-size: var(--fs-sm); }
+  .source-more > summary { cursor: pointer; width: fit-content; font-size: var(--fs-sm); color: var(--muted); list-style: none; }
+  .source-more > summary::-webkit-details-marker { display: none; }
+  /* Once checked, the transaction's source is a detail: a compact block (page.js sets data-checked). */
+  .source[data-checked] h2 { margin-bottom: var(--sp-1); }
+  .source[data-checked] #source-status { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); }
+  #outcome, #unreadable { margin-bottom: var(--sp-4); }
+  /* The verified receipt is a slip with a torn bottom edge, like the mark (a mask, so it prints and sits on any
+     background). Only a result that holds is a receipt; INVALID keeps a plain band (review F round 2). */
+  .slip-wrap :is(#outcome, .result):is(.ok, .pending) {
+    padding-bottom: var(--sp-6);
+    --z: 9px;
+    -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - var(--z)) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) var(--z) repeat-x;
+    mask: linear-gradient(#000 0 0) top / 100% calc(100% - var(--z)) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) var(--z) repeat-x;
+  }
+  #parts h3 { margin: var(--sp-5) 0 var(--sp-2); font-size: var(--fs-md); }
+  #parts h3:first-child { margin-top: var(--sp-4); }
+  #issuer { margin: var(--sp-1) 0; padding-left: var(--sp-4); overflow-wrap: anywhere; }
+  #issuer li { margin: var(--sp-1) 0; }
+  #issuer code { font-size: var(--fs-sm); }
+  #binding.ok { color: var(--success); font-weight: 550; }
+  #binding.pending { color: var(--warning); font-weight: 550; }
+  #challenge-line { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--fs-sm); }
+  .privacy-line { margin-top: var(--sp-5); color: var(--muted); font-size: var(--fs-xs); line-height: 16px; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
 
-@media (max-width: 560px) {
-  main { padding-top: 1.5rem; }
-  .card, #outcome, #unreadable, .result { padding: 1.1rem; }
-  .slip-wrap :is(#outcome, .result):is(.ok, .pending) { padding-bottom: 1.75rem; }
-  table.kv td { display: block; width: auto !important; padding: 0.1rem 0; border: 0; }
-  table.kv tr { display: block; padding: 0.55rem 0; border-bottom: 1px dashed var(--line); }
+@media (max-width: 640px) {
+  :root { --gutter: 16px; }
+  main { padding-top: var(--sp-5); }
+  .topbar-inner { gap: var(--sp-3); }
+  .topnav a { padding: 0 var(--sp-2); }
+  .topnav-ext { display: none; }
+  .panel, .card { padding: var(--sp-3) var(--sp-4); }
+  .result, #outcome, #unreadable { padding: var(--sp-3) var(--sp-4) var(--sp-3) calc(var(--sp-4) + 3px); }
+  .verdict-word { font-size: var(--fs-lg); line-height: 24px; }
+  .verdict-icon { margin-top: 2px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi, .kpi + .kpi { padding: var(--sp-3) var(--sp-3) var(--sp-2) 0; border-left: 0; }
+  .kpi:nth-child(2n) { padding-left: var(--sp-3); border-left: 1px solid var(--line); }
+  .kpi:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  table.kv td { display: block; width: auto !important; padding: 2px 0; border: 0; }
+  table.kv tr { display: block; padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
   table.kv tr:last-child { border-bottom: 0; }
-  td:has(> .amount) { font-size: 1.5rem; }
-  .verdict-word { font-size: 1.6rem; }
+  td:has(> .amount) { font-size: var(--fs-xl); }
+  .kv-list { grid-template-columns: 1fr; }
+  .kv-list dt { padding-bottom: 0; }
+  .kv-list dd { padding-top: 0; }
 }
 
 @media print {
-  body { background: #fff; font-size: 11px; }
-  main { padding-top: 0; }
-  .hero { margin-bottom: 0.75rem; }
-  .lede { display: none; }
-  .topbar, .actions, #challenge-row, #binding-row, #status, .copy, .foot a { display: none !important; }
-  /* The transaction's source is how you checked, not what you print. */
+  body { background: #fff; font-size: 9.5pt; line-height: 1.35; }
+  main { max-width: none; padding: 0; }
+  .topbar, .skip, .foot, .copy, .id-ext, .tip > summary, #status { display: none !important; }
+  .print-only { display: block; }
+  .panel, .card, .result, #outcome { border-color: #bbb; break-inside: avoid; }
+  .id-text { max-width: none !important; }
+  .id-head { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+  .badge, .badge-icon, .result::before, #outcome::before, .verdict-icon::after, .log-disc, .checks li::before, .limits li::before, .i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* The receipt: the slip ends in a dashed cut line on paper (its white teeth would vanish into the white page). */
+  .slip-wrap :is(#outcome, .result):is(.ok, .pending) { -webkit-mask: none; mask: none; padding-bottom: var(--sp-4); border-bottom: 2px dashed #999; }
+  body.receipt .actions, #challenge-row, #binding-row, .privacy-line { display: none !important; }
   #receipt > .card:not(.claims) { display: none !important; }
-  .card, #outcome { box-shadow: none; }
-  /* On paper the white teeth vanish into the white page, so the slip ends in a dashed cut line instead. */
-  .slip-wrap { filter: none !important; }
-  .slip-wrap :is(#outcome, .result):is(.ok, .pending) {
-    -webkit-mask: none; mask: none;
-    padding-bottom: 1.35rem;
-    border-bottom: 2px dashed var(--line-strong);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  }
-  #outcome, .result { outline: none !important; }
-  /* Folded claims (they matched) print as nothing rather than a stub to click. */
   details#claims:not([open]) { display: none !important; }
-  /* One page (review F round 4): the proves / does-not-prove lists as compact text under the verdict, no cards. */
-  .scope { grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; padding: 0; border: 0; box-shadow: none; }
-  .scope h2 { font-size: 0.8rem; margin-bottom: 0.3rem; }
-  .checks, .limits { gap: 0.25rem; font-size: 0.72rem; }
-  /* How the page uses the network is not part of a printed receipt. */
-  .privacy { display: none !important; }
-  .foot { display: none !important; }
+  body.receipt .scope { margin-top: var(--sp-2); padding-top: var(--sp-2); gap: var(--sp-3); grid-template-columns: 1fr 1fr; }
+  body.receipt .print-only { margin-top: var(--sp-3); font-family: var(--mono); font-size: 7.5pt; color: #555; }
   .claims, .scope, table.kv tr { break-inside: avoid; }
-  #outcome, #outcome::before, .verdict-icon, .verdict-icon::after, .checks li::before, .limits li::before, .i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .print-only { display: block; margin-top: 0.75rem; font-family: var(--mono); font-size: 9px; color: var(--muted); }
 }

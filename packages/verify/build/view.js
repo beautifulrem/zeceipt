@@ -31,6 +31,29 @@ export function networkForKey(ufvk, offered = ["main", "test"]) {
  */
 export const SAMPLE_UFVK = "uviewtest14me90fl05mxtzmt0qydd5l3g3x5lakypxkm6uz6rhxvquzl4620ac7xd32dyls945y3l2kts0cefeep8esng05tfhn9e2287duz7ap9qmz8gvlaftakcrtpeefr9nad85t7yk9gehl2p4sneah88trjfw43455px0ry27ddkw27cmsaf45zzlfcn2ucm5f442kww5qvx0g96ca43yehv80ch52vwjsh5tl589cyxmyffq0jmyyrp4zuwu6c6uxus6fwepp5lwjzguec870ujgefm6a75uvw79xvxe5gg2s7g9s36qxkdce5a58dclsysat6y50q0hm0cafdmke6qar424xmquyzxusyakyyu7s3fqy4p4y4m887wgdcl06gxr6uqrkvrwexhuz7mrqpt2yewjec7kyfuy3tezsnyh6rkjg7qzlg2mljty2wlka9h80zqxr97ktzw68a6w4mvhcsu0wv90la7078dlnuxu8ga8zk6q5ln7scq";
 export const SAMPLE_SCAN_FROM = 4422270;
+/**
+ * Where the sample's scan stops: the block of its latest challenge answer, so that a scan finds exactly the sample's
+ * four transactions (the customer's later ones, if any, would be origins nothing here traces).
+ */
+export const SAMPLE_SCAN_TO = 4426430;
+/**
+ * The sample customer's latest challenge answer (docs/PROOF.md §10, fixtures/dossier/testnet-dossier-beacon.json): the
+ * transaction that answers a beacon, the hash of block 4426425. A scan cannot read memos, so the page knows this one
+ * by its id, and puts it under Control with its nonce.
+ */
+export const SAMPLE_CONTROL = { txid: "701df8b1c1ac49037290fc6e363f3d2c8315ecdeb6c50891fbee4ad9a83970ce", nonce: "zeceipt-beacon-4426425-00000f9702b40e9cd12eaf29214f14ab55f8a4edce089f83f4174b2657ce4b7f" };
+
+/**
+ * What a scan with the sample customer's key fills in: the transactions of the funds, and the latest challenge
+ * answer under Control with its nonce (FE03: the sample builds green in one go). Null for any other key, or when the
+ * scan did not find that answer.
+ */
+export function sampleScan(found, ufvk) {
+  if (String(ufvk ?? "").trim() !== SAMPLE_UFVK) return null;
+  const ids = (found ?? []).map((f) => f.txid);
+  if (!ids.includes(SAMPLE_CONTROL.txid)) return null;
+  return { txids: ids.filter((t) => t !== SAMPLE_CONTROL.txid), control: { ...SAMPLE_CONTROL } };
+}
 
 /** Transaction ids, one per line (blank lines, surrounding spaces and a trailing comma ignored). */
 export const txidLines = (text) => String(text ?? "").split(/\r?\n/).map((l) => l.trim().replace(/,$/, "").trim()).filter(Boolean);

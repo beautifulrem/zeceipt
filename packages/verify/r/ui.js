@@ -1,6 +1,6 @@
 // Small DOM helpers shared by the receipt page (page.js) and the paste demo (../demo/). Text is only ever set with
 // textContent or text nodes, so nothing from a receipt is parsed as HTML.
-import { valueParts } from "./view.js";
+import { valueParts, explorerUrl, zecString, EXPLORER } from "./view.js";
 
 export const el = (tag, className, text) => {
   const e = document.createElement(tag);
@@ -70,3 +70,56 @@ export function kvRows(pairs, { amount, live } = {}) {
     return tr;
   });
 }
+
+const KIND_WORD = { tx: "transaction", address: "address", block: "block", nonce: "nonce", hash: "hash", prevout: "output" };
+
+/**
+ * An identifier (FE04; mempool's truncate, Safe's highlight4bytes, Blockscout's AddressEntity): the head shortens with
+ * an ellipsis to fit, the last `tail` characters never do, and the whole value stays in the text (find-in-page, a
+ * selection, a screen reader and paper all get all of it). A copy button (24px), and a link to a public explorer when
+ * one shows the value (explorerUrl). `key` (data-key) links every element naming the same thing, for the page's
+ * hover highlight; `full` shows the whole value, wrapped.
+ */
+export function idEl(value, { kind = "tx", network = null, live = null, key = null, tail = 6, copy = true, full = false, label = null } = {}) {
+  const v = String(value ?? "");
+  const wrap = el("span", `id${full ? " id-full" : ""}`);
+  if (key) wrap.dataset.key = key;
+  const url = explorerUrl(kind, v, network);
+  const text = el(url ? "a" : "span", "id-text");
+  const cut = Math.max(0, v.length - tail);
+  text.append(el("span", "id-head", v.slice(0, cut)), el("span", "id-tail", v.slice(cut)));
+  const short = v.length > tail + 10 ? `${v.slice(0, 10)}…${v.slice(-tail)}` : v;
+  if (url) {
+    text.href = url;
+    text.target = "_blank";
+    text.rel = "noreferrer noopener";
+    text.title = `${v}: open in ${EXPLORER[network].name}`;
+    text.setAttribute("aria-label", `${label ?? KIND_WORD[kind] ?? kind} ${short}, on ${EXPLORER[network].name} (opens a new tab)`);
+  } else text.title = v;
+  wrap.append(text);
+  if (copy && v && globalThis.navigator?.clipboard) wrap.append(copyButton(v, `Copy the ${label ?? KIND_WORD[kind] ?? kind} ${short}`, live));
+  return wrap;
+}
+
+/**
+ * An amount (FE07): eight decimals with the trailing zeros lighter (the console's .amount-zeros), tabular figures,
+ * the unit small and muted; textContent is "0.20000000 TAZ". A value nobody can read is "•••••" (Blockscout's
+ * ConfidentialValue), named for screen readers; `atLeast` marks a lower bound ("≥ 0.0500…").
+ */
+export function amountEl(zat, network, { unit = true, atLeast = false, unknown = "not known" } = {}) {
+  const span = el("span", "amt");
+  if (zat === null || zat === undefined) {
+    span.classList.add("amt-none");
+    span.append(el("span", "", "•••••"));
+    span.setAttribute("title", unknown);
+    span.append(el("span", "sr-only", ` (${unknown})`));
+    return span;
+  }
+  const { major, zeros } = valueParts(zecString(zat));
+  if (atLeast) span.append(document.createTextNode("≥ "));
+  span.append(document.createTextNode(major));
+  if (zeros) span.append(el("span", "amount-zeros", zeros));
+  if (unit) span.append(el("span", "amt-unit", network === "main" ? " ZEC" : " TAZ"));
+  return span;
+}
+

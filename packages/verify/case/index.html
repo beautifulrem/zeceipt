@@ -10,218 +10,310 @@
   policy keeps it in the page: scripts, styles, fonts and images only from this site, WebAssembly allowed, and network
   access only to this site and to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS; test/dossier-view.mjs
   fails if an endpoint's origin is missing here). The nodes are asked for transactions by id, for a block by its height
-  (a beacon's), and for the chain's height; nothing else.
+  (a beacon's), and for the chain's height; nothing else. Explorer links are plain links, followed only when clicked.
 -->
 <meta name="zeceipt-nodes" content="">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://zcash-testnet.chainsafe.dev">
-<title>Zeceipt — case review: check a source-of-funds dossier</title>
+<title>Case review · Zeceipt</title>
 <link rel="icon" href="../r/icon.svg" type="image/svg+xml">
 <link rel="preload" href="../r/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../r/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="../src/index.js">
+<link rel="modulepreload" href="../pkg/zeceipt_wasm.js">
+<link rel="modulepreload" href="view.js">
+<link rel="modulepreload" href="../r/view.js">
+<link rel="preload" href="../pkg/zeceipt_wasm_bg.wasm" as="fetch" type="application/wasm" crossorigin>
 <link rel="stylesheet" href="../r/page.css">
 <link rel="stylesheet" href="case.css">
 <script type="module" src="page.js"></script>
 </head>
-<body>
+<body class="case">
 <a class="skip" href="#main">Skip to the case</a>
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="../"><img src="../r/icon.svg" alt="" width="28" height="28"> <span>zeceipt</span></a>
+    <a class="brand" href="../"><img src="../r/icon.svg" alt="" width="24" height="24"><span>zeceipt</span></a>
     <nav class="topnav" aria-label="Zeceipt tools">
       <a href="./" aria-current="page">Case review</a>
       <a href="../build/">Build a dossier</a>
     </nav>
-    <span class="chip"><span class="i i-lock" aria-hidden="true"></span>Runs in your browser</span>
+    <nav class="topnav topnav-ext" aria-label="Project">
+      <a class="ext" href="https://github.com/beautifulrem/zeceipt/blob/main/spec/dossier-v1.md" rel="noreferrer">Specification</a>
+      <a class="ext" href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">GitHub</a>
+    </nav>
   </div>
 </header>
 <main id="main">
-<div class="hero">
-  <p class="eyebrow">Zeceipt · case review</p>
-  <h1>Case review</h1>
-  <p class="muted lede">Check a holder's source-of-funds dossier for shielded ZEC: where the funds came from, how they moved, what was paid from them, and that the holder can spend them now. Every claim is checked against the chain in this browser. A dossier opened by a link stays in the part after “#”, which your browser does not send to this site.</p>
-  <p id="status" class="muted status" role="status" data-state="loading">Loading the verifier…</p>
+<div class="page-head">
+  <h1 id="page-title">Case review</h1>
+  <p id="status" class="status" data-state="loading">Loading the verifier…</p>
 </div>
-<p id="verdict-live" class="sr-only" role="status"></p>
+<p class="print-only print-title">Zeceipt case report</p>
+<p id="verdict-live" class="sr-only" aria-live="assertive" aria-atomic="true"></p>
 <p id="copy-live" class="sr-only" role="status"></p>
 
+<div class="case-layout">
+<div class="case-main">
+
 <details id="inputs" class="inputs" open>
-<summary class="card inputs-summary">Open another dossier</summary>
-<section id="input-card" class="card" aria-labelledby="input-title">
-  <div class="row-head">
-    <h2 id="input-title">Open a dossier</h2>
-  </div>
-  <div class="flagship">
-    <p><button id="sample-exchange" type="button" class="btn btn-primary"><span class="i i-arrow" aria-hidden="true"></span>Try an exchange deposit review (testnet)</button></p>
-    <p class="muted">A simulated exchange-deposit review on testnet (we ran the exchange's wallet): its hot wallet withdrew 0.2 TAZ to a customer's shielded address, the customer deposited 0.05 TAZ back to their exchange deposit address, and answered the exchange's challenge. The transactions are real and on chain. Then <button id="sample-challenge" type="button" class="linkish">see it checked as the exchange did, with the nonce it issued</button>.</p>
-  </div>
+<summary class="inputs-summary"><span class="i i-file" aria-hidden="true"></span><span id="inputs-name" class="inputs-name">Dossier</span><span id="inputs-sha" class="inputs-sha"></span><span class="inputs-open">Open another dossier</span></summary>
+<section id="input-card" class="panel input-panel" aria-labelledby="input-title">
+  <h2 id="input-title">Open a dossier</h2>
+  <p class="hint input-hint">A <code>zeceipt-dossier-v1</code> file from the holder. It is checked in this page, against public nodes; a dossier opened by a link stays after the “#”, which the browser does not send to this site.</p>
   <div id="drop" class="dropzone">
     <span class="i i-upload" aria-hidden="true"></span>
-    <label class="drop-label">Drop the dossier file here, or <span class="drop-choose">choose a file</span><input type="file" id="file" class="drop-input" accept=".json,application/json"></label>
-    <span class="muted drop-hint">A <code>zeceipt-dossier-v1</code> JSON file from the holder.</span>
+    <label class="drop-label"><span class="drop-pointer">Drop the dossier file here, or </span><span class="drop-choose">choose a file</span><input type="file" id="file" class="drop-input" accept=".json,application/json"></label>
   </div>
-  <label class="field">Or paste the dossier (JSON), or a case link<textarea id="paste" spellcheck="false" autocomplete="off" rows="4"></textarea></label>
-  <div class="actions">
-    <p><button id="check" type="button" class="btn btn-primary">Check the dossier</button></p>
+  <label class="field">Or paste the dossier (JSON), or a case link<textarea id="paste" spellcheck="false" autocomplete="off" rows="3"></textarea></label>
+  <div class="actions input-actions">
+    <button id="check" type="button" class="btn btn-primary">Check the dossier</button>
   </div>
-  <p class="muted sample-more">Other samples: <button id="sample" type="button" class="linkish">a faucet payment, three payments made from it, and a control answer</button> · <a href="#sample-transparent">funds that left to a transparent address and came back</a> · <a href="#sample-beacon">a control answering a block hash: no one issued the nonce</a></p>
-  <fieldset class="offline">
-    <legend>Offline (optional): load the transactions from files</legend>
-    <p class="hint">One file per transaction, named <code>&lt;txid&gt;.hex</code>, with the raw transaction in hex (from your own node, say). With files loaded, no node is asked: the claims are checked against the files, and whether those transactions are in the chain is not.</p>
-    <label id="tx-files-field" class="field">Transaction files
-      <input type="file" id="tx-files" class="file" multiple accept=".hex,.txt,text/plain">
-    </label>
-    <p id="tx-files-status" class="muted tx-files-status" role="status"></p>
-    <p><button id="tx-files-clear" type="button" class="btn btn-secondary" hidden>Forget the files, check online</button></p>
-  </fieldset>
-  <p class="muted note">To check a claim, this page asks a public node for each transaction the dossier names, by its id: the node learns those ids, nothing else. The dossier itself is not sent anywhere.</p>
+  <p class="samples"><span class="muted">Sample cases, testnet:</span> <button id="sample-exchange" type="button" class="linkish">Exchange deposit</button> (<button id="sample-challenge" type="button" class="linkish">with the exchange's nonce</button>) · <button id="sample" type="button" class="linkish">Faucet and three payments</button> · <a href="#sample-transparent">Transparent round trip</a> · <a href="#sample-beacon">Beacon control</a></p>
+  <details class="offline">
+    <summary>Check offline, from transaction files</summary>
+    <p class="hint">One file per transaction, named <code>&lt;txid&gt;.hex</code>, with the raw transaction in hex. With files loaded no node is asked: the claims are checked against the files, and whether those transactions are in the chain is not. Load only files you fetched yourself.</p>
+    <div class="actions">
+      <label id="tx-files-field" class="file-btn btn btn-secondary btn-sm"><span class="i i-upload" aria-hidden="true"></span>Choose transaction files<input type="file" id="tx-files" multiple accept=".hex,.txt,text/plain"></label>
+      <button id="tx-files-clear" type="button" class="btn btn-secondary btn-sm" hidden>Forget the files, check online</button>
+    </div>
+    <p id="tx-files-status" class="hint tx-files-status"></p>
+  </details>
 </section>
 </details>
+
+<section id="progress" class="panel progress" hidden aria-labelledby="progress-title" aria-busy="true">
+  <div class="progress-head">
+    <h2 id="progress-title">Checking the dossier</h2>
+    <span id="progress-count" class="muted progress-count"></span>
+  </div>
+  <div class="skel-band" aria-hidden="true">
+    <span class="skel skel-lg skel-w60"></span>
+    <span class="skel skel-w40"></span>
+    <div class="skel-kpis"><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+  </div>
+  <ol id="progress-list" class="progress-list"></ol>
+</section>
 
 <section id="banner" class="result" hidden tabindex="-1" aria-labelledby="headline">
   <div class="verdict">
     <span class="verdict-icon" aria-hidden="true"></span>
-    <div><h2 id="headline" class="verdict-word"></h2><p id="verdict-sub" class="verdict-sub"></p></div>
+    <div class="verdict-text">
+      <div class="verdict-title"><h2 id="headline" class="verdict-word"></h2><span id="verdict-count" class="verdict-count"></span></div>
+      <p id="verdict-line" class="verdict-line"></p>
+    </div>
   </div>
   <p id="banner-error" class="verdict-detail" hidden></p>
   <details id="parse-detail" class="tech-detail" hidden><summary>Technical detail</summary><code id="parse-raw"></code></details>
-  <p id="offline-line" class="offline-line" hidden><span id="offline-text"></span> <button id="retry-online" type="button" class="linkish">Check online instead</button></p>
-  <p id="sample-nonce-row" class="sample-nonce-row" hidden><button id="sample-nonce" type="button" class="btn btn-secondary"><span class="i i-key" aria-hidden="true"></span>Try it with the nonce the sample answered</button> <span class="muted">It fills in the nonce the sample's reviewer issued, and the height then (H₀), as a reviewer would.</span></p>
-  <div id="decision-wrap" class="decision-wrap" hidden>
-    <h3 class="decision-title">Decision summary</h3>
-    <dl id="decision" class="facts decision"></dl>
+  <div id="decision-wrap" hidden>
+    <h3 class="sr-only">Figures</h3>
+    <dl id="decision" class="kpis"></dl>
   </div>
-  <dl id="facts" class="facts"></dl>
-  <p id="nonce-line" class="nonce-line" hidden></p>
-  <p id="nonce-note" class="nonce-note" hidden></p>
-  <p id="deposit-line" class="deposit-line" hidden></p>
-  <div id="case-fields" class="case-fields" hidden>
-    <label class="field">Reviewer<input id="case-reviewer" class="text" autocomplete="off"></label>
-    <label class="field">Case id<input id="case-id" class="text" autocomplete="off"></label>
-    <label class="field">Date<input id="case-date" class="text" autocomplete="off" placeholder="YYYY-MM-DD"></label>
+  <div class="callout-slot">
+    <p id="deposit-line" class="callout callout-warn" hidden></p>
+    <p id="offline-line" class="callout callout-info" hidden><span class="i i-info" aria-hidden="true"></span><span><span id="offline-text"></span> <button id="retry-online" type="button" class="linkish">Check online instead</button></span></p>
+    <p id="nonce-note" class="callout" hidden></p>
+    <p id="sample-nonce-row" class="callout callout-info" hidden><span class="i i-info" aria-hidden="true"></span><span class="callout-text">This sample's control claim answers the exchange's challenge.</span><button id="sample-nonce" type="button" class="btn btn-secondary btn-sm"><span class="i i-key" aria-hidden="true"></span>Use the sample's nonce and H₀</button></p>
   </div>
-  <div id="case-actions" class="actions case-actions" hidden>
-    <p><button id="download" type="button" class="btn btn-secondary"><span class="i i-download" aria-hidden="true"></span>Download report (JSON)</button></p>
-    <p class="hide-nf"><label class="check"><input type="checkbox" id="hide-nullifiers"> Hide the notes' nullifiers in the report</label> <span class="muted">(a printout never shows them)</span></p>
-    <p><button id="print" type="button" class="btn btn-secondary"><span class="i i-printer" aria-hidden="true"></span>Print or save as PDF</button></p>
-    <p><button id="copy-summary" type="button" class="btn btn-secondary"><span class="i i-copy" aria-hidden="true"></span>Copy a case summary</button></p>
-  </div>
+  <details id="verdict-why" class="why" hidden>
+    <summary>Why this result</summary>
+    <p id="verdict-sub" class="verdict-sub"></p>
+    <ul id="exceptions" class="exceptions"></ul>
+  </details>
 </section>
 
-<section id="flow-card" class="card" hidden aria-labelledby="flow-title">
-  <div class="card-head">
-    <h2 id="flow-title">Funds flow</h2>
-    <span class="muted">Oldest first · each line under a step is a claim (path claims from one note share a line)</span>
-  </div>
+<div id="case-tabs" class="tabs" role="tablist" aria-label="The case" hidden>
+  <button id="tab-summary" type="button" role="tab" aria-selected="true" aria-controls="panel-summary">Summary</button>
+  <button id="tab-flow" type="button" role="tab" aria-selected="false" aria-controls="flow-card" tabindex="-1">Transactions <span id="flow-count" class="tab-count"></span></button>
+  <button id="tab-claims" type="button" role="tab" aria-selected="false" aria-controls="claims-card" tabindex="-1">Claims <span id="claims-count" class="tab-count"></span></button>
+  <button id="tab-raw" type="button" role="tab" aria-selected="false" aria-controls="raw-card" tabindex="-1">Raw</button>
+</div>
+
+<section id="panel-summary" class="tab-panel" role="tabpanel" aria-labelledby="tab-summary" hidden>
+  <section id="details-card" class="details-card" aria-labelledby="details-title">
+    <h2 id="details-title" class="sr-only">Case details</h2>
+    <dl id="facts" class="facts kv-list"></dl>
+  </section>
+  <section id="graph-card" class="flow-figure" aria-labelledby="graph-title">
+    <div class="section-head">
+      <h2 id="graph-title">Funds flow</h2>
+      <span class="muted flow-hint">Oldest first. Widths follow value; the Transactions tab lists each one.</span>
+    </div>
+    <div id="flow-graph" class="flow-graph"></div>
+    <ul class="flow-legend" aria-label="Legend">
+      <li><span class="sw sw-note" aria-hidden="true"></span>Shielded note</li>
+      <li><span class="sw sw-transparent" aria-hidden="true"></span>Transparent</li>
+      <li><span class="sw sw-assigned" aria-hidden="true"></span>To your deposit address</li>
+      <li><span class="sw sw-gap" aria-hidden="true"></span>Not traced, or not disclosed</li>
+    </ul>
+  </section>
+  <section id="funders-card" class="section" hidden aria-labelledby="funders-title">
+    <h2 id="funders-title">Sources of funds</h2>
+    <div id="funders"></div>
+  </section>
+  <section id="scope" class="section scope-table" hidden aria-labelledby="scope-title">
+    <h2 id="scope-title">What this dossier establishes</h2>
+    <div class="scope-grid">
+      <div aria-labelledby="disclosed-title"><h3 id="disclosed-title">Disclosed by the holder</h3><ul id="disclosed" class="discloses"></ul></div>
+      <div aria-labelledby="limits-title"><h3 id="limits-title">Not established</h3><ul id="limits" class="limits-list"></ul></div>
+    </div>
+  </section>
+</section>
+
+<section id="flow-card" class="tab-panel" role="tabpanel" aria-labelledby="tab-flow" hidden>
+  <h2 class="sr-only" id="flow-title">Transactions</h2>
+  <p class="muted panel-note">Oldest first. Each transaction's notes in and out, and the claims it carries.</p>
   <ol id="flow" class="timeline"></ol>
 </section>
 
-<section id="claims-card" class="card" hidden aria-labelledby="claims-title">
-  <h2 id="claims-title">Claims</h2>
+<section id="claims-card" class="tab-panel" role="tabpanel" aria-labelledby="tab-claims" hidden>
+  <div class="section-head claims-head">
+    <h2 id="claims-title" class="sr-only">Claims</h2>
+    <div class="seg" role="group" aria-label="Show">
+      <button id="claims-all" type="button" class="seg-btn" aria-pressed="true">All</button>
+      <button id="claims-exceptions" type="button" class="seg-btn" aria-pressed="false">Exceptions <span id="exceptions-count" class="tab-count"></span></button>
+    </div>
+  </div>
   <div class="table-wrap">
-    <table id="claims" class="claims-table">
+    <table id="claims" class="data-table claims-table">
       <caption class="sr-only">Every claim of the dossier, with its status</caption>
-      <thead><tr><th scope="col">#</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">What the chain shows</th></tr></thead>
+      <thead><tr><th scope="col" class="c-num">#</th><th scope="col">Claim</th><th scope="col">Status</th><th scope="col">Transaction and notes</th><th scope="col" class="r">Amount</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
 </section>
 
-<section id="funders-card" class="card" hidden aria-labelledby="funders-title">
-  <h2 id="funders-title">Where the origin funds came from</h2>
-  <div id="funders"></div>
+<section id="raw-card" class="tab-panel" role="tabpanel" aria-labelledby="tab-raw" hidden>
+  <div class="section-head">
+    <h2 id="raw-title">Verifier report</h2>
+    <button id="copy-raw" type="button" class="btn btn-secondary btn-sm"><span class="i i-copy" aria-hidden="true"></span>Copy JSON</button>
+  </div>
+  <p class="muted panel-note">The report as the verifier wrote it (zeceipt-dossier-report-v1). Until your nonce matches, the dossier's own is shortened here too.</p>
+  <pre id="raw-json" class="raw-json" tabindex="0"></pre>
 </section>
 
-<div id="scope" class="scope" hidden>
-<section class="card" aria-labelledby="disclosed-title">
-<h2 id="disclosed-title">What the holder disclosed</h2>
-<ul id="disclosed" class="discloses"></ul>
+<section id="reference" class="section reference" hidden aria-labelledby="reference-title">
+  <h2 id="reference-title">Reference</h2>
+  <details id="after-card" class="ref">
+    <summary>After the case</summary>
+    <dl class="kv-list ref-list">
+      <div><dt>Holder</dt><dd>The dossier's nk stays with the reviewer and anyone the dossier reaches: with it they see when each disclosed note is spent, past and future, and anyone who ever paid the holder can see when the notes they paid are spent. Once the case is closed, move the remaining funds to a fresh account.</dd></div>
+      <div><dt>Reviewer</dt><dd>Keep the dossier file and the report (Download report) together in the case file. The report carries the dossier's sha256, so anyone can later confirm which dossier you reviewed and check it again with the same verifier (its sha256 is at the foot of this page).</dd></div>
+    </dl>
+  </details>
+  <section id="glossary-card" class="glossary" aria-label="Terms used here">
+  <details id="glossary" class="ref">
+  <summary>Terms used here</summary>
+  <dl class="kv-list ref-list terms">
+    <div><dt>Note</dt><dd>A shielded output: an amount paid to an address, with a memo. A dossier discloses a note by its opening: its transaction, amount, address and memo.</dd></div>
+    <div><dt>Nullifier</dt><dd>The value a transaction publishes when it spends a note. Only the note owner's key gives it, so a note's nullifier in a transaction shows its owner spent it there.</dd></div>
+    <div><dt>nk (nullifier key)</dt><dd>Part of the holder's viewing key, in the dossier. With it this page finds where each disclosed note was spent; it cannot spend, and shows no other payment.</dd></div>
+    <div><dt>Explained</dt><dd>Every payment's and the control's funds trace back, by path claims, to an origin that names its source, and no transaction paid from notes the dossier does not disclose. Otherwise the case is “funds not fully explained”.</dd></div>
+    <div><dt>Untraced</dt><dd>A note no chain of path claims leads back to an origin claim.</dd></div>
+    <div><dt>Origin</dt><dd>Where the funds entered the holder's wallet, and what funded that transaction.</dd></div>
+    <div><dt>Path</dt><dd>A disclosed note was spent in the transaction that created the next one.</dd></div>
+    <div><dt>Deposit</dt><dd>A shielded payment the holder made, opened by a sender receipt, paid from disclosed notes.</dd></div>
+    <div><dt>Transparent payment</dt><dd>A payment the holder made to a transparent address, from disclosed notes. Funds that come back from that address show as “returned from claim #k”.</dd></div>
+    <div><dt>Control</dt><dd>A challenge transaction spent disclosed notes and paid the holder a note whose memo carries your nonce: the holder could spend those funds after you issued it.</dd></div>
+    <div><dt>Beacon nonce</dt><dd>The hash of a block, <code>zeceipt-beacon-&lt;height&gt;-&lt;hash&gt;</code>. No one could know it before that block, so a control answering it was made after it; you judge whether the block is recent enough.</dd></div>
+    <div><dt>H₀</dt><dd>The chain height when you issued the nonce. A control transaction mined before it fails.</dd></div>
+    <div><dt>Verified</dt><dd>The chain supports the claim.</dd></div>
+    <div><dt>Not proven</dt><dd>Nothing in this dossier can show the claim, and waiting will not change that; its row says what would.</dd></div>
+    <div><dt>Not checked yet</dt><dd>A transaction the claim rests on was not found, or is not mined yet: check again later.</dd></div>
+    <div><dt>Failed</dt><dd>The chain does not support the claim, or its data does not check: its row says why.</dd></div>
+    <div><dt>Not checked against the chain</dt><dd>Checked against transaction files you loaded, not against a node: inclusion and heights are unknown.</dd></div>
+    <div><dt>TAZ</dt><dd>Testnet coins, which have no value; ZEC on mainnet.</dd></div>
+  </dl>
+  </details>
+  </section>
 </section>
-<section class="card" aria-labelledby="limits-title">
-<h2 id="limits-title">What this does not prove</h2>
-<ul id="limits" class="limits"></ul>
-</section>
+
 </div>
 
-<section id="glossary-card" class="card glossary" aria-labelledby="glossary-title">
-<details id="glossary">
-<summary><h2 id="glossary-title">Terms used here</h2></summary>
-<dl class="terms">
-  <dt>Note</dt><dd>A shielded output: an amount paid to an address, with a memo. A dossier discloses a note by its opening, which shows its transaction, amount, address and memo.</dd>
-  <dt>Nullifier</dt><dd>The value a transaction publishes when it spends a note. Only the key of the note's owner gives it, so a note's nullifier in a transaction shows that its owner spent it there.</dd>
-  <dt>nk (nullifier key)</dt><dd>Part of the holder's viewing key, in the dossier. With it this page computes the disclosed notes' nullifiers, and so finds where each was spent; it cannot spend, and it shows no other payment. It also lets whoever holds the dossier see when these notes are spent later, and anyone who ever paid the holder see when the notes they paid are spent.</dd>
-  <dt>Explained (untraced)</dt><dd>The claims add up when every payment's and the control's funds trace back, by path claims, to an origin claim that names its source, and no transaction paid from notes the dossier does not disclose. A note that no chain of claims leads back to an origin is untraced; an origin paid by an undisclosed shielded sender, or spending disclosed notes, or whose transparent inputs' previous transactions are missing, names no source. Either makes the case amber, “funds not fully explained”.</dd>
-  <dt>Consistent offline</dt><dd>With transactions loaded from files, the claims are checked against those files only: whether the transactions are in the chain, and at which heights, is not. A holder can send fabricated files, so load only files you fetched from a node yourself.</dd>
-  <dt>Origin</dt><dd>Where the funds entered the holder's wallet, and what funded that transaction (its transparent inputs, or an undisclosed shielded sender).</dd>
-  <dt>Path</dt><dd>A disclosed note was spent in the transaction that created the next one: the funds moved within the wallet.</dd>
-  <dt>Deposit</dt><dd>A shielded payment the holder made, opened by a sender receipt, paid from disclosed notes.</dd>
-  <dt>Transparent payment</dt><dd>A payment the holder made to a transparent address (an exchange deposit, say), from disclosed notes. Funds that come back from that address show as “returned from claim #k”.</dd>
-  <dt>Control</dt><dd>A challenge transaction spent disclosed notes and paid the holder a note whose memo carries your nonce: the holder could spend those funds after you issued it.</dd>
-  <dt>Beacon nonce</dt><dd>A nonce that is the hash of a block, <code>zeceipt-beacon-&lt;height&gt;-&lt;hash&gt;</code>. No one could know it before that block was mined, so a control claim answering it was made after that block, with no reviewer issuing anything. The page looks the block up; you judge whether it is recent enough.</dd>
-  <dt>H₀ (issued at height)</dt><dd>The chain height when you issued the nonce. A control transaction mined before it was not made in answer to your challenge, and fails.</dd>
-  <dt>Verified</dt><dd>The chain supports the claim.</dd>
-  <dt>Not proven (unproven)</dt><dd>Nothing in this dossier can show the claim, and waiting will not change that; its row says what would (an origin note is the holder's only once a later claim spends it).</dd>
-  <dt>Not checked yet (not_checked)</dt><dd>A transaction the claim rests on was not found, or is not mined yet: check again later.</dd>
-  <dt>Failed</dt><dd>The chain does not support the claim, or its data does not check: its row says why.</dd>
-  <dt>TAZ</dt><dd>Testnet coins, which have no value; ZEC on mainnet.</dd>
-</dl>
-</details>
-</section>
-
-<section id="after-card" class="card after" aria-labelledby="after-title">
-<h2 id="after-title">After the case</h2>
-<ul class="discloses">
-  <li><span><strong>Holder:</strong> the dossier's nk stays with the reviewer, and with anyone the dossier reaches. With it they see when each disclosed note is spent, past and future. More: anyone who ever paid you (an exchange that sent withdrawals to you, for example) and obtains the nk can see when every note they paid you is spent, past and future, not only the disclosed ones. Once the case is closed, move the remaining funds to a fresh account (a new account in your wallet, with its own keys): its notes are not covered by this nk.</span></li>
-  <li><span><strong>Reviewer:</strong> keep the dossier file and the report (Download report, JSON) together in the case file. The report carries the dossier's sha256, so anyone can later confirm which dossier you reviewed and check it again with the same verifier (its sha256 is at the foot of this page).</span></li>
-</ul>
-</section>
-
-<section id="challenge" class="card challenge" aria-labelledby="challenge-title">
-  <div class="row-head">
-    <h2 id="challenge-title">Challenge the holder</h2>
-    <span class="row-actions">
-      <button id="nonce-new" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span><span id="nonce-new-label">Generate a nonce</span></button>
-      <button id="beacon-new" type="button" class="btn btn-secondary"><span class="i i-link" aria-hidden="true"></span>Generate a beacon nonce</button>
-    </span>
+<aside class="case-rail" aria-label="Case record, challenge and privacy">
+<section id="record-card" class="panel record" hidden aria-labelledby="record-title">
+  <div class="panel-head"><h2 id="record-title">Case record</h2></div>
+  <div id="case-fields" class="case-fields" hidden>
+    <label class="field">Reviewer<input id="case-reviewer" class="text" autocomplete="off"></label>
+    <label class="field">Case id<input id="case-id" class="text" autocomplete="off"></label>
+    <label class="field">Date<input id="case-date" class="text" autocomplete="off" placeholder="YYYY-MM-DD"></label>
   </div>
-  <p>A dossier's origin, path and deposit claims show what the holder's funds did. To see that they can spend them now, send them a fresh nonce and ask for a control claim that answers it. Generating a nonce also asks a public node for the chain's height (H₀), and nothing else. A beacon nonce is the hash of the latest block instead: no one could know it before that block, so a holder can answer one without being asked, and you judge whether the block is recent enough. A control answering a beacon needs no nonce entered here.</p>
-  <div class="challenge-fields">
-    <label id="nonce-field" class="field">Nonce you issued
-      <input id="nonce-input" class="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="nonce-hint">
-      <span id="nonce-hint" class="hint">Paste it from your case record, not from this page. Every control claim is checked against it: one that answers another nonce fails.</span>
-    </label>
-    <label id="h0-field" class="field">Issued at height (H₀)
+  <div id="case-actions" class="case-actions" hidden>
+    <button id="download" type="button" class="btn btn-primary"><span class="i i-download" aria-hidden="true"></span>Download report</button>
+    <button id="print" type="button" class="btn btn-secondary"><span class="i i-printer" aria-hidden="true"></span>Print or PDF</button>
+    <button id="copy-summary" type="button" class="btn btn-secondary"><span class="i i-copy" aria-hidden="true"></span>Copy summary</button>
+  </div>
+  <p id="hide-nf" class="hide-nf" hidden><label class="check"><input type="checkbox" id="hide-nullifiers"> Leave the notes' nullifiers out of the report</label></p>
+</section>
+
+<section id="challenge" class="panel challenge" aria-labelledby="challenge-title">
+  <div class="panel-head">
+    <h2 id="challenge-title">Challenge the holder</h2>
+    <span id="challenge-state" class="challenge-state muted"></span>
+  </div>
+  <label id="nonce-field" class="field">Nonce you issued
+    <input id="nonce-input" class="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="nonce-hint">
+    <span id="nonce-hint" class="hint">Paste it from your case record, not from this page. A control claim that answers another nonce fails.</span>
+  </label>
+  <div class="field-row">
+    <label id="h0-field" class="field">H₀ (issued at height)
       <input id="h0-input" class="text" inputmode="numeric" autocomplete="off" aria-describedby="h0-hint">
-      <span id="h0-hint" class="hint">The chain height when you issued the nonce: a control transaction mined before it fails.</span>
+      <span id="h0-hint" class="hint">A control mined before it fails.</span>
     </label>
     <label id="challenge-network-field" class="field">Network
       <select id="challenge-network"><option value="main">Zcash mainnet</option><option value="test">Zcash testnet</option></select>
     </label>
-    <label id="deposit-field" class="field deposit-field">Deposit address you assigned (optional)
-      <input id="deposit-input" class="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="deposit-hint deposit-status">
-      <span id="deposit-hint" class="hint">The transparent, TEX or unified address you gave this customer for deposits. A payment in the dossier to it ties the funds to this customer: a control answer alone can be relayed from someone else's wallet. With an address entered, a dossier with no verified payment to it is not verified.</span>
-      <span id="deposit-status" class="hint" role="status"></span>
-    </label>
   </div>
-  <p id="h0-status" class="muted h0-status" role="status"></p>
-  <div class="actions">
-    <p><button id="copy-challenge" type="button" class="btn btn-secondary"><span class="i i-copy" aria-hidden="true"></span>Copy for case file</button></p>
+  <label id="deposit-field" class="field">Deposit address you assigned <span class="opt">(optional)</span>
+    <input id="deposit-input" class="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="deposit-hint deposit-status">
+    <span id="deposit-hint" class="hint">With an address entered, a dossier with no verified payment to it is not verified: a control answer alone can be relayed from someone else's wallet.</span>
+    <span id="deposit-status" class="hint deposit-status"></span>
+  </label>
+  <div class="actions challenge-actions">
+    <button id="nonce-new" type="button" class="btn btn-secondary btn-sm"><span class="i i-refresh" aria-hidden="true"></span><span id="nonce-new-label">Generate a nonce</span></button>
+    <button id="beacon-new" type="button" class="btn btn-secondary btn-sm"><span class="i i-hash" aria-hidden="true"></span>Beacon nonce</button>
+    <button id="copy-challenge" type="button" class="btn btn-secondary btn-sm"><span class="i i-copy" aria-hidden="true"></span>Copy for case file</button>
   </div>
-  <ol class="steps">
-    <li>Send the holder this nonce.</li>
-    <li>From the wallet that holds the funds, they send any amount (the smallest will do) to their own address, with the nonce as the memo. The transaction must spend notes the dossier discloses.</li>
-    <li>They add that transaction to their dossier as the control claim (on the Build page: the nonce and the challenge transaction's id), and send you the new dossier.</li>
-    <li>Open it here: the control claim must verify and answer this nonce.</li>
+  <p id="h0-status" class="hint h0-status"></p>
+  <h3 class="log-title">Challenge log</h3>
+  <ol id="challenge-log" class="log challenge-log">
+    <li id="log-nonce" class="log-row" data-tone="idle"><span class="log-disc"><span class="i i-plus" aria-hidden="true"></span></span><div class="log-main"><p class="log-label">Nonce issued <span id="log-nonce-value" class="log-value"></span></p><p id="log-nonce-detail" class="log-detail">None entered yet.</p></div></li>
+    <li id="log-control" class="log-row" data-tone="idle"><span class="log-disc"><span class="i i-pen" aria-hidden="true"></span></span><div class="log-main"><p class="log-label">Control transaction <span id="log-control-value" class="log-value"></span></p><p id="log-control-detail" class="log-detail">Opens with a dossier.</p></div></li>
+    <li id="log-answer" class="log-row" data-tone="idle"><span class="log-disc"><span class="i i-check" aria-hidden="true"></span></span><div class="log-main"><p class="log-label">Answer</p><p id="nonce-line" class="log-detail" hidden></p><p id="log-answer-idle" class="log-detail">Checked when a dossier is open.</p></div></li>
+    <li id="log-deposit" class="log-row" data-tone="idle"><span class="log-disc"><span class="i i-out" aria-hidden="true"></span></span><div class="log-main"><p class="log-label">Deposit to your address</p><p id="log-deposit-detail" class="log-detail">No address entered.</p></div></li>
   </ol>
-  <p class="muted">A case on screen is checked again when you change the nonce, the height or the deposit address. They are kept in this page's fields only, not stored: reloading or closing the page forgets them, so copy them into your case file.</p>
-  <p id="nonce-result" class="nonce-result" role="status"></p>
+  <details class="holder-steps">
+    <summary>What the holder does</summary>
+    <ol class="steps">
+      <li>You send the holder this nonce.</li>
+      <li>From the wallet that holds the funds, they send any amount (the smallest will do) to their own address, with the nonce as the memo. It must spend notes the dossier discloses.</li>
+      <li>They add that transaction to their dossier as the control claim (Build a dossier: Control), and send you the new dossier.</li>
+      <li>You open it here: the control claim must verify and answer this nonce.</li>
+    </ol>
+    <p class="hint">The nonce, H₀ and address are kept in these fields only: reloading the page forgets them, so copy them into your case file. A case on screen is checked again when you change them.</p>
+  </details>
 </section>
 
-<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: this page asks a public node for each transaction the dossier names, only when you check one (none when you load the transactions from files), for the block a control's beacon names, and for the chain's height (and its latest block) when you generate a nonce; it sends nothing else. The node learns which transactions you looked up. The page stores nothing.</span></p>
+<section id="privacy" class="panel privacy" aria-labelledby="privacy-title">
+  <h2 id="privacy-title">Privacy</h2>
+  <dl class="kv-list privacy-list">
+    <div><dt>Node lookups</dt><dd id="privacy-lookups">None yet</dd></div>
+    <div><dt>Sent with them</dt><dd>Transaction ids, a beacon's block height, and the chain height when you generate a nonce</dd></div>
+    <div><dt>The dossier</dt><dd>Not sent anywhere</dd></div>
+    <div><dt>Stored</dt><dd>Nothing</dd></div>
+  </dl>
+</section>
+</aside>
+</div>
+
+<div class="print-only print-sign">
+  <p><span>Reviewed by</span><span class="sign-line"></span><span>Date</span><span class="sign-line short"></span></p>
+  <p><span>Signature</span><span class="sign-line"></span></p>
+</div>
 <footer id="print-meta" class="print-only print-foot"></footer>
 </main>
 <footer class="foot">
   <span><span id="version">zeceipt-dossier-v1</span> · open source (Apache-2.0)</span>
   <span id="wasm-sha" class="wasm-sha" hidden></span>
-  <span class="foot-links"><a href="../">Home</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source and specification</a></span>
+  <span class="foot-links"><a href="../">Home</a> <a href="../r/">Receipt page</a> <a href="https://github.com/beautifulrem/zeceipt" rel="noreferrer">Source</a></span>
 </footer>
 </body>
 </html>

@@ -346,9 +346,11 @@ export async function checkDossier(text, { txs = null, expectNonce = "", issuedA
   if (!txs) {
     // Two rounds: the transactions the claims name, then the ones whose outputs the origin transactions spend (the
     // funders' addresses and values come from those outputs, which their txids cover).
+    // Three lookups at a time (a public node answers each in its own time; one after another, a dossier of a dozen
+    // transactions waited for each in turn).
     for (const round of [0, 1]) {
       const want = round === 0 ? ids : dossier_prevout_txids(text, got);
-      for (const [i, txid] of want.entries()) {
+      await mapLimit(want, 3, async (txid, i) => {
         onFetch({ txid, index: i, total: want.length, round });
         try {
           const r = await fetchRawTx(txid, network, undefined, { timeoutMs });
@@ -356,7 +358,7 @@ export async function checkDossier(text, { txs = null, expectNonce = "", issuedA
         } catch (e) {
           if (e.code !== "not_found") throw e;
         }
-      }
+      });
     }
   }
   // A beacon nonce names a block: look its hash up (online), or take the caller's (offline).
@@ -371,6 +373,21 @@ export async function checkDossier(text, { txs = null, expectNonce = "", issuedA
     }
   }
   return check_dossier(text, got, expectNonce ?? "", Number.isFinite(issuedAtHeight) ? issuedAtHeight : undefined, expectDepositAddress ?? "", JSON.stringify(blocks));
+}
+
+/**
+ * `fn(item, index)` for each item, at most `limit` at a time, items started in order; resolves when all are done, and
+ * rejects with the first failure (the others still running are left to finish, their results unused).
+ */
+export async function mapLimit(items, limit, fn) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
 }
 
 /**

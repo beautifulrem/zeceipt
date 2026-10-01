@@ -252,3 +252,35 @@ export function valueParts(zec) {
   const [, major, zeros] = m;
   return major.endsWith(".") ? { major: major + zeros.slice(0, 1), zeros: zeros.slice(1) } : { major, zeros };
 }
+
+/**
+ * Where a public explorer shows a value: CipherScan (cipherscan.app, and testnet.cipherscan.app for testnet), for a
+ * transaction, a transparent address or a block height. Checked by hand on 2026-10-01: /tx/<txid>, /address/<t-addr>
+ * and /block/<height> answer 200 with the value for testnet values on testnet.cipherscan.app, as /tx/<txid> does for a
+ * mainnet transaction on cipherscan.app. A shielded or unified address is not linked (an explorer shows nothing of
+ * it), nor is anything on another network. Following a link tells the explorer which value you looked at.
+ */
+export const EXPLORER = { main: { name: "CipherScan", base: "https://cipherscan.app" }, test: { name: "CipherScan (testnet)", base: "https://testnet.cipherscan.app" } };
+export function explorerUrl(kind, value, network) {
+  const ex = EXPLORER[network];
+  const v = String(value ?? "").trim();
+  if (!ex || !v) return null;
+  if (kind === "tx" && /^[0-9a-f]{64}$/.test(v)) return `${ex.base}/tx/${v}`;
+  if (kind === "block" && /^\d+$/.test(v)) return `${ex.base}/block/${v}`;
+  // A transparent address: t1/t3 on mainnet, tm/t2 on testnet (base58, 35 characters).
+  const prefix = network === "main" ? /^t[13]/ : /^t[m2]/;
+  if (kind === "address" && prefix.test(v) && /^[1-9A-HJ-NP-Za-km-z]{35}$/.test(v)) return `${ex.base}/address/${v}`;
+  return null;
+}
+
+/** A zatoshi amount (a number or a BigInt) as its eight-decimal string: 24743750 → "0.24743750". */
+export function zecString(zat) {
+  const z = BigInt(zat);
+  const neg = z < 0n ? "-" : "";
+  const a = z < 0n ? -z : z;
+  return `${neg}${a / 100_000_000n}.${String(a % 100_000_000n).padStart(8, "0")}`;
+}
+
+/** A block height with thousands separators: 4422279 → "4,422,279" (FE07). */
+export const heightText = (h) => (Number.isFinite(h) ? Number(h).toLocaleString("en-US") : "");
+
