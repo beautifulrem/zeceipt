@@ -170,8 +170,21 @@ pub struct Report {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub untraced: Vec<String>,
     /// The sum of the claims' `undisclosed_input_min_zat`: at least this much of what the claims' transactions paid
-    /// came from notes the dossier does not disclose.
+    /// came from funds the dossier does not explain.
     pub undisclosed_input_min_zat: u64,
+    /// Origin claims that name no source: funded by undisclosed shielded notes, or by disclosed ones (a hop), or by
+    /// transparent inputs whose previous transactions were not supplied.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unexplained_origins: Vec<String>,
+    /// Transparent inputs of the claims' transactions whose value is unknown (their previous transaction missing).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub unvalued_inputs: usize,
+    /// The block whose hash a verified control claim's beacon nonce is (spec §7.4).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub beacon_height: Option<u64>,
+    /// Whether a verified payment pays the deposit address the reviewer gave; absent when they gave none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deposit_address_paid: Option<bool>,
     /// The height the reviewer says the nonce was issued at, when given: a control transaction mined before it fails.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub issued_at_height: Option<u64>,
@@ -185,6 +198,36 @@ pub const REPORT_VERSION: &str = "zeceipt-dossier-report-v1";
 
 /// How `zeceipt dossier nonce` (and the case page) start a nonce; a memo starting so marks a challenge answer.
 pub const CHALLENGE_PREFIX: &str = "zeceipt-challenge-";
+
+/// A beacon nonce: `zeceipt-beacon-<height>-<block hash, display hex>`. Nobody can know a block's hash before it is
+/// mined, and anyone can look it up after, so a control answering one was made after that block, with no reviewer
+/// to trust for the nonce's freshness (spec §7.4).
+pub const BEACON_PREFIX: &str = "zeceipt-beacon-";
+
+/// The height and block hash a beacon nonce names, if it is one.
+pub fn parse_beacon(nonce: &str) -> Option<(u64, String)> {
+    let rest = nonce.trim().strip_prefix(BEACON_PREFIX)?;
+    let (h, hash) = rest.split_once('-')?;
+    let hash = hash.to_lowercase();
+    (hash.len() == 64 && hash.bytes().all(|c| c.is_ascii_hexdigit()))
+        .then_some(())
+        .and(h.parse().ok().map(|h| (h, hash)))
+}
+
+/// The heights whose block hashes the dossier's beacon nonces name: fetch them (hash and time) for `CheckOptions`.
+pub fn beacon_heights(d: &Dossier) -> Vec<u64> {
+    let mut v: Vec<u64> = d
+        .claims
+        .iter()
+        .filter_map(|c| match c {
+            Claim::Control { nonce, .. } => parse_beacon(nonce).map(|(h, _)| h),
+            _ => None,
+        })
+        .collect();
+    v.sort();
+    v.dedup();
+    v
+}
 
 const DOES_NOT_PROVE: &[&str] = &[
     "who the counterparties are: an origin shows the transparent addresses that funded a transaction, not who holds them",
@@ -270,27 +313,24 @@ pub fn txids_needed(d: &Dossier) -> Vec<String> {
     v
 }
 
-/// The txids of the transactions whose outputs the origin claims' transactions spend (their transparent inputs), so
-/// the caller can fetch them too and the report can name each funder's address and value from the output itself. Call
+/// The txids of the transactions whose outputs the dossier's transactions spend (their transparent inputs), so the
+/// caller can fetch them too and the report can name each funder's address and value from the output itself (and
+/// count transparent money that entered a path or a payment, spec §5.6). Call
 /// it with the transactions `txids_needed` returned; fetch these; check with all of them.
 pub fn prevout_txids(d: &Dossier, txs: &HashMap<String, TxData>) -> Vec<String> {
-    let proofs = d.note_proofs().unwrap_or_default();
     let mut out = Vec::new();
-    for c in &d.claims {
-        if let Claim::Origin { note } = c {
-            let Some(p) = proofs.get(note) else { continue };
-            let Some(tx) = txs
-                .get(&p.txid_hex())
-                .and_then(|t| parse_transaction(&t.bytes).ok())
-            else {
-                continue;
-            };
-            if let Some(b) = tx.transparent_bundle() {
-                for i in &b.vin {
-                    let (txid, _) = outpoint(i);
-                    if !out.contains(&txid) && !txs.contains_key(&txid) {
-                        out.push(txid);
-                    }
+    for named in txids_needed(d) {
+        let Some(tx) = txs
+            .get(&named)
+            .and_then(|t| parse_transaction(&t.bytes).ok())
+        else {
+            continue;
+        };
+        if let Some(b) = tx.transparent_bundle() {
+            for i in &b.vin {
+                let (txid, _) = outpoint(i);
+                if !out.contains(&txid) && !txs.contains_key(&txid) {
+                    out.push(txid);
                 }
             }
         }
@@ -435,7 +475,7 @@ pub fn check_dossier(
         given,
         &CheckOptions {
             expect_nonce: expect_nonce.map(str::to_string),
-            issued_at_height: None,
+            ..Default::default()
         },
     )
 }
@@ -448,6 +488,11 @@ pub struct CheckOptions {
     /// The chain height when they issued it: a control transaction mined below it was made before the nonce existed
     /// (someone guessed or leaked it early), so it fails.
     pub issued_at_height: Option<u64>,
+    /// The blocks a beacon nonce names, by height: (hash, display hex; time, Unix seconds), from a node the reviewer
+    /// trusts (`beacon_heights`).
+    pub beacons: BTreeMap<u64, (String, u32)>,
+    /// The deposit address the reviewer assigned this customer: a transparent payment or a deposit must pay it.
+    pub expect_deposit_address: Option<String>,
 }
 
 /// `check_dossier`, with everything the reviewer knows about their challenge.
@@ -609,6 +654,8 @@ pub fn check_dossier_with(
     };
 
     let mut claims = Vec::new();
+    let mut beacon_ok: Option<u64> = None;
+    let mut beacon_verified: Option<u64> = None;
     for (index, c) in d.claims.iter().enumerate() {
         let kind = c.kind();
         let mut r = ClaimResult {
@@ -814,6 +861,7 @@ pub fn check_dossier_with(
                                     .unwrap_or_default()
                             );
                             r.value_zat = Some(v.recovered.value_zat);
+                            r.paid_to = Some(v.recovered.recipient.clone());
                             if !funded_by.is_empty() && nk_key.is_none() {
                                 needs_nk_failed(&mut r);
                             } else {
@@ -870,7 +918,26 @@ pub fn check_dossier_with(
                     );
                 } else if expect_nonce.is_some_and(|e| e.trim() != nonce.trim()) {
                     r.summary = format!("This control claim answers nonce {nonce}, not the one you issued: it was made for another challenge, or an earlier one.");
-                } else {
+                } else if let Some((bh, bhash)) =
+                    parse_beacon(nonce).filter(|_| expect_nonce.is_none())
+                {
+                    match opts.beacons.get(&bh) {
+                        None => {
+                            r.status = Status::NotChecked;
+                            r.summary = format!("This control claim answers a beacon, the hash of block {bh}, which was not looked up: check again with a node.");
+                        }
+                        Some((hash, _)) if *hash != bhash => {
+                            r.summary = format!("The beacon nonce names block {bh} with hash {}, but block {bh}'s hash is {}: it is not that block's beacon.", short(&bhash), short(hash));
+                        }
+                        Some(_) => {
+                            beacon_ok = Some(bh);
+                        }
+                    }
+                }
+                // A beacon's block: the challenge must be mined after it.
+                let beacon_h0 = beacon_ok.filter(|_| r.summary.is_empty()).map(|h| h + 1);
+                let h0_eff = opts.issued_at_height.or(beacon_h0);
+                if r.summary.is_empty() {
                     let f = &notes[reply];
                     let tx = parsed(&f.txid).expect("opened, so parsed");
                     let spends = spends_in(&tx);
@@ -890,10 +957,15 @@ pub fn check_dossier_with(
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         );
-                    } else if let Some((h, h0)) =
-                        f.height.zip(opts.issued_at_height).filter(|(h, h0)| h < h0)
-                    {
-                        r.summary = format!("The challenge transaction {} was mined at height {h}, before you issued the nonce at height {h0}: it was not made in answer to your challenge.", short(&f.txid));
+                    } else if let Some((h, h0)) = f.height.zip(h0_eff).filter(|(h, h0)| h < h0) {
+                        r.summary = if beacon_h0.is_some() && opts.issued_at_height.is_none() {
+                            format!("The challenge transaction {} was mined at height {h}, not after the beacon's block {}: it could have been made before the beacon existed.", short(&f.txid), h0 - 1)
+                        } else {
+                            format!("The challenge transaction {} was mined at height {h}, before you issued the nonce at height {h0}: it was not made in answer to your challenge.", short(&f.txid))
+                        };
+                    } else if let (Some(b0), None) = (beacon_h0, f.height) {
+                        r.status = Status::NotChecked;
+                        r.summary = format!("This control claim answers the beacon of block {}, but the challenge transaction's height is not known here (a file), so it cannot be shown to come after that block.", b0 - 1);
                     } else {
                         r.status = Status::Verified;
                         r.summary = format!(
@@ -903,7 +975,10 @@ pub fn check_dossier_with(
                             short(&f.txid),
                             when(reply)
                         );
-                        if expect_nonce.is_none() {
+                        if let Some(h0) = beacon_h0 {
+                            let (hash, time) = &opts.beacons[&(h0 - 1)];
+                            r.details.push(format!("The nonce is the beacon of block {} (hash {}, mined at Unix time {time}): no one could know it before that block, so the challenge was made after it. Judge whether that block is recent enough for your case.", h0 - 1, short(hash)));
+                        } else if expect_nonce.is_none() {
                             r.details.push("Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce.".into());
                         }
                         match (opts.issued_at_height, f.height) {
@@ -985,6 +1060,10 @@ pub fn check_dossier_with(
                 }
             }
         }
+        if r.kind == "control" && r.status == Status::Verified && beacon_ok.is_some() {
+            beacon_verified = beacon_ok;
+        }
+        beacon_ok = None;
         claims.push(r);
     }
     let mut disclosed = vec![format!(
@@ -1042,26 +1121,34 @@ pub fn check_dossier_with(
     // Value coverage: for each claim's transaction, how much it must have spent from undisclosed shielded notes. Per
     // pool, the notes spent are worth the notes created plus the pool's value balance (value leaving the pool); the
     // disclosed ones are known, so the rest is at least (disclosed created + receipts paid + balance − disclosed spent).
-    let receipts_by_tx = |txid: &str, pool: Pool| -> u64 {
-        d.claims
-            .iter()
-            .zip(&claims)
-            .filter_map(|(c, r)| match c {
+    let receipt_values: Vec<(String, Pool, u64)> = d
+        .claims
+        .iter()
+        .zip(&claims)
+        .filter_map(|(c, r)| match c {
+            Claim::Deposit { receipt, .. } => Some((receipt, r)),
+            _ => None,
+        })
+        .filter(|(receipt, r)| {
+            r.status == Status::Verified && {
                 // A receipt whose output is also a disclosed note is counted once, as the note.
-                Claim::Deposit { receipt, .. }
-                    if r.status == Status::Verified
-                        && d.receipts[receipt].txid.to_lowercase() == txid
-                        && d.receipts[receipt].pool == pool
-                        && !notes.values().any(|f| {
-                            f.txid == txid
-                                && f.pool == pool.as_str()
-                                && f.action == d.receipts[receipt].output_index
-                        }) =>
-                {
-                    r.value_zat
-                }
-                _ => None,
-            })
+                let rc = &d.receipts[*receipt];
+                let txid = rc.txid.to_lowercase();
+                !notes.values().any(|f| {
+                    f.txid == txid && f.pool == rc.pool.as_str() && f.action == rc.output_index
+                })
+            }
+        })
+        .filter_map(|(receipt, r)| {
+            let rc = &d.receipts[receipt];
+            Some((rc.txid.to_lowercase(), rc.pool, r.value_zat?))
+        })
+        .collect();
+    let receipts_by_tx = |txid: &str, pool: Pool| -> u64 {
+        receipt_values
+            .iter()
+            .filter(|(t, p, _)| t == txid && *p == pool)
+            .map(|(_, _, v)| v)
             .sum()
     };
     let undisclosed_min = |txid: &str| -> u64 {
@@ -1089,7 +1176,26 @@ pub fn check_dossier_with(
         total += (i64::from(tx.sapling_value_balance()) as i128).max(0);
         total as u64
     };
-    let bounds: Vec<Option<(String, u64)>> = d
+    // Transparent money entering a path's or a payment's transaction is not explained by the disclosed notes either:
+    // (value of the inputs whose previous transaction was supplied, inputs without it).
+    let t_inputs = |txid: &str| -> (u64, usize) {
+        let Some(tx) = parsed(txid) else {
+            return (0, 0);
+        };
+        let Some(b) = tx.transparent_bundle() else {
+            return (0, 0);
+        };
+        let (mut v, mut unknown) = (0u64, 0usize);
+        for i in &b.vin {
+            let (pt, n) = outpoint(i);
+            match parsed(&pt).and_then(|p| output_facts(&p, n, net)) {
+                Some((value, _)) => v += value,
+                None => unknown += 1,
+            }
+        }
+        (v, unknown)
+    };
+    let bounds: Vec<Option<(String, u64, usize)>> = d
         .claims
         .iter()
         .zip(&claims)
@@ -1104,21 +1210,67 @@ pub fn check_dossier_with(
                 Claim::Control { reply, .. } => notes[reply].txid.clone(),
                 Claim::Origin { .. } => return None,
             };
-            let u = undisclosed_min(&txid);
-            (u > 0).then_some((txid, u))
+            let (tv, unknown) = t_inputs(&txid);
+            let u = undisclosed_min(&txid) + tv;
+            (u > 0 || unknown > 0).then_some((txid, u, unknown))
         })
         .collect();
     for (r, b) in claims.iter_mut().zip(&bounds) {
-        if let Some((txid, u)) = b {
-            let (txid, u) = (txid.clone(), *u);
-            r.undisclosed_input_min_zat = Some(u);
-            r.details.push(format!("{} also spent at least {} from notes this dossier does not disclose: the disclosed notes do not explain all of what it paid.", short(&txid), amount(u, net)));
+        if let Some((txid, u, unknown)) = b {
+            let (txid, u, unknown) = (txid.clone(), *u, *unknown);
+            if u > 0 {
+                r.undisclosed_input_min_zat = Some(u);
+                r.details.push(format!("{} also spent at least {} from funds this dossier does not explain (undisclosed notes, or transparent inputs): the disclosed notes do not explain all of what it paid.", short(&txid), amount(u, net)));
+            }
+            if unknown > 0 {
+                r.details.push(format!("{} also has {unknown} transparent input{} whose previous transaction was not supplied: their value is not counted.", short(&txid), if unknown == 1 { "" } else { "s" }));
+            }
+        }
+    }
+    let unvalued_inputs: usize = {
+        let mut seen: Vec<&String> = Vec::new();
+        let mut n = 0;
+        for (txid, _, unknown) in bounds.iter().flatten() {
+            if !seen.contains(&txid) {
+                seen.push(txid);
+                n += unknown;
+            }
+        }
+        n
+    };
+    // An origin explains its funds only when the transaction itself shows where they came from: transparent inputs
+    // whose addresses are read from their outputs, and no shielded money the dossier does not disclose. An origin on
+    // a note paid by an undisclosed shielded sender (or on the holder's own change) names no source (spec §5.6).
+    let mut unexplained_origins: Vec<String> = Vec::new();
+    for (c, r) in d.claims.iter().zip(claims.iter_mut()) {
+        let Claim::Origin { note } = c else { continue };
+        if r.status != Status::Verified {
+            continue;
+        }
+        let f = r
+            .funding
+            .as_ref()
+            .expect("a verified origin reports its funding");
+        let named = !f.transparent_inputs.is_empty()
+            && f.transparent_inputs.iter().all(|i| i.address.is_some());
+        let shielded = undisclosed_min(&notes[note].txid);
+        if !f.from_disclosed.is_empty() || !named || shielded > 0 {
+            if !unexplained_origins.contains(note) {
+                unexplained_origins.push(note.clone());
+            }
+            r.details.push(if !f.from_disclosed.is_empty() {
+                format!("This origin's transaction spends disclosed notes ({}): it is a hop, not a source; a path claim states it.", f.from_disclosed.join(", "))
+            } else if shielded > 0 {
+                format!("Its source is not shown: at least {} came from shielded notes this dossier does not disclose.", amount(shielded, net))
+            } else {
+                "Its source is not shown: the transparent inputs' previous transactions were not supplied.".into()
+            });
         }
     }
     // A transaction's bound is counted once, however many claims rest on it.
     let mut counted: Vec<&String> = Vec::new();
     let mut undisclosed_total = 0u64;
-    for (txid, u) in bounds.iter().flatten() {
+    for (txid, u, _) in bounds.iter().flatten() {
         if !counted.contains(&txid) {
             counted.push(txid);
             undisclosed_total += u;
@@ -1131,6 +1283,30 @@ pub fn check_dossier_with(
         .iter()
         .any(|c| c.kind == "control" && c.status == Status::Verified);
     let all_ok = claims.iter().all(|c| c.status == Status::Verified);
+    // The deposit address the reviewer assigned this customer: the dossier must show a payment to it from the holder's
+    // notes (spec §7.2: the cross-check against a relayed control proof).
+    let mut deposit_address_paid = None;
+    if let Some(want) = opts
+        .expect_deposit_address
+        .as_deref()
+        .map(|a| tex_as_transparent(a.trim(), net).unwrap_or_else(|| a.trim().to_string()))
+        .as_deref()
+    {
+        if address_network(want).is_some_and(|n| n != net) {
+            problems.push(format!("The deposit address you gave ({want}) is for another network than this dossier ({}).", match net { Network::Main => "mainnet", Network::Test => "testnet", Network::Regtest => "regtest" }));
+            deposit_address_paid = Some(false);
+        } else {
+            let paid = claims.iter().any(|c| {
+                matches!(c.kind, "transparent_payment" | "deposit")
+                    && c.status == Status::Verified
+                    && c.paid_to.as_deref() == Some(want)
+            });
+            deposit_address_paid = Some(paid);
+            if !paid {
+                problems.push(format!("No verified payment in this dossier pays the deposit address you assigned ({want}): it does not show that this holder made your deposit."));
+            }
+        }
+    }
     if expect_nonce.is_some() && !d.claims.iter().any(|c| matches!(c, Claim::Control { .. })) {
         problems.push("You issued a nonce, and no control claim answers it: this dossier does not show the holder can spend these funds now.".into());
     }
@@ -1143,7 +1319,11 @@ pub fn check_dossier_with(
         version: REPORT_VERSION,
         network: d.network,
         nk_proven: notes.values().any(|n| n.spent_in.is_some()),
-        controlled: control_ok && expect_nonce.is_some(),
+        controlled: control_ok && (expect_nonce.is_some() || beacon_verified.is_some()),
+        beacon_height: beacon_verified,
+        deposit_address_paid,
+        unexplained_origins,
+        unvalued_inputs,
         problems,
         subject: d.subject.clone(),
         dossier_sha256: hex::encode(sha2::Sha256::digest(raw.as_bytes())),
@@ -1158,7 +1338,11 @@ pub fn check_dossier_with(
         "not_verified"
     } else if !report.anchored {
         "consistent_offline"
-    } else if !report.untraced.is_empty() || report.undisclosed_input_min_zat > 0 {
+    } else if !report.untraced.is_empty()
+        || report.undisclosed_input_min_zat > 0
+        || !report.unexplained_origins.is_empty()
+        || report.unvalued_inputs > 0
+    {
         "verified_partly_explained"
     } else if !report.controlled {
         "verified_history_only"
@@ -1166,6 +1350,55 @@ pub fn check_dossier_with(
         "verified_with_control"
     };
     report
+}
+
+/// A TEX address (ZIP 320) as the transparent P2PKH address it pays: a payment to a TEX address is an output to that
+/// key hash, which is what the output's script names.
+fn tex_as_transparent(a: &str, net: Network) -> Option<String> {
+    use zcash_keys::address::Address;
+    let decoded = match net {
+        Network::Main => Address::decode(&zcash_protocol::consensus::MainNetwork, a),
+        Network::Test => Address::decode(&zcash_protocol::consensus::TestNetwork, a),
+        Network::Regtest => Address::decode(&crate::regtest_params(), a),
+    }?;
+    let Address::Tex(hash) = decoded else {
+        return None;
+    };
+    let mut script = vec![0x76, 0xa9, 0x14];
+    script.extend(hash);
+    script.extend([0x88, 0xac]);
+    script_address(&script, net)
+}
+
+/// The network an encoded address is for, from its prefix (transparent, TEX, Sapling, unified); `None` if unknown.
+fn address_network(a: &str) -> Option<Network> {
+    let a = a.trim();
+    if a.starts_with("utest")
+        || a.starts_with("textest")
+        || a.starts_with("ztestsapling")
+        || a.starts_with("tm")
+        || a.starts_with("t2")
+    {
+        Some(Network::Test)
+    } else if a.starts_with("uregtest")
+        || a.starts_with("texregtest")
+        || a.starts_with("zregtestsapling")
+    {
+        Some(Network::Regtest)
+    } else if a.starts_with("u1")
+        || a.starts_with("tex1")
+        || a.starts_with("zs1")
+        || a.starts_with("t1")
+        || a.starts_with("t3")
+    {
+        Some(Network::Main)
+    } else {
+        None
+    }
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 fn short(txid: &str) -> String {
@@ -1265,6 +1498,7 @@ pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
     let mut nullifiers: Vec<(String, String)> = Vec::new(); // (note id, nullifier hex)
     let mut n = 0usize;
     // The challenge transaction listed among the others too (a scan finds it): it is the control, only.
+    let has_control = input.control.is_some();
     let control_txid = match &input.control {
         Some((b, _)) => Some(txid_hex(&parse_transaction(b)?)),
         None => None,
@@ -1294,8 +1528,9 @@ pub fn build(input: BuildInput<'_>) -> Result<Dossier, crate::CoreError> {
             .collect();
         let found = prove_with(bytes, &proving)?;
         // A challenge answer explained as an ordinary transaction would disclose its change, which the control claim
-        // keeps back (spec §6.2): refuse it, and say how to list it.
-        if nonce.is_none() {
+        // keeps back (spec §6.2): with no control given, refuse it, and say how to list it. With one, an earlier
+        // challenge's answer is history like any other transaction (its funds moved on into the new challenge).
+        if nonce.is_none() && !has_control {
             if let Some(f) = found.iter().find(|f| {
                 f.side != Side::Sent
                     && memo_text(&f.delivered.recovered.memo).starts_with(CHALLENGE_PREFIX)
@@ -1682,6 +1917,25 @@ impl WalletScanner {
             }
         }
     }
+}
+
+/// A serialized lightwalletd `CompactBlock`'s height, hash (display hex) and time: what a beacon nonce names, for a
+/// browser that fetched the block with `GetBlock`.
+pub fn compact_block_id(bytes: &[u8]) -> Option<(u64, String, u32)> {
+    let (mut height, mut hash, mut time) = (None, None, 0u32);
+    for f in proto_fields(bytes)? {
+        match f {
+            (2, ProtoValue::Varint(h)) => height = Some(h),
+            (3, ProtoValue::Bytes(b)) if b.len() == 32 => {
+                let mut h = b.to_vec();
+                h.reverse();
+                hash = Some(hex::encode(h));
+            }
+            (5, ProtoValue::Varint(t)) => time = u32::try_from(t).ok()?,
+            _ => {}
+        }
+    }
+    Some((height?, hash?, time))
 }
 
 /// A protobuf field value, as far as a compact block needs: varints and length-delimited bytes.

@@ -147,7 +147,7 @@ In `{ txs }`, a transaction whose hex does not decode is kept as empty bytes, so
 
 `check_dossier(dossier, raw, txs, expect_nonce)` is the same with no issue height.
 
-The CLI and the HTTP service refuse a dossier whose `network` is not the one a `--testnet` or `--regtest` flag names (CLI exit 1 with `"stage": "network"`; HTTP 422): its txids would be looked up on the wrong chain, and a testnet dossier relabelled `main` would read as mainnet ZEC. Offline, nothing binds a transaction to a network; that is one more reason offline reports are `consistent_offline`.
+When it fetches from a node, the CLI (and the service) first asks the node which chain it serves (`GetLightdInfo`'s `chain_name`), and refuses a dossier of another network: a reviewer's own `--endpoint` cannot be fooled by a relabelled dossier either. The CLI and the HTTP service also refuse a dossier whose `network` is not the one a `--testnet` or `--regtest` flag names (CLI exit 1 with `"stage": "network"`; HTTP 422): its txids would be looked up on the wrong chain, and a testnet dossier relabelled `main` would read as mainnet ZEC. Offline, nothing binds a transaction to a network; that is one more reason offline reports are `consistent_offline`.
 
 ### 5.2 Per note
 
@@ -242,7 +242,11 @@ Any value summed over notes (the control's `value_zat`, a deposit's disclosed `f
              | "consistent_offline" | "not_verified",
   "anchored": bool,                         // every transaction the claims name came from a node, with a height
   "untraced"?: [id],                        // funding notes no chain of paths leads back to an origin (§5.6)
-  "undisclosed_input_min_zat": number,      // at least this much was paid from undisclosed notes (§5.6)
+  "undisclosed_input_min_zat": number,      // at least this much was paid from unexplained funds (§5.6)
+  "unexplained_origins"?: [id],             // origins that name no source (§5.6)
+  "unvalued_inputs"?: number,               // transparent inputs of unknown value (§5.6)
+  "beacon_height"?: number,                 // the block a verified beacon control answers (§7.4)
+  "deposit_address_paid"?: bool,            // when the reviewer gave the deposit address they assigned (§7.2)
   "issued_at_height"?: number,              // H₀, when the reviewer gave it
   "disclosed": [string],                    // what the holder gave up by handing this over
   "does_not_prove": [string]                // §1's non-goals
@@ -263,7 +267,7 @@ CLI exit codes:
 `assurance` is the one word a case file needs, the first of these that applies:
 1. `not_verified`: not `all_verified`;
 2. `consistent_offline`: every claim holds against the transactions supplied, but not all of them came from a node with a height (`anchored` false). A holder can hand over fabricated files (§9), so this is consistency, not verification against the chain;
-3. `verified_partly_explained`: some payment's or control's funding notes are `untraced`, or `undisclosed_input_min_zat` is above 0 (§5.6);
+3. `verified_partly_explained`: some payment's or control's funding notes are `untraced`, an origin is in `unexplained_origins`, `undisclosed_input_min_zat` is above 0, or `unvalued_inputs` is above 0 (§5.6);
 4. `verified_history_only`: explained, but not `controlled` (nothing shows the holder can spend the funds now);
 5. `verified_with_control`: all of the above hold.
 
@@ -271,7 +275,8 @@ CLI exit codes:
 
 Each claim is checked on its own. A source-of-funds reviewer also needs the claims to add up:
 - **Trace closure.** The traced notes are the origin claims' notes, plus the `to` of every verified path whose `from` is traced (to a fixpoint). Every note in a `deposit`'s or `transparent_payment`'s `funded_by`, and in a `control`'s `spent`, that is not traced is listed in `untraced`. A dossier of a control claim alone (vector `control_only`), or one with a path removed (vector `unlinked_payment`), verifies claim by claim and is `verified_partly_explained`.
-- **Value coverage.** For the transaction of each verified path, deposit, transparent payment and control claim, and for each Orchard-family pool P, the notes it spent in P are worth the notes it created in P plus P's value balance (value leaving the pool, public in the transaction). Of those, the dossier discloses the notes created (and the receipts' outputs, when not also disclosed as notes) and the disclosed notes spent there. So it spent at least max(0, created + receipts + balance − disclosed spent) in P from notes the dossier does not disclose, and at least max(0, Sapling's value balance) from Sapling notes. When the sum is above 0, the claim carries `undisclosed_input_min_zat` and the detail "T also spent at least X from notes this dossier does not disclose". The report sums it once per transaction. So a large deposit "funded by" a small clean note reads as what it is: mostly undisclosed money (vector `history_without_its_origin`: 1 TAZ). The bound is a lower bound; a holder who hides a change note lowers it only down to what the payment and the pool balance force.
+- **Origins that name a source.** An origin explains its funds only when its transaction shows where they came from: transparent inputs whose addresses are read from the spent outputs, no disclosed note spent (that would be a hop, which a path states), and no undisclosed shielded money. The check is the value bound below applied to the origin's transaction. Any other verified origin is listed in `unexplained_origins`, with a detail saying why. Declaring the holder's own change an origin therefore launders nothing (vector `origin_laundering`), and neither does a faucet's or a mixer's shielded payment. The faucet sample's n1 is listed, and the exchange sample's origin, paid by the hot wallet's transparent input, is explained.
+- **Value coverage.** For the transaction of each verified path, deposit, transparent payment and control claim, and for each Orchard-family pool P, the notes it spent in P are worth the notes it created in P plus P's value balance (value leaving the pool, public in the transaction). Of those, the dossier discloses the notes created (and the receipts' outputs, when not also disclosed as notes) and the disclosed notes spent there. So it spent at least max(0, created + receipts + balance − disclosed spent) in P from notes the dossier does not disclose, and at least max(0, Sapling's value balance) from Sapling notes. When the sum is above 0, the claim carries `undisclosed_input_min_zat` and the detail "T also spent at least X from notes this dossier does not disclose". The report sums it once per transaction. Transparent inputs of these transactions are money the disclosed notes do not explain either: their value, read from the spent outputs when the previous transactions are supplied (`prevout_txids` returns them for every transaction the dossier names), is added to the bound, and inputs whose value is unknown are counted in `unvalued_inputs`. So a large deposit "funded by" a small clean note reads as what it is: mostly undisclosed money (vector `history_without_its_origin`: 1 TAZ). The bound is a lower bound; a holder who hides a change note lowers it only down to what the payment and the pool balance force.
 
 ## 6. Building
 
@@ -310,12 +315,28 @@ A mined transaction at height H ≥ H₀ spent the listed notes and wrote the re
 
 What it does not prove:
 - **Funds now.** The challenge transaction moved them. Their value now sits in the reply note and an undisclosed change note, which are not shown to be the holder's (§3.3), minus the fee. Nothing is proven after H.
-- **Who is presenting.** A holder who does not control the funds can relay the nonce to whoever does and present that party's dossier. This is relaying, as with any challenge-response without an identity binding. A deposit claim paying the reviewer's own deposit address assigned to this customer ties the account to the customer's deposit, which is the reviewer's strongest cross-check.
+- **Who is presenting.** A holder who does not control the funds can relay the nonce to whoever does and present that party's dossier. This is relaying, as with any challenge-response without an identity binding. A payment to the deposit address the reviewer assigned this customer ties the account to the customer's deposit, which is the reviewer's strongest cross-check. The reviewer gives it (`--expect-deposit-address`, HTTP `expect_deposit_address`, JS `expectDepositAddress`; transparent, TEX or unified), and the report sets `deposit_address_paid`. When no verified deposit or transparent payment pays it, that is a problem, and so is an address of another network (vectors `exchange_deposit_address*`, `exchange_other_deposit_address`, `exchange_mainnet_deposit_address`).
 - **Freshness without an expected nonce.** The verifier checks the memo against the nonce written in the dossier. Without `--expect-nonce`, an old dossier with an old nonce still has a verified control claim, but `controlled` is false and the assurance is `verified_history_only`; a detail asks the reviewer to check N. With the expected nonce given, it fails (vector `replayed_control`).
 
 ### 7.3 Relation to signatures
 
-ZIP 311 would prove spend authority with off-chain spend authorization signatures over a message. For Orchard, an address-signing ZIP is only a draft (forum topic 53971, 2025-12-23), and there is none for Ironwood (`raw/pivot-1001/zcash-demand.md` §2.2). The control challenge gets the same assurance from an on-chain spend. The costs are a fee, a public transaction linkable by the reviewer, and waiting for a block. When a signature standard ships, a v2 control claim can be a signature over the nonce, with no transaction. A nonstandard Ironwood profile of ZIP 311 already proves spend authority off chain: zally's `ZallyIronwood` (`gustavovalverde/zally`, `crates/zcash-payment-disclosure`, profile byte `0x02`) carries, for each real Ironwood spend, a RedPallas spend authorization signature over a digest that binds the txid and a message, checked against the mined action's `rk` ([R140] in `docs/product/10_research_log.md`). A v2 control claim can be such a signature over the reviewer's nonce, compatible with that profile or with the ZIP 311 profile that supersedes it: no fee, no block, no linkable transaction. v1 keeps the on-chain spend because any wallet can make one today, while a signature needs a wallet that kept the spend's randomizer and exposes signing with its spend authorizing key.
+ZIP 311 would prove spend authority with off-chain spend authorization signatures over a message. For Orchard, an address-signing ZIP is only a draft (forum topic 53971, 2025-12-23), and there is none for Ironwood (`raw/pivot-1001/zcash-demand.md` §2.2). The control challenge gets the same assurance from an on-chain spend. The costs are a fee, a public transaction linkable by the reviewer, and waiting for a block. Two off-chain routes could replace the fee and the block in a v2:
+- **A fully proven, unbroadcast transaction** that spends the listed notes, with the nonce in an output memo. Its proofs and spend authorization signatures show the holder can spend those notes now, against the current anchor. Nobody needs to mine it, and the reviewer checks that its nullifiers are not yet on chain. That is the same statement as the v1 control claim, with no fee and nothing published.
+- **Signatures by the spend authorizing key**, as ZIP 311 drafts them, and as zally's nonstandard Ironwood profile does today (`ZallyIronwood`, `gustavovalverde/zally`, `crates/zcash-payment-disclosure`, profile byte `0x02`; [R140] in `docs/product/10_research_log.md`). Each signature binds a txid and a message, and is checked against an already-mined action's `rk`. That proves **possession of the key** that authorized a past spend, not that the holder can spend the funds now: those notes are already spent. So it is a key-possession claim, and a different one from control.
+
+v1 keeps the on-chain spend because any wallet can make one today.
+
+### 7.4 Beacon nonces: freshness with no one to issue the nonce
+
+A reviewer-issued nonce is only as fresh as the reviewer says. A **beacon nonce** is `zeceipt-beacon-<H>-<hash of block H, display hex>` (`zeceipt dossier nonce --beacon` prints one for the chain tip). Nobody can know block H's hash before H is mined, and any verifier can look it up after. So a control claim answering it shows that the challenge was made after block H, with no reviewer to trust and no message to exchange: a holder can prove control unprompted, and anyone can check when.
+
+Verification, with no expected nonce given:
+1. Look up block H's hash and time from a trusted node (`beacon_heights`; CLI and `checkDossier` do it online).
+2. Not looked up: the control is `not_checked` (vector `beacon_not_looked_up`). Another hash: `failed` (vector `beacon_wrong_hash`).
+3. Otherwise, the challenge transaction must be mined above H, as with an issue height H₀ = H + 1. Without its height (files), the control is `not_checked` (vector `beacon_from_files`).
+4. When it verifies, `controlled` is true and `beacon_height` is H. The details name the block and its time, and the reviewer judges whether H is recent enough for the case (vector `beacon`; PROOF §10).
+
+A reviewer who gives an expected nonce overrides the beacon: the claim must answer theirs.
 
 ## 8. Privacy
 
@@ -398,10 +419,11 @@ Trust assumptions:
   - `fixtures/dossier/testnet-dossier.json` (sha256 of the file `7b8d7ecf…9ea9c1`), over five testnet transactions committed as `fixtures/testnet/<txid>.hex`: the faucet payment `90f6a335…2a4b` (4,419,987), the three INV-T payments `fcfde625…7f0b` (4,420,000), `1c49834b…e39d` (4,420,003) and `a2619e39…3df8` (4,420,005), and the challenge `10e941e7…6e43` (4,421,345). The run is `docs/PROOF.md` §8. `crates/zeceipt-core/tests/dossier.rs` checks it offline in CI;
   - `fixtures/dossier/testnet-dossier-transparent-origin.json`: the same funds plus a payment of 0.05 TAZ to the account's transparent address `tm9vh…` (`52af3e0d…105e`, 4,421,678, claim 12, `transparent_payment`) and its shielding back (`c28b6000…cefe`, 4,421,684, claim 13, an origin that names that payment and is `unproven` until its note is spent);
   - `fixtures/dossier/testnet-dossier-exchange.json`: an exchange-deposit review (`docs/PROOF.md` §9). A withdrawal from an exchange's transparent hot wallet `tmPVt…` to the customer (`5146f38c…36e6`, 4,422,279; its funding transaction `773da014…4b0d`, 4,422,275, is the prevout), the customer's deposit to their transparent deposit address `tmXdy…` (`a51d1271…85cf`, 4,422,295), and a control answering the nonce issued at 4,422,294 (`14a9551d…cce6`, 4,422,305). Every claim verifies with control; the holder's UFVK is `fixtures/testnet/holder2-ufvk.txt`.
+  - `fixtures/dossier/testnet-dossier-beacon.json`: the same customer's funds, carried on through the earlier challenge `14a9551d…` into a control that answers the beacon of block 4,426,425 (`701df8b1…70ce`, mined at 4,426,430; PROOF §10).
 - **`spec/test-vectors/dossier-v1.json`**:
   - `nk`, the filler `ak`, and for each of the nine notes its txid, pool, action, height, value, nullifier and the transaction that spends it. With these, an implementer can check an `nk`-only nullifier derivation against chain data;
   - the real heights of the eleven transactions, for the cases that use them;
-  - 36 cases. Each is a patch to one of the real dossiers, plus an expected nonce, an issue height and changes to the transactions supplied, with the expected exit code, `all_verified`, `assurance`, `nk_proven`, `controlled`, statuses, problems, and the summaries of the claims that do not verify;
+  - 45 cases. Each is a patch to one of the real dossiers, plus an expected nonce, an issue height and changes to the transactions supplied, with the expected exit code, `all_verified`, `assurance`, `nk_proven`, `controlled`, statuses, problems, and the summaries of the claims that do not verify;
   - 19 parse cases, each with its expected error (without serde's line and column).
 
-  `crates/zeceipt-core/tests/dossier_vectors.rs` and `packages/verify/test/dossier-vectors.mjs` run all 55 in CI, natively and through the WASM; `ZECEIPT_WRITE_VECTORS=1` on the Rust test rewrites the expectations from the code, for review in the diff.
+  `crates/zeceipt-core/tests/dossier_vectors.rs` and `packages/verify/test/dossier-vectors.mjs` run all 64 in CI, natively and through the WASM; `ZECEIPT_WRITE_VECTORS=1` on the Rust test rewrites the expectations from the code, for review in the diff.

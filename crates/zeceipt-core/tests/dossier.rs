@@ -669,6 +669,7 @@ fn a_control_mined_before_the_nonce_was_issued_fails() {
             &CheckOptions {
                 expect_nonce: Some(NONCE.into()),
                 issued_at_height: Some(h),
+                ..Default::default()
             },
         )
     };
@@ -679,17 +680,15 @@ fn a_control_mined_before_the_nonce_was_issued_fails() {
         .summary
         .contains("before you issued the nonce at height 4421346"));
     assert_eq!((early.controlled, early.assurance), (false, "not_verified"));
+    // Control holds; the faucet's origin names no source (an undisclosed shielded sender), so the funds are only
+    // partly explained (spec §5.6).
     let ok = at(4_421_300);
     assert_eq!(
-        (ok.controlled, ok.assurance),
-        (true, "verified_with_control")
+        (ok.controlled, ok.assurance, ok.unexplained_origins.clone()),
+        (true, "verified_partly_explained", vec!["n1".to_string()])
     );
-    // Without an expected nonce every claim may verify, but that is history only.
     let r = check_dossier(&d, &raw, &txs, None);
-    assert_eq!(
-        (r.all_verified, r.assurance),
-        (true, "verified_history_only")
-    );
+    assert_eq!((r.all_verified, r.controlled), (true, false));
     // The same from files, without heights: consistent with them, not checked against the chain.
     let r = check_dossier(&d, &raw, &chain(&d), Some(NONCE));
     assert_eq!(
@@ -765,6 +764,7 @@ fn an_exchange_deposit_review_verifies_with_control_and_names_both_transparent_e
     let opts = |h0| CheckOptions {
         expect_nonce: Some(NONCE2.into()),
         issued_at_height: Some(h0),
+        ..Default::default()
     };
     let r = check_dossier_with(&d, &raw, &txs, &opts(4_422_294));
     assert_eq!(r.assurance, "verified_with_control", "{r:#?}");

@@ -61,6 +61,9 @@ function outcome(r) {
   v.anchored = r.anchored;
   if (r.untraced?.length) v.untraced = r.untraced;
   if (r.undisclosed_input_min_zat > 0) v.undisclosed_input_min_zat = r.undisclosed_input_min_zat;
+  if (r.unexplained_origins?.length) v.unexplained_origins = r.unexplained_origins;
+  if (r.beacon_height != null) v.beacon_height = r.beacon_height;
+  if (r.deposit_address_paid != null) v.deposit_address_paid = r.deposit_address_paid;
   if (r.problems?.length) v.problems = r.problems;
   const not = r.claims.filter((c) => c.status !== "verified").map(({ index, kind, status, summary }) => ({ index, kind, status, summary }));
   if (not.length) v.not_verified = not;
@@ -79,7 +82,7 @@ const base = (c) => JSON.parse(read(vectors.dossiers[c.dossier ?? "base"]));
 
 for (const c of vectors.cases) {
   const text = JSON.stringify(apply(base(c), c.patch), null, 2);
-  const r = await checkDossier(text, { txs: supply(text, c.txs), expectNonce: c.expect_nonce ?? "", issuedAtHeight: c.issued_at_height ?? null });
+  const r = await checkDossier(text, { txs: supply(text, c.txs), expectNonce: c.expect_nonce ?? "", issuedAtHeight: c.issued_at_height ?? null, expectDepositAddress: c.expect_deposit_address ?? "", beacons: c.beacons ?? {} });
   check(c.name, outcome(r), c.expect);
 }
 for (const c of vectors.parse_cases) {

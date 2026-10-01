@@ -2,14 +2,15 @@
 // fetches each transaction it names from a public node (or reads them from files the reviewer loads, offline), checks
 // every claim here (WebAssembly), and shows the case. The DOM is written with textContent only, so nothing from a
 // dossier is ever parsed as HTML. Nothing is stored; the only requests outside this site are the transaction lookups
-// (fetchRawTx: the txid and nothing else) and, when the reviewer generates a nonce, the chain tip (fetchChainTip). The
-// reviewer's nonce and its height (H₀) live in the challenge card's fields only.
-import { initVerifier, checkDossier, dossierTxids, dossierPrevoutTxids, fetchRawTx, fetchChainTip, verifyReceipt, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
+// (fetchRawTx: the txid and nothing else), the block a control's beacon names (fetchBlockId: its height), and, when the
+// reviewer generates a nonce, the chain tip (fetchChainTip, and fetchBlockId for a beacon nonce). The reviewer's nonce,
+// its height (H₀) and the deposit address they assigned live in the challenge card's fields only.
+import { initVerifier, checkDossier, dossierTxids, dossierPrevoutTxids, fetchRawTx, fetchChainTip, fetchBlockId, verifyReceipt, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
 import { memoText } from "../r/view.js";
 import { el, copyButton } from "../r/ui.js";
 import { badge, claimTableRows, factItems, listItem, download, showVerifierDigest } from "./ui.js";
 import {
-  SAMPLES, SAMPLE_FRAGMENT, EXCHANGE_SAMPLE, SAMPLE_CHALLENGE, NETWORK_NAME, readDossierInput, parseDossier, fetchProgress, caseVerdict, caseFacts, claimRows, flowSteps,
+  SAMPLES, SAMPLE_FRAGMENT, EXCHANGE_SAMPLE, SAMPLE_CHALLENGE, NETWORK_NAME, beaconOf, beaconNonce, blockTimeText, depositAddressStatus, readDossierInput, parseDossier, fetchProgress, caseVerdict, caseFacts, claimRows, flowSteps,
   nonceCheck, newNonce, caseSummaryText, reportForDownload, reportFileName, shortTxid, middle, noteLabel, KIND_LABEL, amountText,
   decisionSummary, claimNumbers, returnedText, heightInput, challengeRecordText, offlineText, txFile, utcText,
   depositAddressInput, depositCheck, depositLineText, nonceMask, maskNonces, funderChange,
@@ -59,6 +60,9 @@ const issued = () => ({ nonce: $("nonce-input").value.trim(), height: heightInpu
 
 /** The deposit address the reviewer assigned to this customer, as typed (depositAddressInput), or null. */
 const assigned = () => depositAddressInput($("deposit-input").value);
+
+/** The address the verifier is given to check (spec §7.2): what was typed, when it is an address; "" otherwise. */
+const expectedDeposit = () => { const a = assigned(); return a && !a.error ? a.address : ""; };
 
 /** Where the nonce in the field came from: generated here, the page's sample challenge, or typed (or pasted). */
 function nonceSource(nonce) {
@@ -122,8 +126,30 @@ function receiptPayments(dossier, txs) {
   return out;
 }
 
-/** The verifier's options from the challenge card: the nonce the reviewer issued, and the height they issued it at. */
-const checkOptions = (txs) => ({ txs, expectNonce: issued().nonce, issuedAtHeight: issued().height });
+/**
+ * The verifier's options from the challenge card: the nonce the reviewer issued, the height they issued it at and the
+ * deposit address they assigned; and the blocks the dossier's beacons name, as looked up (none offline).
+ */
+const checkOptions = (txs, beacons) => ({ txs, expectNonce: issued().nonce, issuedAtHeight: issued().height, expectDepositAddress: expectedDeposit(), beacons: beacons ?? {} });
+
+/**
+ * The blocks the dossier's beacon nonces name (spec §7.4), from the node, as `{ height: { hash, time } }`: the
+ * verifier compares each with the nonce. A block that cannot be looked up is left out, and the control claim then
+ * says it was not checked.
+ */
+async function lookUpBeacons(dossier, network, mine) {
+  const heights = [...new Set((dossier?.claims ?? []).filter((c) => c.type === "control").map((c) => beaconOf(c.nonce)?.height).filter((h) => h != null))];
+  const out = {};
+  for (const h of heights) {
+    if (mine !== generation) return null;
+    setStatus(`Looking up block ${h}, whose hash the control claim answers…`, "loading");
+    try {
+      const id = await fetchBlockId(network, h, GRPC_WEB_ENDPOINTS[network], { timeoutMs: PAGE_TIMEOUT_MS });
+      out[h] = { hash: id.hash, time: id.time };
+    } catch { /* not looked up: the control claim says so */ }
+  }
+  return out;
+}
 
 async function check(text, source) {
   const mine = ++generation;
@@ -141,19 +167,22 @@ async function check(text, source) {
   $("check").disabled = true;
   try {
     let got;
+    let beacons = null;
     if (offlineTxs) {
-      // Offline: the files' transactions, without heights; no node is asked.
+      // Offline: the files' transactions, without heights; no node is asked (a beacon's block neither).
       got = { txs: { ...offlineTxs }, nodes: [] };
     } else {
       got = await fetchAll(text, dossier.network, mine);
       if (!got || mine !== generation) return;
+      beacons = await lookUpBeacons(dossier, dossier.network, mine);
+      if (!beacons || mine !== generation) return;
     }
     setStatus("Checking every claim in this page…", "loading");
-    const report = await checkDossier(text, checkOptions(got.txs));
+    const report = await checkDossier(text, checkOptions(got.txs, beacons));
     if (mine !== generation) return;
     const heights = Object.fromEntries(Object.entries(got.txs).map(([t, v]) => [t, v.height]));
     render(text, dossier, report, {
-      source, txs: got.txs, checkedAt: new Date().toISOString(), nodes: got.nodes, heights, payments: receiptPayments(dossier, got.txs),
+      source, txs: got.txs, beacons, checkedAt: new Date().toISOString(), nodes: got.nodes, heights, payments: receiptPayments(dossier, got.txs),
       offline: offlineTxs ? Object.keys(offlineTxs).length : null,
     });
   } catch (e) {
@@ -164,19 +193,22 @@ async function check(text, source) {
   }
 }
 
-/** The case on screen, checked again with the challenge card's nonce and height, offline (the same transactions). */
+/**
+ * The case on screen, checked again with the challenge card's nonce, height and deposit address, offline (the same
+ * transactions and blocks).
+ */
 function recheck() {
   if (!current?.meta?.txs) return;
   const { text, dossier, meta } = current;
   const mine = generation;
-  checkDossier(text, checkOptions(meta.txs)).then((report) => {
+  checkDossier(text, checkOptions(meta.txs, meta.beacons)).then((report) => {
     if (mine === generation) render(text, dossier, report, meta, { focus: false });
   });
 }
 
 function render(text, dossier, report, meta, { focus = true } = {}) {
   const deposit = Array.isArray(report?.claims) ? depositCheck(report, assigned()) : null;
-  const v = caseVerdict(report, dossier, { deposit, sample: Object.hasOwn(SAMPLES, meta.source ?? "") });
+  const v = caseVerdict(report, dossier, { deposit, sample: Object.hasOwn(SAMPLES, meta.source ?? "") ? meta.source : null });
   const readable = Boolean(v.counts);
   const mine = issued();
   const nonce = readable ? nonceCheck(dossier, report, mine.nonce, { source: nonceSource(mine.nonce) }) : null;
@@ -187,19 +219,22 @@ function render(text, dossier, report, meta, { focus = true } = {}) {
   $("headline").textContent = v.headline;
   $("verdict-sub").textContent = maskNonces(v.sub, mask);
   $("banner").className = `result ${v.tone}`;
-  // The deposit address the reviewer assigned, when no verified payment pays it: amber, in the verdict.
+  // The deposit address the reviewer assigned, when the verifier finds no verified payment to it (spec §7.2): the
+  // verdict is red with the verifier's problem, and this amber line says what that guards against.
   $("deposit-line").textContent = deposit?.state === "unpaid" ? depositLineText(deposit) : "";
   show("deposit-line", readable && deposit?.state === "unpaid");
-  // Problems with the dossier as a whole (an nk that is not a key, say), which no single claim carries.
-  $("banner-error").textContent = (report.problems ?? []).join(" ");
-  show("banner-error", Boolean(report.problems?.length));
+  // Problems with the dossier as a whole (an nk that is not a key, say), which no single claim carries; those the
+  // verdict already states are not repeated.
+  const problems = (report.problems ?? []).filter((p) => !String(v.sub ?? "").includes(p));
+  $("banner-error").textContent = problems.join(" ");
+  show("banner-error", problems.length > 0);
   // A parse error: one plain sentence above, the verifier's words in a fold.
   $("parse-raw").textContent = v.raw ?? "";
   show("parse-detail", Boolean(v.raw));
   $("offline-text").textContent = meta.offline != null ? `Checked ${offlineText(meta.offline)}.` : "";
   show("offline-line", readable && meta.offline != null);
   // A sample whose control claim is not yet matched to a nonce: one click shows it checked as its reviewer would.
-  show("sample-nonce-row", readable && Object.hasOwn(SAMPLES, meta.source ?? "") && !report.controlled && (dossier?.claims ?? []).some((c) => c.type === "control"));
+  show("sample-nonce-row", readable && Object.hasOwn(SAMPLE_CHALLENGE, meta.source ?? "") && !report.controlled && (dossier?.claims ?? []).some((c) => c.type === "control"));
   $("facts").replaceChildren();
   show("nonce-line", false);
   show("case-actions", readable);
@@ -266,12 +301,13 @@ function txLine(txid, height) {
 }
 
 function noteChip(n) {
-  const li = el("li", `chip-note${n.error ? " chip-bad" : ""}${n.reply ? " chip-reply" : ""}${n.untraced ? " chip-untraced" : ""}`);
+  const li = el("li", `chip-note${n.error ? " chip-bad" : ""}${n.reply ? " chip-reply" : ""}${n.untraced || n.unexplained ? " chip-untraced" : ""}`);
   li.append(el("span", "chip-id", n.id), el("span", "chip-value", n.error ? "does not open" : n.value));
   if (n.reply && n.memo) li.append(el("span", "chip-memo", `memo “${n.memo}”`));
   if (n.untraced) li.append(el("span", "chip-flag", "not traced to an origin"));
+  if (n.unexplained) li.append(el("span", "chip-flag", "names no source"));
   if (n.next) li.append(el("span", "chip-next", `spent in step ${n.next}`));
-  li.setAttribute("aria-label", `${noteLabel(n)}${n.reply && n.memo ? `, memo ${n.memo}` : ""}${n.untraced ? ", not traced to an origin" : ""}${n.next ? `, spent in step ${n.next}` : ""}`);
+  li.setAttribute("aria-label", `${noteLabel(n)}${n.reply && n.memo ? `, memo ${n.memo}` : ""}${n.untraced ? ", not traced to an origin" : ""}${n.unexplained ? ", names no source" : ""}${n.next ? `, spent in step ${n.next}` : ""}`);
   return li;
 }
 
@@ -322,7 +358,9 @@ function renderFlow(steps) {
     const transparent = s.payments.filter((p) => p.transparent);
     if (shielded.length) body.append(group("Paid out", shielded.map(paymentChip)));
     if (transparent.length) body.append(group("Paid out (transparent)", transparent.map(paymentChip)));
-    // What this transaction paid that the disclosed notes do not explain (spec §5.6).
+    // An origin whose transaction names no source, and what this transaction paid that the disclosed notes do not
+    // explain (spec §5.6).
+    for (const u of s.unexplained ?? []) body.append(el("p", "step-flag", u.text));
     if (s.undisclosed_zat > 0) body.append(el("p", "step-flag", `Not fully explained: this transaction also spent at least ${amountText(s.undisclosed_zat, current?.report?.network)} from notes the dossier does not disclose.`));
     li.append(body);
     const edges = el("ul", "edges");
@@ -331,6 +369,7 @@ function renderFlow(steps) {
       const row = el("li", `edge tone-${e.status}`);
       row.append(el("span", "edge-kind", `${claimNumbers(e.indices)} ${KIND_LABEL[e.kind]}`), el("span", "edge-label", e.label), badge(e.status));
       if (e.untraced?.length) row.append(el("span", "edge-flag", `${e.untraced.join(", ")} not traced to an origin`));
+      if (e.unexplained) row.append(el("span", "edge-flag", `names no source: ${e.unexplained}`));
       edges.append(row);
     }
     li.append(edges);
@@ -491,6 +530,7 @@ $("copy-summary").addEventListener("click", async () => {
 // ---- the reviewer's challenge ----
 
 $("nonce-new").addEventListener("click", async () => {
+  beaconAsked++; // a beacon still being asked for would replace this nonce
   generatedNonce = newNonce(crypto.getRandomValues(new Uint8Array(16)));
   generatedAt = new Date().toISOString();
   $("nonce-input").value = generatedNonce;
@@ -524,14 +564,39 @@ for (const id of ["nonce-input", "h0-input"]) $(id).addEventListener("input", ()
   typing = setTimeout(recheck, 350);
 });
 
-// The deposit address the reviewer assigned: checked against the case on screen as it is typed (no new lookup; the
-// verifier's report already names each transparent payment's address).
+// The deposit address the reviewer assigned: the verifier checks the case on screen against it again as it is typed
+// (expectDepositAddress; no new lookup, the same transactions).
 let typingDeposit = null;
 $("deposit-input").addEventListener("input", () => {
-  const a = assigned();
-  $("deposit-status").textContent = a?.error ?? (a ? `A ${a.kind === "tex" ? "TEX (ZIP 320)" : "transparent"} address on ${NETWORK_NAME[a.network] ?? a.network}.` : "");
+  $("deposit-status").textContent = depositAddressStatus(assigned());
   clearTimeout(typingDeposit);
-  typingDeposit = setTimeout(() => { if (current?.report) render(current.text, current.dossier, current.report, current.meta, { focus: false }); }, 250);
+  typingDeposit = setTimeout(recheck, 250);
+});
+
+// A beacon nonce: the hash of the latest block (spec §7.4). No one could know it before that block, so a holder can
+// answer it unprompted, and any verifier dates the answer by looking the block up; the reviewer judges whether the
+// block is recent enough. Asks a node for the tip and that block (heights only).
+let beaconAsked = 0;
+$("beacon-new").addEventListener("click", async () => {
+  const mine = ++beaconAsked;
+  const network = $("challenge-network").value;
+  $("h0-status").textContent = `Asking a ${NETWORK_NAME[network]} node for the latest block…`;
+  try {
+    const tip = await fetchChainTip(network, GRPC_WEB_ENDPOINTS[network], { timeoutMs: PAGE_TIMEOUT_MS });
+    const block = await fetchBlockId(network, tip.height, GRPC_WEB_ENDPOINTS[network], { timeoutMs: PAGE_TIMEOUT_MS });
+    if (mine !== beaconAsked) return;
+    generatedNonce = beaconNonce(block.height, block.hash);
+    generatedAt = new Date().toISOString();
+    $("nonce-input").value = generatedNonce;
+    // No answer can be in block H itself (its hash would have to be known before it was mined): H₀ is H + 1.
+    $("h0-input").value = String(block.height + 1);
+    $("h0-status").textContent = `A beacon: the hash of block ${block.height} on ${NETWORK_NAME[network]}, mined ${blockTimeText(block.time)}. No one could know it before that block, so a holder can answer it without being asked, and anyone can check when. H₀ is ${block.height + 1}: a control transaction mined before it fails.`;
+    live().textContent = "Beacon nonce generated";
+    recheck();
+  } catch (e) {
+    if (mine !== beaconAsked) return;
+    $("h0-status").textContent = `The latest block could not be asked (${String(e?.message ?? e)}): try again, or generate a nonce instead.`;
+  }
 });
 
 $("copy-challenge").addEventListener("click", async () => {
@@ -556,7 +621,7 @@ async function sampleChallenge(name) {
   if (current?.meta?.txs && current.meta.source === name) recheck();
   else { dropFragment(); await loadSample(name); }
 }
-const shownSample = () => (Object.hasOwn(SAMPLES, current?.meta?.source ?? "") ? current.meta.source : SAMPLE_FRAGMENT);
+const shownSample = () => (Object.hasOwn(SAMPLE_CHALLENGE, current?.meta?.source ?? "") ? current.meta.source : SAMPLE_FRAGMENT);
 $("sample-nonce").addEventListener("click", () => sampleChallenge(shownSample()));
 $("sample-challenge").addEventListener("click", () => sampleChallenge(EXCHANGE_SAMPLE));
 $("sample-exchange").addEventListener("click", () => { dropFragment(); loadSample(EXCHANGE_SAMPLE); });

@@ -1038,7 +1038,7 @@ The pivot's core (`spec/dossier-v1.md`), on a public chain. The holder is §4's 
   The same command without `--expect-nonce` also exits 0 with 12 of 12. The control then carries the detail "Check that this is the nonce you issued (zeceipt dossier verify --expect-nonce): an old dossier answers an old nonce."
 - **Offline**, the same command with `--raw-tx-dir fixtures/testnet` (on 09-30; since the round-2 review, a report on files without heights is `assurance: consistent_offline`, CLI exit 4, since fabricated files could show anything): exit 0 in 1.7 s wall, 12 of 12 verified, the same `dossier_sha256`, `nk_proven` and `controlled` true. The summaries are the same without heights. Every claim adds "Loaded without a height (from a file): the inclusion of … in the chain was not checked here." `the_testnet_dossier_verifies_offline` runs this check in CI.
 - **In JavaScript**, `checkDossier(text, { expectNonce })` from `packages/verify/src/index.js` on the rebuilt WASM (Node 26, `initVerifier` with the `.wasm` bytes). Live, through its testnet gRPC-web nodes (`zjs.zec.rocks/testnet` first, then ChainSafe's; the report does not say which answered): `all_verified: true`, 12 of 12, the same `dossier_sha256`, and the same control summary. Offline, with `{ txs }` built from `fixtures/testnet/*.hex`: the same.
-- **Forgeries and edge cases.** `spec/test-vectors/dossier-v1.json` records patched copies of this dossier (and of the second one, below) and copies that must not parse: 36 and 19 since the revisions of the same day and the next. CI runs every one natively (`crates/zeceipt-core/tests/dossier_vectors.rs`) and through the WASM (`packages/verify/test/dossier-vectors.mjs`). The results:
+- **Forgeries and edge cases.** `spec/test-vectors/dossier-v1.json` records patched copies of this dossier (and of the second one, below) and copies that must not parse: 45 and 19 since the revisions of the same day and the next. CI runs every one natively (`crates/zeceipt-core/tests/dossier_vectors.rs`) and through the WASM (`packages/verify/test/dossier-vectors.mjs`). The results:
   - **Wrong `nk`:** the 11 nullifier claims fail, and the origin is `unproven`, since n1 is no longer shown to be the holder's.
   - **Invalid `nk`** (`ff…ff`): one entry in `problems`, and the 11 nullifier claims fail with "nk is not a valid key".
   - **Forged value in n1's opening:** everything naming n1 fails.
@@ -1142,6 +1142,11 @@ The input's value is that of the whole spent output (0.3 TAZ): the rest went bac
 | Dossier | Exit | `assurance` | `anchored` | `untraced` | `undisclosed_input_min_zat` |
 |---|---|---|---|---|---|
 | `testnet-dossier.json` | 0 | `verified_with_control` | true | none | 0 |
+
+Since round 3 (spec §5.6, origins that name a source), `testnet-dossier.json` reads `verified_partly_explained` (exit 4) with `unexplained_origins: ["n1"]`: the faucet paid from the shielded pool, so its origin names no source. The exchange review stays `verified_with_control`, and with `--expect-deposit-address tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR` it adds `deposit_address_paid: true`.
+
+| Dossier (cont.) | Exit | `assurance` | `anchored` | `untraced` | `undisclosed_input_min_zat` |
+|---|---|---|---|---|---|
 | `testnet-dossier-exchange.json` | 0 | `verified_with_control` | true | none | 0 |
 | `testnet-dossier-transparent-origin.json` | 1 | `not_verified` | true | none | 0 |
 
@@ -1159,3 +1164,19 @@ The transparent-origin dossier is `not_verified` because its n10 origin is `unpr
 - **Recorded blocks:** on 100 recorded spam-era blocks (2,000,000–2,000,099), `scan_block` in the WASM took 6.11 s before the batching and 3.08 s after (about 30 blocks a second).
 
   A holder should start the scan at the height the funds arrived, and use the CLI for ranges of years. Before the buffer fix, an earlier browser-path run over 5,000 spam blocks took 2,318 s.
+
+## 10. testnet — a control that answers a block hash: freshness with no one issuing the nonce (2026-10-01 UTC)
+
+Spec §7.4, on chain. The customer of §9 proved control again, with no reviewer to ask for a nonce:
+1. **The beacon.** `zeceipt dossier nonce --testnet --beacon --json` printed `zeceipt-beacon-4426425-00000f9702b40e9cd12eaf29214f14ab55f8a4edce089f83f4174b2657ce4b7f`: the hash of the tip, block 4,426,425, mined at Unix time 1790837358. No one could know it before that block.
+2. **The answer.** The customer's wallet sent 0.001 TAZ to itself with the beacon as the memo: `701df8b1c1ac49037290fc6e363f3d2c8315ecdeb6c50891fbee4ad9a83970ce`, mined at 4,426,430. It spent n3, the reply of §9's challenge, and n4, that challenge's change.
+3. **The build.** The earlier challenge `14a9551d…` is now history: it is listed like any transaction, and the new one is the control. It printed `dossier: 5 notes, 0 receipts, 6 claims` and is committed as `fixtures/dossier/testnet-dossier-beacon.json`. The builder used to refuse every listed challenge answer; it now refuses one only when no control is given.
+4. **The check.** `zeceipt dossier verify fixtures/dossier/testnet-dossier-beacon.json --expect-deposit-address tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR`, live, with no expected nonce:
+   - exit 0, with `verified_with_control`, `beacon_height` 4426425 and `deposit_address_paid: true`;
+   - 6 of 6 claims verified;
+   - `dossier_sha256` `ad38bde83c4e2479758e30aec26109c157d387d12d30dffa0a4fc0994780e3c4`.
+
+   The control, verbatim: "Answering nonce zeceipt-beacon-4426425-00000f9702b40e9cd12eaf29214f14ab55f8a4edce089f83f4174b2657ce4b7f, the holder spent n3, n4 (0.14975000 TAZ) in 701df8b1…70ce at height 4426430: they could spend these funds after the nonce was issued." Its detail names the block, its hash and its time, and asks the reviewer to judge whether that block is recent enough.
+
+The vectors `beacon*` replay it offline: with the block looked up, it verifies; without, the control is `not_checked`; with another hash it fails; and from files without heights the control is `not_checked`. What this adds to §9 is that the nonce's freshness is no longer the author's word: the chain dates the challenge.
+

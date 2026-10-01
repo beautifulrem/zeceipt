@@ -9,7 +9,8 @@
   The holder's viewing key is typed into this page and used here, by the WebAssembly builder; it is never sent. This
   policy keeps it that way: scripts, styles, fonts and images only from this site, WebAssembly allowed, and network
   access only to this site and to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS), which are asked for
-  transactions by id and nothing else (test/dossier.e2e.mjs checks no request carries the key or the dossier).
+  transactions by id, and for the chain's latest block when the holder asks for a beacon; nothing else
+  (test/dossier.e2e.mjs checks no request carries the key or the dossier).
 -->
 <meta name="zeceipt-nodes" content="">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://zcash-testnet.chainsafe.dev">
@@ -90,10 +91,11 @@
   </details>
   <fieldset class="control">
     <legend>Control (optional): answer a reviewer's challenge</legend>
-    <p class="hint">If the reviewer sent you a nonce: from this wallet, send any small amount to your own address with the nonce as the memo, wait for it to be mined, then enter both here. It proves you can spend these funds now.</p>
+    <p class="hint">If the reviewer sent you a nonce: from this wallet, send any small amount to your own address with the nonce as the memo, wait for it to be mined, then enter both here. It proves you can spend these funds now. With no reviewer's nonce, use a beacon: the latest block's hash, which no one could know before that block, so the reviewer can tell your answer came after it.</p>
     <label id="nonce-field" class="field">The reviewer's nonce
       <input id="nonce" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
     </label>
+    <p class="beacon-row"><button id="beacon" type="button" class="linkish">or use a beacon (the latest block's hash)</button> <span id="beacon-status" class="muted" role="status"></span></p>
     <label id="control-txid-field" class="field">The challenge transaction's id
       <input id="control-txid" class="text" spellcheck="false" autocomplete="off" autocapitalize="off">
     </label>
@@ -167,7 +169,7 @@
 </ul>
 </section>
 </div>
-<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: the only requests this page makes outside this site are the transaction lookups, one per id you list, when you build. They carry the id and nothing else. The page stores nothing.</span></p>
+<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: the only requests this page makes outside this site are the transaction lookups, one per id you list, when you build, and the chain's latest block when you ask for a beacon. They carry the id (or the height) and nothing else. The page stores nothing.</span></p>
 </main>
 <footer class="foot">
   <span><span id="version">zeceipt-dossier-v1</span> · open source (Apache-2.0)</span>

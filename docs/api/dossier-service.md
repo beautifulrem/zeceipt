@@ -1,6 +1,6 @@
 # The dossier service (`zeceipt dossier serve`)
 
-A small HTTP/1.1 service that runs `zeceipt dossier verify` for a compliance back office: post a dossier, get the report JSON. Written 2026-09-30 from `crates/zeceipt-cli/src/main.rs` (`serve_dossiers`, `check_dossier_text`, `network_conflict`) and `crates/zeceipt-core/src/dossier.rs` (`Report`), and checked against a running build that day (the examples below are its answers). Updated 2026-10-01 for `abb0ef7`: trace closure and value coverage (`untraced`, `undisclosed_input_min_zat`), the `anchored` flag and the `consistent_offline` and `verified_partly_explained` assurances, the refusal of a network flag that disagrees with the dossier, and the refusal of cross-origin and non-JSON requests. The machine-readable description is [`dossier-service.openapi.json`](dossier-service.openapi.json) (OpenAPI 3.1). The test is `dossier_serve_answers_over_http` in `crates/zeceipt-cli/tests/cli.rs`.
+A small HTTP/1.1 service that runs `zeceipt dossier verify` for a compliance back office: post a dossier, get the report JSON. Written 2026-09-30 from `crates/zeceipt-cli/src/main.rs` (`serve_dossiers`, `check_dossier_text`, `network_conflict`) and `crates/zeceipt-core/src/dossier.rs` (`Report`), and checked against a running build that day (the examples below are its answers). Updated 2026-10-01 for `abb0ef7`: trace closure and value coverage (`untraced`, `undisclosed_input_min_zat`), the `anchored` flag and the `consistent_offline` and `verified_partly_explained` assurances, the refusal of a network flag that disagrees with the dossier, and the refusal of cross-origin and non-JSON requests. Updated again 2026-10-01 for the round-3 core (spec §5.6, §7.2, §7.4): origins that name no source (`unexplained_origins`), transparent inputs of unknown value (`unvalued_inputs`), beacon controls (`beacon_height`), the deposit address check (`expect_deposit_address`, `deposit_address_paid`), the `400` for `issued_at_height` without `expect_nonce`, and the check of the node's chain. The machine-readable description is [`dossier-service.openapi.json`](dossier-service.openapi.json) (OpenAPI 3.1). The test is `dossier_serve_answers_over_http` in `crates/zeceipt-cli/tests/cli.rs`.
 
 The service holds no state, no accounts and no keys. It keeps no copy of a dossier or a report, and it logs one line at startup and nothing per request.
 
@@ -65,10 +65,11 @@ The request body is the dossier file exactly as the holder sent it (UTF-8 JSON, 
 
 | Query parameter | Meaning |
 |---|---|
-| `expect_nonce` (optional) | The nonce you issued. Every control claim must answer it, or it fails ("not the one you issued"). Without it, `controlled` is always `false`, because an old dossier answers an old nonce. With it and no control claim in the dossier, `problems` says so and `all_verified` is false. The value is taken literally: `+` becomes a space and there is no percent-decoding, which zeceipt's nonces (`[a-z0-9-]`) never need |
-| `issued_at_height` (optional) | The chain height when you issued the nonce. A control transaction mined below it fails ("mined at height H, before you issued the nonce at height H₀"). If the challenge's height is unknown (`--raw-tx-dir`), the claim can still verify, and a detail says the height was not checked. Not a non-negative integer: `400` |
+| `expect_nonce` (optional) | The nonce you issued. Every control claim must answer it, or it fails ("not the one you issued"). Without it, `controlled` is `false`, because an old dossier answers an old nonce, unless a control claim answers a beacon (`zeceipt-beacon-<H>-<hash of block H>`, spec §7.4): the service looks block H up on its node, and a control mined above H with the right hash sets `controlled` and `beacon_height` (a block not looked up leaves it `not_checked`; another hash fails it). A nonce you give overrides a beacon. With it and no control claim in the dossier, `problems` says so and `all_verified` is false. The value is taken literally: `+` becomes a space and there is no percent-decoding, which zeceipt's nonces (`[a-z0-9-]`) never need |
+| `issued_at_height` (optional) | The chain height when you issued the nonce. A control transaction mined below it fails ("mined at height H, before you issued the nonce at height H₀"). If the challenge's height is unknown (`--raw-tx-dir`), the claim can still verify, and a detail says the height was not checked. Not a non-negative integer: `400`. Given without `expect_nonce`: `400` (it is the height that nonce was issued at) |
+| `expect_deposit_address` (optional) | The deposit address you assigned this customer: transparent, TEX (normalized to its transparent address) or unified. The report sets `deposit_address_paid`. When no verified deposit or transparent payment pays it, or it is an address of another network, `problems` says so, so `all_verified` is false and `assurance` is `not_verified` (spec §7.2). Taken literally, as `expect_nonce` is |
 
-The service fetches every transaction the dossier's claims name, then the previous transactions of its origins' transparent inputs (to read the funders' addresses from the outputs they spend), from `--raw-tx-dir` or the node, and checks every claim (`spec/dossier-v1.md` §5).
+The service fetches every transaction the dossier's claims name, then the previous transactions of their transparent inputs (to read the funders' addresses and the inputs' values from the outputs they spend), from `--raw-tx-dir` or the node, and checks every claim (`spec/dossier-v1.md` §5). With a node, it also asks the node which chain it serves (`GetLightdInfo`'s `chain_name`) and refuses a dossier of another network, so that a relabelled dossier cannot be checked against the wrong chain even with your own `--endpoint`; and it looks up the block each beacon nonce names (`GetBlock`).
 
 ```bash
 curl -s -X POST -H 'content-type: application/json' --data-binary @fixtures/dossier/testnet-dossier.json \
@@ -78,13 +79,13 @@ curl -s -X POST -H 'content-type: application/json' --data-binary @fixtures/doss
 | Status | When | Body |
 |---|---|---|
 | `200` | The dossier parsed and was checked, whatever the outcome | The report (below). A failed claim is still a `200` |
-| `400` | The body is not UTF-8, or `issued_at_height` is not a height | `{"error": "the body is not UTF-8"}`, `{"error": "issued_at_height is a block height"}` |
+| `400` | The body is not UTF-8, `issued_at_height` is not a height, or it is given without `expect_nonce` | `{"error": "the body is not UTF-8"}`, `{"error": "issued_at_height is a block height"}`, `{"error": "issued_at_height needs expect_nonce: it is the height that nonce was issued at"}` |
 | `403` | The request carries an `Origin` header that `--allow-origin` does not name | `{"error": "cross-origin requests are refused (start the service with --allow-origin to allow one)"}` |
 | `413` | The body is over 1 MiB (1,048,576 bytes), or the upload broke off | `{"error": "the body is over 1 MiB, or broken"}` |
 | `415` | The `Content-Type` is not `application/json` (or is missing) | `{"error": "send the dossier as application/json"}` |
 | `422` | The dossier does not parse: bad JSON, an unknown field or claim type, another version, a malformed note opening or `nk`, a note disclosed twice | `{"all_verified": false, "stage": "parse", "error": "…"}` |
 | `422` | The dossier's `network` is not the service's (`--testnet`, `--regtest`, or mainnet without either) | `{"all_verified": false, "stage": "network", "error": "the dossier is for mainnet, and this checks testnet: check it without --testnet/--regtest, or against a node of its network"}` |
-| `502` | Fetching transactions failed with an error other than "not found" or "not mined yet" (every node unreachable, for example) | `{"error": "fetching transactions: …"}` |
+| `502` | Fetching transactions failed with an error other than "not found" or "not mined yet" (every node unreachable, for example), or the node serves another chain than the dossier's network (its `chain_name`; checked after the transactions are fetched, in `check_dossier_text`) | `{"error": "fetching transactions: …"}`, `{"error": "fetching transactions: the node https://… serves the main chain, and the dossier is for test: check it against a node of its network"}` |
 
 A `422`, from a dossier with a field added:
 
@@ -98,6 +99,8 @@ A `502`, with `--endpoint http://127.0.0.1:9` (nothing listening):
 {"error":"fetching transactions: all endpoints failed; last error: could not connect to http://127.0.0.1:9: transport error"}
 ```
 
+A node of another chain (a mainnet `--endpoint` for a testnet dossier, say; the service's own network flag agreeing with the dossier) is a `502` with the same prefix, since it comes from `check_dossier_text` like a fetch error: read it as "check against a node of the dossier's network", not as an outage. A node that does not answer `GetLightdInfo` is not refused for that alone.
+
 A transaction the node does not have, or has only in its mempool, is not an error: the claims that rest on it are `not_checked`, and the report is a `200`.
 
 ## The report (`zeceipt-dossier-report-v1`)
@@ -109,30 +112,34 @@ The same JSON `zeceipt dossier verify` prints, and `checkDossier` returns in the
 | `version` | string | `"zeceipt-dossier-report-v1"` |
 | `network` | `"main"` \| `"test"` \| `"regtest"` | The dossier's network |
 | `nk_proven` | bool | Some disclosed note's nullifier, derived with the dossier's `nk`, is among a fetched transaction's spends: `nk` is that account's |
-| `controlled` | bool | A control claim verified against `expect_nonce`. Always `false` without `expect_nonce` |
-| `problems` | [string], omitted if empty | Dossier-level problems (an `nk` that is not a key, a transaction file filed under another txid); any entry makes `all_verified` false |
+| `controlled` | bool | A control claim verified against `expect_nonce`, or, without it, against a beacon whose block was looked up (`beacon_height`) |
+| `problems` | [string], omitted if empty | Dossier-level problems (an `nk` that is not a key, a transaction file filed under another txid, an `expect_deposit_address` no verified payment pays or of another network); any entry makes `all_verified` false |
 | `subject` | string, optional | Copied from the dossier; unauthenticated |
 | `dossier_sha256` | hex | sha256 of the request body |
 | `notes` | object: id → note fact | Per disclosed note: `txid`, `pool`, `action`, and when known `height`, `recipient`, `value_zat`, `memo`, `nullifier`, `spent_in` (the fetched transaction that spends it: only then is the note shown to be the holder's), or `error` |
-| `claims` | [claim result] | In the dossier's order: `index`, `kind` (`origin`, `path`, `deposit`, `control`, `transparent_payment`), `status`, `summary` (one sentence), `details` (omitted if empty), `funding` (origin: `transparent_inputs` of `{prevout, address?, value_zat?, paid_in_claim?}`, `shielded_actions`, `sapling_spends`, `from_disclosed`), `value_zat` (deposit and transparent payment: the amount paid; control: the spent notes), `paid_to` (transparent payment: the address, read from the output's script), `undisclosed_input_min_zat` (omitted when 0: at least this much of what the claim's transaction paid came from notes the dossier does not disclose; spec §5.6) |
+| `claims` | [claim result] | In the dossier's order: `index`, `kind` (`origin`, `path`, `deposit`, `control`, `transparent_payment`), `status`, `summary` (one sentence), `details` (omitted if empty), `funding` (origin: `transparent_inputs` of `{prevout, address?, value_zat?, paid_in_claim?}`, `shielded_actions`, `sapling_spends`, `from_disclosed`), `value_zat` (deposit and transparent payment: the amount paid; control: the spent notes), `paid_to` (transparent payment: the address, read from the output's script; deposit: the receipt's recipient), `undisclosed_input_min_zat` (omitted when 0: at least this much of what the claim's transaction paid came from notes the dossier does not disclose; spec §5.6) |
 | `all_verified` | bool | Every claim `verified` and no `problems` |
 | `anchored` | bool | Every transaction the claims name came from a node, with a height. `false` offline (`--raw-tx-dir`): files carry no heights, and nothing checks their inclusion in the chain |
 | `untraced` | [note id], omitted if empty | Funding notes of a deposit, transparent payment or control (`funded_by`, `spent`) that no chain of verified path claims leads back to an origin claim (spec §5.6) |
-| `undisclosed_input_min_zat` | integer | A lower bound, summed once per transaction, on what the claims' transactions paid from notes the dossier does not disclose: the mixing case, a small disclosed note "funding" a large payment (spec §5.6) |
-| `assurance` | string | The first that applies: `not_verified` (not `all_verified`); `consistent_offline` (every claim holds against the transactions supplied, but `anchored` is false: consistency with files, not verification against the chain); `verified_partly_explained` (some funds are `untraced`, or `undisclosed_input_min_zat` is above 0); `verified_history_only` (explained, but no control claim answers your nonce); `verified_with_control` |
+| `undisclosed_input_min_zat` | integer | A lower bound, summed once per transaction, on what the claims' transactions paid from notes the dossier does not disclose, and from the transparent inputs of path, deposit, transparent payment and control transactions (valued from the outputs they spend): the mixing case, a small disclosed note "funding" a large payment (spec §5.6) |
+| `unexplained_origins` | [note id], omitted if empty | Verified origins that name no source: paid by an undisclosed shielded sender (a faucet, a mixer), spending disclosed notes (a hop, which a path claim states), or with transparent inputs whose previous transactions are missing. Each such origin claim carries a detail saying which (spec §5.6) |
+| `unvalued_inputs` | integer, omitted if 0 | Transparent inputs of those transactions whose value is unknown (their previous transactions were not found) |
+| `beacon_height` | integer, optional | The block whose hash a verified beacon control answers (spec §7.4); the control's detail names its hash and time, and the reviewer judges whether it is recent enough |
+| `deposit_address_paid` | bool, optional | Present when `expect_deposit_address` was given: whether a verified deposit or transparent payment pays it |
+| `assurance` | string | The first that applies: `not_verified` (not `all_verified`); `consistent_offline` (every claim holds against the transactions supplied, but `anchored` is false: consistency with files, not verification against the chain); `verified_partly_explained` (some funds are `untraced`, an origin is in `unexplained_origins`, or `undisclosed_input_min_zat` or `unvalued_inputs` is above 0); `verified_history_only` (explained, but no control claim answers your nonce or a looked-up beacon); `verified_with_control` |
 | `issued_at_height` | integer, optional | The `issued_at_height` you passed |
 | `disclosed` | [string] | What the holder gave up by handing the dossier over |
 | `does_not_prove` | [string] | What no claim proves (counterparties, undisclosed inputs, undisclosed funds, funds after the challenge, a legal attestation) |
 
 **Statuses.** `verified`; `failed` (the chain data contradicts the claim); `not_checked` (a transaction is in the mempool or was not found: check again later); `unproven` (the data given cannot show it, and waiting will not change that: an origin whose note nothing in the dossier spends, so it is not shown to be the holder's).
 
-**Reading it as the CLI does.** `zeceipt dossier verify` exits 0 when `all_verified` and `assurance` is `verified_with_control` or `verified_history_only`; 4 when `all_verified` but `assurance` is `consistent_offline` or `verified_partly_explained` (read the report before relying on it); 1 when a claim is `failed` or `unproven`, there is a problem, the dossier does not parse, or a network flag disagrees with it (`"stage": "network"`); 2 otherwise (something is `not_checked`); 3 on an I/O or node error with no report. A reviewer reads `assurance`, not only `all_verified`: without `expect_nonce`, a dossier with no control claim is `all_verified` and shows no control, and a dossier of a control claim alone is `all_verified` but explains nothing (`untraced`).
+**Reading it as the CLI does.** `zeceipt dossier verify` (whose `--expect-deposit-address` is this `expect_deposit_address`) exits 0 when `all_verified` and `assurance` is `verified_with_control` or `verified_history_only`; 4 when `all_verified` but `assurance` is `consistent_offline` or `verified_partly_explained` (read the report before relying on it); 1 when a claim is `failed` or `unproven`, there is a problem, the dossier does not parse, or a network flag disagrees with it (`"stage": "network"`); 2 otherwise (something is `not_checked`); 3 on an I/O or node error with no report. A reviewer reads `assurance`, not only `all_verified`: without `expect_nonce`, a dossier with no control claim is `all_verified` and shows no control, and a dossier of a control claim alone is `all_verified` but explains nothing (`untraced`).
 
 **Transparent payments.** A dossier claim `{"type": "transparent_payment", "tx": "<txid>", "output": <n>, "funded_by": ["<note id>", …]}` says the holder paid transparent output `n` of `tx` (an exchange deposit or a TEX address) from the listed notes. The check reads the address and amount from the output's script, and requires each funding note's nullifier among the transaction's spends. When an origin's transparent input spends such an output (funds that left the pool and came back), its `paid_in_claim` names that claim. An example from a run follows the main example below.
 
 ### Example
 
-The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its nonce. The report has 12 claims and 9 notes; three of each are shown (the OpenAPI file has the same excerpt):
+The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its nonce, and updated for the round-3 core (the origin's second detail, the deposit's `paid_to`, `assurance` and `unexplained_origins`, as the same core gives them in the browser build on 2026-10-01). The faucet paid n1 from the shielded pool, so its origin names no source and the report is `verified_partly_explained` (CLI exit 4), even with control shown. The report has 12 claims and 9 notes; three of each are shown (the OpenAPI file has the same excerpt):
 
 ```json
 {
@@ -173,13 +180,17 @@ The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its n
     {
       "index": 0, "kind": "origin", "status": "verified",
       "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b at height 4419987, funded from the shielded pool by an undisclosed sender.",
-      "details": ["n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account."],
+      "details": [
+        "n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account.",
+        "Its source is not shown: at least 1.00010000 TAZ came from shielded notes this dossier does not disclose."
+      ],
       "funding": {"transparent_inputs": [], "shielded_actions": 2, "sapling_spends": 0, "from_disclosed": []}
     },
     {
       "index": 5, "kind": "deposit", "status": "verified",
       "summary": "The holder paid 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b at height 4420000, from n1 (1.00000000 TAZ disclosed).",
-      "value_zat": 1000000
+      "value_zat": 1000000,
+      "paid_to": "utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u"
     },
     {
       "index": 11, "kind": "control", "status": "verified",
@@ -188,9 +199,10 @@ The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its n
     }
   ],
   "all_verified": true,
-  "assurance": "verified_with_control",
+  "assurance": "verified_partly_explained",
   "anchored": true,
   "undisclosed_input_min_zat": 0,
+  "unexplained_origins": ["n1"],
   "disclosed": [
     "9 note openings (each: its transaction, amount, recipient address and memo)",
     "nk, the nullifier key: the reviewer can tell when any disclosed note is spent, and so can anyone who learns nk and another of the account's note openings (its sender knows them)",
@@ -206,7 +218,7 @@ The testnet sample, checked on 2026-09-30 against `testnet.zec.rocks` with its n
 }
 ```
 
-The same request with `expect_nonce=zeceipt-challenge-00000000000000000000000000000000` is also a `200`, with `all_verified` and `controlled` false, and claim 11 `failed`: "This control claim answers nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, not the one you issued: it was made for another challenge, or an earlier one." With the right nonce and `issued_at_height=4421400`, above the challenge's height 4,421,345, claim 11 fails: "The challenge transaction 10e941e7…6e43 was mined at height 4421345, before you issued the nonce at height 4421400: it was not made in answer to your challenge." Without `expect_nonce`, `all_verified` is true, `controlled` false and `assurance` `verified_history_only`.
+The same request with `expect_nonce=zeceipt-challenge-00000000000000000000000000000000` is also a `200`, with `all_verified` and `controlled` false, and claim 11 `failed`: "This control claim answers nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8, not the one you issued: it was made for another challenge, or an earlier one." With the right nonce and `issued_at_height=4421400`, above the challenge's height 4,421,345, claim 11 fails: "The challenge transaction 10e941e7…6e43 was mined at height 4421345, before you issued the nonce at height 4421400: it was not made in answer to your challenge." Without `expect_nonce`, `all_verified` is true, `controlled` false and `assurance` `verified_partly_explained` (it was `verified_history_only` before origins had to name a source). The exchange review (`fixtures/dossier/testnet-dossier-exchange.json`), whose origin names the hot wallet's transparent input, is `verified_with_control` with its nonce, and with `expect_deposit_address=tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR` adds `"deposit_address_paid": true`; with an address no payment pays, the report has `"deposit_address_paid": false`, the problem "No verified payment in this dossier pays the deposit address you assigned (…): it does not show that this holder made your deposit." and `assurance` `not_verified`. The beacon sample (`fixtures/dossier/testnet-dossier-beacon.json`, PROOF §10) is `verified_with_control` with no `expect_nonce`, with `"beacon_height": 4426425`.
 
 A transparent payment and an `unproven` origin, from `fixtures/dossier/testnet-dossier-transparent-origin.json`, checked offline (`--raw-tx-dir fixtures/testnet`). The holder paid 0.05 TAZ from n5 to a transparent address, then shielded it back; the origin of the shielded note names that payment. The address is the holder's own, not an exchange's:
 

@@ -37,4 +37,7 @@ fieldset.scan .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.
 .sample-key .btn { min-height: 2.25rem; padding: 0.35rem 0.85rem; font-size: 0.8125rem; }
 .control-note { margin: 0 0 0.6rem; font-size: 0.8125rem; color: var(--fg); }
 .control-note:empty { display: none; }
+.beacon-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; margin: -0.45rem 0 0.8rem; font-size: 0.8125rem; }
+.beacon-row button.linkish { font-size: 0.8125rem; }
+#beacon-status:empty { display: none; }
 .error-fix { margin: 0.75rem 0 0; }

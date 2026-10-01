@@ -73,7 +73,7 @@ Trust boundaries:
 
 ## Source-of-funds dossiers (`spec/dossier-v1.md`)
 
-A holder hands a reviewer a dossier instead of a viewing key. Its origin, path, deposit, transparent payment and control claims are checked against chain data by the CLI, the HTTP service, the WASM or `@zeceipt/verify` (`crates/zeceipt-core/src/dossier.rs`). Written 2026-09-30 (the spec review's fixes are in `b9650dd`), revised the same day for transparent payments, the issue height H₀ and `assurance`. Evidence is the tests in `crates/zeceipt-core/tests/dossier.rs` (including `the_fixes_of_the_spec_review_hold`), the 55 vectors in `spec/test-vectors/dossier-v1.json` (run natively by `tests/dossier_vectors.rs` and through the WASM by `packages/verify/test/dossier-vectors.mjs`), and PROOF §8.
+A holder hands a reviewer a dossier instead of a viewing key. Its origin, path, deposit, transparent payment and control claims are checked against chain data by the CLI, the HTTP service, the WASM or `@zeceipt/verify` (`crates/zeceipt-core/src/dossier.rs`). Written 2026-09-30 (the spec review's fixes are in `b9650dd`), revised the same day for transparent payments, the issue height H₀ and `assurance`. Evidence is the tests in `crates/zeceipt-core/tests/dossier.rs` (including `the_fixes_of_the_spec_review_hold`), the 64 vectors in `spec/test-vectors/dossier-v1.json` (run natively by `tests/dossier_vectors.rs` and through the WASM by `packages/verify/test/dossier-vectors.mjs`), and PROOF §8.
 
 **Assets:**
 - for the holder: the account's unlinkability (future spends, other senders' notes), the memos and addresses in the disclosed notes, and the viewing key, which never leaves the builder;

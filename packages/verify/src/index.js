@@ -1,7 +1,7 @@
 // Thin typed wrapper over the wasm-pack output in ../pkg.
 // It makes a request only when the caller asks: fetchRawTx (a gRPC-web lookup of one transaction) and
 // checkIssuerBinding (the claimed domain's well-known file). Verifying needs no network.
-import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, dossier_prevout_txids, check_dossier, build_dossier, DossierScanner } from "../pkg/zeceipt_wasm.js";
+import init, { parse_receipt, verify_receipt, check_signature, issuer_claim, issuer_binding, version, is_delivery_proof, parse_delivery_proof, verify_delivery_proof, dossier_txids, dossier_prevout_txids, dossier_beacon_heights, compact_block_id, check_dossier, build_dossier, DossierScanner } from "../pkg/zeceipt_wasm.js";
 
 let ready;
 export async function initVerifier(wasm) {
@@ -329,7 +329,7 @@ export function confirmations(height, tip) {
  * issued it at (`fetchChainTip`): a control claim answering another nonce, or mined below that height, fails. Returns the
  * report (`zeceipt-dossier-report-v1`).
  */
-export async function checkDossier(text, { txs = null, expectNonce = "", issuedAtHeight = null, timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
+export async function checkDossier(text, { txs = null, expectNonce = "", issuedAtHeight = null, expectDepositAddress = "", beacons = null, timeoutMs = FETCH_TIMEOUT_MS, onFetch = () => {} } = {}) {
   let network;
   try {
     network = JSON.parse(text).network;
@@ -359,7 +359,45 @@ export async function checkDossier(text, { txs = null, expectNonce = "", issuedA
       }
     }
   }
-  return check_dossier(text, got, expectNonce ?? "", Number.isFinite(issuedAtHeight) ? issuedAtHeight : undefined);
+  // A beacon nonce names a block: look its hash up (online), or take the caller's (offline).
+  const blocks = beacons ?? {};
+  if (!txs && !beacons) {
+    for (const h of dossier_beacon_heights(text)) {
+      try {
+        blocks[h] = await fetchBlockId(network, h, undefined, { timeoutMs });
+      } catch {
+        // not looked up: the control claim says so
+      }
+    }
+  }
+  return check_dossier(text, got, expectNonce ?? "", Number.isFinite(issuedAtHeight) ? issuedAtHeight : undefined, expectDepositAddress ?? "", JSON.stringify(blocks));
+}
+
+/**
+ * A block's `{ height, hash, time }` over gRPC-web (`GetBlock(BlockID { height })`, a CompactBlock), hash in display
+ * hex: what a beacon nonce names (spec §7.4).
+ */
+export async function fetchBlockId(network = "main", height, endpoints = GRPC_WEB_ENDPOINTS[network], { timeoutMs = FETCH_TIMEOUT_MS } = {}) {
+  const varint = (n) => { const o = []; let v = BigInt(n); do { let b = Number(v & 0x7fn); v >>= 7n; if (v) b |= 0x80; o.push(b); } while (v); return o; };
+  const body = [0x08, ...varint(height)];
+  const frame = new Uint8Array(5 + body.length);
+  new DataView(frame.buffer).setUint32(1, body.length, false);
+  frame.set(body, 5);
+  let lastErr = null;
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(`${ep}/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetBlock`, {
+        method: "POST",
+        headers: { "content-type": "application/grpc-web+proto", "x-grpc-web": "1" },
+        body: frame,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const id = compact_block_id(await grpcWebMessage(res));
+      if (!id || id.height !== height) throw new Error(`${ep}: no block ${height}`);
+      return id;
+    } catch (e) { lastErr = timedOut(e, ep, timeoutMs); }
+  }
+  throw lastErr;
 }
 
 /** The txids a dossier's checks need. Throws on a dossier that does not parse. */

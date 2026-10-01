@@ -1,10 +1,11 @@
 // Dossier builder: the holder's UFVK, the transactions of their funds and an optional control answer in; a
 // zeceipt-dossier-v1 dossier out, built here by the WebAssembly builder. The UFVK is read from its field when Build is
 // pressed, passed to buildDossier (which uses it in this page only), and the field is cleared; nothing is stored. The
-// only requests outside this site are the transaction lookups (fetchRawTx: the txid and nothing else). The DOM is
-// written with textContent only.
-import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, scanWallet, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
-import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown, explanationGaps, maskNonce } from "../case/view.js";
+// only requests outside this site are the transaction lookups (fetchRawTx: the txid and nothing else), and, when the
+// holder asks for a beacon, the chain's latest block (fetchChainTip, fetchBlockId: heights only). The DOM is written
+// with textContent only.
+import { initVerifier, buildDossier, checkDossier, dossierPrevoutTxids, fetchRawTx, fetchChainTip, fetchBlockId, scanWallet, GRPC_WEB_ENDPOINTS, useNodes } from "../src/index.js";
+import { claimRows, caseLink, parseDossier, fetchProgress, kindBreakdown, explanationGaps, unexplainedOrigins, maskNonce, beaconNonce, blockTimeText, NETWORK_NAME } from "../case/view.js";
 import { claimTableRows, factItems, listItem, download, showVerifierDigest } from "../case/ui.js";
 import { validateBuild, buildError, challengeAnswer, dossierSummary, networkForKey, DOSSIER_FILE, SAMPLE_UFVK, SAMPLE_SCAN_FROM, txidLines } from "./view.js";
 
@@ -141,10 +142,18 @@ function renderBuilt(text, report) {
   built = { text, dossier };
   const s = dossierSummary(dossier, report);
   // Claims that verify but do not add up (spec §5.6) read amber to the reviewer, "funds not fully explained": say so now.
-  const gaps = s.allVerified ? explanationGaps(report) : [];
+  const gaps = s.allVerified ? explanationGaps(report, dossier) : [];
+  // What the holder can do about each gap: list the missing history, or be ready to say who paid an origin that the
+  // chain shows no source for (a shielded sender: a faucet, a mixer, a friend's shielded wallet).
+  const sourceless = unexplainedOrigins(dossier, report).filter((o) => o.kind !== "hop");
+  const history = gaps.length > sourceless.length;
+  const advice = [
+    ...(history ? ["List the transactions that lead those funds back to where they entered your wallet."] : []),
+    ...(sourceless.length ? [`The chain shows no source for ${sourceless.map((o) => o.note).join(", ")}: be ready to tell the reviewer who sent ${sourceless.length === 1 ? "it" : "them"}, with your evidence.`] : []),
+  ].join(" ");
   $("built").className = `result ${s.allVerified && !gaps.length ? "ok" : "pending"}`;
   $("built-sub").textContent = s.allVerified
-    ? `${s.claims} claims, all verified in this page against the chain: ${kindBreakdown(report.claims)}.${gaps.length ? ` But they do not explain all of the funds (${gaps.join("; ")}): the reviewer will see “funds not fully explained”. List the transactions that lead those funds back to where they entered your wallet.` : ""} The viewing key field was cleared.`
+    ? `${s.claims} claims, all verified in this page against the chain: ${kindBreakdown(report.claims)}.${gaps.length ? ` But they do not explain all of the funds (${gaps.join("; ")}): the reviewer will see “funds not fully explained”. ${advice}` : ""} The viewing key field was cleared.`
     : `${s.verified} of ${s.claims} claims verified in this page; see the claims below before you share it. The viewing key field was cleared.`;
   $("built-counts").replaceChildren(...factItems(s.counts));
   $("built-discloses").replaceChildren(...s.discloses.map(listItem));
@@ -247,6 +256,26 @@ $("error-fix-btn").addEventListener("click", () => {
   $("build").click();
 });
 
+// A beacon instead of a reviewer's nonce (spec §7.4): the hash of the latest block, which no one could know before
+// it was mined. The holder answers it unprompted, and the reviewer's page looks the block up to date the answer.
+let beaconAsked = 0;
+$("beacon").addEventListener("click", async () => {
+  const mine = ++beaconAsked;
+  const network = $("network").value;
+  $("beacon-status").textContent = `Asking a ${NETWORK_NAME[network]} node for the latest block…`;
+  try {
+    const tip = await fetchChainTip(network, GRPC_WEB_ENDPOINTS[network], { timeoutMs: PAGE_TIMEOUT_MS });
+    const block = await fetchBlockId(network, tip.height, GRPC_WEB_ENDPOINTS[network], { timeoutMs: PAGE_TIMEOUT_MS });
+    if (mine !== beaconAsked) return;
+    $("nonce").value = beaconNonce(block.height, block.hash);
+    $("nonce").dispatchEvent(new Event("input"));
+    $("beacon-status").textContent = `The beacon of block ${block.height.toLocaleString("en-US")} (${NETWORK_NAME[network]}, mined ${blockTimeText(block.time)}) is filled in above. Send any small amount to your own address with it as the memo, wait for it to be mined, then enter that transaction's id below. The reviewer sees that your answer came after this block, and judges whether it is recent enough.`;
+  } catch (e) {
+    if (mine !== beaconAsked) return;
+    $("beacon-status").textContent = `The latest block could not be asked (${String(e?.message ?? e)}): try again.`;
+  }
+});
+
 // The sample customer's public testnet viewing key (fixtures/testnet/holder2-ufvk.txt), to try the builder: it fills
 // the key and the height to scan from; the holder presses Find my transactions.
 $("sample-key").addEventListener("click", () => {
@@ -262,7 +291,8 @@ $("forget").addEventListener("click", () => {
   $("scan-status").textContent = "";
   for (const id of ["ufvk", "txids", "nonce", "control-txid", "subject", "scan-from"]) $(id).value = "";
   $("network").value = "main";
-  for (const id of ["ufvk-network", "control-note", "sample-key-status"]) $(id).textContent = "";
+  beaconAsked++;
+  for (const id of ["ufvk-network", "control-note", "sample-key-status", "beacon-status"]) $(id).textContent = "";
   fix = null;
   clearMarks();
   hideResult();

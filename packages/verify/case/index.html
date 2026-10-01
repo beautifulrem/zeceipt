@@ -9,7 +9,8 @@
   A dossier opened by a link is in this page's URL fragment (#…), which the browser never sends to the host. This
   policy keeps it in the page: scripts, styles, fonts and images only from this site, WebAssembly allowed, and network
   access only to this site and to the public gRPC-web nodes in src/index.js (GRPC_WEB_ENDPOINTS; test/dossier-view.mjs
-  fails if an endpoint's origin is missing here). The nodes are asked for transactions by id, nothing else.
+  fails if an endpoint's origin is missing here). The nodes are asked for transactions by id, for a block by its height
+  (a beacon's), and for the chain's height; nothing else.
 -->
 <meta name="zeceipt-nodes" content="">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self' https://zjs.zec.rocks https://zcash-mainnet.chainsafe.dev https://zcash-testnet.chainsafe.dev">
@@ -61,7 +62,7 @@
   <div class="actions">
     <p><button id="check" type="button" class="btn btn-primary">Check the dossier</button></p>
   </div>
-  <p class="muted sample-more">Other samples: <button id="sample" type="button" class="linkish">a faucet payment, three payments made from it, and a control answer</button> · <a href="#sample-transparent">funds that left to a transparent address and came back</a></p>
+  <p class="muted sample-more">Other samples: <button id="sample" type="button" class="linkish">a faucet payment, three payments made from it, and a control answer</button> · <a href="#sample-transparent">funds that left to a transparent address and came back</a> · <a href="#sample-beacon">a control answering a block hash: no one issued the nonce</a></p>
   <fieldset class="offline">
     <legend>Offline (optional): load the transactions from files</legend>
     <p class="hint">One file per transaction, named <code>&lt;txid&gt;.hex</code>, with the raw transaction in hex (from your own node, say). With files loaded, no node is asked: the claims are checked against the files, and whether those transactions are in the chain is not.</p>
@@ -147,13 +148,14 @@
   <dt>Note</dt><dd>A shielded output: an amount paid to an address, with a memo. A dossier discloses a note by its opening, which shows its transaction, amount, address and memo.</dd>
   <dt>Nullifier</dt><dd>The value a transaction publishes when it spends a note. Only the key of the note's owner gives it, so a note's nullifier in a transaction shows that its owner spent it there.</dd>
   <dt>nk (nullifier key)</dt><dd>Part of the holder's viewing key, in the dossier. With it this page computes the disclosed notes' nullifiers, and so finds where each was spent; it cannot spend, and it shows no other payment. It also lets whoever holds the dossier see when these notes are spent later, and anyone who ever paid the holder see when the notes they paid are spent.</dd>
-  <dt>Explained (untraced)</dt><dd>The claims add up when every payment's and the control's funds trace back, by path claims, to an origin claim, and no transaction paid from notes the dossier does not disclose. A note that no chain of claims leads back to an origin is untraced; the case is then amber, “funds not fully explained”.</dd>
+  <dt>Explained (untraced)</dt><dd>The claims add up when every payment's and the control's funds trace back, by path claims, to an origin claim that names its source, and no transaction paid from notes the dossier does not disclose. A note that no chain of claims leads back to an origin is untraced; an origin paid by an undisclosed shielded sender, or spending disclosed notes, or whose transparent inputs' previous transactions are missing, names no source. Either makes the case amber, “funds not fully explained”.</dd>
   <dt>Consistent offline</dt><dd>With transactions loaded from files, the claims are checked against those files only: whether the transactions are in the chain, and at which heights, is not. A holder can send fabricated files, so load only files you fetched from a node yourself.</dd>
   <dt>Origin</dt><dd>Where the funds entered the holder's wallet, and what funded that transaction (its transparent inputs, or an undisclosed shielded sender).</dd>
   <dt>Path</dt><dd>A disclosed note was spent in the transaction that created the next one: the funds moved within the wallet.</dd>
   <dt>Deposit</dt><dd>A shielded payment the holder made, opened by a sender receipt, paid from disclosed notes.</dd>
   <dt>Transparent payment</dt><dd>A payment the holder made to a transparent address (an exchange deposit, say), from disclosed notes. Funds that come back from that address show as “returned from claim #k”.</dd>
   <dt>Control</dt><dd>A challenge transaction spent disclosed notes and paid the holder a note whose memo carries your nonce: the holder could spend those funds after you issued it.</dd>
+  <dt>Beacon nonce</dt><dd>A nonce that is the hash of a block, <code>zeceipt-beacon-&lt;height&gt;-&lt;hash&gt;</code>. No one could know it before that block was mined, so a control claim answering it was made after that block, with no reviewer issuing anything. The page looks the block up; you judge whether it is recent enough.</dd>
   <dt>H₀ (issued at height)</dt><dd>The chain height when you issued the nonce. A control transaction mined before it was not made in answer to your challenge, and fails.</dd>
   <dt>Verified</dt><dd>The chain supports the claim.</dd>
   <dt>Not proven (unproven)</dt><dd>Nothing in this dossier can show the claim, and waiting will not change that; its row says what would (an origin note is the holder's only once a later claim spends it).</dd>
@@ -175,9 +177,12 @@
 <section id="challenge" class="card challenge" aria-labelledby="challenge-title">
   <div class="row-head">
     <h2 id="challenge-title">Challenge the holder</h2>
-    <button id="nonce-new" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span><span id="nonce-new-label">Generate a nonce</span></button>
+    <span class="row-actions">
+      <button id="nonce-new" type="button" class="btn btn-secondary"><span class="i i-refresh" aria-hidden="true"></span><span id="nonce-new-label">Generate a nonce</span></button>
+      <button id="beacon-new" type="button" class="btn btn-secondary"><span class="i i-link" aria-hidden="true"></span>Generate a beacon nonce</button>
+    </span>
   </div>
-  <p>A dossier's origin, path and deposit claims show what the holder's funds did. To see that they can spend them now, send them a fresh nonce and ask for a control claim that answers it. Generating a nonce also asks a public node for the chain's height (H₀), and nothing else.</p>
+  <p>A dossier's origin, path and deposit claims show what the holder's funds did. To see that they can spend them now, send them a fresh nonce and ask for a control claim that answers it. Generating a nonce also asks a public node for the chain's height (H₀), and nothing else. A beacon nonce is the hash of the latest block instead: no one could know it before that block, so a holder can answer one without being asked, and you judge whether the block is recent enough. A control answering a beacon needs no nonce entered here.</p>
   <div class="challenge-fields">
     <label id="nonce-field" class="field">Nonce you issued
       <input id="nonce-input" class="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="nonce-hint">
@@ -192,7 +197,7 @@
     </label>
     <label id="deposit-field" class="field deposit-field">Deposit address you assigned (optional)
       <input id="deposit-input" class="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="deposit-hint deposit-status">
-      <span id="deposit-hint" class="hint">The transparent (or TEX) address you gave this customer for deposits. A payment in the dossier to it ties the funds to this customer: a control answer alone can be relayed from someone else's wallet.</span>
+      <span id="deposit-hint" class="hint">The transparent, TEX or unified address you gave this customer for deposits. A payment in the dossier to it ties the funds to this customer: a control answer alone can be relayed from someone else's wallet. With an address entered, a dossier with no verified payment to it is not verified.</span>
       <span id="deposit-status" class="hint" role="status"></span>
     </label>
   </div>
@@ -210,7 +215,7 @@
   <p id="nonce-result" class="nonce-result" role="status"></p>
 </section>
 
-<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: this page asks a public node for each transaction the dossier names, only when you check one (none when you load the transactions from files), and for the chain's height when you generate a nonce; it sends nothing else. The node learns which transactions you looked up. The page stores nothing.</span></p>
+<p class="muted privacy"><span class="i i-shield" aria-hidden="true"></span><span>Privacy: this page asks a public node for each transaction the dossier names, only when you check one (none when you load the transactions from files), for the block a control's beacon names, and for the chain's height (and its latest block) when you generate a nonce; it sends nothing else. The node learns which transactions you looked up. The page stores nothing.</span></p>
 <footer id="print-meta" class="print-only print-foot"></footer>
 </main>
 <footer class="foot">

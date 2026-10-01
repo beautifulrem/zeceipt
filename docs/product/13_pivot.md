@@ -64,4 +64,5 @@ Checked (appraisal D33, [R139]): NU7's deployment ZIP 259 does not include ZIP 2
 - **Wedge:** the held deposit.
 - **Distribution:** a wallet button ("Export source-of-funds dossier") and exchange compliance teams.
 - **Risk:** no one has paid for such a tool yet (`[R137]`). The pitch names this, and asks reviewers for letters of intent.
+- **ZIP 311's state** (`[R143]`): a Sapling-only draft (zips PR #426, merged 2024-07-17) whose own TODOs start with Orchard support; its issue #387 is Blocked. The zips#387 report says which of those items zeceipt fills.
 - **ZCG's signal** (2026-09-30, `[R138]`): it declined both a standalone receipts SDK (#437, "bring it to Ironwood with support from the protocol engineers") and a ZK-TLS source-of-wealth proposal (#426) the same day. A dossier answers the first by building on ZIP 311 (the zips#387 report, drafted), and the second by claiming no standard, only evidence a reviewer can check.

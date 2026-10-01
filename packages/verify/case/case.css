@@ -46,6 +46,7 @@ a.brand:hover { color: var(--fg); }
 /* Forms (the paste demo's field rules, ../demo/demo.css) */
 .row-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.4rem; }
 .row-head h2 { margin: 0; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .field { display: block; font-size: 0.8125rem; font-weight: 500; color: var(--fg); margin: 0.4rem 0 0.8rem; }
 .field textarea, .field input.text, .field select {
   display: block; width: 100%; margin-top: 0.4rem;
@@ -96,8 +97,8 @@ details.inputs[open] > summary { display: none; }
 .fact-wide dd { display: flex; align-items: center; gap: 0.1rem; }
 .fact-wide .copy { flex: none; }
 .nonce-line { margin: 0.85rem 0 0; padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-size: 0.85rem; background: var(--surface-2); border: 1px solid var(--line); overflow-wrap: anywhere; }
-.nonce-line[data-state="match"] { color: var(--success); background: var(--success-soft); border-color: var(--success-line); }
-.nonce-line[data-state="mismatch"], .nonce-line[data-state="match-unverified"], .nonce-line[data-state="no-control"] { color: var(--warning); background: var(--warning-soft); border-color: var(--warning-line); }
+.nonce-line[data-state="match"], .nonce-line[data-state="beacon"] { color: var(--success); background: var(--success-soft); border-color: var(--success-line); }
+.nonce-line[data-state="mismatch"], .nonce-line[data-state="match-unverified"], .nonce-line[data-state="no-control"], .nonce-line[data-state="beacon-failed"], .nonce-line[data-state="beacon-unchecked"] { color: var(--warning); background: var(--warning-soft); border-color: var(--warning-line); }
 /* A nonce the reviewer typed that matches: a neutral reminder. The deposit address nobody paid: amber, in the verdict. */
 .nonce-note { margin: 0.4rem 0 0; padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-size: 0.82rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--fg); }
 .deposit-line { margin: 0.6rem 0 0; padding: 0.5rem 0.75rem; border-radius: var(--radius-md); font-size: 0.85rem; color: var(--warning); background: var(--warning-soft); border: 1px solid var(--warning-line); overflow-wrap: anywhere; }

@@ -146,6 +146,41 @@ impl Client {
         Ok(r.into_inner().height)
     }
 
+    /// The hash (display order, hex) and time (Unix seconds) of the block at `height`: a challenge beacon's value.
+    pub async fn block_id(&mut self, height: u64) -> Result<(String, u32), LwdError> {
+        let r = self
+            .inner
+            .get_block(BlockId {
+                height,
+                hash: vec![],
+            })
+            .await
+            .map_err(|s| LwdError::Rpc {
+                endpoint: self.endpoint.clone(),
+                rpc: "GetBlock",
+                status: s.to_string(),
+            })?
+            .into_inner();
+        let mut h = r.hash;
+        h.reverse();
+        Ok((hex::encode(h), r.time))
+    }
+
+    /// The node's chain name as it reports it (`main`, `test`, `regtest`): checked against a dossier's network when
+    /// the reviewer names their own endpoint.
+    pub async fn chain_name(&mut self) -> Result<String, LwdError> {
+        let r = self
+            .inner
+            .get_lightd_info(zcash_client_backend::proto::service::Empty {})
+            .await
+            .map_err(|s| LwdError::Rpc {
+                endpoint: self.endpoint.clone(),
+                rpc: "GetLightdInfo",
+                status: s.to_string(),
+            })?;
+        Ok(r.into_inner().chain_name)
+    }
+
     /// Scan `[start, end]` and return (height, txid hex) of every transaction
     /// that has at least one Ironwood action. Useful to pick fixtures and for
     /// verifiers that prefer not to query a specific txid.

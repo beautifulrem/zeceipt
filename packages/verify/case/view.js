@@ -30,22 +30,71 @@ export const SAMPLE_FRAGMENT = "sample";
 export const SAMPLE_PATH = "fixtures/testnet-dossier.json";
 /** The flagship sample: a customer's exchange withdrawal, their deposit back to the exchange, and their challenge answer. */
 export const EXCHANGE_SAMPLE = "sample-exchange";
+/** The same customer proving control unprompted: a control that answers a block's hash (a beacon), no nonce issued. */
+export const BEACON_SAMPLE = "sample-beacon";
 /**
  * The committed samples by fragment: the base dossier (a faucet payment and three payments from it), the exchange
- * deposit review, and one whose funds left to a transparent address and came back.
+ * deposit review, one whose funds left to a transparent address and came back, and the exchange customer's beacon
+ * control.
  */
 export const SAMPLES = {
   [SAMPLE_FRAGMENT]: SAMPLE_PATH,
   [EXCHANGE_SAMPLE]: "fixtures/testnet-dossier-exchange.json",
   "sample-transparent": "fixtures/testnet-dossier-transparent-origin.json",
+  [BEACON_SAMPLE]: "fixtures/testnet-dossier-beacon.json",
 };
-/** Per sample, the challenge its control claim answered: the nonce the reviewer issued, and the chain height then (H₀). */
+/**
+ * Per sample, the challenge its control claim answered: the nonce the reviewer issued, and the chain height then (H₀).
+ * The beacon sample has none: its control answers a block's hash, which no reviewer issued.
+ */
 export const SAMPLE_CHALLENGE = {
   [SAMPLE_FRAGMENT]: { nonce: "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8", height: 4421300, network: "test" },
   [EXCHANGE_SAMPLE]: { nonce: "zeceipt-challenge-322b9971bc1ccd4eb70336167cc509e1", height: 4422294, network: "test" },
   "sample-transparent": { nonce: "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8", height: 4421300, network: "test" },
 };
+/**
+ * What a sample's verdict should be read as, when it is amber for a reason the sample is meant to show: the faucet
+ * sample's origin is the testnet faucet, an undisclosed shielded sender, so its funds are not fully explained.
+ */
+export const SAMPLE_EXPECTED = {
+  [SAMPLE_FRAGMENT]: { reason: "partly-explained", text: "That is the right result for this sample: its funds came from the testnet faucet, which pays from the shielded pool, so the chain cannot show where they came from (spec §5.6)." },
+};
 export const NONCE_PREFIX = "zeceipt-challenge-";
+export const BEACON_PREFIX = "zeceipt-beacon-";
+
+/**
+ * The block a beacon nonce names (`zeceipt-beacon-<height>-<block hash, display hex>`, spec §7.4): `{ height, hash }`,
+ * or null for any other nonce. As the core's parse_beacon reads it.
+ */
+export function beaconOf(nonce) {
+  const s = String(nonce ?? "").trim();
+  if (!s.startsWith(BEACON_PREFIX)) return null;
+  const m = /^(\d+)-([0-9a-fA-F]{64})$/.exec(s.slice(BEACON_PREFIX.length));
+  if (!m) return null;
+  const height = Number(m[1]);
+  return Number.isSafeInteger(height) ? { height, hash: m[2].toLowerCase() } : null;
+}
+
+/** The beacon nonce for a block: `zeceipt-beacon-<height>-<hash>`. */
+export const beaconNonce = (height, hash) => `${BEACON_PREFIX}${height}-${String(hash).toLowerCase()}`;
+
+/** A block's time (Unix seconds) as the page writes times: "2026-10-01 06:49 UTC". */
+export const blockTimeText = (time) => (Number.isFinite(time) ? utcText(new Date(time * 1000).toISOString()) : "");
+
+/**
+ * The beacon a verified control answers, from the report: `{ height, hash, time }` (hash and time from the core's
+ * detail, "… beacon of block H (hash 00000f97…4b7f, mined at Unix time T) …"), or null.
+ */
+export function reportBeacon(report) {
+  const height = report?.beacon_height;
+  if (height == null) return null;
+  const detail = (report.claims ?? []).filter((c) => c.kind === "control").flatMap((c) => c.details ?? []).find((d) => d.includes(`beacon of block ${height} `)) ?? "";
+  const m = /\(hash (\S+), mined at Unix time (\d+)\)/.exec(detail);
+  return { height, hash: m?.[1] ?? null, time: m ? Number(m[2]) : null };
+}
+
+/** "block 4426425 (mined 2026-10-01 06:49 UTC)": a beacon's block, for the page's sentences. */
+const beaconBlockText = (b) => `block ${b.height}${Number.isFinite(b.time) ? ` (mined ${blockTimeText(b.time)})` : ""}`;
 
 /**
  * A nonce as the page shows it before the reviewer has entered theirs: its first characters only ("a nonce beginning
@@ -64,8 +113,8 @@ export function maskNonces(text, nonces = []) {
   return t;
 }
 
-/** The dossier's control nonces. */
-export const dossierNonces = (dossier) => (dossier?.claims ?? []).filter((c) => c.type === "control").map((c) => String(c.nonce ?? "").trim()).filter(Boolean);
+/** The dossier's control nonces that a reviewer issued (a beacon nonce is a block's hash, public: it is never kept back). */
+export const dossierNonces = (dossier) => (dossier?.claims ?? []).filter((c) => c.type === "control").map((c) => String(c.nonce ?? "").trim()).filter((n) => n && !beaconOf(n));
 
 /** The coin's name on a network: TAZ off mainnet (a testnet amount named ZEC misnames a coin with no value). */
 export const unitFor = (network) => (network === "main" ? "ZEC" : "TAZ");
@@ -268,15 +317,56 @@ export function claimUntraced(dossier, report) {
 }
 
 /**
- * What keeps the claims from explaining the funds (spec §5.6), as phrases: the untraced notes, and the least value
- * paid from notes the dossier does not disclose. Empty when every payment and control traces back to an origin and
- * no transaction spent undisclosed notes.
+ * Why an origin claim names no source (spec §5.6), from its funding and the core's detail: it spends disclosed notes
+ * (a hop), its transparent inputs' previous transactions are missing, or it was paid by an undisclosed shielded sender.
+ * `kind` is "hop", "missing" or "shielded".
  */
-export function explanationGaps(report) {
+function originReason(claim) {
+  const f = claim?.funding ?? {};
+  const details = (claim?.details ?? []).join(" ");
+  if (f.from_disclosed?.length || /spends disclosed notes/.test(details)) {
+    return { kind: "hop", text: `it spends disclosed notes${f.from_disclosed?.length ? ` (${f.from_disclosed.join(", ")})` : ""}, so it is a hop, not a source` };
+  }
+  if (/previous transactions were not supplied/.test(details)) return { kind: "missing", text: "its transparent inputs' previous transactions are missing" };
+  return { kind: "shielded", text: "an undisclosed shielded sender" };
+}
+
+/**
+ * The origins the report lists in `unexplained_origins` (spec §5.6: their transactions name no source), each as
+ * `{ index, note, kind, reason }`; with no dossier to name the origin claims' notes, `index` is null and the reason
+ * generic.
+ */
+export function unexplainedOrigins(dossier, report) {
+  const ids = report?.unexplained_origins ?? [];
+  if (!ids.length) return [];
+  const out = [];
+  for (const c of report?.claims ?? []) {
+    const note = dossier?.claims?.[c.index]?.note;
+    if (c.kind !== "origin" || !ids.includes(note) || out.some((o) => o.note === note)) continue;
+    const r = originReason(c);
+    out.push({ index: c.index, note, kind: r.kind, reason: r.text });
+  }
+  for (const id of ids) if (!out.some((o) => o.note === id)) out.push({ index: null, note: id, kind: null, reason: null });
+  return out;
+}
+
+/** "origin n1 names no source: an undisclosed shielded sender". */
+const originGapText = (o) => `origin ${o.note} names no source${o.reason ? `: ${o.reason}` : ""}`;
+
+/**
+ * What keeps the claims from explaining the funds (spec §5.6), as phrases: the untraced notes, the origins that name
+ * no source, the least value paid from notes the dossier does not disclose, and the transparent inputs of unknown
+ * value. Empty when every payment and control traces back to an origin that names its source and no transaction spent
+ * undisclosed money. `dossier` (optional) names each origin's reason.
+ */
+export function explanationGaps(report, dossier = null) {
   const gaps = [];
   const u = report?.untraced ?? [];
   if (u.length) gaps.push(`${u.length === 1 ? "note" : "notes"} ${listJoin(u)} ${u.length === 1 ? "is" : "are"} not traced back to an origin (no chain of path claims leads from an origin claim to ${u.length === 1 ? "it" : "them"})`);
+  for (const o of unexplainedOrigins(dossier, report)) gaps.push(originGapText(o));
   if (report?.undisclosed_input_min_zat > 0) gaps.push(`at least ${amountText(report.undisclosed_input_min_zat, report.network)} came from notes the dossier does not disclose`);
+  const v = report?.unvalued_inputs ?? 0;
+  if (v > 0) gaps.push(`${plural(v, "transparent input")} of unknown value (${v === 1 ? "its previous transaction was" : "their previous transactions were"} not found)`);
   return gaps;
 }
 
@@ -289,7 +379,7 @@ export const STALE_VERIFIER = /unknown variant|unknown field|unsupported format 
  * verified against the chain, every payment's and the control's funds traced to an origin, nothing paid from
  * undisclosed notes, and a control claim answering the nonce the reviewer issued. Every claim verified without that is
  * amber, with the reason. `dossier` (optional) names a deposit's receipt; `opts.deposit` is depositCheck's result;
- * `opts.sample` is true for one of this site's samples (which the verifier must read).
+ * `opts.sample` is the fragment of one of this site's samples (which the verifier must read), or null.
  */
 export function caseVerdict(report, dossier = null, opts = {}) {
   if (!report || report.error || !Array.isArray(report.claims)) {
@@ -300,6 +390,9 @@ export function caseVerdict(report, dossier = null, opts = {}) {
     return { tone: "bad", headline: "Not a readable dossier", sub: p ? p.text : "The verifier could not read it.", raw: p?.raw ?? null, counts: null };
   }
   const v = gradedVerdict(report, dossier);
+  // A sample that is amber on purpose says so (the faucet sample: its origin is an undisclosed shielded sender).
+  const expected = typeof opts.sample === "string" && Object.hasOwn(SAMPLE_EXPECTED, opts.sample) ? SAMPLE_EXPECTED[opts.sample] : null;
+  if (expected && v.reason === expected.reason) v.sub += ` ${expected.text}`;
   if (opts.deposit?.state === "paid" && v.tone !== "bad") v.sub += ` ${depositLineText(opts.deposit)}`;
   const unbound = unboundDeposits(report, dossier);
   if (unbound.length) {
@@ -339,6 +432,19 @@ function gradedVerdict(report, dossier) {
       counts,
     };
   }
+  // The deposit address the reviewer assigned, which no verified payment pays (or of another network): the core makes
+  // it a problem (spec §7.2), so the case is not verified, whatever the claims say.
+  if (report.deposit_address_paid === false) {
+    const said = (report.problems ?? []).filter((p) => /deposit address/.test(p));
+    const other = said.some((p) => /another network/.test(p));
+    return {
+      tone: "bad",
+      headline: other ? "Deposit address for another network" : "Deposit address not paid",
+      sub: `${said.join(" ") || "No verified payment in this dossier pays the deposit address you assigned."} ${counts.verified === n ? `${n === 1 ? "The claim verifies" : `All ${n} claims verify`}` : `${counts.verified} of ${n} claims verify`} against ${against}, but nothing ties these funds to the customer you assigned that address to.`,
+      reason: "deposit-unpaid",
+      counts,
+    };
+  }
   if (!report.all_verified) {
     return {
       tone: "pending",
@@ -351,20 +457,25 @@ function gradedVerdict(report, dossier) {
   const breakdown = kindBreakdown(report.claims);
   const h0 = report.issued_at_height;
   const hasControl = report.claims.some((c) => c.kind === "control") || (dossier?.claims ?? []).some((c) => c.type === "control");
+  const beaconControl = (dossier?.claims ?? []).some((c) => c.type === "control" && beaconOf(c.nonce));
+  const beacon = reportBeacon(report);
   const assurance = assuranceOf(report);
-  const gaps = explanationGaps(report);
+  const gaps = explanationGaps(report, dossier);
   if (assurance === "verified_with_control") {
     return {
       tone: "ok",
       headline: "Verified, with control",
-      sub: `${all} against the chain (${breakdown}), and the control claim answers the nonce you issued${h0 != null ? `, after height ${h0}` : ""}: the holder could spend these funds after your challenge.`,
+      sub: beacon
+        ? `${all} against the chain (${breakdown}), and the control claim answers the hash of ${beaconBlockText(beacon)}, a beacon no one could know before that block: the holder could spend these funds after it was mined. No one issued this nonce: judge whether block ${beacon.height} is recent enough for this case.`
+        : `${all} against the chain (${breakdown}), and the control claim answers the nonce you issued${h0 != null ? `, after height ${h0}` : ""}: the holder could spend these funds after your challenge.`,
       counts,
     };
   }
   if (assurance === "consistent_offline") {
     const control = report.controlled
       ? " The control claim answers the nonce you issued, but without heights nothing shows when it was mined."
-      : hasControl ? " The control claim is not matched to your nonce." : " The dossier has no control claim.";
+      : beaconControl ? " The control claim answers a block's hash (a beacon), but without heights nothing shows it was made after that block."
+        : hasControl ? " The control claim is not matched to your nonce." : " The dossier has no control claim.";
     return {
       tone: "partial",
       headline: "Consistent with the files you loaded — not checked against the chain",
@@ -375,12 +486,19 @@ function gradedVerdict(report, dossier) {
   }
   if (assurance === "verified_partly_explained") {
     const control = report.controlled
-      ? ` The control claim answers the nonce you issued${h0 != null ? `, after height ${h0}` : ""}.`
+      ? beacon ? ` The control claim answers the hash of ${beaconBlockText(beacon)}: judge whether that block is recent enough.` : ` The control claim answers the nonce you issued${h0 != null ? `, after height ${h0}` : ""}.`
       : hasControl ? " The control claim is not matched to your nonce: enter the nonce you issued under “Challenge the holder”." : " The dossier has no control claim.";
+    // What to ask for: the history that traces the funds back, and who sent an origin's funds when the chain cannot say.
+    const sourceless = unexplainedOrigins(dossier, report).filter((o) => o.kind !== "hop").map((o) => o.note);
+    const historyGap = (report.untraced ?? []).length || report.undisclosed_input_min_zat > 0 || report.unvalued_inputs > 0 || unexplainedOrigins(dossier, report).some((o) => o.kind === "hop");
+    const asks = [
+      ...(historyGap || !sourceless.length ? ["Ask the holder for the missing history (the transactions that lead those funds back to an origin) before you rely on it."] : []),
+      ...(sourceless.length ? [`Ask the holder who sent the funds of ${listJoin(sourceless)}, and for their evidence: the chain shows no source for ${sourceless.length === 1 ? "them" : "those"}.`] : []),
+    ];
     return {
       tone: "partial",
       headline: "Claims verified — funds not fully explained",
-      sub: `${all} against the chain (${breakdown}), but they do not explain all of the funds: ${listJoin(gaps) || "the report says so"}. Ask the holder for the missing history (the transactions that lead those funds back to an origin) before you rely on it.${control}`,
+      sub: `${all} against the chain (${breakdown}), but they do not explain all of the funds: ${listJoin(gaps) || "the report says so"}. ${asks.join(" ")}${control}`,
       reason: "partly-explained",
       counts,
     };
@@ -398,11 +516,13 @@ function gradedVerdict(report, dossier) {
 
 /**
  * What a claim's row flags beyond its status, as `{ tone, text }` (tone "warn" or "ok"): funding notes not traced to an
- * origin, value paid from undisclosed notes (spec §5.6), and a payment to the deposit address the reviewer assigned.
+ * origin, an origin that names no source, value paid from undisclosed notes (spec §5.6), and a payment to the deposit
+ * address the reviewer assigned. `unexplained` is unexplainedOrigins' entry for this claim, if any.
  */
-export function claimFlags(claim, untraced = [], deposit = null, network) {
+export function claimFlags(claim, untraced = [], deposit = null, network, unexplained = null) {
   const flags = [];
   if (untraced.length) flags.push({ tone: "warn", text: `Not traced to an origin: ${listJoin(untraced)} (no chain of path claims leads ${untraced.length === 1 ? "it" : "them"} back to an origin claim).` });
+  if (unexplained) flags.push({ tone: "warn", text: `Names no source: ${unexplained.reason ?? "its transaction does not show where the funds came from"}. The funds of ${unexplained.note} are not explained by this dossier.` });
   if (claim.undisclosed_input_min_zat > 0) flags.push({ tone: "warn", text: `Not fully explained: at least ${amountText(claim.undisclosed_input_min_zat, network)} of what this transaction paid came from notes the dossier does not disclose.` });
   if (deposit?.state === "paid" && deposit.claims.includes(claim.index)) flags.push({ tone: "ok", text: "Pays the deposit address you assigned." });
   return flags;
@@ -415,6 +535,7 @@ export function claimFlags(claim, untraced = [], deposit = null, network) {
  */
 export function claimRows(report, dossier = null, opts = {}) {
   const untraced = dossier ? claimUntraced(dossier, report) : {};
+  const unexplained = dossier ? unexplainedOrigins(dossier, report) : [];
   const mask = (t) => maskNonces(t, opts.mask ?? []);
   return (report?.claims ?? []).map((c) => ({
     index: c.index,
@@ -425,7 +546,7 @@ export function claimRows(report, dossier = null, opts = {}) {
     statusLabel: STATUS_LABEL[c.status] ?? c.status,
     summary: mask(c.summary),
     details: (c.details ?? []).map(mask),
-    flags: claimFlags(c, untraced[c.index] ?? [], opts.deposit ?? null, report?.network),
+    flags: claimFlags(c, untraced[c.index] ?? [], opts.deposit ?? null, report?.network, unexplained.find((o) => o.index === c.index) ?? null),
   }));
 }
 
@@ -483,6 +604,8 @@ export function flowSteps(dossier, report, extras = {}) {
   const payments = extras.payments ?? {};
   const untraced = new Set(report?.untraced ?? []);
   const flagsOf = claimUntraced(dossier, report);
+  // Origins whose transaction names no source (spec §5.6): flagged on the step, the edge and the note received.
+  const sourceless = unexplainedOrigins(dossier, report);
   const deposit = extras.deposit ?? null;
   const mask = (t) => (t == null ? t : maskNonces(t, extras.mask ?? []));
   const steps = new Map();
@@ -491,7 +614,7 @@ export function flowSteps(dossier, report, extras = {}) {
   const spentNote = (id) => ({ ...note(id), untraced: untraced.has(id) });
   const step = (txid) => {
     const key = (txid ?? "").toLowerCase();
-    if (!steps.has(key)) steps.set(key, { txid: key, height: heights[key] ?? null, stages: new Set(), spent: [], created: [], payments: [], edges: [], funding: [], claims: [], undisclosed_zat: 0 });
+    if (!steps.has(key)) steps.set(key, { txid: key, height: heights[key] ?? null, stages: new Set(), spent: [], created: [], payments: [], edges: [], funding: [], claims: [], undisclosed_zat: 0, unexplained: [] });
     return steps.get(key);
   };
   const addUnique = (list, item) => { if (!list.some((x) => x.id === item.id)) list.push(item); };
@@ -502,9 +625,11 @@ export function flowSteps(dossier, report, extras = {}) {
     if (c.type === "origin") {
       s = step(notes[c.note]?.txid);
       s.stages.add("origin");
-      addUnique(s.created, note(c.note));
+      const o = sourceless.find((x) => x.index === i);
+      addUnique(s.created, { ...note(c.note), ...(o ? { unexplained: true } : {}) });
       s.funding.push({ note: c.note, text: fundingText(r.funding, network, r.details ?? []), funding: r.funding ?? null });
-      s.edges.push({ index: i, kind: "origin", status, label: `Funds reach the holder as ${c.note}` });
+      s.edges.push({ index: i, kind: "origin", status, label: `Funds reach the holder as ${c.note}`, ...(o ? { unexplained: o.reason ?? "names no source" } : {}) });
+      if (o) s.unexplained.push({ note: c.note, reason: o.reason, text: `${cap(originGapText(o))}: this dossier does not explain where these funds came from.` });
     } else if (c.type === "path") {
       s = step(notes[c.to]?.txid);
       s.stages.add("path");
@@ -518,7 +643,7 @@ export function flowSteps(dossier, report, extras = {}) {
       for (const f of c.funded_by ?? []) addUnique(s.spent, spentNote(f));
       const p = payments[c.receipt] ?? {};
       const value = p.value_zat ?? r.value_zat;
-      s.payments.push({ id: c.receipt, value_zat: value ?? null, value: amountText(value, network), recipient: p.recipient ?? null, memo: p.memo ?? null, transparent: false });
+      s.payments.push({ id: c.receipt, value_zat: value ?? null, value: amountText(value, network), recipient: p.recipient ?? null, memo: p.memo ?? null, transparent: false, assigned: Boolean(deposit?.state === "paid" && deposit.claims.includes(i)) });
       s.edges.push({ index: i, kind: "deposit", status, label: `${(c.funded_by ?? []).join(", ") || "undisclosed notes"} → payment ${c.receipt}` });
     } else if (c.type === "transparent_payment") {
       s = step(c.tx);
@@ -605,9 +730,21 @@ export function nonceCheck(dossier, report, issued, { source = "typed" } = {}) {
   }
   const nonces = controls.map(({ c }) => String(c.nonce).trim());
   // Until the reviewer's nonce matches, the dossier's own is shown by its first characters only: a reviewer must not
-  // be able to copy it from this page into "Nonce you issued".
-  const masked = listJoin(nonces.map((n) => `a nonce beginning ${maskNonce(n)}`));
+  // be able to copy it from this page into "Nonce you issued". A beacon is a block's hash, public: it is shown whole.
+  const masked = listJoin(nonces.map((n) => (beaconOf(n) ? `the beacon ${n}` : `a nonce beginning ${maskNonce(n)}`)));
   const mine = String(issued ?? "").trim();
+  // A control answering a beacon (spec §7.4) needs no nonce from the reviewer: the chain dates it.
+  const beaconed = controls.map(({ c, i }) => ({ i, b: beaconOf(c.nonce) })).find((x) => x.b);
+  if (!mine && beaconed) {
+    const { i, b } = beaconed;
+    const r = report?.claims?.[i];
+    const seen = reportBeacon(report);
+    if (r?.status === "verified" && seen?.height === b.height) {
+      return { state: "beacon", text: `This control answers the hash of block ${b.height}${Number.isFinite(seen.time) ? ` (time ${blockTimeText(seen.time)})` : ""}: no nonce needs to be entered; judge whether block ${b.height} is recent enough.` };
+    }
+    if (r?.status === "failed") return { state: "beacon-failed", text: `This control names the hash of block ${b.height}, and it does not verify: ${r.summary}` };
+    return { state: "beacon-unchecked", text: `This control answers the hash of block ${b.height}: no nonce needs to be entered, but it is not checked here: ${r?.summary ?? "it was not checked."}` };
+  }
   if (!mine) {
     return { state: "not-generated", text: `The control claim answers ${masked}. Enter the nonce you issued under “Challenge the holder” (paste it from your case record, not from this page), and the page checks the claim against it.` };
   }
@@ -712,51 +849,86 @@ const hexOf = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join(
 /** Transparent address prefixes (two bytes, hex) and TEX (ZIP 320) human-readable parts, by network. */
 const T_PREFIX = { "1cb8": ["main", "p2pkh"], "1cbd": ["main", "p2sh"], "1d25": ["test", "p2pkh"], "1cba": ["test", "p2sh"] };
 const TEX_HRP = { tex: "main", textest: "test", texregtest: "regtest" };
+const UA_HRP = { u: "main", utest: "test", uregtest: "regtest" };
 
 /**
- * A transparent address as the reviewer typed it: `{ address, network, kind, hash }` (kind p2pkh, p2sh or tex; hash:
- * the 20-byte key or script hash, hex), `{ error }` when it is not one, or null when blank. A TEX address (ZIP 320,
- * the form some exchanges assign) carries the same key hash as the P2PKH address a payment to it shows on chain.
+ * A deposit address as the reviewer typed it: `{ address, network, kind, hash }` (kind p2pkh, p2sh, tex or unified;
+ * hash: the 20-byte key or script hash, hex, for the transparent kinds), `{ error }` when it is not one, or null when
+ * blank. A TEX address (ZIP 320, the form some exchanges assign) carries the same key hash as the P2PKH address a
+ * payment to it shows on chain. The verifier checks the address itself (`expectDepositAddress`); this only says what
+ * was typed, and keeps what is not an address out of the check.
  */
 export function depositAddressInput(text) {
   const s = String(text ?? "").trim();
   if (!s) return null;
-  const bad = { error: "This is not a transparent address (t1…, t3… on mainnet, tm… on testnet) or a TEX address (tex1…): it is left out of the check." };
+  const bad = { error: "This is not a transparent address (t1…, t3… on mainnet, tm… on testnet), a TEX address (tex1…) or a unified address (u1…, utest1…): it is left out of the check." };
   if (/^tex/i.test(s)) {
     const b = bech32m(s);
     const network = b && TEX_HRP[b.hrp];
     return network && b.data.length === 20 ? { address: s, network, kind: "tex", hash: hexOf(b.data) } : bad;
+  }
+  if (/^u(?:test|regtest)?1/i.test(s)) {
+    const b = bech32m(s);
+    const network = b && UA_HRP[b.hrp];
+    return network && b.data.length >= 48 ? { address: s, network, kind: "unified", hash: null } : bad;
   }
   const b = /^t[1-9A-HJ-NP-Za-km-z]{33,35}$/.test(s) ? base58(s) : null;
   const known = b?.length === 26 ? T_PREFIX[hexOf(b.slice(0, 2))] : null;
   return known ? { address: s, network: known[0], kind: known[1], hash: hexOf(b.slice(2, 22)) } : bad;
 }
 
-/** Whether a payment to `paidTo` (the core's transparent address, read from the output's script) pays `assigned`. */
+/** What the deposit address field says about an address as it is typed ("A transparent address on Zcash testnet."). */
+export function depositAddressStatus(a) {
+  if (!a) return "";
+  if (a.error) return a.error;
+  const kind = { tex: "TEX (ZIP 320)", unified: "unified" }[a.kind] ?? "transparent";
+  return `A ${kind} address on ${NETWORK_NAME[a.network] ?? a.network}.`;
+}
+
+/**
+ * Whether a payment to `paidTo` (the core's address: a transparent output's, read from its script, or a receipt's
+ * recipient) pays `assigned`.
+ */
 export function paysAddress(paidTo, assigned) {
   if (!paidTo || !assigned?.address) return false;
+  if (assigned.kind === "unified") return paidTo.toLowerCase() === assigned.address.toLowerCase();
   if (assigned.kind !== "tex") return paidTo === assigned.address;
   const p = depositAddressInput(paidTo);
   return Boolean(p && !p.error && p.kind === "p2pkh" && p.network === assigned.network && p.hash === assigned.hash);
 }
 
 /**
- * The deposit address check: `{ state: "paid", claims: [index] }` when verified transparent payments pay the address
- * the reviewer assigned, `{ state: "unpaid" }` when none does, null when no address was given (or it is not one).
+ * The deposit address check, as the verifier made it (`expectDepositAddress`; the report's `deposit_address_paid` and
+ * problems, spec §7.2): `{ state: "paid", claims: [index] }`, with the verified payments that pay it (for the rows'
+ * green flag), or `{ state: "unpaid", otherNetwork }`; null when no address was given (or it is not one). A report
+ * made without the address (from before the field) is read from its payments.
  */
 export function depositCheck(report, assigned) {
   if (!assigned || assigned.error) return null;
-  const claims = (report?.claims ?? []).filter((c) => c.kind === "transparent_payment" && c.status === "verified" && paysAddress(c.paid_to, assigned)).map((c) => c.index);
-  return claims.length ? { state: "paid", claims, address: assigned.address } : { state: "unpaid", claims: [], address: assigned.address };
+  const paying = (report?.claims ?? []).filter((c) => (c.kind === "transparent_payment" || c.kind === "deposit") && c.status === "verified" && paysAddress(c.paid_to, assigned));
+  const claims = paying.map((c) => c.index);
+  const said = report?.deposit_address_paid;
+  const paid = typeof said === "boolean" ? said : claims.length > 0;
+  if (paid) return { state: "paid", claims, refs: paying.map((c) => claimRef(c.index, c.kind)), address: assigned.address };
+  const otherNetwork = (report?.problems ?? []).some((p) => /deposit address/.test(p) && /another network/.test(p));
+  return { state: "unpaid", claims: [], address: assigned.address, otherNetwork };
 }
 
-/** The verdict's line on the assigned deposit address (the banner shows it green when paid, amber when not). */
+/**
+ * The line on the assigned deposit address: in the verdict when paid (green), and under it when not (amber, beside
+ * the verifier's problem, which the red verdict states).
+ */
 export function depositLineText(check) {
   if (!check) return "";
   if (check.state === "paid") {
-    return `${cap(listJoin(check.claims.map((i) => claimRef(i, "transparent_payment"))))} ${check.claims.length === 1 ? "pays" : "pay"} the deposit address you assigned (${check.address}): the disclosed funds reached the account you gave this customer.`;
+    const refs = check.refs ?? check.claims.map((i) => claimRef(i));
+    const who = refs.length ? `${cap(listJoin(refs))} ${refs.length === 1 ? "pays" : "pay"}` : "A verified payment pays";
+    return `${who} the deposit address you assigned (${check.address}): the disclosed funds reached the account you gave this customer.`;
   }
-  return `No verified payment in this dossier pays the deposit address you assigned (${check.address}); check that it is the address you gave this customer. A control answer can be relayed: someone who does not hold these funds can pass your nonce to whoever does and show you that party's dossier (spec §7.2). A payment to the deposit address you assigned to this customer is what ties the funds to this customer.`;
+  const first = check.otherNetwork
+    ? `The deposit address you entered (${check.address}) is for another network than this dossier: check that it is the address you gave this customer.`
+    : `No verified payment in this dossier pays the deposit address you assigned (${check.address}); check that it is the address you gave this customer.`;
+  return `${first} A control answer can be relayed: someone who does not hold these funds can pass your nonce to whoever does and show you that party's dossier (spec §7.2). A payment to the deposit address you assigned to this customer is what ties the funds to this customer.`;
 }
 
 /** Where the offline check came from: "offline, from 5 transaction files". */
@@ -829,9 +1001,12 @@ export function decisionSummary(dossier, report) {
   if (report?.controlled && shown.length) {
     const spent = shown.flatMap((c) => dossier?.claims?.[c.index]?.spent ?? []);
     const heights = shown.map((c) => notes[dossier?.claims?.[c.index]?.reply]?.height).filter((h) => h != null);
+    const beacon = reportBeacon(report);
     control = {
       value: amountText(sum(shown.map((c) => c.value_zat ?? 0)), net),
-      detail: `${spent.join(", ")}, spent in answer to your nonce${heights.length ? ` at height ${heights.join(", ")}` : ""}${report.issued_at_height != null ? ` (issued at height ${report.issued_at_height})` : ""}.`,
+      detail: beacon
+        ? `${spent.join(", ")}, spent in answer to the beacon of ${beaconBlockText(beacon)}${heights.length ? ` at height ${heights.join(", ")}` : ""}: no one issued the nonce; judge whether that block is recent enough.`
+        : `${spent.join(", ")}, spent in answer to your nonce${heights.length ? ` at height ${heights.join(", ")}` : ""}${report.issued_at_height != null ? ` (issued at height ${report.issued_at_height})` : ""}.`,
     };
   } else {
     control = {
@@ -843,15 +1018,15 @@ export function decisionSummary(dossier, report) {
   }
   items.push({ key: "Under control", ...control });
 
-  // Whether the claims add up (spec §5.6): every payment's and the control's funds traced to an origin, and nothing
-  // paid from notes the dossier does not disclose.
-  const gaps = explanationGaps(report);
+  // Whether the claims add up (spec §5.6): every payment's and the control's funds traced to an origin that names its
+  // source, and nothing paid from money the dossier does not disclose.
+  const gaps = explanationGaps(report, dossier);
   items.push({
     key: "Explained",
     value: !report?.all_verified ? "Not established" : gaps.length ? "No" : "Yes",
     detail: !report?.all_verified ? "Not every claim verified."
       : gaps.length ? `${cap(listJoin(gaps))}.`
-        : "Every payment's and the control's funds trace back to an origin, and no transaction paid from notes the dossier does not disclose.",
+        : "Every payment's and the control's funds trace back to an origin that names its source, and no transaction paid from notes the dossier does not disclose.",
   });
 
   const counts = statusCounts(claims);
@@ -876,7 +1051,13 @@ export function caseFacts(dossier, report, meta = {}) {
     rows.push(["Checked", `${utcText(meta.checkedAt)}${where}`]);
   }
   if (report?.issued_at_height != null) rows.push(["Nonce issued at height", String(report.issued_at_height)]);
-  if (meta.deposit) rows.push(["Deposit address you assigned", `${meta.deposit.address} (${meta.deposit.state === "paid" ? `paid in ${listJoin(meta.deposit.claims.map((i) => claimRef(i)))}` : "no verified payment pays it"})`]);
+  const beacon = reportBeacon(report);
+  if (beacon) rows.push(["Control answers the beacon of", `${beaconBlockText(beacon)}${beacon.hash ? `, hash ${beacon.hash}` : ""}`]);
+  if (meta.deposit) {
+    const how = meta.deposit.state === "paid" ? (meta.deposit.claims.length ? `paid in ${listJoin(meta.deposit.claims.map((i) => claimRef(i)))}` : "paid")
+      : meta.deposit.otherNetwork ? "for another network than this dossier" : "no verified payment pays it";
+    rows.push(["Deposit address you assigned", `${meta.deposit.address} (${how})`]);
+  }
   return rows;
 }
 
@@ -885,7 +1066,7 @@ const caseFieldRows = (f = {}) => [["Reviewer", f.reviewer], ["Case id", f.caseI
 
 /** The plain-text case summary a reviewer pastes into their case notes. */
 export function caseSummaryText(dossier, report, meta = {}) {
-  const v = caseVerdict(report, dossier, { deposit: meta.deposit });
+  const v = caseVerdict(report, dossier, { deposit: meta.deposit, sample: Object.hasOwn(SAMPLES, meta.source ?? "") ? meta.source : null });
   const mask = (t) => maskNonces(t, meta.mask ?? []);
   const lines = [`Zeceipt case review: ${v.headline}`, mask(v.sub)];
   if (meta.deposit?.state === "unpaid") lines.push(depositLineText(meta.deposit));

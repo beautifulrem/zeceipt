@@ -444,6 +444,8 @@ pub fn check_dossier(
     txs: JsValue,
     expect_nonce: &str,
     issued_at_height: Option<f64>,
+    expect_deposit_address: &str,
+    beacons_json: &str,
 ) -> JsValue {
     let d = match zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier) {
         Ok(d) => d,
@@ -461,17 +463,68 @@ pub fn check_dossier(
             )
         }
     };
+    // `{ "<height>": { "hash": "<display hex>", "time": <unix seconds> } }`, from `compact_block_id`.
+    let beacons = serde_json::from_str::<serde_json::Value>(if beacons_json.trim().is_empty() {
+        "{}"
+    } else {
+        beacons_json
+    })
+    .ok()
+    .and_then(|v| {
+        v.as_object().map(|m| {
+            m.iter()
+                .filter_map(|(h, b)| {
+                    Some((
+                        h.parse::<u64>().ok()?,
+                        (
+                            b["hash"].as_str()?.to_lowercase(),
+                            u32::try_from(b["time"].as_u64()?).ok()?,
+                        ),
+                    ))
+                })
+                .collect()
+        })
+    })
+    .unwrap_or_default();
     let opts = zeceipt_core::dossier::CheckOptions {
         expect_nonce: Some(expect_nonce.trim().to_string()).filter(|n| !n.is_empty()),
         issued_at_height: issued_at_height
             .filter(|h| h.is_finite() && *h >= 0.0)
             .map(|h| h as u64),
+        expect_deposit_address: Some(expect_deposit_address.trim().to_string())
+            .filter(|a| !a.is_empty()),
+        beacons,
     };
     let report = zeceipt_core::dossier::check_dossier_with(&d, dossier, &chain, &opts);
     json_value(
         &serde_json::to_value(&report)
             .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })),
     )
+}
+
+/// The heights whose block hashes the dossier's beacon nonces name (empty for none, or for a dossier that does not
+/// parse).
+#[wasm_bindgen]
+pub fn dossier_beacon_heights(dossier: &str) -> Vec<f64> {
+    zeceipt_core::zeceipt_types::dossier::Dossier::parse(dossier)
+        .map(|d| {
+            zeceipt_core::dossier::beacon_heights(&d)
+                .into_iter()
+                .map(|h| h as f64)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A serialized `CompactBlock`'s `{ height, hash, time }` (hash in display hex), or `null`.
+#[wasm_bindgen]
+pub fn compact_block_id(bytes: &[u8]) -> JsValue {
+    match zeceipt_core::dossier::compact_block_id(bytes) {
+        Some((height, hash, time)) => {
+            json_value(&serde_json::json!({ "height": height, "hash": hash, "time": time }))
+        }
+        None => JsValue::NULL,
+    }
 }
 
 /// Build a dossier in the browser from the holder's UFVK (it never leaves the page) and the raw transactions of the

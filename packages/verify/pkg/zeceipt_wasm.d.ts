@@ -34,13 +34,24 @@ export function build_dossier(ufvk: string, network: string, txs_hex: string[], 
  * Returns the report (`zeceipt-dossier-report-v1`), or `{ error, stage: "parse" }` for a dossier that does not parse;
  * never throws for a claim that fails.
  */
-export function check_dossier(dossier: string, txs: any, expect_nonce: string, issued_at_height?: number | null): any;
+export function check_dossier(dossier: string, txs: any, expect_nonce: string, issued_at_height: number | null | undefined, expect_deposit_address: string, beacons_json: string): any;
 
 /**
  * Check only the envelope's issuer signature (no transaction needed).
  * Returns `{ signed: bool, valid: bool, issuer_pubkey?: string, error?: string }`.
  */
 export function check_signature(receipt: string): any;
+
+/**
+ * A serialized `CompactBlock`'s `{ height, hash, time }` (hash in display hex), or `null`.
+ */
+export function compact_block_id(bytes: Uint8Array): any;
+
+/**
+ * The heights whose block hashes the dossier's beacon nonces name (empty for none, or for a dossier that does not
+ * parse).
+ */
+export function dossier_beacon_heights(dossier: string): Float64Array;
 
 /**
  * The txids whose outputs a dossier's origin transactions spend (fetch them too; spec/dossier-v1.md): the funders'
@@ -110,8 +121,10 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_dossierscanner_free: (a: number, b: number) => void;
     readonly build_dossier: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number, number, number];
-    readonly check_dossier: (a: number, b: number, c: any, d: number, e: number, f: number, g: number) => any;
+    readonly check_dossier: (a: number, b: number, c: any, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => any;
     readonly check_signature: (a: number, b: number) => any;
+    readonly compact_block_id: (a: number, b: number) => any;
+    readonly dossier_beacon_heights: (a: number, b: number) => [number, number];
     readonly dossier_prevout_txids: (a: number, b: number, c: any) => [number, number, number];
     readonly dossier_txids: (a: number, b: number) => [number, number, number];
     readonly dossierscanner_found: (a: number) => any;

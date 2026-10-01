@@ -4,7 +4,7 @@
     "title": "zeceipt dossier service",
     "version": "0.1.0",
     "summary": "`zeceipt dossier serve`: check source-of-funds dossiers (zeceipt-dossier-v1) against the Zcash chain, for a compliance back office.",
-    "description": "A self-hosted HTTP/1.1 service. No authentication, no TLS, no state: put it behind your own reverse proxy with TLS, authentication, a rate limit and a timeout. It listens on loopback unless started with `--allow-remote`. Request bodies are capped at 1 MiB. Transactions are fetched from zec.rocks, from `--endpoint`, or from `--raw-tx-dir` (offline). Every answer is JSON with `Cache-Control: no-store`; any other method or path is a 404. No CORS headers are sent, and a request whose `Origin` header is not allowed with `--allow-origin` is refused with 403 on every path, so a web page in an analyst's browser cannot drive the service with a simple cross-origin POST. Human documentation: docs/api/dossier-service.md. Written 2026-09-30 and checked against a running build that day, updated 2026-10-01 for abb0ef7 (anchored, untraced, undisclosed_input_min_zat, the consistent_offline and verified_partly_explained assurances, the 403, 415 and network 422 responses): crates/zeceipt-cli/src/main.rs (`serve_dossiers`) and crates/zeceipt-core/src/dossier.rs (`Report`). `security` is empty on purpose: the service itself authenticates no one; the proxy in front of it does.",
+    "description": "A self-hosted HTTP/1.1 service. No authentication, no TLS, no state: put it behind your own reverse proxy with TLS, authentication, a rate limit and a timeout. It listens on loopback unless started with `--allow-remote`. Request bodies are capped at 1 MiB. Transactions are fetched from zec.rocks, from `--endpoint`, or from `--raw-tx-dir` (offline). Every answer is JSON with `Cache-Control: no-store`; any other method or path is a 404. No CORS headers are sent, and a request whose `Origin` header is not allowed with `--allow-origin` is refused with 403 on every path, so a web page in an analyst's browser cannot drive the service with a simple cross-origin POST. Human documentation: docs/api/dossier-service.md. Written 2026-09-30 and checked against a running build that day, updated 2026-10-01 for abb0ef7 (anchored, untraced, undisclosed_input_min_zat, the consistent_offline and verified_partly_explained assurances, the 403, 415 and network 422 responses), and again for the round-3 core (unexplained_origins, unvalued_inputs, beacon_height, expect_deposit_address and deposit_address_paid, the 400 for issued_at_height without expect_nonce, and the node chain check, a 502): crates/zeceipt-cli/src/main.rs (`serve_dossiers`) and crates/zeceipt-core/src/dossier.rs (`Report`). `security` is empty on purpose: the service itself authenticates no one; the proxy in front of it does.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -119,10 +119,10 @@
             "name": "expect_nonce",
             "in": "query",
             "required": false,
-            "description": "The nonce you issued. Every control claim must answer it. Without it, `controlled` is false. Taken literally: `+` becomes a space, no percent-decoding (zeceipt nonces are `[a-z0-9-]`).",
+            "description": "The nonce you issued. Every control claim must answer it. Without it, `controlled` is false unless a control claim answers a beacon (`zeceipt-beacon-<H>-<hash of block H>`, spec §7.4) whose block the service looked up on its node; a nonce you give overrides a beacon. Taken literally: `+` becomes a space, no percent-decoding (zeceipt nonces are `[a-z0-9-]`).",
             "schema": {
               "type": "string",
-              "pattern": "^zeceipt-challenge-[0-9a-f]{32}$"
+              "pattern": "^zeceipt-(challenge-[0-9a-f]{32}|beacon-[0-9]+-[0-9a-f]{64})$"
             },
             "example": "zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8"
           },
@@ -130,12 +130,22 @@
             "name": "issued_at_height",
             "in": "query",
             "required": false,
-            "description": "The chain height when you issued the nonce: a control transaction mined below it fails. Not a non-negative integer: 400.",
+            "description": "The chain height when you issued the nonce: a control transaction mined below it fails. Not a non-negative integer: 400. Given without `expect_nonce`: 400.",
             "schema": {
               "type": "integer",
               "minimum": 0
             },
             "example": 4421000
+          },
+          {
+            "name": "expect_deposit_address",
+            "in": "query",
+            "required": false,
+            "description": "The deposit address you assigned this customer: transparent, TEX (normalized to its transparent address) or unified. The report sets `deposit_address_paid`; when no verified deposit or transparent payment pays it, or it is of another network, `problems` says so, so `all_verified` is false and `assurance` is `not_verified` (spec §7.2). Taken literally, as `expect_nonce` is.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR"
           }
         ],
         "requestBody": {
@@ -276,7 +286,7 @@
         },
         "responses": {
           "200": {
-            "description": "Checked. The report (zeceipt-dossier-report-v1); the example is an excerpt (3 of 12 claims, 3 of 9 notes) of the testnet sample checked against testnet.zec.rocks on 2026-09-30 with its nonce.",
+            "description": "Checked. The report (zeceipt-dossier-report-v1); the example is an excerpt (3 of 12 claims, 3 of 9 notes) of the testnet sample checked against testnet.zec.rocks on 2026-09-30 with its nonce, updated for the round-3 core (the origin's second detail, the deposit's paid_to, assurance and unexplained_origins, as the same core gives them in the browser build on 2026-10-01): the faucet paid n1 from the shielded pool, so the origin names no source and the report is verified_partly_explained.",
             "headers": {
               "Cache-Control": {
                 "description": "Always `no-store`.",
@@ -339,7 +349,8 @@
                       "status": "verified",
                       "summary": "1.00000000 TAZ arrived in note n1, in 90f6a335…2a4b at height 4419987, funded from the shielded pool by an undisclosed sender.",
                       "details": [
-                        "n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account."
+                        "n1 was later spent with this dossier's nk (in fcfde625…7f0b), so it belonged to that account.",
+                        "Its source is not shown: at least 1.00010000 TAZ came from shielded notes this dossier does not disclose."
                       ],
                       "funding": {
                         "transparent_inputs": [],
@@ -353,7 +364,8 @@
                       "kind": "deposit",
                       "status": "verified",
                       "summary": "The holder paid 0.01000000 TAZ to utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u (memo \"INV-T-001\") in fcfde625…7f0b at height 4420000, from n1 (1.00000000 TAZ disclosed).",
-                      "value_zat": 1000000
+                      "value_zat": 1000000,
+                      "paid_to": "utest19qmzk8etf7n9hhr3p7ela3yvd99y0803hlgswgjwsdzmn7pfxskwnax49szfd8uldj2lzewps2nscjwjuam22jpdwgwjg7h9qurwd44u"
                     },
                     {
                       "index": 11,
@@ -364,9 +376,12 @@
                     }
                   ],
                   "all_verified": true,
-                  "assurance": "verified_with_control",
+                  "assurance": "verified_partly_explained",
                   "anchored": true,
                   "undisclosed_input_min_zat": 0,
+                  "unexplained_origins": [
+                    "n1"
+                  ],
                   "disclosed": [
                     "9 note openings (each: its transaction, amount, recipient address and memo)",
                     "nk, the nullifier key: the reviewer can tell when any disclosed note is spent, and so can anyone who learns nk and another of the account's note openings (its sender knows them)",
@@ -384,14 +399,29 @@
             }
           },
           "400": {
-            "description": "The body is not UTF-8, or `issued_at_height` is not a height",
+            "description": "The body is not UTF-8, `issued_at_height` is not a height, or `issued_at_height` is given without `expect_nonce`",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "example": {
-                  "error": "the body is not UTF-8"
+                "examples": {
+                  "not_utf8": {
+                    "value": {
+                      "error": "the body is not UTF-8"
+                    }
+                  },
+                  "bad_height": {
+                    "value": {
+                      "error": "issued_at_height is a block height"
+                    }
+                  },
+                  "height_without_nonce": {
+                    "summary": "issued_at_height given without expect_nonce",
+                    "value": {
+                      "error": "issued_at_height needs expect_nonce: it is the height that nonce was issued at"
+                    }
+                  }
                 }
               }
             }
@@ -475,14 +505,24 @@
             }
           },
           "502": {
-            "description": "Fetching transactions failed with an error other than not found or not mined (every node unreachable, say)",
+            "description": "Fetching transactions failed with an error other than not found or not mined (every node unreachable, say), or the node serves another chain than the dossier's network (its GetLightdInfo `chain_name`, asked after the transactions are fetched, in `check_dossier_text`): a dossier of another network is refused even with your own `--endpoint`. Both carry the `fetching transactions:` prefix",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
-                "example": {
-                  "error": "fetching transactions: all endpoints failed; last error: could not connect to http://127.0.0.1:9: transport error"
+                "examples": {
+                  "unreachable": {
+                    "value": {
+                      "error": "fetching transactions: all endpoints failed; last error: could not connect to http://127.0.0.1:9: transport error"
+                    }
+                  },
+                  "other_chain": {
+                    "summary": "the node serves another chain than the dossier's network",
+                    "value": {
+                      "error": "fetching transactions: the node https://zec.rocks:443 serves the main chain, and the dossier is for test: check it against a node of its network"
+                    }
+                  }
                 }
               }
             }
@@ -947,7 +987,7 @@
           },
           "paid_to": {
             "type": "string",
-            "description": "transparent_payment: the address the output pays, read from its script"
+            "description": "transparent_payment: the address the output pays, read from its script; deposit: the receipt's recipient"
           },
           "undisclosed_input_min_zat": {
             "type": "integer",
@@ -1023,14 +1063,14 @@
           },
           "controlled": {
             "type": "boolean",
-            "description": "A control claim verified against expect_nonce; false without it"
+            "description": "A control claim verified against expect_nonce, or, without it, against a beacon whose block was looked up (beacon_height)"
           },
           "problems": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Dossier-level problems; any makes all_verified false"
+            "description": "Dossier-level problems (an nk that is not a key, a transaction file under another txid, an expect_deposit_address no verified payment pays or of another network); any makes all_verified false"
           },
           "subject": {
             "type": "string"
@@ -1068,7 +1108,27 @@
           "undisclosed_input_min_zat": {
             "type": "integer",
             "minimum": 0,
-            "description": "A lower bound, summed once per transaction, on what the claims' transactions paid from notes the dossier does not disclose (spec §5.6): a small disclosed note \"funding\" a large payment shows here"
+            "description": "A lower bound, summed once per transaction, on what the claims' transactions paid from notes the dossier does not disclose, and from the transparent inputs of path, deposit, transparent payment and control transactions, valued from the outputs they spend (spec §5.6): a small disclosed note \"funding\" a large payment shows here"
+          },
+          "unexplained_origins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Verified origins that name no source: paid by an undisclosed shielded sender, spending disclosed notes (a hop), or with transparent inputs whose previous transactions are missing; each such origin claim has a detail saying which (spec §5.6). Omitted when empty"
+          },
+          "unvalued_inputs": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Transparent inputs of those transactions whose value is unknown (their previous transactions were not found). Omitted when 0"
+          },
+          "beacon_height": {
+            "type": "integer",
+            "description": "The block whose hash a verified beacon control answers (spec §7.4): the control's detail names its hash and time; the reviewer judges whether it is recent enough"
+          },
+          "deposit_address_paid": {
+            "type": "boolean",
+            "description": "Present when expect_deposit_address was given: whether a verified deposit or transparent payment pays it (spec §7.2)"
           },
           "assurance": {
             "type": "string",
@@ -1079,7 +1139,7 @@
               "consistent_offline",
               "not_verified"
             ],
-            "description": "The first that applies: not_verified (not all_verified); consistent_offline (every claim holds against the transactions supplied, but anchored is false: consistency with files, not verification against the chain); verified_partly_explained (some funds are untraced, or undisclosed_input_min_zat is above 0); verified_history_only (explained, but no control claim answers your nonce); verified_with_control. The CLI exits 4 for consistent_offline and verified_partly_explained"
+            "description": "The first that applies: not_verified (not all_verified); consistent_offline (every claim holds against the transactions supplied, but anchored is false: consistency with files, not verification against the chain); verified_partly_explained (some funds are untraced, an origin is in unexplained_origins, or undisclosed_input_min_zat or unvalued_inputs is above 0); verified_history_only (explained, but no control claim answers your nonce or a looked-up beacon); verified_with_control. The CLI exits 4 for consistent_offline and verified_partly_explained"
           },
           "issued_at_height": {
             "type": "integer",

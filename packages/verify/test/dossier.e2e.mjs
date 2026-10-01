@@ -35,6 +35,13 @@ const HEIGHTS = { [FUNDS[0]]: 4419987, [FUNDS[1]]: 4420000, [FUNDS[2]]: 4420003,
 const EXCHANGE = { "773da0147a8d0ba05f4bfe1e0a08a89dbfefda11b792172f7ebd71aeb56b4b0d": 4422275, "5146f38c0a782f0d76858e575c46c3b0908865987416095e4180a2c6273436e6": 4422279, a51d12711cd68729699ee93ea3e466bfb0222c7f3a02c2f64bd3b66ed60985cf: 4422295, "14a9551d4b85b05ce48dc6e83784bdb8bad0a68b6ec2a5e2298b2f77bb79cce6": 4422305 };
 Object.assign(HEIGHTS, EXCHANGE);
 const EXCHANGE_DOSSIER = read(path.join(repo, "fixtures/dossier/testnet-dossier-exchange.json"));
+// The beacon sample (PROOF §10): the exchange customer's funds carried on to a control answering the hash of block
+// 4426425, mined at 4426430; the node reports that block as it did live.
+const BEACON_DOSSIER = read(path.join(repo, "fixtures/dossier/testnet-dossier-beacon.json"));
+const BEACON_TX = "701df8b1c1ac49037290fc6e363f3d2c8315ecdeb6c50891fbee4ad9a83970ce";
+HEIGHTS[BEACON_TX] = VECTORS.heights[BEACON_TX];
+const BEACON_BLOCK = { height: 4426425, hash: "00000f9702b40e9cd12eaf29214f14ab55f8a4edce089f83f4174b2657ce4b7f", time: 1790837358 };
+const BEACON_NONCE = `zeceipt-beacon-${BEACON_BLOCK.height}-${BEACON_BLOCK.hash}`;
 // The tips the intercepted nodes report, for a nonce's H₀.
 const TIPS = { test: 4421700, main: 3100000 };
 const TRANSPARENT = read(path.join(repo, "fixtures/dossier/testnet-dossier-transparent-origin.json"));
@@ -43,7 +50,7 @@ const PARTIAL = "Claims verified — control not shown";
 const OFFLINE = "Consistent with the files you loaded — not checked against the chain";
 const PARTLY = "Claims verified — funds not fully explained";
 const ZDP_TEST = JSON.parse(read(path.join(repo, "fixtures/zdp/testnet.json"))); // a testnet payment the issuer's key does not see
-const CHAIN = Object.fromEntries([...FUNDS, CONTROL, ...OUT_AND_BACK, ...Object.keys(EXCHANGE)].map((t) => [t, read(path.join(repo, "fixtures/testnet", `${t}.hex`)).trim()]));
+const CHAIN = Object.fromEntries([...FUNDS, CONTROL, ...OUT_AND_BACK, ...Object.keys(EXCHANGE), BEACON_TX].map((t) => [t, read(path.join(repo, "fixtures/testnet", `${t}.hex`)).trim()]));
 CHAIN[ZDP_TEST.txid] = ZDP_TEST.txHex;
 const TAMPERED = JSON.stringify({ ...DOSSIER, claims: DOSSIER.claims.map((c, i) => (i === 11 ? { ...c, nonce: "zeceipt-challenge-00000000000000000000000000000000" } : c)) }, null, 2);
 
@@ -81,6 +88,17 @@ const grpcHeaders = { "content-type": "application/grpc-web+proto", "access-cont
 const requestedTxid = (body) => Buffer.from(body.subarray(7, 39)).reverse().toString("hex");
 /** GetLatestBlock: BlockID { height = 1 }. */
 const tipAnswer = (height) => Buffer.concat([frame(0, [0x08, ...varint(height)]), frame(0x80, Buffer.from("grpc-status:0\r\n"))]);
+const readVarint = (b, i) => { let v = 0n, sh = 0n; for (;;) { const x = b[i++]; v |= BigInt(x & 0x7f) << sh; if (!(x & 0x80)) return [Number(v), i]; sh += 7n; } };
+/** GetBlock(BlockID { height = 1 }): the height after the frame header and the field tag. */
+const requestedHeight = (body) => readVarint(body, 6)[0];
+/** A block's hash and time as the intercepted node reports them: the beacon's real block, a made-up one at any other height. */
+const blockId = (height) => (height === BEACON_BLOCK.height ? BEACON_BLOCK : { height, hash: crypto.createHash("sha256").update(`block ${height}`).digest("hex"), time: 1790000000 + (height % 1000) * 75 });
+/** GetBlock's answer, a CompactBlock { height = 2, hash = 3 (internal byte order), time = 5 }. */
+function blockAnswer(height) {
+  const b = blockId(height);
+  const msg = [0x10, ...varint(height), 0x1a, 32, ...Buffer.from(b.hash, "hex").reverse(), 0x28, ...varint(b.time)];
+  return Buffer.concat([frame(0, msg), frame(0x80, Buffer.from("grpc-status:0\r\n"))]);
+}
 function nodeAnswer(txid) {
   const hex = CHAIN[txid];
   if (!hex) return Buffer.concat([frame(0, []), frame(0x80, Buffer.from("grpc-status:5\r\ngrpc-message:transaction not found\r\n"))]);
@@ -117,7 +135,13 @@ async function openPage(contextOptions = {}) {
       if (s) new MutationObserver(() => window.__status.push(s.textContent)).observe(s, { childList: true, characterData: true, subtree: true });
     });
   });
-  const answer = (net) => (route) => route.fulfill({ status: 200, headers: grpcHeaders, body: route.request().url().endsWith("/GetLatestBlock") ? tipAnswer(TIPS[net]) : nodeAnswer(net === "test" ? requestedTxid(route.request().postDataBuffer()) : "") });
+  const answer = (net) => (route) => {
+    const url = route.request().url();
+    const body = url.endsWith("/GetLatestBlock") ? tipAnswer(TIPS[net])
+      : url.endsWith("/GetBlock") ? blockAnswer(requestedHeight(route.request().postDataBuffer()))
+        : nodeAnswer(net === "test" ? requestedTxid(route.request().postDataBuffer()) : "");
+    return route.fulfill({ status: 200, headers: grpcHeaders, body });
+  };
   await context.route("https://zjs.zec.rocks/testnet/**", answer("test"));
   await context.route("https://zjs.zec.rocks/mainnet/**", answer("main"));
   for (const host of ["zcash-mainnet.chainsafe.dev", "zcash-testnet.chainsafe.dev"]) await context.route(`https://${host}/**`, (route) => route.abort());
@@ -141,6 +165,7 @@ const ready = (page) => page.waitForFunction(() => /^Ready/.test(document.getEle
 const caseShown = (page) => page.waitForSelector("#banner:not([hidden])");
 const outside = (s) => s.requests.filter((r) => !r.url.startsWith(base));
 const lookups = (s) => outside(s).filter((r) => r.url.endsWith("/GetTransaction"));
+const blockLookups = (s) => outside(s).filter((r) => r.url.endsWith("/GetBlock")).map((r) => requestedHeight(Buffer.from(r.body, "latin1")));
 
 /** No request carries the dossier or the key; the only outside requests are transaction lookups; nothing is stored. */
 async function assertPrivate({ page, requests, errors }, { extraSecrets = [], expectedErrors = [] } = {}) {
@@ -150,9 +175,12 @@ async function assertPrivate({ page, requests, errors }, { extraSecrets = [], ex
   }
   for (const s of served) for (const secret of [...SECRETS, ...extraSecrets]) assert.ok(!s.url.includes(secret) && !s.headers.includes(secret), `the host saw a secret: ${s.url.slice(0, 80)}`);
   for (const r of requests.filter((x) => !x.url.startsWith(base))) {
-    assert.match(r.url, /\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/(GetTransaction|GetLatestBlock)$/, `unexpected outside request ${r.url}`);
-    // A lookup carries one txid filter and nothing else; a tip request, an empty ChainSpec.
-    assert.equal(r.body.length, r.url.endsWith("/GetLatestBlock") ? 5 : 39, `${r.url} carries only its filter`);
+    assert.match(r.url, /\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/(GetTransaction|GetLatestBlock|GetBlock)$/, `unexpected outside request ${r.url}`);
+    // A lookup carries one txid filter and nothing else; a tip request, an empty ChainSpec; a block request, a height.
+    if (r.url.endsWith("/GetBlock")) {
+      const b = Buffer.from(r.body, "latin1");
+      assert.ok(b[5] === 0x08 && readVarint(b, 6)[1] === b.length, `${r.url} carries only a height`);
+    } else assert.equal(r.body.length, r.url.endsWith("/GetLatestBlock") ? 5 : 39, `${r.url} carries only its filter`);
     assert.ok(!/"referer"/i.test(r.headers), "no Referer on the node request");
   }
   const stored = await page.evaluate(async () => ({
@@ -170,22 +198,22 @@ async function axe(page, where) {
   assert.deepEqual(r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), [], `axe on ${where}`);
 }
 
-test("case review: the sample button fetches its five transactions with progress; all 12 claims verify, amber until a nonce is given, verdict first", { skip: !RUN }, async () => {
+test("case review: the sample button fetches its five transactions with progress; all 12 claims verify, amber (its faucet origin names no source), verdict first", { skip: !RUN }, async () => {
   const s = await openPage();
   await s.page.goto(`${base}/case/`);
   await ready(s.page);
   assert.equal(outside(s).length, 0, "nothing is fetched before a dossier is opened");
   await s.page.click("#sample");
   await caseShown(s.page);
-  assert.equal(await text(s.page, "#headline"), PARTIAL);
+  assert.equal(await text(s.page, "#headline"), PARTLY);
   assert.equal(await s.page.getAttribute("#banner", "class"), "result partial");
-  assert.equal(await text(s.page, "#verdict-sub"), "All 12 claims hold against the chain (1 origin, 7 path hops, 3 deposits and 1 control answer), but the control claim is not matched to your nonce: no expected nonce was given. Enter the nonce you issued under “Challenge the holder”.");
+  assert.equal(await text(s.page, "#verdict-sub"), "All 12 claims hold against the chain (1 origin, 7 path hops, 3 deposits and 1 control answer), but they do not explain all of the funds: origin n1 names no source: an undisclosed shielded sender. Ask the holder who sent the funds of n1, and for their evidence: the chain shows no source for them. The control claim is not matched to your nonce: enter the nonce you issued under “Challenge the holder”. That is the right result for this sample: its funds came from the testnet faucet, which pays from the shielded pool, so the chain cannot show where they came from (spec §5.6).");
   assert.equal(await s.page.evaluate(() => document.activeElement?.id), "banner", "the verdict has focus");
-  assert.match(await text(s.page, "#verdict-live"), new RegExp(`^${PARTIAL}\\. `));
+  assert.match(await text(s.page, "#verdict-live"), new RegExp(`^${PARTLY}\\. `));
   // The decision summary, above the facts.
   const decision = await dl(s.page, "#decision");
   assert.deepEqual(Object.keys(decision), ["Arrived at origins", "Paid out", "Under control", "Explained", "Claims"]);
-  assert.match(decision.Explained, /^YesEvery payment's and the control's funds trace back to an origin/);
+  assert.equal(decision.Explained, "NoOrigin n1 names no source: an undisclosed shielded sender.");
   assert.match(decision["Arrived at origins"], /^1\.0 TAZ in 1 note1\.0 TAZ from an undisclosed shielded sender\.$/);
   assert.match(decision["Paid out"], /^0\.06 TAZ in 3 payments/);
   assert.match(decision["Under control"], /^Not shown.*enter the nonce you issued/);
@@ -205,7 +233,8 @@ test("case review: the sample button fetches its five transactions with progress
   // The funds flow: five steps, oldest first, twelve edges each with its status in words.
   const steps = await s.page.locator("#flow > li.step").allTextContents();
   assert.equal(steps.length, 5);
-  assert.match(steps[0], /Step 1Origin: funds enter the holder's wallet.*Height 4419987 · tx 90f6a335…2a4b.*From shielded funds of an undisclosed sender.*n11\.0 TAZ.*spent in step 2/);
+  assert.match(steps[0], /Step 1Origin: funds enter the holder's wallet.*Height 4419987 · tx 90f6a335…2a4b.*From shielded funds of an undisclosed sender.*n11\.0 TAZnames no sourcespent in step 2.*Origin n1 names no source: an undisclosed shielded sender: this dossier does not explain where these funds came from\..*#1 OriginFunds reach the holder as n1Verifiednames no source: an undisclosed shielded sender/);
+  assert.equal(await text(s.page, "#claims tbody tr:first-child .row-flag"), "Names no source: an undisclosed shielded sender. The funds of n1 are not explained by this dossier.");
   assert.match(steps[1], /Height 4420000.*n2.*n3.*n4.*n5.*r10\.01 TAZ.*to utest19qmz.*INV-T-001/);
   assert.match(steps[1], /#2–#5 Pathn1 → n2, n3, n4, n5 in fcfde625…7f0bVerified/, "the four path claims from n1 share one line");
   // Before the reviewer's nonce is entered, the dossier's own shows by its beginning only (E04).
@@ -233,7 +262,8 @@ test("case review: the sample button fetches its five transactions with progress
   assert.equal(saved.suggestedFilename(), `zeceipt-case-${report.dossier_sha256.slice(0, 12)}.json`);
   assert.equal(report.version, "zeceipt-dossier-report-v1");
   assert.equal(report.all_verified, true);
-  assert.equal(report.assurance, "verified_history_only");
+  assert.equal(report.assurance, "verified_partly_explained");
+  assert.deepEqual(report.unexplained_origins, ["n1"]);
   assert.equal(report.case.verifier_wasm_sha256, WASM_SHA);
   assert.equal(report.claims.length, 12);
   assert.deepEqual(report.case.nodes, ["https://zjs.zec.rocks/testnet"]);
@@ -246,12 +276,12 @@ test("case review: #sample opens and checks the sample, and a #<base64url> link 
   const s = await openPage();
   await s.page.goto(`${base}/case/#sample`);
   await caseShown(s.page);
-  assert.equal(await text(s.page, "#headline"), PARTIAL, "the README's link checks the sample with no click");
+  assert.equal(await text(s.page, "#headline"), PARTLY, "the README's link checks the sample with no click");
   assert.equal(await s.page.locator("#flow > li.step").count(), 5);
   assert.equal(new URL(s.page.url()).hash, "#sample");
   await s.page.goto(`${base}/case#${b64(SAMPLE)}`); // /case → /case/ keeps the fragment
   await s.page.waitForFunction(() => /Claims verified|failed/.test(document.getElementById("headline").textContent) && !document.getElementById("banner").hidden);
-  assert.equal(await text(s.page, "#headline"), PARTIAL);
+  assert.equal(await text(s.page, "#headline"), PARTLY);
   assert.equal(new URL(s.page.url()).pathname, "/case/");
   await assertPrivate(s);
   await s.context.close();
@@ -275,7 +305,7 @@ test("case review: a dossier whose control nonce was changed, dropped in as a fi
   await s.page.click("#inputs > summary");
   await s.page.fill("#paste", SAMPLE);
   await s.page.click("#check");
-  await s.page.waitForFunction((h) => document.getElementById("headline").textContent === h, PARTIAL);
+  await s.page.waitForFunction((h) => document.getElementById("headline").textContent === h, PARTLY);
   // A dossier the verifier cannot read: one plain sentence, and the verifier's words in a fold.
   await s.page.click("#inputs > summary");
   await s.page.fill("#paste", JSON.stringify({ ...DOSSIER, holdings: [] }));
@@ -333,7 +363,7 @@ test("case review: the summary copies, and the print layout keeps the case and d
   await s.page.click("#copy-summary");
   await s.page.waitForFunction(() => /copied/.test(document.getElementById("copy-live").textContent));
   const summary = await s.page.evaluate(() => navigator.clipboard.readText());
-  assert.match(summary, new RegExp(`^Zeceipt case review: ${PARTIAL}\\n.*\\nSubject \\(unauthenticated\\): Testnet holder`));
+  assert.match(summary, new RegExp(`^Zeceipt case review: ${PARTLY}\\n.*\\nSubject \\(unauthenticated\\): Testnet holder`));
   assert.match(summary, /\n12\. Control, verified: .*the holder spent n4 \(0\.24743750 TAZ\)/);
   await s.page.fill("#case-reviewer", "A. Reviewer");
   await s.page.fill("#case-id", "KYC-2026-0417");
@@ -354,19 +384,19 @@ test("case review: the summary copies, and the print layout keeps the case and d
   await s.context.close();
 });
 
-test("case review: the nonce the sample answered, at its H₀, turns the sample green; a later H₀ fails its control, and the challenge copies for the case file", { skip: !RUN }, async () => {
+test("case review: the nonce the faucet sample answered, at its H₀, shows control but stays amber (its origin names no source, as it should); a later H₀ fails its control, and the challenge copies for the case file", { skip: !RUN }, async () => {
   const s = await openPage({ permissions: ["clipboard-read", "clipboard-write"] });
   await s.page.goto(`${base}/case/#sample`);
   await caseShown(s.page);
-  assert.equal(await text(s.page, "#headline"), PARTIAL);
+  assert.equal(await text(s.page, "#headline"), PARTLY);
   assert.equal(await s.page.locator("#sample-nonce").isVisible(), true, "the sample offers its challenge");
   const fetched = lookups(s).length;
   await s.page.click("#sample-nonce");
-  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
-  assert.equal(await s.page.getAttribute("#banner", "class"), "result ok");
+  await s.page.waitForFunction(() => document.getElementById("nonce-line").dataset.state === "match");
+  assert.equal(await text(s.page, "#headline"), PARTLY, "control shown, and the funds still not fully explained: the faucet is an undisclosed shielded sender");
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result partial");
   assert.deepEqual([await s.page.inputValue("#nonce-input"), await s.page.inputValue("#h0-input")], [NONCE, "4421300"]);
-  assert.match(await text(s.page, "#verdict-sub"), /and the control claim answers the nonce you issued, after height 4421300/);
-  assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "match");
+  assert.match(await text(s.page, "#verdict-sub"), /origin n1 names no source: an undisclosed shielded sender\..* The control claim answers the nonce you issued, after height 4421300\. That is the right result for this sample: its funds came from the testnet faucet, which pays from the shielded pool/);
   assert.equal((await dl(s.page, "#decision"))["Under control"], "0.2474375 TAZn4, spent in answer to your nonce at height 4421345 (issued at height 4421300).");
   assert.equal((await dl(s.page, "#facts"))["Nonce issued at height"], "4421300");
   assert.equal(await s.page.locator("#sample-nonce").isVisible(), false);
@@ -380,7 +410,7 @@ test("case review: the nonce the sample answered, at its H₀, turns the sample 
   await s.page.click("#copy-challenge");
   await s.page.waitForFunction(() => /Challenge copied/.test(document.getElementById("copy-live").textContent));
   assert.match(await s.page.evaluate(() => navigator.clipboard.readText()), new RegExp(`^Zeceipt challenge \\(source-of-funds dossier\\)\\nNonce: ${NONCE}\\nIssued at height \\(H0\\): 4421400\\nRecorded: \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d UTC .*\\nNetwork: Zcash testnet$`));
-  // From a fresh page, the input card's link opens the sample with its challenge in one click.
+  // From a fresh page, the input card's link opens the exchange sample with its challenge in one click: green.
   await s.page.goto(`${base}/case/`);
   await ready(s.page);
   await s.page.click("#sample-challenge");
@@ -402,7 +432,7 @@ test("case review: transactions loaded from files check the sample offline, with
   assert.equal(await text(s.page, "#headline"), OFFLINE, "every claim is consistent with the files");
   assert.equal(await s.page.getAttribute("#banner", "class"), "result partial");
   const sub = await text(s.page, "#verdict-sub");
-  assert.match(sub, /^All 12 claims are consistent with the transaction files you loaded .* a holder can send fabricated files\. Load only files you fetched from a node yourself, or check online\./);
+  assert.match(sub, /^All 12 claims are consistent with the transaction files you loaded .* a holder can send fabricated files\. Load only files you fetched from a node yourself, or check online\. Also, the claims do not explain all of the funds: origin n1 names no source: an undisclosed shielded sender\./);
   assert.ok(!/hold against the chain/.test(sub), sub);
   assert.equal(outside(s).length, 0, "no node was asked");
   assert.equal(await s.page.locator("#offline-line").isVisible(), true);
@@ -416,7 +446,7 @@ test("case review: transactions loaded from files check the sample offline, with
   assert.equal(await s.page.locator("#offline-line").isVisible(), false);
   assert.equal(lookups(s).length, 5);
   assert.match(await text(s.page, "#flow > li.step:first-child"), /Height 4419987/);
-  assert.equal(await text(s.page, "#headline"), PARTIAL, "online, the same claims hold against the chain");
+  assert.equal(await text(s.page, "#headline"), PARTLY, "online, the same claims hold against the chain (and the faucet origin still names no source)");
   await assertPrivate(s);
   await s.context.close();
 });
@@ -498,7 +528,9 @@ test("build: the published testnet UFVK and the txids rebuild the sample's claim
   await s.page.waitForSelector("#built:not([hidden])");
   assert.equal(await s.page.inputValue("#ufvk"), "", "the key field is cleared once built");
   assert.equal(await text(s.page, "#built-title"), "Dossier built");
-  assert.equal(await s.page.getAttribute("#built", "class"), "result ok");
+  // The faucet's payment names no source (an undisclosed shielded sender): the holder is told before sharing.
+  assert.equal(await s.page.getAttribute("#built", "class"), "result pending");
+  assert.equal(await text(s.page, "#built-sub"), "12 claims, all verified in this page against the chain: 1 origin, 7 path hops, 3 deposits and 1 control answer. But they do not explain all of the funds (origin n1 names no source: an undisclosed shielded sender): the reviewer will see “funds not fully explained”. The chain shows no source for n1: be ready to tell the reviewer who sent it, with your evidence. The viewing key field was cleared.");
   assert.equal(await s.page.evaluate(() => document.activeElement?.id), "built");
   assert.deepEqual(await dl(s.page, "#built-counts"), { Notes: "9", Receipts: "3", Claims: "12 (1 origin, 7 path hops, 3 deposits and 1 control answer)" });
   assert.match(await text(s.page, "#built-discloses"), /^nk, the nullifier key.*see when any of these notes is spent, past and future.*anyone who ever paid you and obtains this nk.*9 note openings.*3 sender receipts/);
@@ -524,7 +556,7 @@ test("build: the published testnet UFVK and the txids rebuild the sample's claim
   await assertPrivate(s, { extraSecrets: [b64(builtText)] });
   await s.page.click("#open-case");
   await caseShown(s.page);
-  assert.equal(await text(s.page, "#headline"), PARTIAL);
+  assert.equal(await text(s.page, "#headline"), PARTLY);
   assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "not-generated");
   await assertPrivate(s, { extraSecrets: [b64(builtText)] });
   await s.context.close();
@@ -686,7 +718,7 @@ test("case review: the dossier's nonce is kept back until the reviewer's matches
   await s.context.close();
 });
 
-test("case review: the deposit address the reviewer assigned is named when a payment pays it, amber when none does, in the challenge record and in print", { skip: !RUN }, async () => {
+test("case review: the deposit address the reviewer assigned, checked by the verifier, is named when a payment pays it; when none does the case is not verified (red), with the relay explained in amber, in the challenge record and in print", { skip: !RUN }, async () => {
   const s = await openPage({ permissions: ["clipboard-read", "clipboard-write"] });
   await s.page.goto(`${base}/case/#sample-exchange`);
   await caseShown(s.page);
@@ -701,11 +733,18 @@ test("case review: the deposit address the reviewer assigned is named when a pay
   assert.equal(await text(s.page, "#claims tbody tr:nth-child(3) .row-flag.flag-ok"), "Pays the deposit address you assigned.");
   assert.match(await text(s.page, "#flow .chip-assigned"), /pays the deposit address you assigned/);
   assert.equal((await dl(s.page, "#facts"))["Deposit address you assigned"], "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR (paid in claim #3)");
-  // An address no payment pays (here the hot wallet's): amber, naming the relay the check guards against.
+  // An address no payment pays (here the hot wallet's): the verifier makes it a problem, so the case is not verified:
+  // red, with its words, and the amber line naming the relay the check guards against.
   await s.page.fill("#deposit-input", "tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv");
   await s.page.waitForSelector("#deposit-line:not([hidden])");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Deposit address not paid");
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result bad");
+  assert.equal(await text(s.page, "#verdict-sub"), "No verified payment in this dossier pays the deposit address you assigned (tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv): it does not show that this holder made your deposit. All 4 claims verify against the chain, but nothing ties these funds to the customer you assigned that address to.");
+  assert.equal(await s.page.locator("#banner-error").isVisible(), false, "the verifier's problem is said once, in the verdict");
   assert.match(await text(s.page, "#deposit-line"), /^No verified payment in this dossier pays the deposit address you assigned \(tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv\).*relayed.*spec §7\.2/);
-  assert.equal(await s.page.getAttribute("#banner", "class"), "result ok", "the verdict keeps its tone; the amber line sits in it");
+  assert.equal(await s.page.locator("#claims .row-flag.flag-ok").count(), 0, "no row is flagged as paying it");
+  assert.equal((await dl(s.page, "#facts"))["Deposit address you assigned"], "tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv (no verified payment pays it)");
+  assert.equal(lookups(s).length, 4, "checked again with the transactions already fetched");
   await s.page.click("#copy-challenge");
   await s.page.waitForFunction(() => /Challenge copied/.test(document.getElementById("copy-live").textContent));
   assert.match(await s.page.evaluate(() => navigator.clipboard.readText()), /\nDeposit address assigned: tmPVtCrdwZt2HM1h85ncLj48tttDUxdcsqv$/);
@@ -714,11 +753,126 @@ test("case review: the deposit address the reviewer assigned is named when a pay
   assert.equal(await s.page.locator('#facts .fact[data-key="Deposit address you assigned"]').isVisible(), true, "the address prints with the facts");
   await s.page.emulateMedia({ media: "screen" });
   await axe(s.page, "case, the assigned deposit address not paid");
-  // Not an address: said, and left out.
+  // A mainnet address for this testnet dossier: another network, red.
+  await s.page.fill("#deposit-input", "t1Xf8t29nJhQbPpqzfg2gzSLZNjjQVYwGQr");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Deposit address for another network");
+  assert.equal(await text(s.page, "#deposit-status"), "A transparent address on Zcash mainnet.");
+  assert.match(await text(s.page, "#verdict-sub"), /^The deposit address you gave \(t1Xf8t29nJhQbPpqzfg2gzSLZNjjQVYwGQr\) is for another network than this dossier \(testnet\)\./);
+  // The same address in its TEX form (ZIP 320): paid, green again.
+  await s.page.fill("#deposit-input", "textest17pl2ywthp96lyt8qwhn0mjx5clrtclw7092g5y");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
+  assert.equal(await text(s.page, "#deposit-status"), "A TEX (ZIP 320) address on Zcash testnet.");
+  assert.equal(await text(s.page, "#claims tbody tr:nth-child(3) .row-flag.flag-ok"), "Pays the deposit address you assigned.");
+  // Not an address: said, and left out of the check.
   await s.page.fill("#deposit-input", "utest1notanaddress");
   await s.page.waitForFunction(() => /not a transparent address/.test(document.getElementById("deposit-status").textContent));
   await s.page.waitForSelector("#deposit-line", { state: "hidden" });
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
   await assertPrivate(s, { extraSecrets: [b64(EXCHANGE_DOSSIER)] });
+  await s.context.close();
+});
+
+test("case review: the laundering patch (vector origin_laundering) is amber: the holder's own change declared an origin names no source, in the verdict, the Explained line, the row and the timeline", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/case/`);
+  await ready(s.page);
+  const laundered = vectorDossier("origin_laundering");
+  await s.page.fill("#nonce-input", NONCE);
+  await s.page.fill("#h0-input", "4421300");
+  await s.page.fill("#paste", laundered);
+  await s.page.click("#check");
+  await caseShown(s.page);
+  assert.equal(await text(s.page, "#headline"), PARTLY);
+  assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "match", "control is shown, and does not make up for the funds");
+  assert.match(await text(s.page, "#verdict-sub"), /^All 2 claims hold against the chain \(1 origin and 1 control answer\), but they do not explain all of the funds: note n4 is not traced back to an origin .* and origin n2 names no source: it spends disclosed notes \(n1\), so it is a hop, not a source\. Ask the holder for the missing history/);
+  assert.equal((await dl(s.page, "#decision")).Explained, "NoNote n4 is not traced back to an origin (no chain of path claims leads from an origin claim to it) and origin n2 names no source: it spends disclosed notes (n1), so it is a hop, not a source.");
+  assert.equal(await text(s.page, "#claims tbody tr:first-child .row-flag"), "Names no source: it spends disclosed notes (n1), so it is a hop, not a source. The funds of n2 are not explained by this dossier.");
+  assert.match(await text(s.page, "#flow > li.step:first-child"), /Origin: funds enter the holder's wallet.*n2.*names no source.*Origin n2 names no source: it spends disclosed notes \(n1\), so it is a hop, not a source: this dossier does not explain where these funds came from\./);
+  await axe(s.page, "case, an origin that names no source");
+  await assertPrivate(s, { extraSecrets: [b64(laundered)] });
+  await s.context.close();
+});
+
+test("case review: #sample-beacon looks up the block its control answers and is green with no nonce entered; the beacon is shown whole, and the verdict names the block", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/case/#sample-beacon`);
+  await caseShown(s.page);
+  assert.equal(await text(s.page, "#headline"), "Verified, with control");
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result ok");
+  assert.equal(await text(s.page, "#verdict-sub"), "All 6 claims hold against the chain (1 origin, 3 path hops, 1 control answer and 1 transparent payment), and the control claim answers the hash of block 4426425 (mined 2026-10-01 06:49 UTC), a beacon no one could know before that block: the holder could spend these funds after it was mined. No one issued this nonce: judge whether block 4426425 is recent enough for this case.");
+  const said = "This control answers the hash of block 4426425 (time 2026-10-01 06:49 UTC): no nonce needs to be entered; judge whether block 4426425 is recent enough.";
+  assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "beacon");
+  assert.equal(await text(s.page, "#nonce-line"), said);
+  assert.equal(await text(s.page, "#nonce-result"), said, "the challenge card says so too");
+  assert.equal(await s.page.inputValue("#nonce-input"), "", "no nonce was entered");
+  assert.equal(await s.page.locator("#sample-nonce-row").isVisible(), false, "no sample challenge to fill in");
+  assert.ok((await s.page.evaluate(() => document.body.innerText)).includes(BEACON_NONCE), "a beacon is public: shown whole");
+  assert.equal((await dl(s.page, "#facts"))["Control answers the beacon of"], "block 4426425 (mined 2026-10-01 06:49 UTC), hash 00000f97…4b7f");
+  assert.equal((await dl(s.page, "#decision"))["Under control"], "0.14975 TAZn3, n4, spent in answer to the beacon of block 4426425 (mined 2026-10-01 06:49 UTC) at height 4426430: no one issued the nonce; judge whether that block is recent enough.");
+  assert.match(await text(s.page, "#flow > li.step:last-child"), new RegExp(`Control: the holder answered the challenge.*Height 4426430.*memo “${BEACON_NONCE}”`));
+  assert.deepEqual(blockLookups(s), [BEACON_BLOCK.height], "the one block the beacon names, asked by its height");
+  assert.deepEqual(lookups(s).map((r) => requestedTxid(Buffer.from(r.body, "latin1"))).sort(), [...Object.keys(EXCHANGE), BEACON_TX].sort());
+  // The deposit address the customer was assigned: the core finds it paid (PROOF §10).
+  await s.page.fill("#deposit-input", "tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR");
+  await s.page.waitForFunction(() => /pays the deposit address you assigned/.test(document.getElementById("verdict-sub").textContent));
+  assert.equal(await s.page.getAttribute("#banner", "class"), "result ok");
+  assert.deepEqual(blockLookups(s), [BEACON_BLOCK.height], "checked again with the block already looked up");
+  // A reviewer's own nonce overrides the beacon: the claim must answer theirs.
+  await s.page.fill("#nonce-input", "zeceipt-challenge-00000000000000000000000000000000");
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "1 claim failed");
+  assert.match(await text(s.page, "#nonce-line"), new RegExp(`answers the beacon ${BEACON_NONCE}, not the nonce you issued`));
+  // Offline, from files: no node is asked, not even for the block, so the control is not checked.
+  await s.page.fill("#nonce-input", "");
+  await s.page.setInputFiles("#tx-files", [...Object.keys(EXCHANGE), BEACON_TX].map((t) => ({ name: `${t}.hex`, mimeType: "text/plain", buffer: Buffer.from(CHAIN[t]) })));
+  await s.page.waitForFunction(() => document.getElementById("nonce-line").dataset.state === "beacon-unchecked");
+  assert.equal(await text(s.page, "#headline"), "Not all checked");
+  assert.match(await text(s.page, "#nonce-line"), /^This control answers the hash of block 4426425: no nonce needs to be entered, but it is not checked here: /);
+  assert.deepEqual(blockLookups(s), [BEACON_BLOCK.height], "offline, the block is not asked again");
+  await axe(s.page, "case, a beacon control not checked offline");
+  await assertPrivate(s, { extraSecrets: [b64(BEACON_DOSSIER)] });
+  await s.context.close();
+});
+
+test("case review: Generate a beacon nonce asks the node for the tip and its block, and fills zeceipt-beacon-<tip>-<hash> with H₀ the next height", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/case/`);
+  await ready(s.page);
+  await s.page.selectOption("#challenge-network", "test");
+  await s.page.click("#beacon-new");
+  await s.page.waitForFunction(() => /^A beacon/.test(document.getElementById("h0-status").textContent));
+  const tip = blockId(TIPS.test);
+  assert.equal(await s.page.inputValue("#nonce-input"), `zeceipt-beacon-${TIPS.test}-${tip.hash}`);
+  assert.equal(await s.page.inputValue("#h0-input"), String(TIPS.test + 1));
+  assert.match(await text(s.page, "#h0-status"), new RegExp(`^A beacon: the hash of block ${TIPS.test} on Zcash testnet, mined \\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d UTC\\. No one could know it before that block.*H₀ is ${TIPS.test + 1}`));
+  assert.equal(await text(s.page, "#copy-live"), "Beacon nonce generated");
+  assert.deepEqual(outside(s).map((r) => r.url.replace(/^.*\//, "")), ["GetLatestBlock", "GetBlock"]);
+  assert.deepEqual(blockLookups(s), [TIPS.test]);
+  // The holder's beacon sample answers another block's beacon: with this one expected, its control fails.
+  await s.page.goto(`${base}/case/#sample-beacon`);
+  await caseShown(s.page);
+  await s.page.waitForFunction(() => document.getElementById("headline").textContent === "1 claim failed");
+  assert.equal(await s.page.getAttribute("#nonce-line", "data-state"), "mismatch");
+  assert.equal(await s.page.locator("#nonce-note").isVisible(), false, "generated here: no reminder to check it");
+  await assertPrivate(s, { extraSecrets: [b64(BEACON_DOSSIER)] });
+  await s.context.close();
+});
+
+test("build: “or use a beacon” fills the latest block's beacon as the control nonce, for a holder proving control unprompted", { skip: !RUN }, async () => {
+  const s = await openPage();
+  await s.page.goto(`${base}/build/`);
+  await ready(s.page);
+  await s.page.selectOption("#network", "test");
+  assert.equal(await text(s.page, "#beacon"), "or use a beacon (the latest block's hash)");
+  await s.page.click("#beacon");
+  await s.page.waitForFunction(() => /^The beacon of block/.test(document.getElementById("beacon-status").textContent));
+  assert.equal(await s.page.inputValue("#nonce"), `zeceipt-beacon-${TIPS.test}-${blockId(TIPS.test).hash}`);
+  assert.match(await text(s.page, "#beacon-status"), /^The beacon of block 4,421,700 \(Zcash testnet, mined .* UTC\) is filled in above\. Send any small amount to your own address with it as the memo/);
+  assert.deepEqual(outside(s).map((r) => r.url.replace(/^.*\//, "")), ["GetLatestBlock", "GetBlock"]);
+  await axe(s.page, "build, a beacon filled in");
+  await s.page.click("#forget");
+  assert.equal(await s.page.inputValue("#nonce"), "");
+  assert.equal(await text(s.page, "#beacon-status"), "");
+  await assertPrivate(s);
   await s.context.close();
 });
 
@@ -849,11 +1003,21 @@ test("axe finds no WCAG A/AA violation on the landing, case and build pages, in 
     await axe(s.page, `${colorScheme}: case, empty, with a nonce`);
     await s.page.click("#sample");
     await caseShown(s.page);
-    await axe(s.page, `${colorScheme}: case, all verified, control not shown`);
+    await axe(s.page, `${colorScheme}: case, all verified, an origin that names no source`);
+    await s.page.click("#sample-nonce");
+    await s.page.waitForFunction(() => document.getElementById("nonce-line").dataset.state === "match");
+    await axe(s.page, `${colorScheme}: case, control shown, funds not fully explained`);
+    for (const id of ["nonce-input", "h0-input"]) await s.page.fill(`#${id}`, "");
+    await s.page.goto(`${base}/case/#sample-exchange`);
+    await s.page.waitForFunction((h) => document.getElementById("claims").tBodies[0].rows.length === 4 && document.getElementById("headline").textContent === h, PARTIAL);
     await s.page.click("#sample-nonce");
     await s.page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
     await s.page.click("#glossary > summary");
     await axe(s.page, `${colorScheme}: case, verified with control, glossary open`);
+    for (const id of ["nonce-input", "h0-input"]) await s.page.fill(`#${id}`, "");
+    await s.page.goto(`${base}/case/#sample-beacon`);
+    await s.page.waitForFunction(() => document.getElementById("nonce-line").dataset.state === "beacon");
+    await axe(s.page, `${colorScheme}: case, a beacon control`);
     await s.page.click("#inputs > summary");
     await s.page.setInputFiles("#file", { name: "dossier.json", mimeType: "application/json", buffer: Buffer.from(TAMPERED) });
     await s.page.waitForFunction(() => document.getElementById("headline").textContent === "1 claim failed");

@@ -1,5 +1,6 @@
 // The README's hero images: the case review page (case/) on the committed testnet sample dossier, checked as its
-// reviewer would (with the nonce the sample answered and its H₀: "Verified, with control"), as a reviewer first sees
+// reviewer would (with the nonce the sample answered and its H₀: control shown, and amber, "Claims verified — funds not
+// fully explained", since round 3: its faucet origin is an undisclosed shielded sender), as a reviewer first sees
 // the result (the page scrolls to the verdict, with the funds-flow timeline under
 // it), at 1280 px wide and 2x, light and dark. Usage: node test/shots/case-review.mjs [out-dir]
 // (default docs/assets: case-review.png, case-review-dark.png).
@@ -61,7 +62,7 @@ const verified = (page) => page.waitForFunction(() => !document.getElementById("
 async function withChallenge(page) {
   if (!(await page.locator("#sample-nonce").isVisible())) return;
   await page.click("#sample-nonce");
-  await page.waitForFunction(() => document.getElementById("headline").textContent === "Verified, with control");
+  await page.waitForFunction(() => document.getElementById("nonce-line").dataset.state === "match");
   await page.evaluate(() => document.getElementById("banner").scrollIntoView({ block: "start" }));
 }
 const written = [];

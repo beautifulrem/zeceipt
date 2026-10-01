@@ -38,7 +38,7 @@ touch "$out/.nojekyll"  # serve every path as it is (no Jekyll processing)
 cp "$src/index.html" "$src/home.css" "$out/"
 # Every file the pages load must be in the site: a missing module would only fail in the browser.
 for f in index.html home.css \
-  case/index.html case/page.js case/view.js case/ui.js case/case.css case/fixtures/testnet-dossier.json case/fixtures/testnet-dossier-transparent-origin.json case/fixtures/testnet-dossier-exchange.json \
+  case/index.html case/page.js case/view.js case/ui.js case/case.css case/fixtures/testnet-dossier.json case/fixtures/testnet-dossier-transparent-origin.json case/fixtures/testnet-dossier-exchange.json case/fixtures/testnet-dossier-beacon.json \
   build/index.html build/page.js build/view.js build/build.css \
   r/index.html r/page.js r/view.js r/ui.js r/page.css r/icon.svg r/fonts/Geist-Variable.woff2 r/fonts/GeistMono-Variable.woff2 \
   r/icons/download.svg r/icons/printer.svg r/icons/upload.svg r/icons/link.svg r/icons/arrow-right.svg r/icons/circle-alert.svg \

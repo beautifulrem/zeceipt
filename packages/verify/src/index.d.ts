@@ -92,6 +92,10 @@ export interface DossierReport {
   all_verified: boolean;
   assurance: "verified_with_control" | "verified_history_only" | "verified_partly_explained" | "consistent_offline" | "not_verified";
   anchored: boolean;
+  unexplained_origins?: string[];
+  unvalued_inputs?: number;
+  beacon_height?: number;
+  deposit_address_paid?: boolean;
   untraced?: string[];
   undisclosed_input_min_zat: number;
   issued_at_height?: number;
@@ -100,10 +104,13 @@ export interface DossierReport {
   error?: string;
   stage?: string;
 }
-export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; expectNonce?: string; issuedAtHeight?: number | null; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number; round: number }) => void }): Promise<DossierReport>;
+export function checkDossier(text: string, opts?: { txs?: Record<string, { hex: string; height: number | null; mempool?: boolean }>; expectNonce?: string; issuedAtHeight?: number | null; expectDepositAddress?: string; beacons?: Record<number, { hash: string; time: number }> | null; timeoutMs?: number; onFetch?: (p: { txid: string; index: number; total: number; round: number }) => void }): Promise<DossierReport>;
 export function dossierTxids(text: string): string[];
 /** The second round's txids: the transactions whose outputs the origin transactions in `txs` spend. */
 export function dossierPrevoutTxids(text: string, txs: Record<string, { hex: string; height: number | null; mempool?: boolean }>): string[];
 export function buildDossier(opts: { ufvk: string; network?: Network; txids?: string[]; hexes?: string[]; control?: { txid: string; nonce: string } | null; controlHex?: string | null; subject?: string | null; timeoutMs?: number }): Promise<string>;
 /** Find the holder's transactions in a height range, in the page (the UFVK never leaves it). */
 export function scanWallet(opts: { ufvk: string; network?: Network; from: number; to?: number | null; endpoints?: string[]; chunk?: number; timeoutMs?: number; onProgress?: (p: { height: number; from: number; to: number; found: number }) => void; signal?: AbortSignal }): Promise<{ height: number; txid: string; received: number; spent: number }[]>;
+
+/** A block's height, hash (display hex) and time over gRPC-web: what a beacon nonce names. */
+export function fetchBlockId(network: Network, height: number, endpoints?: string[], opts?: { timeoutMs?: number }): Promise<{ height: number; hash: string; time: number }>;

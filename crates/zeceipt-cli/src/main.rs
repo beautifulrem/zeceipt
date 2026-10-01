@@ -83,9 +83,12 @@ enum DossierCmd {
         #[arg(long, conflicts_with_all = ["txids", "raw_tx_files"])]
         scan_from: Option<u64>,
     },
-    /// Check every claim of a dossier against the chain; prints the report (JSON). Exit 0: all verified; 1: a claim
-    /// failed or cannot be shown with this data (unproven); 2: a claim could not be checked yet (a transaction in the
-    /// mempool or not found): check again later.
+    /// Check every claim of a dossier against the chain; prints the report (JSON). Exit 0: every claim verified and
+    /// explained (`assurance` verified_with_control or verified_history_only); 4: every claim verified, but read the
+    /// report (consistent_offline: checked only against files; verified_partly_explained: funds not all explained);
+    /// 1: a claim failed or is unproven, a problem, or the dossier did not parse or is for another network; 2: a claim
+    /// could not be checked yet (a transaction in the mempool or not found): check again later; 3: an I/O or node
+    /// error, with no report.
     Verify {
         #[command(flatten)]
         net: NetArgs,
@@ -101,6 +104,10 @@ enum DossierCmd {
         /// below it fails.
         #[arg(long, requires = "expect_nonce")]
         issued_at_height: Option<u64>,
+        /// The deposit address you assigned this customer (transparent, TEX or unified): a verified payment in the
+        /// dossier must pay it, or the report says so as a problem.
+        #[arg(long)]
+        expect_deposit_address: Option<String>,
     },
     /// Print a fresh random nonce for a control challenge (for the reviewer to send the holder).
     Nonce {
@@ -110,6 +117,10 @@ enum DossierCmd {
         /// file; pass the height to `dossier verify --issued-at-height`.
         #[arg(long)]
         json: bool,
+        /// A beacon nonce instead: the hash of the chain tip, `zeceipt-beacon-<height>-<hash>`. No one can know it
+        /// before that block, and any verifier looks it up, so it needs no reviewer to issue it (spec §7.4).
+        #[arg(long)]
+        beacon: bool,
     },
     /// Serve dossier checks over HTTP for a compliance back office (self-hosted): `POST /v1/dossiers/verify` (the
     /// dossier as the body; `?expect_nonce=` and `&issued_at_height=` optional) returns the report; `POST /v1/nonces`
@@ -1061,7 +1072,24 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
     use zeceipt_core::dossier::{build, BuildInput, Status};
     use zeceipt_core::zeceipt_types::dossier::Dossier;
     match cmd {
-        DossierCmd::Nonce { net, json } => {
+        DossierCmd::Nonce { net, json, beacon } => {
+            if beacon {
+                let mut c = connect(&net).await?;
+                let h = c.latest_height().await?;
+                let (hash, time) = c.block_id(h).await?;
+                let nonce = format!("{}{h}-{hash}", zeceipt_core::dossier::BEACON_PREFIX);
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &json!({"nonce": nonce, "beacon_height": h, "block_time": time})
+                        )?
+                    );
+                } else {
+                    println!("{nonce}");
+                }
+                return Ok(ExitCode::SUCCESS);
+            }
             if json {
                 println!(
                     "{}",
@@ -1180,6 +1208,7 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             raw_tx_dir,
             expect_nonce,
             issued_at_height,
+            expect_deposit_address,
         } => {
             let raw = if dossier == "-" {
                 let mut s = String::new();
@@ -1208,6 +1237,8 @@ async fn dossier_cmd(cmd: DossierCmd) -> anyhow::Result<ExitCode> {
             let opts = zeceipt_core::dossier::CheckOptions {
                 expect_nonce,
                 issued_at_height,
+                expect_deposit_address,
+                ..Default::default()
             };
             let report = check_dossier_text(&net, &d, &raw, raw_tx_dir.as_deref(), &opts).await?;
             println!("{}", serde_json::to_string_pretty(&report)?);
@@ -1323,7 +1354,30 @@ async fn check_dossier_text(
             }
         }
     }
-    Ok(check_dossier_with(d, raw, &txs, opts))
+    let mut opts = opts.clone();
+    if raw_tx_dir.is_none() {
+        let mut c = connect(&net).await?;
+        // A node of another chain would serve the same txids' bytes for a relabelled dossier: ask it which it is.
+        if let Ok(chain) = c.chain_name().await {
+            let want = match d.network {
+                Network::Main => "main",
+                Network::Test => "test",
+                Network::Regtest => "regtest",
+            };
+            if !chain.is_empty() && chain != want {
+                return Err(anyhow!(
+                    "the node {} serves the {chain} chain, and the dossier is for {want}: check it against a node of its network",
+                    c.endpoint()
+                ));
+            }
+        }
+        for h in zeceipt_core::dossier::beacon_heights(d) {
+            if let Ok(id) = c.block_id(h).await {
+                opts.beacons.insert(h, id);
+            }
+        }
+    }
+    Ok(check_dossier_with(d, raw, &txs, &opts))
 }
 
 /// `dossier serve`: a small HTTP/1.1 service for a back office. Bodies are capped at 1 MiB; every answer is JSON.
@@ -1457,9 +1511,17 @@ async fn serve_dossiers(
                                     json!({"all_verified": false, "stage": "network", "error": e}),
                                 );
                             }
+                            if issued_at_height.is_some() && param("expect_nonce").is_none() {
+                                return reply(
+                                    StatusCode::BAD_REQUEST,
+                                    json!({"error": "issued_at_height needs expect_nonce: it is the height that nonce was issued at"}),
+                                );
+                            }
                             let opts = zeceipt_core::dossier::CheckOptions {
                                 expect_nonce: param("expect_nonce"),
                                 issued_at_height,
+                                expect_deposit_address: param("expect_deposit_address"),
+                                ..Default::default()
                             };
                             match check_dossier_text(&net, &d, &raw, dir.as_deref(), &opts).await {
                                 Ok(r) => reply(

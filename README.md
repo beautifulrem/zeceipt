@@ -41,7 +41,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/case-review-dark.png">
-    <img src="docs/assets/case-review.png" alt="The case review page after checking the testnet sample dossier with the nonce its reviewer issued: Verified, with control; the decision summary, the dossier's sha256, and the funds flow from the faucet origin through the hops, the three payments and the control challenge" width="820">
+    <img src="docs/assets/case-review.png" alt="The case review page after checking the testnet sample dossier with the nonce its reviewer issued: all 12 claims verified and control shown, but amber, Claims verified — funds not fully explained, because its faucet origin is an undisclosed shielded sender; the decision summary, the dossier's sha256 and the control answering the nonce" width="820">
   </picture><br>
   <sub>The case review page on the real testnet sample: every claim checked in the browser (WebAssembly) against a public node. Shot by <code>packages/verify/test/shots/case-review.mjs</code>.</sub>
 </p>
@@ -69,14 +69,14 @@ The holder builds a **dossier**: claims about specific funds, each checkable aga
 
 Each claim reports `verified`, `failed`, `not_checked` (a transaction is not mined or not found yet: check again) or `unproven` (the data given cannot show it, for example an origin note that nothing in the dossier spends, so it is not shown to be the holder's).
 
-The claims must also **add up** ([spec §5.6](spec/dossier-v1.md#56-trace-closure-and-value-coverage)). Every payment's and the control's funds must trace back, by path claims, to an origin (notes that do not are listed as `untraced`), and each transaction's disclosed notes must cover what it paid: otherwise the report gives `undisclosed_input_min_zat`, a lower bound on what came from notes the dossier does not disclose. That is the check against mixing, where a small clean note "funds" a large deposit of undisclosed money. The report's `assurance` is the first of these that applies:
+The claims must also **add up** ([spec §5.6](spec/dossier-v1.md#56-trace-closure-and-value-coverage)). Every payment's and the control's funds must trace back, by path claims, to an origin (notes that do not are listed as `untraced`), and each transaction's disclosed notes must cover what it paid: otherwise the report gives `undisclosed_input_min_zat`, a lower bound on what came from notes the dossier does not disclose. That is the check against mixing, where a small clean note "funds" a large deposit of undisclosed money. An origin must also name its source: one paid by an undisclosed shielded sender (a faucet, a mixer), one that spends disclosed notes (a hop), or one whose transparent inputs' previous transactions are missing is listed in `unexplained_origins`, and transparent inputs of unknown value are counted in `unvalued_inputs`. The report's `assurance` is the first of these that applies:
 
 | `assurance` | Case page | CLI exit |
 |---|---|---|
-| `not_verified`: some claim failed, is not checked or not proven, or a problem was reported | red or amber, with the reason | 1 or 2 |
+| `not_verified`: some claim failed, is not checked or not proven, or a problem was reported (a deposit address you gave, `--expect-deposit-address`, that no verified payment pays, say) | red or amber, with the reason | 1 or 2 |
 | `consistent_offline`: every claim holds against transaction files, but they carry no heights, so nothing was checked against the chain (a holder can send fabricated files) | amber, "Consistent with the files you loaded — not checked against the chain" | 4 |
-| `verified_partly_explained`: every claim holds against the chain, but some funds are `untraced`, or `undisclosed_input_min_zat` is above 0 | amber, "Claims verified — funds not fully explained" | 4 |
-| `verified_history_only`: explained, but no control claim answers the nonce you gave | amber, "Claims verified — control not shown" | 0 |
+| `verified_partly_explained`: every claim holds against the chain, but some funds are `untraced`, an origin is in `unexplained_origins`, or `undisclosed_input_min_zat` or `unvalued_inputs` is above 0 | amber, "Claims verified — funds not fully explained" | 4 |
+| `verified_history_only`: explained, but no control claim answers the nonce you gave, or a beacon (a block's hash, looked up from the node: `beacon_height`) | amber, "Claims verified — control not shown" | 0 |
 | `verified_with_control`: all of the above hold | green, "Verified, with control" | 0 |
 
 Exit 4 means "read the report before relying on it", so a script that reads only the exit code does not take it for a clean result; exit 3 is an I/O or node error.
@@ -108,7 +108,7 @@ sequenceDiagram
 - three payments (0.01, 0.02 and 0.03 TAZ);
 - a control challenge answered on chain at height 4,421,345.
 
-All 12 claims verify live and offline ([`docs/PROOF.md`](docs/PROOF.md) §8), and the forgeries we tried fail at the claim they attack: a wrong `nk`, a wrong nonce, a foreign note, a deposit not funded by the listed notes ([`crates/zeceipt-core/tests/dossier.rs`](crates/zeceipt-core/tests/dossier.rs)).
+All 12 claims verify live and offline ([`docs/PROOF.md`](docs/PROOF.md) §8), and the forgeries we tried fail at the claim they attack: a wrong `nk`, a wrong nonce, a foreign note, a deposit not funded by the listed notes ([`crates/zeceipt-core/tests/dossier.rs`](crates/zeceipt-core/tests/dossier.rs)). Its assurance is amber, `verified_partly_explained`, even with its nonce, and that is correct: the faucet paid from the shielded pool, an undisclosed shielded sender, so its origin n1 names no source (`unexplained_origins: ["n1"]`).
 
 ## Quick start
 
@@ -119,10 +119,13 @@ You need Rust (`protoc` is optional), Node 24+ and Python 3.
 ```bash
 cargo build --release && Z=target/release/zeceipt
 $Z dossier verify fixtures/dossier/testnet-dossier.json --raw-tx-dir fixtures/testnet   # exit 4: all 12 claims hold against the files, consistent_offline (files carry no heights)
-$Z dossier verify fixtures/dossier/testnet-dossier.json                                  # exit 0: the same, fetched from testnet.zec.rocks, verified_history_only
+$Z dossier verify fixtures/dossier/testnet-dossier.json                                  # exit 4: the same, fetched from testnet.zec.rocks, verified_partly_explained (origin n1, the faucet, names no source)
+$Z dossier verify fixtures/dossier/testnet-dossier-beacon.json \
+   --expect-deposit-address tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR                          # exit 0: verified_with_control with no nonce given (a beacon control, beacon_height 4426425), deposit_address_paid
 $Z dossier nonce                                                                          # a challenge to send a holder
+$Z dossier nonce --testnet --beacon                                                       # or a beacon: zeceipt-beacon-<tip>-<its hash>, which a holder can answer unprompted
 $Z dossier serve --testnet --listen 127.0.0.1:8787                                        # the same checks over HTTP, for a back office
-# POST /v1/dossiers/verify?expect_nonce=…  (the dossier as the body, Content-Type: application/json) → the report · POST /v1/nonces · GET /healthz
+# POST /v1/dossiers/verify?expect_nonce=…&expect_deposit_address=…  (the dossier as the body, Content-Type: application/json) → the report · POST /v1/nonces · GET /healthz
 ```
 
 The HTTP service is documented in [`docs/api/dossier-service.md`](docs/api/dossier-service.md), with an [OpenAPI 3.1 file](docs/api/dossier-service.openapi.json) and a [`Dockerfile`](Dockerfile) for running it behind your own TLS and authentication. It refuses a request that carries a browser `Origin` header (403) unless that origin is allowed with `--allow-origin https://your-back-office.example` (repeatable), so a web page open in an analyst's browser cannot drive it; and it takes a dossier only as `application/json` (415 otherwise). A `--testnet` or `--regtest` flag that disagrees with the dossier's `network` is refused, by the CLI (exit 1, `"stage": "network"`) and by the service (HTTP 422), since the txids would be looked up on the wrong chain and a relabelled testnet dossier would read as mainnet ZEC.
@@ -177,7 +180,7 @@ flowchart LR
 
 ## For judges
 
-**Two minutes, no install.** Open the [exchange-deposit review](https://beautifulremi.dpdns.org/zeceipt/case/#sample-exchange) (PROOF §9), a simulated exchange-deposit review on testnet (we ran the exchange's wallet): its transparent hot wallet withdrew 0.2 TAZ to a customer's shielded address, the customer deposited 0.05 TAZ back to a transparent deposit address, and answered the exchange's nonce. The page fetches the four transactions from a public testnet node and checks every claim in your browser. It first shows amber, "Claims verified — control not shown", because you have not entered a nonce; press "Try it with the nonce the sample answered" (the exchange's nonce and the height it issued it at) and it turns green, "Verified, with control". Enter `tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR` as the deposit address you assigned: the verdict names the claim that pays it. Then tamper with it: change one character of `nk` or of the nonce, or enter a later issue height, and check again: the claims that rest on it fail and the rest still verify. Delete a path claim and the case turns amber, "Claims verified — funds not fully explained", naming the note that no longer traces back to an origin. The [faucet sample](https://beautifulremi.dpdns.org/zeceipt/case/#sample) (12 claims, PROOF §8) and [a round trip through a transparent address](https://beautifulremi.dpdns.org/zeceipt/case/#sample-transparent) are linked from the page.
+**Two minutes, no install.** Open the [exchange-deposit review](https://beautifulremi.dpdns.org/zeceipt/case/#sample-exchange) (PROOF §9), a simulated exchange-deposit review on testnet (we ran the exchange's wallet): its transparent hot wallet withdrew 0.2 TAZ to a customer's shielded address, the customer deposited 0.05 TAZ back to a transparent deposit address, and answered the exchange's nonce. The page fetches the four transactions from a public testnet node and checks every claim in your browser. It first shows amber, "Claims verified — control not shown", because you have not entered a nonce; press "Try it with the nonce the sample answered" (the exchange's nonce and the height it issued it at) and it turns green, "Verified, with control". Enter `tmXdyCse34c3qhaP7Rr6zDkF3NvuiRfKPAR` as the deposit address you assigned: the verdict names the claim that pays it. Then tamper with it: change one character of `nk` or of the nonce, or enter a later issue height, and check again: the claims that rest on it fail and the rest still verify. Delete a path claim and the case turns amber, "Claims verified — funds not fully explained", naming the note that no longer traces back to an origin. Enter an address no payment pays and it turns red, "Deposit address not paid". The [beacon sample](https://beautifulremi.dpdns.org/zeceipt/case/#sample-beacon) (`#sample-beacon`, PROOF §10) is the same customer proving control unprompted: its control answers the hash of block 4,426,425, which the page looks up, so it is green with no nonce entered. The [faucet sample](https://beautifulremi.dpdns.org/zeceipt/case/#sample) (12 claims, PROOF §8) stays amber, "funds not fully explained", even with its nonce, and should: its origin is the testnet faucet, an undisclosed shielded sender. It and [a round trip through a transparent address](https://beautifulremi.dpdns.org/zeceipt/case/#sample-transparent) are linked from the page.
 
 **Building one yourself.** The [Build page](https://beautifulremi.dpdns.org/zeceipt/build/) takes a viewing key and never sends it. NU7 activates on testnet on 2026-10-06, and this build refuses transactions mined after that until the Zcash crates support NU7, so after 10-06 try it with the published sample keys, whose transactions were mined before: press "Try with the sample customer's viewing key" (the exchange review's customer, [`fixtures/testnet/holder2-ufvk.txt`](fixtures/testnet/holder2-ufvk.txt), scanned from 4,422,270), or paste the faucet sample's [`fixtures/testnet/issuer-ufvk.txt`](fixtures/testnet/issuer-ufvk.txt). The scan also finds the challenge answer: Build recognises it and moves it under Control in one click.
 
@@ -187,7 +190,7 @@ flowchart LR
 cargo test --workspace --features zeceipt-core/synthetic   # 93 tests, including the official Orchard note-encryption vectors and the dossier forgeries
 cargo build --release && Z=target/release/zeceipt
 $Z dossier verify fixtures/dossier/testnet-dossier.json \
-   --expect-nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8   # exit 0: 12 of 12 verified, nk_proven and controlled true, from testnet.zec.rocks
+   --expect-nonce zeceipt-challenge-eadb7e12661d3fe791dcb94683f3c8a8   # exit 4: 12 of 12 verified, nk_proven and controlled true, verified_partly_explained (the faucet origin names no source), from testnet.zec.rocks
 $Z dossier verify fixtures/dossier/testnet-dossier.json --raw-tx-dir fixtures/testnet \
    --expect-nonce zeceipt-challenge-00000000000000000000000000000000   # exit 1, offline: the control claim fails, "not the one you issued"
 node packages/verify/test/dossier-view.mjs                 # the case and build pages' logic on the real testnet dossier
@@ -198,13 +201,14 @@ node packages/verify/test/dossier-view.mjs                 # the case and build 
 
 | Evidence | Chain | What it shows |
 |---|---|---|
-| A source-of-funds dossier: a faucet origin, four hops, three payments and a control challenge ([`fixtures/dossier/testnet-dossier.json`](fixtures/dossier/testnet-dossier.json)) | **Testnet**, heights 4,419,987–4,421,345 | All 12 claims verified live and offline, the holder's scan finding exactly its five transactions, forgeries refused ([`docs/PROOF.md`](docs/PROOF.md) §8) |
+| A source-of-funds dossier: a faucet origin, four hops, three payments and a control challenge ([`fixtures/dossier/testnet-dossier.json`](fixtures/dossier/testnet-dossier.json)) | **Testnet**, heights 4,419,987–4,421,345 | All 12 claims verified live and offline, the holder's scan finding exactly its five transactions, forgeries refused ([`docs/PROOF.md`](docs/PROOF.md) §8). Amber, `verified_partly_explained`, with its nonce too: the faucet is an undisclosed shielded sender, so origin n1 names no source |
 | A simulated exchange-deposit review ([`fixtures/dossier/testnet-dossier-exchange.json`](fixtures/dossier/testnet-dossier-exchange.json)) | **Testnet**, heights 4,422,275–4,422,305 | 4 of 4 claims verified with control: a withdrawal from a transparent hot wallet to the customer, the customer's deposit back to a transparent deposit address, and a control answer (PROOF §9). The "exchange" is our own wallet, and the nonce's freshness is self-asserted: we issued it and answered it |
+| A control answering a beacon, the hash of block 4,426,425 ([`fixtures/dossier/testnet-dossier-beacon.json`](fixtures/dossier/testnet-dossier-beacon.json), `#sample-beacon`) | **Testnet**, the answer mined at 4,426,430 | The exchange customer proving control with no one issuing the nonce: `verified_with_control`, `beacon_height` 4426425, and with `--expect-deposit-address tmXdy…` `deposit_address_paid: true` (PROOF §10) |
 | A second dossier with a cash-out to a transparent address and back ([`fixtures/dossier/testnet-dossier-transparent-origin.json`](fixtures/dossier/testnet-dossier-transparent-origin.json)) | **Testnet**, heights up to 4,421,684 | A transparent payment of 0.05 TAZ from a disclosed note, verified from the output's script; the shielding transaction's origin names that payment as its funder; that origin is `unproven` because nothing spends its note yet, and the report says so (PROOF §8). The transparent address is the holder's own, not an exchange's |
 | The case and build pages | **Testnet**, through public gRPC-web nodes | The sample verifies in the browser; the builder reproduces it from the published testnet UFVK and finds the transactions by scanning compact blocks in the page; no request carries the dossier or the key (the Chrome tests in CI) |
 | `zeceipt dossier serve` | The sample, over loopback HTTP | The report the CLI prints, over `POST /v1/dossiers/verify` (`dossier_serve_answers_over_http`; [`docs/api/dossier-service.md`](docs/api/dossier-service.md)) |
 | A mainnet dossier | **None yet** | Waits on mainnet funds (the owner's) |
-| The nonce's freshness | Asserted | The author played both reviewer and holder in both samples, so neither nonce was issued by a third party (PROOF §8, §9) |
+| The nonce's freshness | Asserted, except the beacon | The author played both reviewer and holder in both samples, so neither nonce was issued by a third party (PROOF §8, §9). The beacon sample's freshness is dated by the chain instead: no one could know block 4,426,425's hash before it was mined (PROOF §10) |
 
 | Where to look | What it shows |
 |---|---|
@@ -243,7 +247,7 @@ node packages/verify/test/dossier-view.mjs                 # the case and build 
 On the same toolchain the build is byte-for-byte reproducible:
 - **Toolchain:** rustc 1.96.0, wasm-pack 0.15.0 (wasm-opt 117), wasm-bindgen 0.2.128 and Homebrew clang 23.1.1.
 - **No local paths:** absolute build paths are remapped, with `--remap-path-prefix` for Rust and `-ffile-prefix-map` for C.
-- **Committed hash:** the committed `.wasm` has sha256 `f5234f8aa13d709e4571b37bffcae86d6a858469851137372694256f80733856`.
+- **Committed hash:** the committed `.wasm` has sha256 `cee243feeec1566b6d1b60c66049c22c444e860af714f5b21b6aea358111baa9`.
 - **Checking it:** `scripts/build_wasm.sh --check --require-identical-wasm` rebuilds the package into a temporary directory and compares it with the committed one.
 - **CI:** CI rebuilds on Linux with clang 18. The wasm-bindgen outputs must match there, and CI reports whether the `.wasm` bytes match.
 

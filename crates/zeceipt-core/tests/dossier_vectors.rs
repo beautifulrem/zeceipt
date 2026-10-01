@@ -136,6 +136,15 @@ fn outcome(r: &Report) -> Value {
     if r.undisclosed_input_min_zat > 0 {
         v["undisclosed_input_min_zat"] = json!(r.undisclosed_input_min_zat);
     }
+    if !r.unexplained_origins.is_empty() {
+        v["unexplained_origins"] = json!(r.unexplained_origins);
+    }
+    if let Some(h) = r.beacon_height {
+        v["beacon_height"] = json!(h);
+    }
+    if let Some(p) = r.deposit_address_paid {
+        v["deposit_address_paid"] = json!(p);
+    }
     if !r.problems.is_empty() {
         v["problems"] = json!(r.problems);
     }
@@ -188,6 +197,24 @@ fn the_spec_vectors_hold() {
         let opts = CheckOptions {
             expect_nonce: case["expect_nonce"].as_str().map(String::from),
             issued_at_height: case["issued_at_height"].as_u64(),
+            expect_deposit_address: case["expect_deposit_address"].as_str().map(String::from),
+            // A case's beacons: the blocks a beacon nonce names, as a node would report them.
+            beacons: case["beacons"]
+                .as_object()
+                .map(|m| {
+                    m.iter()
+                        .map(|(h, v)| {
+                            (
+                                h.parse().unwrap(),
+                                (
+                                    v["hash"].as_str().unwrap().to_string(),
+                                    v["time"].as_u64().unwrap() as u32,
+                                ),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
         };
         let got = outcome(&check_dossier_with(&d, &text, &txs, &opts));
         if write {

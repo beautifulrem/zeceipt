@@ -113,15 +113,21 @@ export function build_dossier(ufvk, network, txs_hex, control_hex, nonce, subjec
  * @param {string} dossier
  * @param {any} txs
  * @param {string} expect_nonce
- * @param {number | null} [issued_at_height]
+ * @param {number | null | undefined} issued_at_height
+ * @param {string} expect_deposit_address
+ * @param {string} beacons_json
  * @returns {any}
  */
-export function check_dossier(dossier, txs, expect_nonce, issued_at_height) {
+export function check_dossier(dossier, txs, expect_nonce, issued_at_height, expect_deposit_address, beacons_json) {
     const ptr0 = passStringToWasm0(dossier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(expect_nonce, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.check_dossier(ptr0, len0, txs, ptr1, len1, !isLikeNone(issued_at_height), isLikeNone(issued_at_height) ? 0 : issued_at_height);
+    const ptr2 = passStringToWasm0(expect_deposit_address, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(beacons_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.check_dossier(ptr0, len0, txs, ptr1, len1, !isLikeNone(issued_at_height), isLikeNone(issued_at_height) ? 0 : issued_at_height, ptr2, len2, ptr3, len3);
     return ret;
 }
 
@@ -136,6 +142,33 @@ export function check_signature(receipt) {
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.check_signature(ptr0, len0);
     return ret;
+}
+
+/**
+ * A serialized `CompactBlock`'s `{ height, hash, time }` (hash in display hex), or `null`.
+ * @param {Uint8Array} bytes
+ * @returns {any}
+ */
+export function compact_block_id(bytes) {
+    const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.compact_block_id(ptr0, len0);
+    return ret;
+}
+
+/**
+ * The heights whose block hashes the dossier's beacon nonces name (empty for none, or for a dossier that does not
+ * parse).
+ * @param {string} dossier
+ * @returns {Float64Array}
+ */
+export function dossier_beacon_heights(dossier) {
+    const ptr0 = passStringToWasm0(dossier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.dossier_beacon_heights(ptr0, len0);
+    var v2 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v2;
 }
 
 /**
@@ -608,6 +641,11 @@ function debugString(val) {
     return className;
 }
 
+function getArrayF64FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat64ArrayMemory0().subarray(ptr / 8, ptr / 8 + len);
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
@@ -619,6 +657,14 @@ function getDataViewMemory0() {
         cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
     }
     return cachedDataViewMemory0;
+}
+
+let cachedFloat64ArrayMemory0 = null;
+function getFloat64ArrayMemory0() {
+    if (cachedFloat64ArrayMemory0 === null || cachedFloat64ArrayMemory0.byteLength === 0) {
+        cachedFloat64ArrayMemory0 = new Float64Array(wasm.memory.buffer);
+    }
+    return cachedFloat64ArrayMemory0;
 }
 
 function getStringFromWasm0(ptr, len) {
@@ -741,6 +787,7 @@ function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
     cachedDataViewMemory0 = null;
+    cachedFloat64ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;
